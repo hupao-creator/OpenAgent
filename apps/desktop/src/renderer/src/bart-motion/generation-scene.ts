@@ -30,6 +30,9 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
   let lease: OverviewStageLease | undefined
   let run: MotionRun | undefined
   const cards: PreparedMotionCard[] = []
+  const releaseCards = (): void => {
+    cards.splice(0).forEach(card => card.assets.forEach(asset => asset.bitmap.close()))
+  }
   const cleanups: (() => void)[] = []
   const abort = (): void => controller.abort(new DOMException('Bart generation scene ended', 'AbortError'))
   const dispose = (): void => {
@@ -40,7 +43,7 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     camera?.release()
     seal?.release()
     run?.release()
-    cards.forEach(card => card.assets.forEach(asset => asset.bitmap.close()))
+    releaseCards()
     pool.release(token)
     lease?.release()
     if (seal?.presented) {
@@ -91,55 +94,81 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     const dockContainer = dock.closest<HTMLElement>('.bart-dock') ?? dock
     const scroll = registry.scrollContainer()
     const plane = elements[0].closest<HTMLElement>('.thread-overview-plane')
-    const rootRect = root.getBoundingClientRect()
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
     reduced?.addEventListener('change', abort)
     cleanups.push(() => reduced?.removeEventListener('change', abort))
     seal = sealMotionScene({ root, canvas, covered: [...elements, dockContainer],
       interactions: [scroll ?? plane ?? elements[0], ...elements, dockContainer],
       resources: plane ? [plane] : [], scroll: scroll ? [scroll] : [], freezeTransforms: [dockContainer] })
-    const revision = (): string => elements.map(motionCardRevision).join('\0')
-    const valid = sealGeometry([root, dockContainer, ...elements], revision)
-    const initialRevision = revision()
-    const initialCamera = getOverviewCameraCockpit().live?.transform
-    // The resident SVG reserves room for orbits and a caption. Its stable body
-    // outline supplies geometry; the Worker owns the live pose, never this DOM.
-    const dockRect = (dock.querySelector<SVGGraphicsElement>('.bart-bot > path') ?? dock).getBoundingClientRect()
-    const dockPose = { x: dockRect.left - rootRect.left + dockRect.width / 2,
-      y: dockRect.top - rootRect.top + dockRect.height / 2, radius: Math.min(dockRect.width, dockRect.height) / 2 }
-    const matrix = logo.getScreenCTM()
-    if (!matrix || residentCharacter(logo) !== actor) throw new Error('Bart generation resident changed')
-    const viewport = registry.viewportRootRect() ?? { x: 0, y: 0, width: rootRect.width, height: rootRect.height }
-    // Native toolbar remains above the moving plane. The prepared textures use
-    // exactly this same clipped viewport, including on a relay offscreen.
-    const toolbar = scroll?.parentElement?.querySelector<HTMLElement>('.thread-overview-header')?.getBoundingClientRect()
-    if (toolbar) {
-      const top = Math.max(viewport.y, toolbar.bottom - rootRect.top)
-      viewport.height -= top - viewport.y; viewport.y = top
+    // Metadata and streamed status can arrive during capture or Worker upload.
+    // Keep the work pending and the original seal deadline across attempts;
+    // only a snapshot that is still current may become visible.
+    const beforeDeadline = <T>(prepare: (sealSignal: AbortSignal) => Promise<T>): Promise<T> => {
+      const remaining = MOTION_LIMITS.sealTimeout - (performance.now() - seal!.sealedAt)
+      if (remaining <= 0) throw new Error('Bart scene sealing exceeded its budget')
+      return prepareWithinBudget(prepare, signal, remaining)
     }
-    await prepareWithinBudget(async sealSignal => {
+    const preparePlayback = async (sealSignal: AbortSignal) => {
+      while (elements.some(element => element.querySelector('[aria-busy="true"]'))) await preparationPause(sealSignal)
+      sealSignal.throwIfAborted()
+      if (!root.isConnected || !dock.isConnected || !elements.every(element => element.isConnected)) {
+        throw new Error('Bart scene geometry unavailable')
+      }
+      const rootRect = root.getBoundingClientRect()
+      surface!.resize(rootRect.width, rootRect.height)
+      const toolbar = scroll?.parentElement?.querySelector<HTMLElement>('.thread-overview-header')
+      const revision = (): string => elements.map(motionCardRevision).join('\0')
+      const valid = sealGeometry([root, dockContainer, ...elements, ...(scroll ? [scroll] : []), ...(toolbar ? [toolbar] : [])], revision)
+      const initialRevision = revision()
+      const initialCamera = getOverviewCameraCockpit().live?.transform
+      // The resident SVG reserves room for orbits and a caption. Its stable body
+      // outline supplies geometry; the Worker owns the live pose, never this DOM.
+      const dockRect = (dock.querySelector<SVGGraphicsElement>('.bart-bot > path') ?? dock).getBoundingClientRect()
+      const dockPose = { x: dockRect.left - rootRect.left + dockRect.width / 2,
+        y: dockRect.top - rootRect.top + dockRect.height / 2, radius: Math.min(dockRect.width, dockRect.height) / 2 }
+      const matrix = logo.getScreenCTM()
+      if (!matrix || residentCharacter(logo) !== actor) throw new Error('Bart generation resident changed')
+      const viewport = registry.viewportRootRect() ?? { x: 0, y: 0, width: rootRect.width, height: rootRect.height }
+      // A newly mounted tag bar can change the usable viewport before takeoff.
+      if (toolbar) {
+        const top = Math.max(viewport.y, toolbar.getBoundingClientRect().bottom - rootRect.top)
+        viewport.height -= top - viewport.y; viewport.y = top
+      }
       for (const element of elements) {
         const card = await prepareMotionCard(element, { x: rootRect.left, y: rootRect.top }, sealSignal, fonts)
         if (sealSignal.aborted) { card.assets.forEach(asset => asset.bitmap.close()); sealSignal.throwIfAborted() }
         cards.push(card)
       }
-      if (!valid()) throw new Error('Bart prepared content changed before playback')
+      if (!valid()) return undefined
       await surface!.load(cards.flatMap(card => card.assets))
       sealSignal.throwIfAborted()
+      if (!valid()) return undefined
       await surface!.borrowCharacter(actor.id)
       sealSignal.throwIfAborted()
-    }, signal, MOTION_LIMITS.sealTimeout)
+      if (!valid()) return undefined
+      const program = withGenerationCharacter(compileGenerationProgram(cards, dockPose, plane && initialCamera ? viewport : undefined),
+        dockPose, { a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, e: matrix.e - rootRect.left, f: matrix.f - rootRect.top },
+        actor.id, actor.description())
+      validateMotionProgram(program, new Set(cards.flatMap(card => card.assets.map(asset => asset.id))))
+      run = surface!.play(program)
+      const origin = await run.started
+      sealSignal.throwIfAborted()
+      return { valid, revision, initialRevision, initialCamera, rootRect, viewport, program, origin }
+    }
+    let playback: Awaited<ReturnType<typeof preparePlayback>>
+    while (true) {
+      playback = await beforeDeadline(preparePlayback)
+      signal.throwIfAborted()
+      if (!seal.owns()) throw new Error('Bart seal no longer valid')
+      if (playback?.valid()) break
+      run?.release()
+      run = undefined
+      surface!.resetPreparation()
+      releaseCards()
+      await beforeDeadline(preparationPause)
+    }
     signal.throwIfAborted()
-    if (!valid() || !seal.owns()) throw new Error('Bart seal no longer valid')
-    const program = withGenerationCharacter(compileGenerationProgram(cards, dockPose, plane && initialCamera ? viewport : undefined),
-      dockPose, { a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, e: matrix.e - rootRect.left, f: matrix.f - rootRect.top },
-      actor.id, actor.description())
-    validateMotionProgram(program, new Set(cards.flatMap(card => card.assets.map(asset => asset.id))))
-    run = surface!.play(program)
-    const origin = await prepareWithinBudget(() => run!.started, signal,
-      Math.max(1, MOTION_LIMITS.sealTimeout - (performance.now() - seal.sealedAt)))
-    signal.throwIfAborted()
-    if (!valid()) throw new Error('Bart seal changed before first presentation')
+    const { revision, initialRevision, initialCamera, rootRect, viewport, program, origin } = playback
     if (plane && initialCamera && program.camera) {
       camera = getOverviewCameraCockpit().playPrepared(program.camera.map(frame => ({
         at: frame.at, x: initialCamera.x + frame.x, y: initialCamera.y + frame.y, scale: initialCamera.scale
@@ -177,7 +206,7 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       }, error => { signal.removeEventListener('abort', onAbort); reject(error) })
     })
     signal.throwIfAborted()
-    await run.landCharacter()
+    await run!.landCharacter()
   })().catch((error: unknown) => {
     performance.clearMarks('bart-generation-skipped')
     performance.mark('bart-generation-skipped', { detail: { reason: error instanceof Error ? error.message : String(error) } })
