@@ -25,6 +25,18 @@ function thread(execution: PublicExecution = completed): HarnessThreadRecord {
   return { id: 'pi-thread', harnessId: 'pi', revision: 1, title: 'Pi task', settings: {}, sessionState: piJson(state), observation: { latestExecution: state.executions[1], backgroundWork: null }, tags: [], cwd: '/project', createdAt: 1, updatedAt: 3 }
 }
 function actions() { return { interrupt: vi.fn().mockResolvedValue(undefined), respond: vi.fn().mockResolvedValue(undefined), forkThread: vi.fn().mockResolvedValue({ threadId: 'clone' }), openExternal: vi.fn(), openFollowUp: vi.fn(), invokeHarnessExtension: vi.fn() } }
+/** One Execution with the given messages, so a card projection can be driven from its transcript. */
+function cardThread(messages: PiSessionState['messages'], executionId = 'run'): HarnessThreadRecord {
+  const execution: PublicExecution = { executionId, status: 'completed', startedAt: 1, finishedAt: 2 }
+  const state: PiSessionState = { version: 1, executions: [execution], latestExecutionId: executionId, messages }
+  return { id: 'pi-card', harnessId: 'pi', revision: 1, title: 'Pi task', settings: {}, sessionState: piJson(state),
+    observation: { latestExecution: execution, backgroundWork: null }, tags: [], cwd: '/project', createdAt: 1, updatedAt: 3 }
+}
+function renderCard(current: HarnessThreadRecord, layout = { availableColumns: 2 }) {
+  const projection = piOverviewCardModule.project({ thread: current, layout })
+  const Card = piOverviewCardModule.Card
+  return render(<I18nProvider locale="en-US"><Card thread={current} projection={projection.view} actions={{ ...actions(), openThread: vi.fn() }} /></I18nProvider>)
+}
 it('uses the official adaptive Pi mark everywhere the Renderer exposes its logo', () => {
   expect(piLogo).toMatch(/^data:image\/svg\+xml,/)
   const markup = decodeURIComponent(piLogo.slice('data:image/svg+xml,'.length))
@@ -180,6 +192,35 @@ it('projects waiting requests through shared overview cards and obeys interventi
   expect(screen.queryByRole('button', { name: 'Allow action' })).not.toBeInTheDocument()
 })
 
+it('collapses the overview excerpt into one paragraph and marks the cut', () => {
+  const current = cardThread([{ id: 'a1', executionId: 'run', role: 'assistant', text: `第一段。\n\n第二段   with   spaces。${'尾'.repeat(700)}` }])
+  const projection = piOverviewCardModule.project({ thread: current, layout: { availableColumns: 2 } })
+  expect(projection.excerpt).not.toContain('\n')
+  expect(projection.excerpt.startsWith('第一段。 第二段 with spaces。')).toBe(true)
+  expect(projection.excerpt).toHaveLength(601)
+  expect(projection.excerpt.endsWith('…')).toBe(true)
+  // Splitting on code points keeps a surrogate pair whole at the cut.
+  const emoji = piOverviewCardModule.project({ thread: cardThread([{ id: 'a1', executionId: 'run', role: 'assistant', text: '😀'.repeat(700) }]), layout: { availableColumns: 2 } })
+  expect(Array.from(emoji.excerpt)).toHaveLength(601)
+  expect(Array.from(emoji.excerpt).at(-2)).toBe('😀')
+})
+it('leaves a short overview excerpt unmarked', () => {
+  const projection = piOverviewCardModule.project({ thread: cardThread([{ id: 'a1', executionId: 'run', role: 'assistant', text: '  短  正文  ' }]), layout: { availableColumns: 2 } })
+  expect(projection.excerpt).toBe('短 正文')
+})
+it('shows the latest run usage and cache ratio on the overview card', () => {
+  const view = renderCard(cardThread([{ id: 'u1', executionId: 'run', role: 'user', text: '问题' },
+    { id: 'a1', executionId: 'run', role: 'assistant', text: '当前回答', usage: { input: 10, output: 4, cacheRead: 5, cacheWrite: 2 } }]))
+  expect(view.container.querySelector('.thread-card-identity-usage')).toHaveTextContent('21tokens · 29.4%cached')
+})
+it('keeps the previous run usage off a card whose own run reported none', () => {
+  const executions: PublicExecution[] = [{ executionId: 'first', status: 'completed', startedAt: 1, finishedAt: 2 },
+    { executionId: 'run', status: 'running', startedAt: 3 }]
+  const state: PiSessionState = { version: 1, executions, latestExecutionId: 'run',
+    messages: [{ id: 'a1', executionId: 'first', role: 'assistant', text: '上一轮', usage: { input: 10, output: 4, cacheRead: 5, cacheWrite: 2 } }] }
+  const view = renderCard({ ...cardThread([], 'run'), sessionState: piJson(state), observation: { latestExecution: executions[1]!, backgroundWork: null } })
+  expect(view.container.querySelector('.thread-card-identity-usage')).not.toBeInTheDocument()
+})
 it('reports a ready CLI without version as available and keeps loading distinct from unavailable', () => {
   const reload = vi.fn()
   const change = vi.fn()
