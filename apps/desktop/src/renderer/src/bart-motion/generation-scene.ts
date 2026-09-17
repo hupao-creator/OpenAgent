@@ -7,6 +7,7 @@ import { residentCharacter } from './CharacterCanvas'
 import { prepareWithinBudget, sealGeometry, sealMotionScene } from './scene-host'
 import { MOTION_LIMITS, validateMotionProgram } from './runtime-limits'
 import { generationSurface } from './generation-surface'
+import { createSceneLifetime } from './scene-lifetime'
 
 function preparationPause(signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -20,9 +21,8 @@ function preparationPause(signal: AbortSignal): Promise<void> {
 /** One production batch, including camera, all reveals and return. */
 export function createGenerationScene(root: HTMLElement, ids: readonly string[], parentSignal: AbortSignal) {
   const registry = getBartSpatialRegistry(), coordinator = getOverviewMotionCoordinator()
-  const controller = new AbortController(), signal = controller.signal
+  const lifetime = createSceneLifetime('Bart generation scene ended', parentSignal), signal = lifetime.signal
   const pool = generationSurface(root), token = Symbol('generation-surface'), canvas = pool.canvas
-  let disposed = false
   const preparedAt = performance.now()
   let surface: ReturnType<typeof createMotionSurface> | undefined
   let seal: ReturnType<typeof sealMotionScene> | undefined
@@ -33,28 +33,22 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
   const releaseCards = (): void => {
     cards.splice(0).forEach(card => card.assets.forEach(asset => asset.bitmap.close()))
   }
-  const cleanups: (() => void)[] = []
-  const abort = (): void => controller.abort(new DOMException('Bart generation scene ended', 'AbortError'))
-  const dispose = (): void => {
-    if (disposed) return
-    disposed = true
-    abort()
-    cleanups.splice(0).forEach(cleanup => cleanup())
-    camera?.release()
-    seal?.release()
-    run?.release()
-    releaseCards()
-    pool.release(token)
-    lease?.release()
-    if (seal?.presented) {
-      performance.clearMarks('bart-generation-handoff')
-      performance.mark('bart-generation-handoff', { detail: { lockMs: performance.now() - seal.sealedAt } })
+  const abort = lifetime.abort
+  lifetime.release(
+    () => camera?.release(),
+    () => seal?.release(),
+    () => run?.release(),
+    releaseCards,
+    () => pool.release(token),
+    () => lease?.release(),
+    () => {
+      if (seal?.presented) {
+        performance.clearMarks('bart-generation-handoff')
+        performance.mark('bart-generation-handoff', { detail: { lockMs: performance.now() - seal.sealedAt } })
+      }
     }
-  }
-  parentSignal.addEventListener('abort', abort, { once: true })
-  cleanups.push(() => parentSignal.removeEventListener('abort', abort))
-  if (parentSignal.aborted) abort()
-  cleanups.push(coordinator.onSceneCut(abort), registry.onThreadCardUnregister(id => { if (ids.includes(id)) abort() }))
+  )
+  lifetime.observe(coordinator.onSceneCut(abort), registry.onThreadCardUnregister(id => { if (ids.includes(id)) abort() }))
 
   const performed = (async (): Promise<void> => {
     pool.acquire(token, abort)
@@ -99,7 +93,7 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     for (const query of ['(prefers-reduced-motion: reduce)', '(prefers-color-scheme: dark)']) {
       const media = window.matchMedia?.(query)
       media?.addEventListener('change', abort)
-      cleanups.push(() => media?.removeEventListener('change', abort))
+      lifetime.observe(() => media?.removeEventListener('change', abort))
     }
     seal = sealMotionScene({ root, canvas, covered: [...elements, dockContainer],
       interactions: [scroll ?? plane ?? elements[0], ...elements, dockContainer],
@@ -203,18 +197,11 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     }
     const resize = new ResizeObserver(onResize)
     resize.observe(root)
-    cleanups.push(() => resize.disconnect())
-    await new Promise<void>((resolve, reject) => {
-      const onAbort = (): void => reject(signal.reason)
-      signal.addEventListener('abort', onAbort, { once: true })
-      void run!.performed.then(() => {
-        signal.removeEventListener('abort', onAbort)
-        canvas.dataset.generationState = 'waiting-host'
-        resolve()
-      }, error => { signal.removeEventListener('abort', onAbort); reject(error) })
-    })
+    lifetime.observe(() => resize.disconnect())
+    await lifetime.wait(run!.performed)
     signal.throwIfAborted()
-    await run!.landCharacter()
+    canvas.dataset.generationState = 'waiting-host'
+    await lifetime.wait(run!.landCharacter())
   })().catch((error: unknown) => {
     performance.clearMarks('bart-generation-skipped')
     performance.mark('bart-generation-skipped', { detail: { reason: error instanceof Error ? error.message : String(error) } })
@@ -222,5 +209,5 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
   })
   // The caller restores pending React facts synchronously before disposing the
   // held canvas. Rejection has the same safe handoff to current business DOM.
-  return { performed, dispose }
+  return { performed, dispose: lifetime.dispose, handoff: lifetime.handoff }
 }

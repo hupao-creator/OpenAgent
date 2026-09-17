@@ -1,5 +1,5 @@
 import { getFontEmbedCSS } from 'html-to-image'
-import { snapshotSurfaceVariants } from '../bart-thread-transition/camera-scene'
+import { snapshotSurfaceVariants } from './dom-snapshot'
 import { cardRevealBlocks } from '../card-generation/reveal'
 import { measureVisibleCharacters } from '../card-generation/content'
 import { typesetBlock, type TypesetCaretPoint } from '../card-generation/typeset'

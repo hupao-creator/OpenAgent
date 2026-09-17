@@ -5,7 +5,7 @@ import { freezeCardDOM } from '../src/renderer/src/bart-motion/card-snapshot'
 
 const mocks = vi.hoisted(() => ({ raster: vi.fn(), measure: vi.fn(), bitmap: vi.fn() }))
 vi.mock('html-to-image', () => ({ getFontEmbedCSS: async () => '' }))
-vi.mock('../src/renderer/src/bart-thread-transition/camera-scene', () => ({ snapshotSurfaceVariants: mocks.raster }))
+vi.mock('../src/renderer/src/bart-motion/dom-snapshot', () => ({ snapshotSurfaceVariants: mocks.raster }))
 vi.mock('../src/renderer/src/card-generation/content', () => ({ measureVisibleCharacters: mocks.measure }))
 
 function deferred<T>() {
