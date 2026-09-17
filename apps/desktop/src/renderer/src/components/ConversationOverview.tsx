@@ -1219,14 +1219,17 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
   const liquidBackdrops = useMemo<readonly React.RefObject<HTMLElement | null>[]>(
     () => [actionsRef, filterRef], [showTagFilters])
   /* CanvasDrawElement 是宿主进程级的 Blink 开关，没有它库每次捕获都抛错。缺了就整块
-     退回普通 DOM —— 俯瞰视图是主视图，不能因为一个实验特性拿不到就白屏。
-     光有特性还不够：适配器拿不到、画布上下文建不出来同样得退，那要等画布真去初始化
-     才知道，所以下面那条 `onFailure` 也参与判定。两处一起撤，包括 `.overview-liquid`
-     那套「浮条背景透明」，否则浮条会变成没有背板的字压在卡片上。 */
-  const [liquidFailed, setLiquidFailed] = useState(false)
-  const handleLiquidFailure = useCallback((): void => setLiquidFailed(true), [])
+     退回普通 DOM —— 俯瞰视图是主视图，不能因为一个实验特性拿不到就白屏。 */
   const liquidCapable = useMemo(() => canvasDrawElementGap() === null, [])
-  const liquidEnabled = liquidCapable && !liquidFailed
+  /* 光有开关还不够：适配器拿不到、画布上下文建不出来同样得退，那要等画布真去初始化
+     才知道，所以舞台还会在运行期报一次失败。这一路**只撤绘制，不卸载舞台** ——
+     `.overview-liquid` 那套「浮条背景透明」得跟着撤（否则浮条会变成没有背板的字压在
+     卡片上），但舞台一卸载，主体就整块从画布挪回 section 底下，滚动容器和全部卡片节点
+     重建，已经量好几何的空间转场（Bart 那趟）会因为元素断开而作废。那条样式只清背景、
+     模糊和描边，不碰布局，降级落在绘制上就够。 */
+  const [liquidDegraded, setLiquidDegraded] = useState(false)
+  const handleLiquidFailure = useCallback((): void => setLiquidDegraded(true), [])
+  const liquidGlass = liquidCapable && !liquidDegraded
 
   /* 俯瞰视图主体。开玻璃时它整块进画布当衬底（只作为捕获来源，不再直接参与页面绘制），
      只有滚动和布局由宿主 DOM 正常驱动。 */
@@ -1360,7 +1363,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       className={[
         'thread-overview',
         'overview-canvas',
-        liquidEnabled ? 'overview-liquid' : '',
+        liquidGlass ? 'overview-liquid' : '',
         canvasManual ? 'overview-canvas-manual' : '',
         showTagFilters ? 'overview-has-tag-filters' : '',
         featuredOperation ? 'bart-managing-threads' : '',
@@ -1468,7 +1471,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
         )}
       </div>
 
-      {liquidEnabled
+      {liquidCapable
         ? <OverviewLiquidStage backdropRefs={liquidBackdrops} scrollRef={scrollRef}
             onSubtreeMounted={onLiquidSubtreeMounted}
             onFailure={handleLiquidFailure}>{body}</OverviewLiquidStage>
