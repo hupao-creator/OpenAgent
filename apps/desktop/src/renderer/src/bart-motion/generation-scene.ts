@@ -7,6 +7,7 @@ import { residentCharacter } from './CharacterCanvas'
 import { prepareWithinBudget, sealGeometry, sealMotionScene } from './scene-host'
 import { MOTION_LIMITS, validateMotionProgram } from './runtime-limits'
 import { generationSurface } from './generation-surface'
+import { diag } from './verify-diag'
 
 function preparationPause(signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -33,6 +34,7 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
   const cleanups: (() => void)[] = []
   const abort = (): void => controller.abort(new DOMException('Bart generation scene ended', 'AbortError'))
   const dispose = (): void => {
+    diag('scene-dispose', { disposed })
     if (disposed) return
     disposed = true
     abort()
@@ -58,9 +60,12 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     canvas.className = 'bart-generation-scene'
     canvas.dataset.generationState = 'preparing'
     canvas.hidden = true
+    diag('scene-enter', { ids: ids.length, limit: MOTION_LIMITS.sceneCards, worker: typeof Worker !== 'undefined',
+      offscreen: Boolean(canvas.transferControlToOffscreen),
+      reduced: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true })
     if (!ids.length || ids.length > MOTION_LIMITS.sceneCards ||
       typeof Worker === 'undefined' || !canvas.transferControlToOffscreen ||
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return diag('scene-skip-early')
     // Only prepared resources enter the global execution FIFO. Fonts, lazy
     // Markdown and shaders never hold a character or the user's scroll region.
     const prepared = await prepareWithinBudget(async warmSignal => {
@@ -82,8 +87,10 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       warmSignal.throwIfAborted()
       return { elements, fonts, logo, actor }
     }, signal)
+    diag('scene-prepared')
     signal.throwIfAborted()
     lease = await coordinator.acquireStage('bart-generation:prepared-batch', signal)
+    diag('scene-stage-acquired')
     signal.throwIfAborted()
     const { elements, fonts, logo, actor } = prepared
     const dock = registry.dockElement()
@@ -146,6 +153,7 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       })), program.duration, origin)
     }
     if (!seal.show()) throw new Error('Bart scene ownership expired')
+    diag('scene-ready', { origin, duration: program.duration })
     canvas.dataset.generationState = 'playing'
     performance.clearMarks('bart-generation-ready')
     performance.mark('bart-generation-ready', { detail: { origin, duration: program.duration,
@@ -179,6 +187,7 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     signal.throwIfAborted()
     await run.landCharacter()
   })().catch((error: unknown) => {
+    diag('scene-aborted', error instanceof Error ? `${error.name}: ${error.message}` : String(error))
     performance.clearMarks('bart-generation-skipped')
     performance.mark('bart-generation-skipped', { detail: { reason: error instanceof Error ? error.message : String(error) } })
     throw error

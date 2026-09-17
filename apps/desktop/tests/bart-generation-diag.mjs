@@ -61,6 +61,13 @@ app.whenReady().then(async () => {
       ({ at, ready: Boolean(ready), skipped: Boolean(skipped), busy, works, animations, hasAlert: Boolean(hasAlert) }))))
     console.log('DIAG_FINAL', JSON.stringify(last))
     console.log('DIAG_DIAG', JSON.stringify(last.diag))
+    console.log('DIAG_ENV', JSON.stringify(await contents.executeJavaScript(`({
+      reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      scheme: matchMedia('(prefers-color-scheme: dark)').matches,
+      worker: typeof Worker !== 'undefined',
+      offscreen: typeof HTMLCanvasElement.prototype.transferControlToOffscreen === 'function',
+      visibility: document.visibilityState, hidden: document.hidden, focused: document.hasFocus()
+    })`)))
     console.log('DIAG_DONE')
     window.destroy(); app.exit(0)
   } catch (error) {

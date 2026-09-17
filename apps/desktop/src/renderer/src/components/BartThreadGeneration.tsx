@@ -5,6 +5,7 @@ import type { RendererReport } from '../../../shared/renderer-state-contracts'
 import { harnessDisplayName } from '../../../shared/harnesses'
 import { formatReportUpdatedTime } from './ReportCard'
 import { createGenerationScene } from '../bart-motion/generation-scene'
+import { diag } from '../bart-motion/verify-diag'
 import { flushSync } from 'react-dom'
 import type { HarnessOverviewThread } from '@openagent/contracts/renderer'
 import './BartThreadGeneration.css'
@@ -86,10 +87,12 @@ function BartPreparedGeneration({ work, onComplete }: {
   const marker = useRef<HTMLSpanElement>(null)
   useLayoutEffect(() => {
     const root = marker.current?.closest<HTMLElement>('.app-shell')
+    diag('prepared-effect', { root: Boolean(root), signal: work.controller.signal.aborted })
     if (!root) { queueMicrotask(onComplete); return }
     let active = true
     const scene = createGenerationScene(root, work.targets.map(target => target.id), work.controller.signal)
     const finish = (): void => {
+      diag('prepared-finish', { active })
       if (!active) return
       // Release native pending facts and the covering surface in this same Host
       // task. No guessed frame count or timeout is used as presentation proof.
@@ -130,6 +133,7 @@ export function BartThreadGenerations({
   const releaseCard = presentation.releaseCard
   useLayoutEffect(() => {
     if (orchestration) return
+    diag('local-enqueue', { works: works.length })
     for (const work of works) localStore.enqueue(work)
     for (const work of localStore.getState().works) {
       if (!works.some(current => current.key === work.key)) localStore.consumeWork(work.key)
@@ -141,6 +145,7 @@ export function BartThreadGenerations({
     onHiddenIdsChange?.(overviewOpen ? hiddenIds : [])
   }, [activeWork, hiddenIds, onHiddenIdsChange, onReveal, orchestration, overviewOpen, reveal])
   const complete = useCallback((): void => {
+    diag('complete', { activeWork: activeWork?.key ?? null })
     if (!activeWork) return
     activeWork.controller.abort()
     for (const target of activeWork.targets) releaseCard(target.id)
