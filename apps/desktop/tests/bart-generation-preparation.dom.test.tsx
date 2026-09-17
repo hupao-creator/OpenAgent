@@ -78,7 +78,7 @@ function fixture() {
   const captures: { text: string | null; bitmap: ImageBitmap }[] = []
   const runs: { program: MotionProgram; finish: () => void; release: ReturnType<typeof vi.fn>; landCharacter: ReturnType<typeof vi.fn> }[] = []
   const hooks: { capture?: () => Promise<void> | void; load?: () => Promise<void> | void;
-    borrow?: () => Promise<void> | void; start?: () => Promise<void> | void } = {}
+    borrow?: () => Promise<void> | void; start?: () => Promise<void> | void; land?: () => Promise<void> | void } = {}
   mocks.capture.mockImplementation(async (element: HTMLElement, origin: { x: number; y: number }): Promise<PreparedMotionCard> => {
     const bounds = element.getBoundingClientRect()
     const rect = { x: bounds.x - origin.x, y: bounds.y - origin.y, width: bounds.width, height: bounds.height }
@@ -94,7 +94,7 @@ function fixture() {
     borrowCharacter: vi.fn(async () => { await hooks.borrow?.() }),
     play: vi.fn((program: MotionProgram) => {
       const done = deferred<void>()
-      const release = vi.fn(), landCharacter = vi.fn(async () => {})
+      const release = vi.fn(), landCharacter = vi.fn(async () => { await hooks.land?.() })
       runs.push({ program, finish: () => done.resolve(), release, landCharacter })
       return { started: Promise.resolve(hooks.start?.()).then(() => performance.timeOrigin + performance.now()),
         performed: done.promise, release, landCharacter }
@@ -252,17 +252,78 @@ describe('generation preparation follows live cards before takeoff', () => {
     expect(f.store.getState()).toMatchObject({ works: [], hiddenIds: [] })
     expect(f.ready()).toBeUndefined()
   })
+})
 
-  it('hands off updated content without replaying an already visible animation', async () => {
+describe('generation playback survives live card updates', () => {
+  it('finishes the visible reveal and landing before handing off the latest content', async () => {
     const f = fixture()
+    const landed = deferred<void>()
+    f.hooks.land = () => landed.promise
     f.start(); await advance()
     expect(f.canvas().hidden).toBe(false)
-    f.card.querySelector('strong')!.textContent = 'New business content after takeoff'
+    const initialOrigin = f.ready().origin
+    for (const text of ['First streamed chunk', 'More streamed content', 'Latest streamed content']) {
+      f.card.querySelector('strong')!.textContent = text
+      f.card.querySelector('span')!.className = 'thread-state running'
+      await advance(100)
+      expect(f.store.getState()).toMatchObject({ works: [f.work], hiddenIds: [id] })
+      expect(f.canvas().dataset.generationState).toBe('playing')
+      expect(f.canvas().hidden).toBe(false)
+      expect(f.card.style.visibility).toBe('hidden')
+      expect(f.work.controller.signal.aborted).toBe(false)
+      expect(f.captures[0].bitmap.close).not.toHaveBeenCalled()
+    }
+    await f.finish()
+    expect(f.canvas().dataset.generationState).toBe('waiting-host')
+    expect(f.store.getState().works).toHaveLength(1)
+    expect(f.runs[0].landCharacter).toHaveBeenCalledTimes(1)
+    f.card.querySelector('strong')!.textContent = 'Latest content during landing'
     await advance(100)
+    expect(f.canvas().hidden).toBe(false)
+    await act(async () => landed.resolve())
     expect(f.store.getState()).toMatchObject({ works: [], hiddenIds: [] })
+    expect(f.ready().origin).toBe(initialOrigin)
     expect(f.captures).toHaveLength(1)
     expect(f.runs).toHaveLength(1)
     expect(f.card.style.visibility).toBe('')
+    expect(f.card.textContent).toContain('Latest content during landing')
     expect(f.canvas().hidden).toBe(true)
+    expect(f.runs[0].release).toHaveBeenCalledTimes(1)
+    expect(f.captures[0].bitmap.close).toHaveBeenCalledTimes(1)
+    expect(performance.getEntriesByName('bart-generation-skipped')).toHaveLength(0)
+    expect(getOverviewMotionCoordinator().stageBusy).toBe(false)
+  })
+
+  it.each(['cancel', 'delete', 'scene-cut', 'resize', 'theme', 'reduced-motion'] as const)(
+    'still interrupts visible playback on %s', async reason => {
+      const media = new Map<string, EventTarget>()
+      vi.stubGlobal('matchMedia', (query: string) => {
+        if (!media.has(query)) media.set(query, new EventTarget())
+        return media.get(query)
+      })
+      let resize = () => {}
+      vi.stubGlobal('ResizeObserver', class {
+        constructor(callback: () => void) { resize = callback }
+        observe() {} disconnect() {}
+      })
+      const f = fixture()
+      f.start(); await advance()
+      expect(f.canvas().hidden).toBe(false)
+      await act(async () => {
+        if (reason === 'cancel') f.work.controller.abort()
+        if (reason === 'delete') { getBartSpatialRegistry().registerThreadCard(id, null); f.card.remove() }
+        if (reason === 'scene-cut') getOverviewMotionCoordinator().cutScene()
+        if (reason === 'resize') { f.rootRect.mockReturnValue(new DOMRect(0, 0, 1100, 800)); resize() }
+        if (reason === 'theme') media.get('(prefers-color-scheme: dark)')!.dispatchEvent(new Event('change'))
+        if (reason === 'reduced-motion') media.get('(prefers-reduced-motion: reduce)')!.dispatchEvent(new Event('change'))
+      })
+      await advance()
+      expect(f.store.getState()).toMatchObject({ works: [], hiddenIds: [] })
+      expect(f.canvas().hidden).toBe(true)
+      expect(f.card.style.visibility).toBe('')
+      expect(f.runs[0].landCharacter).not.toHaveBeenCalled()
+      expect(f.runs[0].release).toHaveBeenCalledTimes(1)
+      expect(f.captures[0].bitmap.close).toHaveBeenCalledTimes(1)
+      expect(getOverviewMotionCoordinator().stageBusy).toBe(false)
   })
 })

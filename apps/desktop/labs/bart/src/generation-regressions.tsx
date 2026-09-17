@@ -67,9 +67,12 @@ export function GenerationRegressions(): React.JSX.Element {
   const update = (content: boolean): void => setThreads(previous => previous.map(thread => {
     if (thread.harnessId !== 'claude') return thread
     const state = parseClaudeThreadState(thread.sessionState)
-    if (content) state.turns[0]!.timeline.push({ kind: 'assistant', id: 'updated-answer',
-      content: '最新的真实内容已经到达。Latest committed output.', status: 'streaming', createdAt: state.turns[0]!.updatedAt })
-    else state.runtime = { ...state.runtime, backgroundTasks: Array.from({ length: 7 }, (_, index) => ({
+    if (content) {
+      const answer = state.turns[0]!.timeline.find(item => item.kind === 'assistant' && item.id === 'updated-answer')
+      if (answer?.kind === 'assistant') answer.content += ' More streamed content.'
+      else state.turns[0]!.timeline.push({ kind: 'assistant', id: 'updated-answer',
+        content: '最新的真实内容已经到达。Latest committed output.', status: 'streaming', createdAt: state.turns[0]!.updatedAt })
+    } else state.runtime = { ...state.runtime, backgroundTasks: Array.from({ length: 7 }, (_, index) => ({
       id: `task-${index}`, description: `后台任务 ${index + 1}`, type: 'local_agent', status: 'completed'
     })) }
     if (!isJsonValue(state)) throw new Error('Invalid fixture')
