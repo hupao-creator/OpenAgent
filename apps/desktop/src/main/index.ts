@@ -462,7 +462,7 @@ async function startApplication(): Promise<void> {
 }
 
 // Enables HTML-in-Canvas (`<canvas layoutsubtree>` + captureElementImage), which the
-// Overview liquid-glass playground needs to render glass over captured DOM. This is a
+// Overview liquid-glass surface needs to render glass over captured DOM. This is a
 // Chromium command-line feature flag, so it is process-global: it cannot be scoped to
 // one window or one region, and it cannot be turned on only when a packaged build wants
 // to pay for it. The API behind it is experimental and unpublished — its shape changes

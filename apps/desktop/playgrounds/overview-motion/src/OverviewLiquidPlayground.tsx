@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Frame, Glass, GlassContainer, Html, LiquidCanvas, Padding, ZStack, type LiquidCanvasRef } from '@liquid-dom/react'
-import { BAR_CORNER, EMPTY_BOX, NARROW_BREAKPOINT, OverviewActions, TagFilterBar, barInsets, glassFor, hitTestHost, measureBar, measureInsets, type BarBox } from './liquid-bars'
-import { canvasDrawElementGap, installLiquidCaptureCompat } from './liquid-capture-compat'
+import { BAR_CORNER, glassFor, type LiquidTheme } from '../../../src/renderer/src/liquid/glass-recipe'
+import { canvasDrawElementGap, installLiquidCaptureCompat } from '../../../src/renderer/src/liquid/capture-compat'
+import { EMPTY_BOX, NARROW_BREAKPOINT, OverviewActions, TagFilterBar, barInsets, hitTestHost, measureBar, measureInsets, type BarBox } from './liquid-bars'
 import { LiquidUnsupported } from './LiquidUnsupported'
 
 installLiquidCaptureCompat()
@@ -39,7 +40,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
   const [selected, setSelected] = useState('')
   const [archived, setArchived] = useState(false)
   const [hovered, setHovered] = useState<string | null>(null)
-  const [theme, setTheme] = useState('light')
+  const [theme, setTheme] = useState<LiquidTheme>('light')
   const [notice, setNotice] = useState('拖动鼠标划过玻璃条，点击标签或按钮')
   const narrow = size.width > 0 && size.width <= NARROW_BREAKPOINT
 
@@ -130,7 +131,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
         <nav className="layout-nav" aria-label="Playground">
           <a href="?scene=lifecycle">动画</a><a href="?scene=layout">Layout</a><a href="?scene=liquid" aria-current="page">Liquid</a><a href="?scene=liquid-live">Liquid Live</a>
         </nav>
-        <label>外观<select value={theme} onChange={event => setTheme(event.target.value)}><option value="light">浅色</option><option value="dark">深色</option></select></label>
+        <label>外观<select value={theme} onChange={event => setTheme(event.target.value as LiquidTheme)}><option value="light">浅色</option><option value="dark">深色</option></select></label>
       </div>
     </header>
     <section className="liquid-stage" ref={stageRef} aria-label="Liquid Glass 预览">

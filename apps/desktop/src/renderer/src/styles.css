@@ -653,6 +653,39 @@
   display: none;
 }
 
+/* 俯瞰视图的液体玻璃（见 OverviewLiquidStage）：主体整块进画布当衬底，两条浮条留在
+   画布外照旧是普通 DOM——玻璃内部的 DOM 收不到原生指针事件，浮条一旦进画布就没法再
+   靠原生命中、hover 和焦点环工作。所以这里做的只是把浮条自己那层「半透明表面 +
+   backdrop-filter」摘掉，把外观让给背后画布上那一层玻璃；浮条仍然占着同样的盒子，
+   玻璃按实测盒子对齐，尺寸和位置跟原来一模一样。 */
+.overview-liquid-stage {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+}
+
+/* 画布的宿主元素要正好是俯瞰视图的内容盒，里面的滚动容器才好按原来那一格排。
+   表面色也画在这一层：舞台是 `.thread-overview` 的子节点，画布盖在它上面，而画布
+   的底色是不透明的黑；捕获只看得见衬底子树，所以 section 自己那条 `background`
+   够不着，卡片之间的空隙会漏出黑条（实测：给 section 刷纯色进不了捕获，给衬底刷
+   才进得去）。衬底带上同一个 `--canvas`，空隙才会跟原来一样是画布色。 */
+.overview-liquid-substrate {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--canvas);
+}
+
+.overview-liquid .thread-tag-filter-bar,
+.overview-liquid .thread-tag-filter-bar:focus-within,
+.overview-liquid .thread-overview-actions {
+  background: transparent;
+  backdrop-filter: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .thread-overview-actions .icon-button {
   color: rgba(255, 255, 255, 0.72);
   transition:

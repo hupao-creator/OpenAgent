@@ -142,21 +142,17 @@
   color: rgba(255, 255, 255, 0.96);
 }
 
-/* `?scene=liquid-live` 的衬底是真实的 ConversationOverview。它自带的边框和外阴影是给
-   独立窗口用的，在画布里会多出一圈；捕获层只要内容。 */
-.liquid-live-substrate {
+/* `?scene=liquid-live` 挂的是真实的 ConversationOverview，它自带舞台，场景这边只要给它
+   一个填满舞台的盒子。它自带的边框和外阴影是给独立窗口用的，放在舞台里会多出一圈。 */
+.liquid-live-host {
   width: 100%;
   height: 100%;
 }
 
-.liquid-live-substrate .thread-overview {
+.liquid-live-host .thread-overview {
   border: 0;
   box-shadow: none;
 }
-
-/* 衬底里的 overview 自己不画那两条栏 —— 它只在拿到 tagFilters 或选中标签时才渲染
-   筛选栏，而动作栏那几个按钮也只在传了对应回调时才有内容。场景不传这些，所以栏只有
-   玻璃那一份。要是以后想让 overview 自己画，记得和玻璃那份留一处，别叠成两层。 */
 
 .liquid-playground .motion-stage-footer output {
   color: light-dark(#48624b, #b6d5ad);

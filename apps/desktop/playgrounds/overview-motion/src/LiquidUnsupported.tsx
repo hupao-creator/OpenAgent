@@ -1,4 +1,4 @@
-import { canvasDrawElementGap } from './liquid-capture-compat'
+import { canvasDrawElementGap } from '../../../src/renderer/src/liquid/capture-compat'
 
 /**
  * 两个 liquid 场景共用的能力缺失提示。缺了 CanvasDrawElement 时库一帧都渲染不出来，

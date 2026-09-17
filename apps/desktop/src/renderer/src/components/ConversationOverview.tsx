@@ -44,6 +44,8 @@ import {
   type OverviewStageLease
 } from '../overview-motion'
 import { getBartSpatialRegistry } from '../bart-motion/registry'
+import { OverviewLiquidStage } from '../liquid/OverviewLiquidStage'
+import { canvasDrawElementGap } from '../liquid/capture-compat'
 import type { BartVisualOperation } from '../bart-visual-operation'
 import { ThreadCardAnchorProvider, useI18n, type ThreadCardAnchorRegistrar } from '@openagent/plugin-kit/renderer'
 import { BartLogo } from './BartLogo'
@@ -218,6 +220,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
   const { t } = useI18n()
   props.onRender?.()
   const filterRef = useRef<HTMLDivElement>(null)
+  const actionsRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const tagTransitionRef = useRef({
     tag: props.selectedTag || '',
@@ -231,6 +234,13 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
     height: 0
   })
   const [contentBox, setContentBox] = useState<OverviewContentBox>(EMPTY_CONTENT_BOX)
+  /* 衬底进画布是异步的：舞台要等到量出自己的尺寸才渲染画布，所以滚动容器和网格在本组件
+     的布局效果里还是 null，而对象 ref 回填不通知任何人。靠这个计数把测尺寸那一趟补上，
+     否则相机的包围盒永远是 0，平移和缩放直接失效。 */
+  const [liquidSubtreeKey, setLiquidSubtreeKey] = useState(0)
+  const onLiquidSubtreeMounted = useCallback((): void => {
+    setLiquidSubtreeKey(key => key + 1)
+  }, [])
   const cameraCockpit = getOverviewCameraCockpit()
   useLayoutEffect(() => {
     cameraCockpit.setScaleFloor(props.canvasScaleFloor)
@@ -470,7 +480,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
     const registry = getBartSpatialRegistry()
     registry.registerScrollContainer(scrollRef.current)
     return () => registry.registerScrollContainer(null)
-  }, [])
+  }, [liquidSubtreeKey])
 
   // 视口与内容包围盒测量：只有结构变化会改变网格外框（行高固定），因此
   // 尺寸驱动的 fit 天然只响应结构变化，内容/状态更新不触发。测量值不变时
@@ -520,7 +530,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
     if (gridRef.current) observer.observe(gridRef.current)
     if (headerRef.current) observer.observe(headerRef.current)
     return () => observer.disconnect()
-  }, [measureOverviewBoxes, presentedLayout.signature])
+  }, [measureOverviewBoxes, presentedLayout.signature, liquidSubtreeKey])
 
   /**
    * 处理当前 reveal 请求（canvas 态）：pan 完整落地才标记 handled；被取消或
@@ -1129,7 +1139,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       scroll.removeEventListener('pointerup', handlePointerEnd)
       scroll.removeEventListener('pointercancel', handlePointerCancel)
     }
-  }, [cameraCockpit, canvasInteractive, props.canvasScaleFloor, returnCanvasToAuto])
+  }, [cameraCockpit, canvasInteractive, props.canvasScaleFloor, returnCanvasToAuto, liquidSubtreeKey])
 
   // Preserve the historical canvas overflow cue using only the public
   // waiting-for-user fact; the overview never interprets Harness-private status.
@@ -1202,117 +1212,19 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
     onOpenReportRef.current?.(reportId)
   }, [cardClickAllowed])
 
-  return (
-    <section
-      className={[
-        'thread-overview',
-        'overview-canvas',
-        canvasManual ? 'overview-canvas-manual' : '',
-        showTagFilters ? 'overview-has-tag-filters' : '',
-        featuredOperation ? 'bart-managing-threads' : '',
-        featuredOperation ? `bart-overview-operation-${featuredOperation.kind}` : '',
-        featuredOperation ? `bart-overview-phase-${featuredOperation.phase}` : ''
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      role="region"
-      aria-label={t('会话俯瞰')}
-    >
-      <div className="thread-overview-drag-region" aria-hidden="true" />
-      <div className="thread-overview-header" ref={headerRef}>
-        {/* 窄布局把按钮组排在筛选栏上方，所以 DOM 就先按钮组后筛选栏——否则 Tab 会先
-            扫完下面一整排筛选按钮，再跳回上方的按钮组，跟眼睛看到的顺序相反。 */}
-        <div className="thread-overview-floating-chrome">
-          <div
-            className="thread-overview-actions no-drag"
-            role="toolbar"
-            aria-label={t('俯瞰视图操作')}
-          >
-            {canvasPresent && (canvasManual || canvas?.returning) && (
-              <button className="icon-button" onClick={returnCanvasToAuto} title={t('回到自动视图')} aria-label={t('回到自动视图')}>
-                <Shrink size={15} />
-              </button>
-            )}
-            {props.onViewChange && (
-              <button className={'icon-button ' + (view === 'archived' ? 'active' : '')}
-                onClick={() => props.onViewChange?.(view === 'archived' ? 'default' : 'archived')}
-                aria-pressed={view === 'archived'}
-                title={`${t('已归档')} (${archivedCount})`}
-                aria-label={t('{view}，共 {count} 张卡片', { view: t('已归档'), count: archivedCount })}>
-                <Archive size={16} />
-              </button>
-            )}
-            {props.onRestartDevelopment && (
-              <button
-                className="icon-button"
-                onClick={props.onRestartDevelopment}
-                title={t('重启 Dev Electron')}
-                aria-label={t('重启 Dev Electron')}
-              >
-                <RotateCcw size={15} />
-              </button>
-            )}
-            {props.onSettings && (
-              <button className="icon-button" data-settings-trigger onClick={props.onSettings} title={t('设置')} aria-label={t('设置')}>
-                <Settings size={15} />
-              </button>
-            )}
-          </div>
-        </div>
-        {showTagFilters && (
-          <div ref={filterRef} className="thread-tag-filter-bar no-drag" role="group" aria-label={t('按标签筛选')}>
-            <button
-              type="button"
-              className={'thread-tag-filter-option thread-tag-filter-all ' + (!props.selectedTag ? 'active' : '')}
-              aria-pressed={!props.selectedTag}
-              onClick={() => props.onTagChange?.('')}
-            >
-              {t('全部')}
-            </button>
-            <div className="thread-tag-filter-groups">
-              <div className="thread-tag-filter-group">
-                <div className="thread-tag-filter-options">
-                  {visibleTagFilters.map((filter) => {
-                    const active = Boolean(
-                      props.selectedTag && tagFilterMatchesSelection(filter, props.selectedTag)
-                    )
-                    const aliases = filter.aliases || []
-                    const aliasHint = aliases.length
-                      ? t('；别名：{aliases}', { aliases: aliases.join('、') })
-                      : ''
-                    return (
-                      <button
-                        type="button"
-                        className={
-                          'thread-tag-filter-option ' +
-                          (active ? 'active ' : '') +
-                          (filter.isCwdTag ? 'cwd' : '')
-                        }
-                        aria-pressed={active}
-                        onClick={() => props.onTagChange?.(filter.tag)}
-                        key={tagFilterSelectionKey(filter)}
-                        title={`${filter.isCwdTag ? t('工作目录标签：') : ''}${filter.tag}${aliasHint}`}
-                        data-aliases={aliases.length ? aliases.join(',') : undefined}
-                      >
-                        {filter.isCwdTag && (
-                          <Folder
-                            className="thread-tag-filter-cwd-icon"
-                            size={11}
-                            aria-hidden="true"
-                          />
-                        )}
-                        <span>{filter.tag}</span>
-                        <small>{filter.count}</small>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+  /* 玻璃背板画在画布内、两条浮条底下；浮条本身留在画布外。顺序即绘制顺序，但这里
+     只有「哪些元素要背板」，真正的层序由 OverviewLiquidStage 决定。
+     数组本身要稳定：它进了量尺寸那个 effect 的依赖。 */
+  const liquidBackdrops = useMemo<readonly React.RefObject<HTMLElement | null>[]>(
+    () => [actionsRef, filterRef], [])
+  /* CanvasDrawElement 是宿主进程级的 Blink 开关，没有它库每次捕获都抛错。缺了就整块
+     退回普通 DOM —— 俯瞰视图是主视图，不能因为一个实验特性拿不到就白屏。 */
+  const liquidEnabled = useMemo(() => canvasDrawElementGap() === null, [])
 
+  /* 俯瞰视图主体。开玻璃时它整块进画布当衬底（只作为捕获来源，不再直接参与页面绘制），
+     只有滚动和布局由宿主 DOM 正常驱动。 */
+  const body = (
+    <>
       {layoutError && (
         <div className="overview-layout-error no-drag" role="alert">
           <span>{t('布局暂未更新，请重试。')}</span>
@@ -1433,6 +1345,126 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
           </div>
         )}
       </div>
+    </>
+  )
+
+  return (
+    <section
+      className={[
+        'thread-overview',
+        'overview-canvas',
+        liquidEnabled ? 'overview-liquid' : '',
+        canvasManual ? 'overview-canvas-manual' : '',
+        showTagFilters ? 'overview-has-tag-filters' : '',
+        featuredOperation ? 'bart-managing-threads' : '',
+        featuredOperation ? `bart-overview-operation-${featuredOperation.kind}` : '',
+        featuredOperation ? `bart-overview-phase-${featuredOperation.phase}` : ''
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      role="region"
+      aria-label={t('会话俯瞰')}
+    >
+      <div className="thread-overview-drag-region" aria-hidden="true" />
+      <div className="thread-overview-header" ref={headerRef}>
+        {/* 窄布局把按钮组排在筛选栏上方，所以 DOM 就先按钮组后筛选栏——否则 Tab 会先
+            扫完下面一整排筛选按钮，再跳回上方的按钮组，跟眼睛看到的顺序相反。 */}
+        <div className="thread-overview-floating-chrome">
+          <div
+            className="thread-overview-actions no-drag"
+            ref={actionsRef}
+            role="toolbar"
+            aria-label={t('俯瞰视图操作')}
+          >
+            {canvasPresent && (canvasManual || canvas?.returning) && (
+              <button className="icon-button" onClick={returnCanvasToAuto} title={t('回到自动视图')} aria-label={t('回到自动视图')}>
+                <Shrink size={15} />
+              </button>
+            )}
+            {props.onViewChange && (
+              <button className={'icon-button ' + (view === 'archived' ? 'active' : '')}
+                onClick={() => props.onViewChange?.(view === 'archived' ? 'default' : 'archived')}
+                aria-pressed={view === 'archived'}
+                title={`${t('已归档')} (${archivedCount})`}
+                aria-label={t('{view}，共 {count} 张卡片', { view: t('已归档'), count: archivedCount })}>
+                <Archive size={16} />
+              </button>
+            )}
+            {props.onRestartDevelopment && (
+              <button
+                className="icon-button"
+                onClick={props.onRestartDevelopment}
+                title={t('重启 Dev Electron')}
+                aria-label={t('重启 Dev Electron')}
+              >
+                <RotateCcw size={15} />
+              </button>
+            )}
+            {props.onSettings && (
+              <button className="icon-button" data-settings-trigger onClick={props.onSettings} title={t('设置')} aria-label={t('设置')}>
+                <Settings size={15} />
+              </button>
+            )}
+          </div>
+        </div>
+        {showTagFilters && (
+          <div ref={filterRef} className="thread-tag-filter-bar no-drag" role="group" aria-label={t('按标签筛选')}>
+            <button
+              type="button"
+              className={'thread-tag-filter-option thread-tag-filter-all ' + (!props.selectedTag ? 'active' : '')}
+              aria-pressed={!props.selectedTag}
+              onClick={() => props.onTagChange?.('')}
+            >
+              {t('全部')}
+            </button>
+            <div className="thread-tag-filter-groups">
+              <div className="thread-tag-filter-group">
+                <div className="thread-tag-filter-options">
+                  {visibleTagFilters.map((filter) => {
+                    const active = Boolean(
+                      props.selectedTag && tagFilterMatchesSelection(filter, props.selectedTag)
+                    )
+                    const aliases = filter.aliases || []
+                    const aliasHint = aliases.length
+                      ? t('；别名：{aliases}', { aliases: aliases.join('、') })
+                      : ''
+                    return (
+                      <button
+                        type="button"
+                        className={
+                          'thread-tag-filter-option ' +
+                          (active ? 'active ' : '') +
+                          (filter.isCwdTag ? 'cwd' : '')
+                        }
+                        aria-pressed={active}
+                        onClick={() => props.onTagChange?.(filter.tag)}
+                        key={tagFilterSelectionKey(filter)}
+                        title={`${filter.isCwdTag ? t('工作目录标签：') : ''}${filter.tag}${aliasHint}`}
+                        data-aliases={aliases.length ? aliases.join(',') : undefined}
+                      >
+                        {filter.isCwdTag && (
+                          <Folder
+                            className="thread-tag-filter-cwd-icon"
+                            size={11}
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span>{filter.tag}</span>
+                        <small>{filter.count}</small>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {liquidEnabled
+        ? <OverviewLiquidStage backdropRefs={liquidBackdrops} scrollRef={scrollRef}
+            onSubtreeMounted={onLiquidSubtreeMounted}>{body}</OverviewLiquidStage>
+        : body}
     </section>
   )
 })
