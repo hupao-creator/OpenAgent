@@ -49,18 +49,23 @@
 /* 量尺寸用的隐藏副本。用 visibility 而不是 display:none —— 前者仍然参与排版，
    getBoundingClientRect 量得到生产样式排出来的真实宽高；后者量出来是 0。
    绝对定位让它不进文档流，不影响舞台自己的尺寸。
-   宽度要撑满舞台：只给 left 不给 right 时这个盒子按内容收缩（实测只有动作栏的
-   138px 宽），里头的筛选栏是照着「容器 100% 减去两侧预留」算最大宽度的，容器不对
-   量出来的数就不对 —— 生产里它的包含块是整条 overview 头，这里对应舞台。 */
+   左右必须收进生产 header 的内容盒（宽屏 18px、窄屏 14px，见 liquid-bars 的
+   `measureInsets`）：筛选栏的超宽上限写作 `calc(100% - 300px - …)`，那个 100% 在
+   生产里量的是 header 内容盒，这里如果按整个舞台算，就会被高估两个边距。 */
 .liquid-measure {
   position: absolute;
-  inset: 0 0 auto 0;
+  inset: 0 var(--liquid-measure-side, 18px) auto;
   visibility: hidden;
   pointer-events: none;
+  /* 这个自定义属性在生产里定义在 `.thread-overview-header` 上，筛选栏的超宽上限拿它
+     做减法：`calc(100% - 300px - 2 * var(--thread-titlebar-offset))`。量尺寸副本不带
+     那个类，属性取不到 —— calc 里出现无效的 var 会让整条声明失效，上限直接消失，
+     窄舞台下量出来的盒子比生产宽出一大截。这里补上生产的基准值（macOS 就是这个）。 */
+  --thread-titlebar-offset: 0px;
 }
 
-/* 动作栏生产里是块级元素，宽度跟着父级走 —— 容器一撑满舞台，它就会量成整个舞台宽，
-   玻璃跟着被拉成一条横贯的板子。这里要的是它本身的尺寸，按内容收。 */
+/* 动作栏生产里是块级元素，宽度跟着父级走 —— 容器一撑满，它就会量成整条宽，
+   玻璃跟着被拉成一块横贯的板子。这里要的是它本身的尺寸，按内容收。 */
 .liquid-measure .thread-overview-actions { width: max-content; }
 
 /* 衬底：模拟卡片正文，让玻璃条的边缘有东西可弯折。字号与卡片正文一致（11px），
@@ -102,10 +107,14 @@
 /* 两条栏在场景里是独立节点，不再有 .thread-overview-header 那个定位父级，
    绝对居中那套（position/inset/margin-inline/max-width）全部让给库的布局。
    只针对进画布的那一份：.liquid-measure 里的副本要按生产样式排，量出来的盒子
-   才和生产一致（含边框），交给 Frame 的尺寸才是对的。 */
+   才和生产一致（含边框），交给 Frame 的尺寸才是对的。
+   宽度由场景按量出来的盒子显式写死（组件的 boxWidth），不用 `width: 100%`：画布里
+   的宿主是库自己摆的，它的宽度来源不明确（实测 `100%` 解出来比 Frame 小几个像素，
+   栏还因此不居中），写死才和 Frame 严格对齐。窄舞台下生产的超宽上限会让量出来的
+   盒子窄过内容，这时按内容撑会溢出玻璃、末尾标签被裁掉，而命中测试仍按溢出的矩形
+   算；写死则和生产一样，交给 .thread-tag-filter-groups 去滚。 */
 .liquid-stage canvas [data-liquid-bar] {
   position: static;
-  width: max-content;
   max-width: none;
   margin: 0;
   border: 0;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Frame, Glass, GlassContainer, Html, LiquidCanvas, Padding, ZStack, type LiquidCanvasRef } from '@liquid-dom/react'
-import { BAR_CORNER, EMPTY_BOX, OverviewActions, TagFilterBar, glassFor, hitTestHost, measureBar, type BarBox } from './liquid-bars'
+import { BAR_CORNER, EMPTY_BOX, NARROW_BREAKPOINT, OverviewActions, TagFilterBar, barInsets, glassFor, hitTestHost, measureBar, measureInsets, type BarBox } from './liquid-bars'
 import { canvasDrawElementGap, installLiquidCaptureCompat } from './liquid-capture-compat'
 import { LiquidUnsupported } from './LiquidUnsupported'
 
@@ -41,6 +41,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
   const [hovered, setHovered] = useState<string | null>(null)
   const [theme, setTheme] = useState('light')
   const [notice, setNotice] = useState('拖动鼠标划过玻璃条，点击标签或按钮')
+  const narrow = size.width > 0 && size.width <= NARROW_BREAKPOINT
 
   useEffect(() => {
     const stage = stageRef.current
@@ -68,7 +69,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
     observer.observe(node)
     void document.fonts.ready.then(measure)
     return () => observer.disconnect()
-  }, [])
+  }, [narrow])
 
   useEffect(() => {
     const root = document.documentElement
@@ -92,7 +93,9 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
     })
   }, [])
 
-  useEffect(repaint, [hovered, selected, archived, repaint])
+  /* 量出来的盒子也要进依赖：字号加载完、窗口变窄都会让测量翻新一次，而画布不会
+     自己知道 —— 少了它，玻璃里会一直留着第一次量到的那个宽度。 */
+  useEffect(repaint, [hovered, selected, archived, filterBox, actionsBox, narrow, repaint])
 
   /* 悬停和离开都按坐标重新命中一次。选中态一变，库会把承载 DOM 换掉，光标底下那个
      <button> 随之消失并触发一次 leave —— 那是重挂载不是真的移开，照坐标再判一次
@@ -110,6 +113,14 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
     setHovered(event.inside ? hitTestHost(actionsHostRef.current, event)?.dataset.action ?? null : null)
   }, [])
 
+  /* 玻璃内部的 <button> 收不到原生指针事件，但**收得到键盘**：Tab 能聚焦、回车会
+     派发一次 click。所以坐标命中和按钮自己的回调要走同一个入口，否则键盘激活的是
+     一个没有处理器的按钮 —— 有标签、能聚焦、按下去什么都不发生。 */
+  const onAction = useCallback((action: string) => {
+    if (action === '已归档') setArchived(value => !value)
+    setNotice(action)
+  }, [])
+
   const ready = size.width > 0 && filterBox.width > 0 && actionsBox.width > 0
 
   return <main className="motion-playground liquid-playground">
@@ -123,9 +134,11 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
       </div>
     </header>
     <section className="liquid-stage" ref={stageRef} aria-label="Liquid Glass 预览">
-      <div className="liquid-measure" aria-hidden="true" ref={measureRef}>
-        <TagFilterBar selected="" hovered={null} />
+      <div className="liquid-measure" aria-hidden="true" ref={measureRef}
+        style={{ '--liquid-measure-side': `${measureInsets(narrow).left}px` } as React.CSSProperties}>
+        {/* 顺序照生产：动作栏在前，窄屏竖排下来才是「按钮组在上」。 */}
         <OverviewActions archived={false} hovered={null} />
+        <TagFilterBar selected="" hovered={null} />
       </div>
       {GAP ? <LiquidUnsupported /> : ready && <LiquidCanvas ref={canvasRef} frameloop="demand"
         style={{ width: '100%', height: '100%' }}
@@ -135,7 +148,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
           <ZStack alignment="topLeading">
             <Html sizing="fill" zIndex={0}><Substrate /></Html>
             <Frame width={size.width} height={size.height} alignment={{ x: 'center', y: 'start' }}>
-              <Padding insets={{ top: 16 }}>
+              <Padding insets={barInsets(narrow, 'filter', actionsBox.height)}>
                 <GlassContainer {...glassFor(theme)}>
                   <Frame width={filterBox.width} height={filterBox.height}>
                     <Glass {...BAR_CORNER} pointerEvents
@@ -148,7 +161,12 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
                         setNotice(`筛选 ${filter || '全部'}`)
                       }}>
                       <Html sizing="fill">
-                        <TagFilterBar hostRef={filterHostRef} selected={selected} hovered={hovered} />
+                        <TagFilterBar hostRef={filterHostRef} selected={selected} hovered={hovered}
+                          boxWidth={filterBox.width}
+                          onSelect={filter => {
+                            setSelected(filter)
+                            setNotice(`筛选 ${filter || '全部'}`)
+                          }} />
                       </Html>
                     </Glass>
                   </Frame>
@@ -156,7 +174,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
               </Padding>
             </Frame>
             <Frame width={size.width} height={size.height} alignment={{ x: 'end', y: 'start' }}>
-              <Padding insets={{ top: 16, right: 18 }}>
+              <Padding insets={barInsets(narrow, 'actions', actionsBox.height)}>
                 <GlassContainer {...glassFor(theme)}>
                   <Frame width={actionsBox.width} height={actionsBox.height}>
                     <Glass {...BAR_CORNER} pointerEvents
@@ -165,11 +183,11 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
                       onClick={event => {
                         const action = hitTestHost(actionsHostRef.current, event)?.dataset.action
                         if (action === undefined) return
-                        if (action === '已归档') setArchived(!archived)
-                        setNotice(action)
+                        onAction(action)
                       }}>
                       <Html sizing="fill">
-                        <OverviewActions hostRef={actionsHostRef} archived={archived} hovered={hovered} />
+                        <OverviewActions hostRef={actionsHostRef} archived={archived} hovered={hovered}
+                          boxWidth={actionsBox.width} onActivate={onAction} />
                       </Html>
                     </Glass>
                   </Frame>
