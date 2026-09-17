@@ -56,11 +56,13 @@ async function advance(milliseconds = 0) {
   await act(async () => { await vi.advanceTimersByTimeAsync(milliseconds) })
 }
 
-function fixture() {
+function fixture({ liquid = false }: { liquid?: boolean } = {}) {
   const root = document.createElement('main')
   root.className = 'app-shell'
-  root.innerHTML = '<section><header class="thread-overview-header"></header><div class="thread-overview-scroll">' +
-    '<article><strong>Initial title</strong><span class="thread-state idle">Idle</span></article></div></section>' +
+  const scrollMarkup = '<div class="thread-overview-scroll">' +
+    '<article><strong>Initial title</strong><span class="thread-state idle">Idle</span></article></div>'
+  root.innerHTML = '<section><header class="thread-overview-header"></header>' +
+    (liquid ? `<div class="overview-liquid-substrate">${scrollMarkup}</div>` : scrollMarkup) + '</section>' +
     '<div class="bart-dock"><svg class="bart-logo"></svg></div><div class="generation-host"></div>'
   document.body.append(root)
   const card = root.querySelector('article')!, dock = root.querySelector<HTMLElement>('.bart-dock')!
@@ -190,6 +192,15 @@ describe('generation preparation separates sampled content from live geometry', 
     expect(f.ready().cards[0]).toMatchObject({ x: 40, y: 100 })
     expect(f.captures[0].bitmap.close).toHaveBeenCalledTimes(1)
     if (boundary === 'start') expect(f.runs[0].release).toHaveBeenCalledTimes(1)
+    await f.finish()
+  })
+
+  it('finds the toolbar across the liquid glass substrate', async () => {
+    // 液体玻璃路径把滚动容器塞进了衬底，工具条不再是一级之隔的兄弟。
+    const f = fixture({ liquid: true })
+    f.start(); await advance()
+    expect(f.ready()).toBeDefined()
+    expect(f.ready().viewport.y).toBe(42)
     await f.finish()
   })
 

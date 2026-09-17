@@ -1214,9 +1214,10 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
 
   /* 玻璃背板画在画布内、两条浮条底下；浮条本身留在画布外。顺序即绘制顺序，但这里
      只有「哪些元素要背板」，真正的层序由 OverviewLiquidStage 决定。
-     数组本身要稳定：它进了量尺寸那个 effect 的依赖。 */
+     依赖筛选栏的存在性：它一起可能不渲染，晚了才进 DOM，而 ref 回填不通知任何人。
+     按这组浮条的身份变化重测一次，舞台才会观察到它、给它画上背板。 */
   const liquidBackdrops = useMemo<readonly React.RefObject<HTMLElement | null>[]>(
-    () => [actionsRef, filterRef], [])
+    () => [actionsRef, filterRef], [showTagFilters])
   /* CanvasDrawElement 是宿主进程级的 Blink 开关，没有它库每次捕获都抛错。缺了就整块
      退回普通 DOM —— 俯瞰视图是主视图，不能因为一个实验特性拿不到就白屏。 */
   const liquidEnabled = useMemo(() => canvasDrawElementGap() === null, [])

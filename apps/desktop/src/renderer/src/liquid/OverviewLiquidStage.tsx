@@ -48,7 +48,12 @@ const ENTRANCE_FOLLOW_MS = 600
 export interface OverviewLiquidStageProps {
   /** 要进画布当衬底的俯瞰视图主体（滚动容器及其卡片）。 */
   readonly children: React.ReactNode
-  /** 画在画布之上、需要玻璃背板的浮条元素。顺序与绘制无关，只影响可读性。 */
+  /**
+   * 画在画布之上、需要玻璃背板的浮条元素。顺序与绘制无关，只影响可读性。
+   * 身份变更 = 这组浮条变了（有增删），会重新测一次盒子并重新挂观察器 —— 挂载晚的
+   * 浮条（一起初没有标签、之后才出现的筛选栏）只能靠这个信号补上，它的 ref 回填
+   * 本身不通知任何人。
+   */
   readonly backdropRefs: readonly React.RefObject<HTMLElement | null>[]
   /** 主体里的滚动容器；它滚动时偏移只在合成器上变，画布不会自己知道。 */
   readonly scrollRef: React.RefObject<HTMLElement | null>
@@ -75,6 +80,7 @@ export interface OverviewLiquidStageProps {
  */
 export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtreeMounted }: OverviewLiquidStageProps): React.JSX.Element {
   const stageRef = useRef<HTMLDivElement>(null)
+  const substrateRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<LiquidCanvasRef>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [boxes, setBoxes] = useState<readonly (BarBox | null)[]>(() => backdropRefs.map(() => null))
@@ -151,6 +157,31 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
     if (ready) onSubtreeMounted?.()
   }, [ready, onSubtreeMounted])
 
+  /* 画布画的是捕获到的那一帧，`frameloop="demand"` 下只有被叫到才重画。相机和滚动
+     各有一条失效路径，但它们都不是「内容变了」—— 流式文本、状态点、注意力标记这些
+     只改衬底的 DOM，布局盒和偏移都不动。没有这一路，画布会一直停在旧帧，直到用户
+     碰一下相机或滚一下才更新。按整棵子树观察，同一帧里的多次改动合并成一次失效。 */
+  useEffect(() => {
+    const substrate = substrateRef.current
+    if (!ready || !substrate) return
+    let handle = 0
+    const invalidate = (): void => {
+      if (handle) return
+      handle = requestAnimationFrame(() => {
+        handle = 0
+        canvasRef.current?.invalidateFrame()
+      })
+    }
+    const observer = new MutationObserver(invalidate)
+    observer.observe(substrate, {
+      subtree: true, childList: true, characterData: true, attributes: true
+    })
+    return () => {
+      observer.disconnect()
+      if (handle) cancelAnimationFrame(handle)
+    }
+  }, [ready, theme])
+
   /* 平移和缩放是命令式改 plane 的 transform，只落在合成器上，浏览器不会为此给画布发
      paint，库也就不会重捕获 —— 不挂这一路，玻璃底下会一直停着拖动前那一帧。
      同一帧里的多次相机更新合并成一次失效。 */
@@ -208,7 +239,7 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
             <Frame key={theme} width={size.width} height={size.height}>
               <ZStack alignment="topLeading">
                 <Html sizing="fill">
-                  <div className="overview-liquid-substrate">{children}</div>
+                  <div className="overview-liquid-substrate" ref={substrateRef}>{children}</div>
                 </Html>
                 {boxes.map((box, index) => box && (
                   <Padding key={index} insets={{ left: box.left, top: box.top }}>

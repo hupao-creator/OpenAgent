@@ -113,7 +113,16 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       }
       const rootRect = root.getBoundingClientRect()
       surface!.resize(rootRect.width, rootRect.height)
-      const toolbarElement = (): HTMLElement | null | undefined => scroll?.parentElement?.querySelector<HTMLElement>('.thread-overview-header')
+      // 工具条是滚动容器的**兄弟**，不是子节点：液体玻璃路径把滚动容器塞进了画布，
+      // 它的直接父节点因此变成衬底，只往上一级找会拿到 null。沿祖先链找到第一个
+      // 含工具条的那一级 —— 不认具体类名，两条路径都能命中。
+      const toolbarElement = (): HTMLElement | null | undefined => {
+        for (let node = scroll?.parentElement; node; node = node.parentElement) {
+          const found = node.querySelector<HTMLElement>('.thread-overview-header')
+          if (found) return found
+        }
+        return null
+      }
       const toolbar = toolbarElement()
       const geometryValid = sealGeometry([root, dockContainer, ...elements, ...(scroll ? [scroll] : []), ...(toolbar ? [toolbar] : [])], () => '')
       const valid = (): boolean => toolbarElement() === toolbar && geometryValid()
