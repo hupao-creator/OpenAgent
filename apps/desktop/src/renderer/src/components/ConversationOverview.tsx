@@ -1219,8 +1219,14 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
   const liquidBackdrops = useMemo<readonly React.RefObject<HTMLElement | null>[]>(
     () => [actionsRef, filterRef], [showTagFilters])
   /* CanvasDrawElement 是宿主进程级的 Blink 开关，没有它库每次捕获都抛错。缺了就整块
-     退回普通 DOM —— 俯瞰视图是主视图，不能因为一个实验特性拿不到就白屏。 */
-  const liquidEnabled = useMemo(() => canvasDrawElementGap() === null, [])
+     退回普通 DOM —— 俯瞰视图是主视图，不能因为一个实验特性拿不到就白屏。
+     光有特性还不够：适配器拿不到、画布上下文建不出来同样得退，那要等画布真去初始化
+     才知道，所以下面那条 `onFailure` 也参与判定。两处一起撤，包括 `.overview-liquid`
+     那套「浮条背景透明」，否则浮条会变成没有背板的字压在卡片上。 */
+  const [liquidFailed, setLiquidFailed] = useState(false)
+  const handleLiquidFailure = useCallback((): void => setLiquidFailed(true), [])
+  const liquidCapable = useMemo(() => canvasDrawElementGap() === null, [])
+  const liquidEnabled = liquidCapable && !liquidFailed
 
   /* 俯瞰视图主体。开玻璃时它整块进画布当衬底（只作为捕获来源，不再直接参与页面绘制），
      只有滚动和布局由宿主 DOM 正常驱动。 */
@@ -1464,7 +1470,8 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
 
       {liquidEnabled
         ? <OverviewLiquidStage backdropRefs={liquidBackdrops} scrollRef={scrollRef}
-            onSubtreeMounted={onLiquidSubtreeMounted}>{body}</OverviewLiquidStage>
+            onSubtreeMounted={onLiquidSubtreeMounted}
+            onFailure={handleLiquidFailure}>{body}</OverviewLiquidStage>
         : body}
     </section>
   )

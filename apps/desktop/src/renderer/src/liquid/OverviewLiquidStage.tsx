@@ -1,4 +1,4 @@
-import { Component, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Frame, Glass, GlassContainer, Html, LiquidCanvas, Padding, ZStack, type LiquidCanvasRef } from '@liquid-dom/react'
 import { getOverviewCameraCockpit } from '../overview-motion'
 import { installLiquidCaptureCompat } from './capture-compat'
@@ -63,6 +63,12 @@ export interface OverviewLiquidStageProps {
    * 靠这个信号重跑一次测尺寸、重挂一次滚动监听。
    */
   readonly onSubtreeMounted?: () => void
+  /**
+   * 画布起不来、已经退回画布外那份 DOM 时回调一次。调用方据此把 `.overview-liquid`
+   * 一起撤掉 —— 那套样式把两条浮条的背景、模糊、描边都清了，没有玻璃背板撑着就会
+   * 变成没有底的字直接压在卡片上。
+   */
+  readonly onFailure?: () => void
 }
 
 /**
@@ -78,9 +84,8 @@ export interface OverviewLiquidStageProps {
  * `Glass` 不是可绘制场景节点（`flattenSceneLayers` 只收 Container / Html）。所以
  * 「Html 在前、GlassContainer 在后」= 玻璃画在捕获到的衬底之上。
  */
-export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtreeMounted }: OverviewLiquidStageProps): React.JSX.Element {
+export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtreeMounted, onFailure }: OverviewLiquidStageProps): React.JSX.Element {
   const stageRef = useRef<HTMLDivElement>(null)
-  const substrateRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<LiquidCanvasRef>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [boxes, setBoxes] = useState<readonly (BarBox | null)[]>(() => backdropRefs.map(() => null))
@@ -152,18 +157,24 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
   const [failed, setFailed] = useState(false)
   const handleFailure = (): void => setFailed(true)
 
-  /* 衬底子树是随画布一起挂上的，挂载前调用方量不到里面的元素。挂上之后叫它一次。 */
+  /* 衬底节点本身当信号源，而不是「画布量出尺寸了」这个代理条件：换肤会按外观重挂
+     场景图（`<Frame key={theme}>` 下面整棵子树换新），降级也会把衬底换成画布外那份，
+     两种情况下 `ready` 一直是 true，只认它就不会再通知一次 —— 而调用方挂在滚动容器
+     上的尺寸观察器和手势监听还指着已经被摘掉的旧节点，换肤之后拖不动也缩不动。 */
+  const [substrate, setSubstrate] = useState<HTMLDivElement | null>(null)
+  const bindSubstrate = useCallback((node: HTMLDivElement | null): void => {
+    setSubstrate(node)
+  }, [])
   useEffect(() => {
-    if (ready) onSubtreeMounted?.()
-  }, [ready, onSubtreeMounted])
+    if (substrate) onSubtreeMounted?.()
+  }, [substrate, onSubtreeMounted])
 
   /* 画布画的是捕获到的那一帧，`frameloop="demand"` 下只有被叫到才重画。相机和滚动
      各有一条失效路径，但它们都不是「内容变了」—— 流式文本、状态点、注意力标记这些
      只改衬底的 DOM，布局盒和偏移都不动。没有这一路，画布会一直停在旧帧，直到用户
      碰一下相机或滚一下才更新。按整棵子树观察，同一帧里的多次改动合并成一次失效。 */
   useEffect(() => {
-    const substrate = substrateRef.current
-    if (!ready || !substrate) return
+    if (!substrate || failed) return
     let handle = 0
     const invalidate = (): void => {
       if (handle) return
@@ -180,7 +191,14 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
       observer.disconnect()
       if (handle) cancelAnimationFrame(handle)
     }
-  }, [ready, theme])
+  }, [substrate, failed])
+
+  /* 画布彻底起不来时只退回画布外那份 DOM 还不够：`.overview-liquid` 那套「浮条背景
+     透明」的样式还挂在外层，两条浮条会变成没有背板的字直接压在下面的卡片上。告诉
+     调用方，让它连那条分支和类名一起撤掉。 */
+  useEffect(() => {
+    if (failed) onFailure?.()
+  }, [failed, onFailure])
 
   /* 平移和缩放是命令式改 plane 的 transform，只落在合成器上，浏览器不会为此给画布发
      paint，库也就不会重捕获 —— 不挂这一路，玻璃底下会一直停着拖动前那一帧。
@@ -203,8 +221,8 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
   }, [])
 
   /* 滚动同理：偏移量变了，子树的布局盒没变，paint 不会为它触发。
-     依赖 `ready`：画布挂载前 `scrollRef.current` 还是 null，只按 scrollRef 挂一次会静默
-     返回，之后再也补不上。 */
+     依赖 `substrate`：画布挂载前 `scrollRef.current` 还是 null，只按 scrollRef 挂一次会
+     静默返回，之后再也补不上；换肤换掉节点之后也得挂到新节点上。 */
   useEffect(() => {
     const scroll = scrollRef.current
     if (!scroll) return
@@ -221,12 +239,12 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
       scroll.removeEventListener('scroll', invalidate)
       if (handle) cancelAnimationFrame(handle)
     }
-  }, [scrollRef, ready])
+  }, [scrollRef, substrate])
 
 
   return <div className="overview-liquid-stage" ref={stageRef}>
     {ready && (failed
-      ? <div className="overview-liquid-substrate">{children}</div>
+      ? <div className="overview-liquid-substrate" ref={bindSubstrate}>{children}</div>
       : <LiquidStageBoundary onFail={handleFailure}>
           <LiquidCanvas ref={canvasRef} frameloop="demand"
             style={{ width: '100%', height: '100%' }}
@@ -239,7 +257,7 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
             <Frame key={theme} width={size.width} height={size.height}>
               <ZStack alignment="topLeading">
                 <Html sizing="fill">
-                  <div className="overview-liquid-substrate" ref={substrateRef}>{children}</div>
+                  <div className="overview-liquid-substrate" ref={bindSubstrate}>{children}</div>
                 </Html>
                 {boxes.map((box, index) => box && (
                   <Padding key={index} insets={{ left: box.left, top: box.top }}>
