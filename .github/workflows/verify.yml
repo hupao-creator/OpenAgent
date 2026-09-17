@@ -16,8 +16,8 @@ concurrency:
 
 jobs:
   verify:
-    # Distinct from the `verify` check run the script publishes, so the gate can
-    # tell the evidence-bearing run from this job's own status.
+    # Distinct from the `verify` check run the publisher attaches, so the gate can
+    # tell the evidence-bearing check run from this job's own status.
     name: Desktop verification
     # Native reports, lifecycle and Bart checks launch Electron, so this needs macOS.
     runs-on: macos-15
