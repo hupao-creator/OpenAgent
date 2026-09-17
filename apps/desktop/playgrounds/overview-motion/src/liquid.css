@@ -48,14 +48,20 @@
 
 /* 量尺寸用的隐藏副本。用 visibility 而不是 display:none —— 前者仍然参与排版，
    getBoundingClientRect 量得到生产样式排出来的真实宽高；后者量出来是 0。
-   绝对定位让它不进文档流，不影响舞台自己的尺寸。 */
+   绝对定位让它不进文档流，不影响舞台自己的尺寸。
+   宽度要撑满舞台：只给 left 不给 right 时这个盒子按内容收缩（实测只有动作栏的
+   138px 宽），里头的筛选栏是照着「容器 100% 减去两侧预留」算最大宽度的，容器不对
+   量出来的数就不对 —— 生产里它的包含块是整条 overview 头，这里对应舞台。 */
 .liquid-measure {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0 0 auto 0;
   visibility: hidden;
   pointer-events: none;
 }
+
+/* 动作栏生产里是块级元素，宽度跟着父级走 —— 容器一撑满舞台，它就会量成整个舞台宽，
+   玻璃跟着被拉成一条横贯的板子。这里要的是它本身的尺寸，按内容收。 */
+.liquid-measure .thread-overview-actions { width: max-content; }
 
 /* 衬底：模拟卡片正文，让玻璃条的边缘有东西可弯折。字号与卡片正文一致（11px），
    否则「背后文字被弯折」这件事没法跟生产对比。 */
