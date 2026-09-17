@@ -7,12 +7,12 @@ import { createOverviewOrchestrationStore } from '../src/renderer/src/overview-o
 import { getBartSpatialRegistry } from '../src/renderer/src/bart-motion/registry'
 import { getOverviewMotionCoordinator } from '../src/renderer/src/overview-motion'
 import type { PreparedMotionCard } from '../src/renderer/src/bart-motion/card-assets'
-import type { MotionProgram } from '../src/renderer/src/bart-motion/worker-types'
+import type { MotionProgram, MotionRect } from '../src/renderer/src/bart-motion/worker-types'
 
-const mocks = vi.hoisted(() => ({ capture: vi.fn(), surface: vi.fn() }))
+const mocks = vi.hoisted(() => ({ sample: vi.fn(), capture: vi.fn(), surface: vi.fn() }))
 vi.mock('../src/renderer/src/bart-motion/card-assets', async importOriginal => ({
   ...await importOriginal<typeof import('../src/renderer/src/bart-motion/card-assets')>(),
-  prewarmMotionCards: async () => '', prepareMotionCard: mocks.capture
+  prewarmMotionCards: async () => '', captureMotionCard: mocks.sample
 }))
 vi.mock('../src/renderer/src/bart-motion/worker-client', () => ({ createMotionSurface: mocks.surface }))
 vi.mock('../src/renderer/src/bart-motion/CharacterCanvas', () => {
@@ -26,7 +26,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-const id = 'preparation-target'
+const id = 'preparation-target', secondId = 'preparation-second'
 const offscreenDescriptor = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'transferControlToOffscreen')
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
@@ -42,6 +42,7 @@ afterEach(async () => {
   await act(async () => {})
   const registry = getBartSpatialRegistry()
   registry.registerThreadCard(id, null)
+  registry.registerThreadCard(secondId, null)
   registry.registerDock(null)
   registry.registerScrollContainer(null)
   registry.setRoot(null)
@@ -75,15 +76,21 @@ function fixture() {
   const work: BartGenerationWork = { key: 1, controller: new AbortController(), targets: [{ id, kind: 'report',
     createdAt: 1, title: 'Initial title', metaText: '', cwdText: '', bodyText: '' }] }
   const store = createOverviewOrchestrationStore()
+  const samples: { text: string | null; disposed: boolean }[] = []
   const captures: { text: string | null; bitmap: ImageBitmap }[] = []
   const runs: { program: MotionProgram; finish: () => void; release: ReturnType<typeof vi.fn>; landCharacter: ReturnType<typeof vi.fn> }[] = []
   const hooks: { capture?: () => Promise<void> | void; load?: () => Promise<void> | void;
     borrow?: () => Promise<void> | void; start?: () => Promise<void> | void; land?: () => Promise<void> | void } = {}
-  mocks.capture.mockImplementation(async (element: HTMLElement, origin: { x: number; y: number }): Promise<PreparedMotionCard> => {
+  mocks.sample.mockImplementation((element: HTMLElement, origin: { x: number; y: number }) => {
     const bounds = element.getBoundingClientRect()
     const rect = { x: bounds.x - origin.x, y: bounds.y - origin.y, width: bounds.width, height: bounds.height }
+    const sample = { text: element.textContent, disposed: false }
+    samples.push(sample)
+    return { prepare: () => mocks.capture(sample.text, rect), dispose: () => { sample.disposed = true } }
+  })
+  mocks.capture.mockImplementation(async (text: string | null, rect: MotionRect): Promise<PreparedMotionCard> => {
     const bitmap = { width: 360, height: 200, close: vi.fn() } as unknown as ImageBitmap
-    captures.push({ text: element.textContent, bitmap })
+    captures.push({ text, bitmap })
     const assetId = `snapshot-${captures.length}`
     await hooks.capture?.()
     return { rect, duration: 200, assets: [{ id: assetId, bitmap }], textures: [{ id: assetId, rect, from: 0 }], caret: [] }
@@ -105,7 +112,7 @@ function fixture() {
     const works = useStore(store, state => state.works)
     return <BartThreadGenerations overviewOpen threads={[]} works={works} orchestration={store} onWorkConsumed={store.consumeWork} />
   }
-  return { root, rootRect, card, toolbar, cardRect, toolbarRect, work, store, captures, runs, hooks, surface,
+  return { root, rootRect, card, toolbar, cardRect, toolbarRect, work, store, samples, captures, runs, hooks, surface,
     start() { store.enqueue(work); return render(<Generations />, { container: root.querySelector('.generation-host')! }) },
     canvas: () => root.querySelector<HTMLCanvasElement>('canvas')!,
     ready: () => (performance.getEntriesByName('bart-generation-ready').at(-1) as PerformanceMark | undefined)?.detail,
@@ -113,43 +120,54 @@ function fixture() {
   }
 }
 
-describe('generation preparation follows live cards before takeoff', () => {
-  it.each(['capture', 'load', 'borrow', 'start'] as const)('retains pending work when metadata changes during %s', async boundary => {
+describe('generation preparation separates sampled content from live geometry', () => {
+  it.each(['capture', 'load', 'borrow', 'start'] as const)('keeps its sampled input when metadata changes during %s', async boundary => {
     const f = fixture()
     f.hooks[boundary] = () => {
-      delete f.hooks[boundary]
       f.card.querySelector('strong')!.textContent = 'Generated title'
+      f.card.querySelector('span')!.className = 'thread-state running'
       f.toolbar.textContent = 'All · New tag'
     }
-    f.start()
-    await advance()
-    expect(f.ready()).toBeUndefined()
-    expect(f.canvas().hidden).toBe(true)
-    expect(f.store.getState()).toMatchObject({ works: [f.work], hiddenIds: [id] })
-    expect(f.work.controller.signal.aborted).toBe(false)
-    expect(f.captures[0].bitmap.close).toHaveBeenCalledTimes(1)
-    await advance(41)
+    f.start(); await advance()
     expect(f.ready()).toBeDefined()
     expect(f.canvas().hidden).toBe(false)
-    expect(f.captures.map(capture => capture.text)).toEqual(['Initial titleIdle', 'Generated titleIdle'])
-    expect(f.runs.at(-1)!.program.textures[0].id).toBe('snapshot-2')
-    expect(performance.getEntriesByName('bart-generation-ready')).toHaveLength(1)
-    expect(performance.getEntriesByName('bart-generation-skipped')).toHaveLength(0)
-    if (boundary === 'start') expect(f.runs[0].release).toHaveBeenCalledTimes(1)
+    expect(f.store.getState()).toMatchObject({ works: [f.work], hiddenIds: [id] })
+    expect(f.work.controller.signal.aborted).toBe(false)
+    expect(f.captures.map(capture => capture.text)).toEqual(['Initial titleIdle'])
+    expect(f.runs).toHaveLength(1)
+    expect(f.surface.resetPreparation).not.toHaveBeenCalled()
+    expect(f.captures[0].bitmap.close).not.toHaveBeenCalled()
+    expect(f.samples.every(sample => sample.disposed)).toBe(true)
     await f.finish()
     expect(f.store.getState()).toMatchObject({ works: [], hiddenIds: [] })
     expect(f.canvas().hidden).toBe(true)
     expect(f.card.style.visibility).toBe('')
-    expect(f.surface.resetPreparation).toHaveBeenCalled()
-    f.captures.forEach(capture => expect(capture.bitmap.close).toHaveBeenCalledTimes(1))
-    f.runs.forEach(run => expect(run.release).toHaveBeenCalledTimes(1))
+    expect(f.card.textContent).toContain('Generated title')
+    expect(f.captures[0].bitmap.close).toHaveBeenCalledTimes(1)
+    expect(f.runs[0].release).toHaveBeenCalledTimes(1)
+    expect(performance.getEntriesByName('bart-generation-skipped')).toHaveLength(0)
   })
 
-  it.each(['status', 'position', 'toolbar'] as const)('remeasures a changed %s before the single visible flight', async change => {
+  it('samples every card before asynchronous encoding starts', async () => {
+    const f = fixture(), second = f.card.cloneNode(true) as HTMLElement
+    second.querySelector('strong')!.textContent = 'Second original'
+    f.card.parentElement!.append(second)
+    vi.spyOn(second, 'getBoundingClientRect').mockReturnValue(new DOMRect(400, 80, 360, 200))
+    getBartSpatialRegistry().registerThreadCard(secondId, second)
+    f.work.targets = [...f.work.targets, { ...f.work.targets[0]!, id: secondId }]
+    f.hooks.capture = () => { second.querySelector('strong')!.textContent = 'Second updated' }
+    f.start(); await advance()
+    expect(f.captures.map(capture => capture.text)).toEqual(['Initial titleIdle', 'Second originalIdle'])
+    expect(f.ready().cards).toHaveLength(2)
+    await f.finish()
+    expect(second.textContent).toContain('Second updated')
+    expect(f.samples.every(sample => sample.disposed)).toBe(true)
+  })
+
+  it.each(['position', 'toolbar'] as const)('remeasures changed %s before the single visible flight', async change => {
     const f = fixture()
     f.hooks.capture = () => {
       delete f.hooks.capture
-      if (change === 'status') f.card.querySelector('span')!.className = 'thread-state running'
       if (change === 'position') f.cardRect.mockReturnValue(new DOMRect(40, 100, 360, 200))
       if (change === 'toolbar') f.toolbarRect.mockReturnValue(new DOMRect(0, 0, 900, 92))
     }
@@ -158,6 +176,30 @@ describe('generation preparation follows live cards before takeoff', () => {
     expect(f.runs).toHaveLength(1)
     expect(f.ready().cards[0]).toMatchObject(change === 'position' ? { x: 40, y: 100 } : { x: 20, y: 80 })
     expect(f.ready().viewport.y).toBe(change === 'toolbar' ? 92 : 42)
+    await f.finish()
+  })
+
+  it.each(['load', 'borrow', 'start'] as const)('still rejects stale geometry after %s', async boundary => {
+    const f = fixture()
+    f.hooks[boundary] = () => {
+      delete f.hooks[boundary]
+      f.cardRect.mockReturnValue(new DOMRect(40, 100, 360, 200))
+    }
+    f.start(); await advance(41)
+    expect(f.captures).toHaveLength(2)
+    expect(f.ready().cards[0]).toMatchObject({ x: 40, y: 100 })
+    expect(f.captures[0].bitmap.close).toHaveBeenCalledTimes(1)
+    if (boundary === 'start') expect(f.runs[0].release).toHaveBeenCalledTimes(1)
+    await f.finish()
+  })
+
+  it('retries when a previously absent toolbar mounts', async () => {
+    const f = fixture()
+    f.toolbar.remove()
+    f.hooks.capture = () => { delete f.hooks.capture; f.card.parentElement!.before(f.toolbar) }
+    f.start(); await advance(41)
+    expect(f.captures).toHaveLength(2)
+    expect(f.ready().viewport.y).toBe(42)
     await f.finish()
   })
 
@@ -184,22 +226,43 @@ describe('generation preparation follows live cards before takeoff', () => {
     await f.finish()
   })
 
-  it('waits for lazy card content before recapturing a stale snapshot', async () => {
+  it('waits for lazy content before sampling, but not for later business work', async () => {
     const f = fixture()
-    f.hooks.capture = () => { delete f.hooks.capture; f.card.querySelector('strong')!.setAttribute('aria-busy', 'true') }
+    f.card.querySelector('strong')!.setAttribute('aria-busy', 'true')
     f.start(); await advance(81)
-    expect(f.captures).toHaveLength(1)
-    expect(f.ready()).toBeUndefined()
+    expect(f.samples).toHaveLength(0)
     f.card.querySelector('strong')!.removeAttribute('aria-busy')
+    f.hooks.capture = () => { f.card.querySelector('strong')!.setAttribute('aria-busy', 'true') }
     await advance(41)
-    expect(f.captures).toHaveLength(2)
+    expect(f.captures).toHaveLength(1)
     expect(f.ready()).toBeDefined()
     await f.finish()
   })
 
-  it('uses the original seal deadline for continuously changing content', async () => {
+  it('starts one program while content changes throughout the async preparation boundaries', async () => {
     const f = fixture()
-    f.hooks.capture = () => { f.card.querySelector('strong')!.textContent = `Revision ${f.captures.length}` }
+    let revision = 0
+    for (const boundary of ['capture', 'load', 'borrow', 'start'] as const) {
+      f.hooks[boundary] = async () => {
+        for (let chunk = 0; chunk < 3; chunk++) {
+          f.card.querySelector('strong')!.textContent = `Revision ${++revision}`
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+      }
+    }
+    f.start(); await advance(1500)
+    expect(revision).toBe(12)
+    expect(f.ready()).toBeDefined()
+    expect(f.captures.map(capture => capture.text)).toEqual(['Initial titleIdle'])
+    expect(f.runs).toHaveLength(1)
+    expect(f.surface.resetPreparation).not.toHaveBeenCalled()
+    await f.finish()
+    expect(f.card.textContent).toContain('Revision 12')
+  })
+
+  it('uses the original seal deadline for continuously changing geometry', async () => {
+    const f = fixture()
+    f.hooks.capture = () => { f.cardRect.mockReturnValue(new DOMRect(40 + f.captures.length, 100, 360, 200)) }
     f.start(); await advance(1999)
     expect(f.captures.length).toBeGreaterThan(1)
     expect(f.store.getState().works).toHaveLength(1)
@@ -211,11 +274,12 @@ describe('generation preparation follows live cards before takeoff', () => {
     expect(f.card.inert).not.toBe(true)
     expect(getOverviewMotionCoordinator().stageBusy).toBe(false)
     f.captures.forEach(capture => expect(capture.bitmap.close).toHaveBeenCalledTimes(1))
+    expect(f.samples.every(sample => sample.disposed)).toBe(true)
   })
 
   it.each(['cancel', 'delete', 'scene-cut'] as const)('does not retry after %s during the retry pause', async reason => {
     const f = fixture()
-    f.hooks.capture = () => { f.card.querySelector('strong')!.textContent = 'Latest title' }
+    f.hooks.capture = () => { f.cardRect.mockReturnValue(new DOMRect(40, 100, 360, 200)) }
     f.start(); await advance()
     await act(async () => {
       if (reason === 'cancel') f.work.controller.abort()
@@ -232,17 +296,37 @@ describe('generation preparation follows live cards before takeoff', () => {
   it('closes a late snapshot after the retry budget expires without uploading or replaying it', async () => {
     const f = fixture(), late = deferred<void>()
     f.hooks.capture = () => {
-      if (f.captures.length === 1) f.card.querySelector('strong')!.textContent = 'Generated title'
+      if (f.captures.length === 1) f.cardRect.mockReturnValue(new DOMRect(40, 100, 360, 200))
       else return late.promise
     }
     f.start(); await advance(2001)
     expect(f.captures).toHaveLength(2)
     expect(f.store.getState().works).toHaveLength(0)
+    expect(f.samples.every(sample => sample.disposed)).toBe(true)
     await act(async () => late.resolve())
     expect(f.surface.load).not.toHaveBeenCalled()
     expect(f.runs).toHaveLength(0)
     f.captures.forEach(capture => expect(capture.bitmap.close).toHaveBeenCalledTimes(1))
   })
+
+  it.each(['(prefers-color-scheme: dark)', '(prefers-reduced-motion: reduce)'])(
+    'interrupts preparation when %s changes', async query => {
+      const media = new Map<string, EventTarget>()
+      vi.stubGlobal('matchMedia', (value: string) => {
+        if (!media.has(value)) media.set(value, new EventTarget())
+        return media.get(value)
+      })
+      const f = fixture(), gate = deferred<void>()
+      f.hooks.capture = () => gate.promise
+      f.start(); await advance()
+      await act(async () => { media.get(query)!.dispatchEvent(new Event('change')) })
+      await advance()
+      expect(f.samples.every(sample => sample.disposed)).toBe(true)
+      expect(f.store.getState()).toMatchObject({ works: [], hiddenIds: [] })
+      await act(async () => gate.resolve())
+      expect(f.captures[0].bitmap.close).toHaveBeenCalledTimes(1)
+      expect(f.surface.load).not.toHaveBeenCalled()
+    })
 
   it('keeps capture errors terminal instead of repeatedly retrying a broken resource', async () => {
     const f = fixture()
@@ -251,6 +335,7 @@ describe('generation preparation follows live cards before takeoff', () => {
     expect(mocks.capture).toHaveBeenCalledTimes(1)
     expect(f.store.getState()).toMatchObject({ works: [], hiddenIds: [] })
     expect(f.ready()).toBeUndefined()
+    expect(f.samples.every(sample => sample.disposed)).toBe(true)
   })
 })
 

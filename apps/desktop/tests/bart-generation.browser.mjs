@@ -36,6 +36,7 @@ async function settled() {
   await page.locator('.bart-reply-stage').waitFor({ state: 'visible' })
   assert.ok(await page.locator('.thread-overview-item').evaluateAll(cards => cards.every(card =>
     getComputedStyle(card).visibility === 'visible' && getComputedStyle(card).opacity === '1' && !card.inert)))
+  assert.equal(await page.locator('[data-bart-card-snapshot]').count(), 0, 'temporary snapshot DOM is released')
 }
 try {
   for (const scale of [.75, 1, 1.4]) {
@@ -55,6 +56,33 @@ try {
     await page.screenshot({ path: path.join(output, `settled-${scale}.png`) })
     evidence.push({ scale, plan })
   }
+  // Change the real React card at every asynchronous SVG decode, rather than
+  // waiting until Worker playback has already started. No production test API.
+  await ready(1)
+  await page.evaluate(() => {
+    const decode = HTMLImageElement.prototype.decode
+    HTMLImageElement.prototype.decode = async function () {
+      if (this.src.startsWith('data:image/svg+xml') && document.querySelector('[data-generation-state="preparing"]')) {
+        performance.mark('bart-test-preparation-update', { detail: {
+          snapshots: document.querySelectorAll('[data-bart-card-snapshot]').length
+        } })
+        const button = [...document.querySelectorAll('button')].find(element => element.textContent === 'Claude 新文本到达')
+        if (!button) throw new Error('Streaming fixture button unavailable')
+        button.click()
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
+      return decode.call(this)
+    }
+  })
+  const preparationPlan = await start()
+  const preparationUpdates = await page.evaluate(() => performance.getEntriesByName('bart-test-preparation-update').map(mark => mark.detail))
+  assert.ok(preparationUpdates.length >= 2, 'updates cross the real snapshot decoding boundary')
+  assert.equal(preparationUpdates[0].snapshots, 4, 'the entire batch is sampled before the first asynchronous decode')
+  assert.ok(preparationPlan.sealedMs < 2000, 'streaming does not consume the original seal budget through retries')
+  assert.equal((await status()).skipped, undefined)
+  await settled()
+  await page.getByText(/Latest committed output/).waitFor()
+
   await ready(1)
   const streamingPlan = await start()
   const reveal = streamingPlan.phases.find(phase => phase.name.startsWith('reveal:'))
@@ -86,7 +114,9 @@ try {
   await page.getByText('后台任务 1', { exact: true }).waitFor()
   assert.ok(await page.locator('[data-thread-id="claude-generation"]').evaluate(card => card.getBoundingClientRect().width > 700))
   assert.deepEqual(errors, [])
-  await writeFile(path.join(output, 'evidence.json'), JSON.stringify({ evidence, streaming: { plan: streamingPlan, handoffElapsed }, errors }, null, 2))
+  await writeFile(path.join(output, 'evidence.json'), JSON.stringify({ evidence,
+    preparation: { plan: preparationPlan, updates: preparationUpdates },
+    streaming: { plan: streamingPlan, handoffElapsed }, errors }, null, 2))
   console.log(JSON.stringify({ passed: true, layouts: evidence.length, output }))
 } catch (error) {
   await writeFile(path.join(output, 'failure.json'), JSON.stringify({ status: await status(), errors }, null, 2))
