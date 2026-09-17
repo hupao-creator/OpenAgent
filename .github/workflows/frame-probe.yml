@@ -31,14 +31,15 @@ jobs:
       - name: Build the Bart lab
         working-directory: apps/desktop
         run: pnpm exec vite build --config labs/bart/vite.config.ts
-      - name: Morph width curve on this runner
-        working-directory: apps/desktop
-        env:
-          BART_MORPH_CURVE: '1'
-        run: node tests/bart-generation-visuals.electron.mjs
       - name: Generation visuals with the motion pinned
         working-directory: apps/desktop
         run: node tests/bart-generation-visuals.electron.mjs
       - name: Bart isolation suite with the motion pinned
         working-directory: apps/desktop
         run: pnpm test:bart-isolation
+      - name: Morph width curve on this runner
+        if: always()
+        working-directory: apps/desktop
+        env:
+          BART_MORPH_CURVE: '1'
+        run: node tests/bart-generation-visuals.electron.mjs
