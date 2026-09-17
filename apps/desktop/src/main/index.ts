@@ -461,6 +461,15 @@ async function startApplication(): Promise<void> {
   }
 }
 
+// Enables HTML-in-Canvas (`<canvas layoutsubtree>` + captureElementImage), which the
+// Overview liquid-glass surface needs to render glass over captured DOM. This is a
+// Chromium command-line feature flag, so it is process-global: it cannot be scoped to
+// one window or one region, and it cannot be turned on only when a packaged build wants
+// to pay for it. The API behind it is experimental and unpublished — its shape changes
+// between Chromium versions — so this switch is the whole cost of the experiment, not a
+// capability the app is built on today.
+app.commandLine.appendSwitch('enable-blink-features', 'CanvasDrawElement')
+
 void app.whenReady().then(() => {
   // Readiness itself owns no resources and need not delay an earlier quit.
   debugLog('app.ready')

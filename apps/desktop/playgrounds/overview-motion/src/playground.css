@@ -19,7 +19,11 @@
 .motion-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 28px; border-bottom: 1px solid var(--motion-line); }
 .motion-brand > span { font-size: 9px; letter-spacing: .16em; color: var(--motion-muted); }
 .motion-brand h1 { margin: 5px 0 0; font-size: 23px; font-weight: 560; letter-spacing: -.8px; }
-.motion-environment { display: flex; gap: 24px; }
+/* 导航加到四条链接之后，环境区在中等宽度就先撑破了 header（header 自己的换行断点在
+   680px，来不及）。让它和导航各自可换行，并把右侧对齐，标题被挤窄时也不会把外观
+   选择器推出屏幕。 */
+.motion-environment { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 24px; }
+.layout-nav { flex-wrap: wrap; }
 .motion-environment label { display: flex; align-items: center; gap: 10px; color: var(--motion-muted); font-size: 11px; }
 .motion-playground select { padding: 6px 8px; border: 1px solid var(--motion-line); border-radius: 5px; background: var(--motion-surface); }
 .motion-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: 0; }

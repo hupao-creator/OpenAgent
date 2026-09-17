@@ -92,6 +92,7 @@ beforeEach(() => {
   ]))
   mock.app = Object.assign(new EventEmitter(), {
     whenReady: vi.fn().mockResolvedValue(undefined),
+    commandLine: { appendSwitch: vi.fn() },
     quit: vi.fn(),
     exit: vi.fn(),
     setName: vi.fn(),
