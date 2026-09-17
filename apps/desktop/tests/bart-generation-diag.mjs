@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 const desktop = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 if (!process.versions.electron) {
   const { default: electron } = await import('electron')
-  const result = spawnSync(electron, [fileURLToPath(import.meta.url)], {
+  const result = spawnSync(electron, [...(process.env.DIAG_SWITCHES?.split(' ').filter(Boolean) ?? []), fileURLToPath(import.meta.url)], {
     cwd: desktop, env: { ...process.env, ELECTRON_RUN_AS_NODE: '' }, stdio: 'inherit'
   })
   process.exit(result.status ?? 1)

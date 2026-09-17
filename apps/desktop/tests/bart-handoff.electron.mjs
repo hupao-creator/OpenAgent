@@ -9,7 +9,9 @@ import { CaptureUnavailable, ENVIRONMENT_EXIT } from './bart-capture-metrics.mjs
 const desktop = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 if (!process.versions.electron) {
   const { default: electron } = await import('electron')
-  const result = spawnSync(electron, [fileURLToPath(import.meta.url), ...process.argv.slice(2)], {
+  // These checks measure motion; pin the media feature so the host's Reduce
+  // Motion setting cannot silently disable the subject under test.
+  const result = spawnSync(electron, ['--force-prefers-no-reduced-motion', fileURLToPath(import.meta.url), ...process.argv.slice(2)], {
     cwd: desktop, env: { ...process.env, ELECTRON_RUN_AS_NODE: '' }, stdio: 'inherit'
   })
   process.exit(result.status ?? 1)

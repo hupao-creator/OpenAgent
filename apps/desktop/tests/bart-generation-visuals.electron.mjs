@@ -10,7 +10,10 @@ import { fileURLToPath } from 'node:url'
 const desktop = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 if (!process.versions.electron) {
   const { default: electron } = await import('electron')
-  const result = spawnSync(electron, [fileURLToPath(import.meta.url)], {
+  // The scene honours the host's Reduce Motion setting, which a shared machine may
+  // have on. These checks are about the animated path, so pin the media feature and
+  // let the host decide nothing.
+  const result = spawnSync(electron, ['--force-prefers-no-reduced-motion', fileURLToPath(import.meta.url)], {
     cwd: desktop, env: { ...process.env, ELECTRON_RUN_AS_NODE: '' }, stdio: 'inherit'
   })
   process.exit(result.status ?? 1)
