@@ -174,6 +174,13 @@ test('CI runner executes a light scope, publishes scope evidence and never turns
   // lags one head behind on a push, so the run has to name the verified commit.
   assert.match(published, new RegExp(`"head_sha":"${sha}"`))
   assert.match(readFileSync(join(evidence, 'summary.md'), 'utf8'), /Desktop verification/)
+  // The payload is what the default-branch publisher posts, so it has to carry the
+  // committed identity and the evidence line the gate reads back.
+  const payload = JSON.parse(readFileSync(join(evidence, 'check-run.json'), 'utf8'))
+  assert.equal(payload.name, 'verify')
+  assert.equal(payload.head_sha, sha)
+  assert.equal(payload.conclusion, 'success')
+  assert.match(payload.output.summary, new RegExp(`^scope-v2:scoped:${sha}:${liveBase}`))
 
   f.write('scripts/open-dev-app.mjs', 'invalid syntax (\n')
   const brokenSha = f.commit()
@@ -184,6 +191,81 @@ test('CI runner executes a light scope, publishes scope evidence and never turns
   const failed = JSON.parse(readFileSync(join(evidence, 'result.json'), 'utf8'))
   assert.equal(failed.status, 'failed')
   assert.deepEqual(failed.steps.map(step => [step.name, step.status]), [['script-syntax', 'failed']])
+  assert.equal(JSON.parse(readFileSync(join(evidence, 'check-run.json'), 'utf8')).conclusion, 'failure')
+})
+
+test('the publisher posts the uploaded payload on the head the event names, and nothing else', context => {
+  const f = fixture(context)
+  const bin = join(f.root, 'bin')
+  mkdirSync(bin)
+  const calls = join(f.root, 'gh-calls.txt')
+  writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> ${calls}\ncase "$*" in *"--input -"*) cat >> ${calls};; esac\necho '{"id": 7}'\n`)
+  chmodSync(join(bin, 'gh'), 0o755)
+  const head = 'a'.repeat(40)
+  const base = 'b'.repeat(40)
+  const evidence = join(f.root, 'evidence')
+  const payload = {
+    name: 'verify', head_sha: head, conclusion: 'success',
+    output: { title: 'passed: scoped verification', summary: `scope-v2:scoped:${head}:${base}\n\n## Desktop verification` }
+  }
+  const write = value => {
+    mkdirSync(evidence, { recursive: true })
+    writeFileSync(join(evidence, 'check-run.json'), JSON.stringify(value ?? payload) + '\n')
+  }
+  const publish = extra => spawnSync(process.execPath, [join(scripts, 'verify-publish.mjs')], {
+    cwd: f.cwd, encoding: 'utf8',
+    env: {
+      ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_TOKEN: 'token', GITHUB_REPOSITORY: 'owner/repo',
+      VERIFY_EVIDENCE: evidence, VERIFY_EVENT: 'pull_request', VERIFY_HEAD: head,
+      VERIFY_HEAD_REPOSITORY: 'owner/repo', VERIFY_RUN_ID: '99', ...extra
+    }
+  })
+  const posted = () => { const body = readFileSync(calls, 'utf8'); writeFileSync(calls, ''); return body }
+
+  write()
+  const accepted = publish()
+  assert.equal(accepted.status, 0, accepted.stderr + accepted.stdout)
+  const body = posted()
+  assert.match(body, /repos\/owner\/repo\/check-runs/)
+  assert.match(body, /"status":"completed"/)
+  assert.match(body, /"conclusion":"success"/)
+  // The head comes from the event, never from the payload, so a run cannot report on a
+  // commit it did not verify.
+  assert.match(body, new RegExp(`"head_sha":"${head}"`))
+  assert.match(body, new RegExp(`scope-v2:scoped:${head}:${base}`))
+  assert.match(body, /actions\/runs\/99/)
+
+  // The base the run recorded is free to differ from the one the event captured, since a
+  // base branch advances without moving the head; the gate checks that, not the publisher.
+  write({ ...payload, output: { ...payload.output, summary: `scope-v2:scoped:${head}:${'c'.repeat(40)}` } })
+  assert.equal(publish().status, 0)
+  assert.match(posted(), new RegExp(`"head_sha":"${head}"`))
+
+  // A payload that names another commit, or carries no evidence line to bind, is not posted.
+  write({ ...payload, head_sha: 'c'.repeat(40) })
+  assert.equal(publish().status, 1)
+  write({ ...payload, output: { ...payload.output, summary: `scope-v2:scoped:${'c'.repeat(40)}:${base}` } })
+  assert.equal(publish().status, 1)
+  write({ ...payload, output: { ...payload.output, summary: '## Desktop verification' } })
+  assert.equal(publish().status, 1)
+  write({ ...payload, conclusion: 'skipped' })
+  assert.equal(publish().status, 1)
+  assert.equal(posted(), '')
+
+  // Runs nobody can publish for are skipped quietly rather than reported: a fork head, a
+  // superseded run whose artifact never arrived, and anything that is not a pull request.
+  write()
+  for (const extra of [
+    { VERIFY_HEAD_REPOSITORY: 'someone/repo' },
+    { VERIFY_EVENT: 'push' }
+  ]) {
+    const result = publish(extra)
+    assert.equal(result.status, 0, result.stderr + result.stdout)
+    assert.match(result.stdout, /skipped/)
+  }
+  rmSync(join(evidence, 'check-run.json'))
+  assert.equal(publish().status, 0)
+  assert.equal(posted(), '')
 })
 
 test('CI runner refuses to verify a commit the checkout is not on', context => {
