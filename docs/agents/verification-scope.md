@@ -10,10 +10,10 @@
 ## 使用
 
 分级在 CI 中执行：[verify workflow](ci-verification.md) 由 PR 事件触发，从 PR 当前的 base
-到 `VERIFY_HEAD` 的完整差异计算计划，在同一次检出内运行必跑步骤并发布 `verify` check run。
+到 `VERIFY_HEAD` 的完整差异计算计划，在同一次检出内运行必跑步骤，并把 `verify` check run 的
+内容写进证据；check run 本身由默认分支上的发布者提交。
 本地没有便捷入口；入口 `scripts/verify-ci.mjs` 接受 `--full`、`--serial`、`--force-build`
-和 `--evidence <dir>` 用于本地演练，其输出仅为证据，不写 GitHub（除非设置 `GITHUB_TOKEN`
-和 `GITHUB_REPOSITORY`，此时把 check run 挂到本次验证的 SHA 上）。
+和 `--evidence <dir>` 用于本地演练，其输出仅为证据，不写 GitHub。
 
 没有比较基线时全量，避免把「最后一个提交」误当成整个分支的改动。无法解析基线或
 merge-base 时失败，不发布成功。
@@ -63,7 +63,8 @@ base 前进或 PR 改换基线后，即使 head 不变也需要重新验证；�
 使用真实临时 Git 仓库覆盖 merge-base、改名、删除、特殊文件名、无效基线。
 纯函数测试覆盖分级并集、传递依赖、全量回退和步骤完成要求。
 在临时仓库中启动 `scripts/verify-ci.mjs`，用替代 `gh` 和包管理器验证轻量路径无安装、
-分级证据写入 check run、步骤失败不会变绿，以及检出提交与受检提交不一致时拒绝执行。
+check run payload 落盘且不自行写 check run、步骤失败不会变绿，以及检出提交与受检提交
+不一致时拒绝执行。
 Python 门禁测试覆盖成功证据缺失、过期和采集竞争。
 
 ```sh

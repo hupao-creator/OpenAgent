@@ -4,9 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+# This job runs the pull request's own code, so it holds no credential that can write
+# checks. It writes the check run payload into its evidence; verify-publish.yml, which
+# GitHub always reads from the default branch, posts that payload as the check run.
 permissions:
   contents: read
-  checks: write
 
 concurrency:
   group: verify-${{ github.event.pull_request.number }}
@@ -36,7 +38,7 @@ jobs:
           cache: pnpm
       - name: Verify
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Read-only: the job reads the PR's live base through it and nothing else.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERIFY_HEAD: ${{ github.event.pull_request.head.sha }}
           # Fallback only. The runner reads the PR's live base through VERIFY_PR,

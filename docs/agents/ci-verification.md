@@ -1,7 +1,8 @@
 # CI 验证
 
 验证由 GitHub Actions 的 `verify` workflow 执行，运行在 GitHub 托管的 macOS runner 上：
-按 PR diff 分级选择检查，在 CI 的检出目录内执行，并发布一个 `verify` check run。
+按 PR diff 分级选择检查，在 CI 的检出目录内执行，并把 `verify` check run 的内容写进证据；
+check run 本身由默认分支上的发布者提交，见[发布 check run](#发布-check-run)。
 仓库没有本地验证入口，`pnpm verify` 已移除；本机只保留 `pnpm lint` 这类快速信号和
 husky pre-commit 钩子。
 
@@ -54,7 +55,7 @@ Bart 隔离套件不在 CI 中运行：它需要 1180×780 的原生窗口，托
 
 - `summary.md`：受检 SHA、分级计划、必跑/跳过步骤、工具版本、结果和耗时。
 - `result.json`：完整变更路径、影响工作区、选择理由、结构化结果、步骤命令、日志 SHA-256、
-  发布状态及错误。
+  `publication` 字段（本轮恒为 `deferred`）及错误。
 - `logs/`：每个步骤的完整输出。
 - `plan.json`、`test-selection.json`、`build-cache/`：分级计划、测试选择和构建缓存证据。
 - `check-run.json`：`verify` check run 的名称、受检 SHA、结论和摘要，供发布者读取。
@@ -71,10 +72,13 @@ Bart 隔离套件不在 CI 中运行：它需要 1180×780 的原生窗口，托
 
 ## 发布 check run
 
+`verify` job 不建 check run，它只写下 `check-run.json`。它跑的是 PR 自己的代码，所以
+permissions 只有 `contents: read`：改写验证脚本的 PR 可以伪造 payload 的内容，却拿不到任何
+能写 check 的凭据，写不出 check run。`GITHUB_TOKEN` 仍在环境里，但只用于读 PR 的实时 base。
+
 check run 由 `.github/workflows/verify-publish.yml` 创建。它由 `workflow_run` 触发，因此 GitHub
 总是从默认分支读取该 workflow、并检出默认分支的 `scripts/verify-publish.mjs`：持有
-`checks: write` 的代码永远来自受信任分支，不会是被审查分支里的代码。所以同仓库 PR 即使改写
-验证脚本，也只能产出证据，无法自行写出一条成功的 check run。
+`checks: write` 的代码永远来自受信任分支，不会是被审查分支里的代码。
 
 发布者只做一件事：把 artifact 里的 `check-run.json` 贴到事件给出的受检 head 上。受检 SHA 和
 仓库取自事件而不是 artifact，证据行的 head 与之不一致时拒绝发布，因此一份证据不能改挂到别的
@@ -82,6 +86,9 @@ check run 由 `.github/workflows/verify-publish.yml` 创建。它由 `workflow_r
 事件负载里捕获的那个不同，所以 base 与当前快照是否相符由门禁判断，不由发布者判断。
 被 `cancel-in-progress` 取代的运行没有 artifact，发布者静默跳过，由上一次运行负责回写；
 缺少 payload 同样不发布，门禁保持等待而不是放行。
+
+残余风险：PR 仍然控制自己的测试脚本，可以写出内容不实的 payload，发布者会照贴。这次收紧的是
+写 check 的凭据路径——PR 不再能自行发布 check run，也无法把结果挂到别的提交上——不是测试本身。
 
 ## 失败与排查
 

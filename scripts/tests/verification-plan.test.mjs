@@ -164,15 +164,14 @@ test('CI runner executes a light scope, publishes scope evidence and never turns
   assert.equal(result.status, 'passed')
   assert.equal(result.plan.profile, 'scoped')
   assert.deepEqual(result.steps.map(step => step.name), ['tracked-diff'])
-  assert.equal(result.publication, 'published')
-  const published = readFileSync(calls, 'utf8')
-  // The proof has to name the base the gate will compare against, which is the one
-  // the PR has now — not the one the event payload captured when the run was queued.
-  assert.match(published, new RegExp(`scope-v2:scoped:${sha}:${liveBase}`))
-  assert.match(published, /check-runs\/42/)
-  // The gate reads check runs off the head, and the event payload's merge commit
-  // lags one head behind on a push, so the run has to name the verified commit.
-  assert.match(published, new RegExp(`"head_sha":"${sha}"`))
+  assert.equal(result.publication, 'deferred')
+  const recorded = readFileSync(calls, 'utf8')
+  // The runner reads the PR's live base, which is the one the gate compares against —
+  // not the one the event payload captured when the run was queued.
+  assert.match(recorded, /pulls\/1/)
+  // It never writes a check run: this job runs the pull request's own code, and a
+  // credential that could publish is what let a pull request report its own pass.
+  assert.ok(!recorded.includes('check-runs'), recorded)
   assert.match(readFileSync(join(evidence, 'summary.md'), 'utf8'), /Desktop verification/)
   // The payload is what the default-branch publisher posts, so it has to carry the
   // committed identity and the evidence line the gate reads back.

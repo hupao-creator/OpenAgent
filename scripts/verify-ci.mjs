@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /** Scope-aware verification for GitHub Actions: plans from the PR diff, runs the
- *  required steps in the CI checkout, and publishes one `verify` check run. */
+ *  required steps in the CI checkout, and writes the `verify` check run payload.
+ *
+ *  It does not publish. This runs the pull request's own code, so it is given no
+ *  credential that can write checks; `scripts/verify-publish.mjs` posts the payload
+ *  from the default branch. */
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -16,8 +20,9 @@ if (options.help) {
   console.log(`Usage: node scripts/verify-ci.mjs [--full] [--serial] [--force-build] [--evidence <dir>]
 
 Reads the verified commit from VERIFY_HEAD (default: HEAD of the checkout) and the
-comparison baseline from VERIFY_BASE (absent: full verification). Publishes a
-GitHub check run when GITHUB_REPOSITORY and GITHUB_TOKEN are set.
+comparison baseline from VERIFY_BASE (absent: full verification). Writes the check
+run payload into the evidence directory for the default-branch publisher;
+GITHUB_REPOSITORY, GITHUB_TOKEN and VERIFY_PR only let it read the PR's live base.
 Native and development checks require macOS.`)
 } else {
   try { await verify() } catch (error) {
@@ -119,7 +124,7 @@ async function verify() {
     startedAt: new Date().toISOString(), status: 'running',
     platform: `${process.platform} ${process.arch} ${release()}`,
     node: process.version, pnpm: pnpmVersion, steps: [], directory,
-    publication: 'disabled'
+    publication: 'deferred'
   }
   const environment = {
     ...process.env,
@@ -151,7 +156,6 @@ async function verify() {
   process.on('SIGTERM', onTerminate)
   console.log(`Verifying ${sha}\nEvidence: ${directory}`)
   save()
-  const check = await startCheck(sha)
 
   async function step(name, program, args, timeoutMs = stepTimeout(name)) {
     if (!plan.requiredSteps.includes(name)) return
@@ -281,7 +285,8 @@ async function verify() {
         : []
       // The publisher that creates the check run reads this file from the artifact. It
       // runs from the default branch, so the code that wrote this payload never holds
-      // the credential that publishes it. A run that cannot write it must not look green.
+      // the credential that publishes it. A run that cannot write it must not look green:
+      // without it the publisher has nothing to post and the gate keeps waiting.
       writeFileSync(join(directory, 'check-run.json'), JSON.stringify(checkPayload(result), null, 2) + '\n')
     } catch (error) {
       result.status = 'failed'
@@ -293,14 +298,10 @@ async function verify() {
     if (process.env.GITHUB_STEP_SUMMARY) {
       appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary(result) + '\n')
     }
-    const publication = await finishCheck(check, result)
-    result.publication = publication
-    save()
     process.removeListener('SIGINT', onInterrupt)
     process.removeListener('SIGTERM', onTerminate)
     console.log(`${result.status.toUpperCase()} ${sha}\nSummary: ${summaryPath}`)
     if (result.error) console.error(result.error)
-    if (publication.startsWith('failed')) console.error(publication)
   }
 }
 
@@ -331,63 +332,6 @@ function checkPayload(result) {
     conclusion: result.status === 'passed' ? 'success' : 'failure',
     output: checkOutput(result)
   }
-}
-
-async function startCheck(sha) {
-  const repository = process.env.GITHUB_REPOSITORY
-  if (!repository || !process.env.GITHUB_TOKEN) return null
-  // Attach to the commit that was verified, never to an event payload's merge
-  // commit: that field still names the previous head on a `synchronize`, and the
-  // gate reads check runs off the head, so the run would be invisible.
-  const payload = {
-    name: context,
-    head_sha: sha,
-    status: 'in_progress',
-    started_at: new Date().toISOString(),
-    details_url: runUrl(repository),
-    output: { title: 'Verification running', summary: 'Scope-aware verification is running.' }
-  }
-  try {
-    const created = JSON.parse(command('gh', ['api', '--method', 'POST', `repos/${repository}/check-runs`, '--input', '-'], {
-      input: JSON.stringify(payload)
-    }))
-    return { repository, id: created.id }
-  } catch (error) {
-    // Report the verification anyway; finishCheck turns the publication failure
-    // into a non-zero exit so an unreportable run never reads as a pass.
-    annotate('warning', `verify: cannot open the check run (${error.message})`)
-    return { repository, error: error.message }
-  }
-}
-
-async function finishCheck(check, result) {
-  if (!check) return 'disabled'
-  if (check.error) {
-    process.exitCode = process.exitCode || 1
-    return `failed: ${check.error}`
-  }
-  try {
-    const { conclusion, output } = checkPayload(result)
-    command('gh', ['api', '--method', 'PATCH', `repos/${check.repository}/check-runs/${check.id}`, '--input', '-'], {
-      input: JSON.stringify({
-        status: 'completed',
-        conclusion,
-        completed_at: new Date().toISOString(),
-        details_url: runUrl(check.repository),
-        output
-      })
-    })
-    return 'published'
-  } catch (error) {
-    // A run that cannot report its own result must not look green.
-    annotate('error', `verify: cannot publish the check run (${error.message})`)
-    process.exitCode = process.exitCode || 1
-    return `failed: ${error.message}`
-  }
-}
-
-function runUrl(repository) {
-  return process.env.GITHUB_RUN_ID ? `https://github.com/${repository}/actions/runs/${process.env.GITHUB_RUN_ID}` : `https://github.com/${repository}`
 }
 
 function summary(result) {
