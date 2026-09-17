@@ -40,26 +40,38 @@ export function measureBar(root: HTMLElement | null, selector: string): BarBox {
   return rect.width <= 0 ? EMPTY_BOX : { width: Math.ceil(rect.width), height: Math.ceil(rect.height) }
 }
 
-/* 两个玻璃容器共用一套光学参数。
-   `blur` 和 `tint.a` 是被一个库的合成方式逼出来的：库把「弯折后的背景」画在玻璃轮廓
-   里，却不会盖掉它底下那份没弯折的原图，而 tint 半透明又让原图继续透出来 —— 两幅图
-   叠在一起，边缘在玻璃轮廓上硬切一刀，看上去就像正文被截断（越清晰的正文越明显）。
-   `a=1` 能盖干净，但那样玻璃变成一块不透光的板，和 backdrop-filter 候选没差别了。
-   所以走中间：把背后糊掉（`blur`），硬切边就没了可切的锐利边缘；再抬一点不透明度，
-   压掉残余的重影。取值是照着静态场景浅/深两套截图定的，动它之前先看一眼边缘。 */
-export const GLASS = {
-  blur: 3,
-  thickness: 26,
-  ior: 1.5,
-  dispersion: 0,
-  bezelWidth: 14,
-  displacementFactor: 1,
-  specularStrength: 1,
-  specularWidth: 'hairline' as const,
-  shadowBlur: 24,
-  shadowOffsetY: 10,
-  shadowColor: { r: 0.1, g: 0.1, b: 0.09, a: 0.18 },
-  tint: { r: 0.98, g: 0.98, b: 0.96, a: 0.88 }
+/* 两个玻璃容器共用一套光学参数，取值照 `IosNotificationDemo`（库自带的展示页）抄。
+   它靠**糊**而不是靠**染色**把背后的东西隐藏掉：`blur` 12 把背景糊成一片柔和的色块，
+   `tint` 只留 0.22 的极淡染色。这条要点别改反了 —— 库会把弯折后的背景画在玻璃轮廓
+   里，却不盖住底下那份没弯折的原图，tint 一重就只是把它涂白，重影和硬切的边都还在。
+   剩下的项一律不显式给，用 0.1.1 的默认值（thickness 90 / displacementFactor 1 /
+   ior 1.5 / dispersion 0），跟展示页保持一致。
+   注意展示页 master 上还有 `blendSupportGating`，0.1.1 里没有这个字段。 */
+const GLASS_BASE = {
+  spacing: 10,
+  blur: 12,
+  bezelWidth: 18,
+  specularOpacity: 0.6,
+  shadowColor: { r: 0, g: 0, b: 0, a: 0.2 },
+  shadowOffsetY: 7,
+  shadowBlur: 21
+}
+
+/* 染色分浅深两套，同样是展示页里 light / night 那一对。 */
+const GLASS_TINT = {
+  light: { r: 0.82, g: 0.92, b: 0.95, a: 0.22 },
+  dark: { r: 0.7, g: 0.7, b: 0.7, a: 0.22 }
+}
+
+/* 预先拼好两份，好让每次渲染拿到同一个对象：场景在悬停 / 选中时频繁重渲染，
+   每次现拼一个新对象会把这些属性当成一直在变，白白往场景图上写。 */
+const GLASS_FOR_THEME = {
+  light: { ...GLASS_BASE, tint: GLASS_TINT.light },
+  dark: { ...GLASS_BASE, tint: GLASS_TINT.dark }
+}
+
+export function glassFor(theme: string): typeof GLASS_FOR_THEME.light {
+  return theme === 'dark' ? GLASS_FOR_THEME.dark : GLASS_FOR_THEME.light
 }
 
 interface TagFilterBarProps {

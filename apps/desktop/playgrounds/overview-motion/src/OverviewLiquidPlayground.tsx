@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Frame, Glass, GlassContainer, Html, LiquidCanvas, Padding, ZStack, type LiquidCanvasRef } from '@liquid-dom/react'
-import { EMPTY_BOX, GLASS, OverviewActions, TagFilterBar, hitTestHost, measureBar, type BarBox } from './liquid-bars'
+import { EMPTY_BOX, OverviewActions, TagFilterBar, glassFor, hitTestHost, measureBar, type BarBox } from './liquid-bars'
 import { canvasDrawElementGap, installLiquidCaptureCompat } from './liquid-capture-compat'
 import { LiquidUnsupported } from './LiquidUnsupported'
 
@@ -136,7 +136,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
             <Html sizing="fill" zIndex={0}><Substrate /></Html>
             <Frame width={size.width} height={size.height} alignment={{ x: 'center', y: 'start' }}>
               <Padding insets={{ top: 16 }}>
-                <GlassContainer {...GLASS}>
+                <GlassContainer {...glassFor(theme)}>
                   <Frame width={filterBox.width} height={filterBox.height}>
                     <Glass cornerRadius={13} pointerEvents
                       onPointerMove={onFilterMove}
@@ -157,7 +157,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
             </Frame>
             <Frame width={size.width} height={size.height} alignment={{ x: 'end', y: 'start' }}>
               <Padding insets={{ top: 16, right: 18 }}>
-                <GlassContainer {...GLASS}>
+                <GlassContainer {...glassFor(theme)}>
                   <Frame width={actionsBox.width} height={actionsBox.height}>
                     <Glass cornerRadius={13} pointerEvents
                       onPointerMove={onActionsMove}
