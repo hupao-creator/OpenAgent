@@ -180,7 +180,7 @@ test('CI runner executes a light scope, publishes scope evidence and never turns
   assert.equal(payload.name, 'verify')
   assert.equal(payload.head_sha, sha)
   assert.equal(payload.conclusion, 'success')
-  assert.match(payload.output.summary, new RegExp(`^scope-v2:scoped:${sha}:${base}`))
+  assert.match(payload.output.summary, new RegExp(`^scope-v2:scoped:${sha}:${liveBase}`))
 
   f.write('scripts/open-dev-app.mjs', 'invalid syntax (\n')
   const brokenSha = f.commit()
@@ -216,7 +216,7 @@ test('the publisher posts the uploaded payload on the head the event names, and 
     cwd: f.cwd, encoding: 'utf8',
     env: {
       ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_TOKEN: 'token', GITHUB_REPOSITORY: 'owner/repo',
-      VERIFY_EVIDENCE: evidence, VERIFY_EVENT: 'pull_request', VERIFY_HEAD: head, VERIFY_BASE: base,
+      VERIFY_EVIDENCE: evidence, VERIFY_EVENT: 'pull_request', VERIFY_HEAD: head,
       VERIFY_HEAD_REPOSITORY: 'owner/repo', VERIFY_RUN_ID: '99', ...extra
     }
   })
@@ -235,10 +235,20 @@ test('the publisher posts the uploaded payload on the head the event names, and 
   assert.match(body, new RegExp(`scope-v2:scoped:${head}:${base}`))
   assert.match(body, /actions\/runs\/99/)
 
-  // A payload that names another commit, or evidence for another base, is not posted.
+  // The base the run recorded is free to differ from the one the event captured, since a
+  // base branch advances without moving the head; the gate checks that, not the publisher.
+  write({ ...payload, output: { ...payload.output, summary: `scope-v2:scoped:${head}:${'c'.repeat(40)}` } })
+  assert.equal(publish().status, 0)
+  assert.match(posted(), new RegExp(`"head_sha":"${head}"`))
+
+  // A payload that names another commit, or carries no evidence line to bind, is not posted.
   write({ ...payload, head_sha: 'c'.repeat(40) })
   assert.equal(publish().status, 1)
-  write({ ...payload, output: { ...payload.output, summary: `scope-v2:scoped:${head}:${'c'.repeat(40)}` } })
+  write({ ...payload, output: { ...payload.output, summary: `scope-v2:scoped:${'c'.repeat(40)}:${base}` } })
+  assert.equal(publish().status, 1)
+  write({ ...payload, output: { ...payload.output, summary: '## Desktop verification' } })
+  assert.equal(publish().status, 1)
+  write({ ...payload, conclusion: 'skipped' })
   assert.equal(publish().status, 1)
   assert.equal(posted(), '')
 

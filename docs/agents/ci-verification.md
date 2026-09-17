@@ -76,10 +76,12 @@ check run 由 `.github/workflows/verify-publish.yml` 创建。它由 `workflow_r
 `checks: write` 的代码永远来自受信任分支，不会是被审查分支里的代码。所以同仓库 PR 即使改写
 验证脚本，也只能产出证据，无法自行写出一条成功的 check run。
 
-发布者只做一件事：把 artifact 里的 `check-run.json` 贴到事件给出的受检 head 上。受检 SHA、
-base 和仓库取自事件而不是 artifact，证据行的 head 与 base 与之不一致时拒绝发布，因此一份证据
-不能改挂到别的提交上。被 `cancel-in-progress` 取代的运行没有 artifact，发布者静默跳过，由上
-一次运行负责回写；缺少 payload 同样不发布，门禁保持等待而不是放行。
+发布者只做一件事：把 artifact 里的 `check-run.json` 贴到事件给出的受检 head 上。受检 SHA 和
+仓库取自事件而不是 artifact，证据行的 head 与之不一致时拒绝发布，因此一份证据不能改挂到别的
+提交上。证据里的 base 不参与这一步校验：那是运行时解析出的实时 base，base 分支前进时它会与
+事件负载里捕获的那个不同，所以 base 与当前快照是否相符由门禁判断，不由发布者判断。
+被 `cancel-in-progress` 取代的运行没有 artifact，发布者静默跳过，由上一次运行负责回写；
+缺少 payload 同样不发布，门禁保持等待而不是放行。
 
 ## 失败与排查
 
