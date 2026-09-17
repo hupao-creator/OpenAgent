@@ -554,14 +554,21 @@ class GateTests(unittest.TestCase):
             with self.subTest(check=check.__name__, changes=changes):
                 self.assertEqual(check(gate_base(**changes))["status"], expected)
 
-    def test_failures_beat_pending_and_same_named_checks_cannot_hide_failures(self):
+    def test_failures_beat_pending_and_a_newer_run_supersedes_the_one_it_replaced(self):
         statuses = [{"context": "other", "state": "pending", "id": 1}, {"context": "another", "state": "failure", "id": 2}]
         self.assertEqual(cli.check_verification(gate_base(statuses=statuses))["status"], "blocked")
-        for suite in (10, 11):
-            runs = [verification_run(),
-                    {"id": 2, "name": "ci", "status": "completed", "conclusion": "failure", "app": {"id": 1}, "check_suite": {"id": 10}},
-                    {"id": 3, "name": "ci", "status": "completed", "conclusion": "success", "app": {"id": 1}, "check_suite": {"id": suite}}]
-            self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "blocked")
+        ci = lambda identifier, conclusion: {"id": identifier, "name": "ci", "status": "completed",
+                                             "conclusion": conclusion, "app": {"id": 1}, "check_suite": {"id": identifier}}
+        # `cancel-in-progress` cancels the run a newer one replaces: the replacement decides.
+        runs = [verification_run(), ci(2, "cancelled"), ci(3, "success")]
+        self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "pass")
+        # The newest run still decides, so a newer failure is never masked by an older success.
+        runs = [verification_run(), ci(3, "success"), ci(4, "failure")]
+        self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "blocked")
+        # Different apps publish checks under the same name and are evaluated apart.
+        runs = [verification_run(), ci(3, "failure"),
+                {"id": 4, "name": "ci", "status": "completed", "conclusion": "success", "app": {"id": 2}}]
+        self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "blocked")
         for conclusion in ("neutral", "skipped", "success"):
             runs = [verification_run(), {"id": 7, "name": "ci", "status": "completed", "conclusion": conclusion, "app": {"id": 1}}]
             self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "pass")

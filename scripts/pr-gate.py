@@ -91,6 +91,18 @@ def check_threads_resolved(value):
     return passed("{} review thread(s), all resolved.".format(len(threads)))
 
 
+def latest_check_runs(check_runs):
+    # A check run's id increases with every run GitHub records for it, so the
+    # highest id per name and app is the one GitHub itself would report.
+    latest = {}
+    for check in check_runs:
+        key = (((check.get("app") or {}).get("slug") or (check.get("app") or {}).get("id")), check.get("name"))
+        current = latest.get(key)
+        if current is None or (check.get("id") or 0) > (current.get("id") or 0):
+            latest[key] = check
+    return latest
+
+
 def check_verification(value):
     if not isinstance(value.get("statuses"), list) or not isinstance(value.get("checkRuns"), list):
         return blocked("Commit statuses were not collected; use a snapshot with checks.")
@@ -105,9 +117,12 @@ def check_verification(value):
             signals.append(pending("Commit status is pending: {}.".format(status["context"])))
         elif status["state"] != "success":
             signals.append(blocked("Commit status failed: {}.".format(status["context"])))
-    # Evaluate every run, including same-named jobs: a newer success must not
-    # hide another run's failure. Failures take precedence over pending signals.
-    for check in value["checkRuns"]:
+    # GitHub keys each check by name and app, and reads only the newest run for it:
+    # a re-run supersedes the run it replaced, including a `cancelled` one the
+    # workflow's `cancel-in-progress` left behind. Reading every run instead would
+    # leave a superseded conclusion blocking a commit the replacement run proved.
+    # Failures take precedence over pending signals.
+    for check in latest_check_runs(value["checkRuns"]).values():
         if check["status"] != "completed":
             signals.append(pending("Check is running: {}.".format(check["name"])))
         elif check.get("conclusion") not in {"success", "neutral", "skipped"}:

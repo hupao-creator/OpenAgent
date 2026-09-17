@@ -51,6 +51,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: verification-evidence
-          path: ${{ runner.temp }}/verification-evidence
+          path: |
+            ${{ runner.temp }}/verification-evidence
+            !${{ runner.temp }}/verification-evidence/tmp
           if-no-files-found: ignore
           retention-days: 14
+      # Native probes write screenshots and packaged bundles under TMPDIR; keep those
+      # out of the passing artifact but available once a run has failed.
+      - name: Upload scratch evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-scratch
+          path: ${{ runner.temp }}/verification-evidence/tmp
+          if-no-files-found: ignore
+          retention-days: 7

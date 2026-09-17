@@ -84,6 +84,12 @@ async function verify() {
 
   const directory = resolve(options.evidence || join(process.env.RUNNER_TEMP || tmpdir(), 'verification-evidence'))
   mkdirSync(directory, { recursive: true })
+  // Native probes keep screenshots and manifests under their own evidence root or,
+  // failing that, under TMPDIR; both stay outside the checkout. Pointing them at
+  // the uploaded directory is what lets a hosted runner's failure be inspected at
+  // all, and the workflow uploads `tmp` separately so the passing artifact stays small.
+  const temporaryRoot = join(directory, 'tmp')
+  mkdirSync(temporaryRoot, { recursive: true })
   const result = {
     schemaVersion: 3, context, sha, repository: process.env.GITHUB_REPOSITORY || null, pr: process.env.VERIFY_PR || null,
     runId: process.env.GITHUB_RUN_ID || null, plan, execution: options.serial ? 'serial' : 'parallel-read-checks',
@@ -97,7 +103,11 @@ async function verify() {
     // Husky 9 has no CI check of its own; without this the checkout's `prepare`
     // writes core.hooksPath into the checkout's config during a cache-miss install.
     CI: 'true', HUSKY: '0', CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+    TMPDIR: temporaryRoot + '/',
     OPENAGENT_BUILD_EVIDENCE_DIR: join(directory, 'build-cache'),
+    OPENAGENT_LIFECYCLE_EVIDENCE_ROOT: join(directory, 'lifecycle'),
+    OPENAGENT_APPEARANCE_EVIDENCE_ROOT: join(directory, 'appearance'),
+    BART_ISOLATION_OUTPUT: join(directory, 'bart-isolation'),
     OPENAGENT_FORCE_BUILD: options['force-build'] ? '1' : '0'
   }
   // Children read an immutable plan, never the concurrently updated result.json.
