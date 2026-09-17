@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Component, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Frame, Glass, GlassContainer, Html, LiquidCanvas, Padding, ZStack, type LiquidCanvasRef } from '@liquid-dom/react'
 import { getOverviewCameraCockpit } from '../overview-motion'
 import { installLiquidCaptureCompat } from './capture-compat'
@@ -7,6 +7,30 @@ import { BAR_CORNER, glassFor, useLiquidTheme } from './glass-recipe'
 /* 捕获垫片必须在任何 LiquidCanvas 挂载前装好。渲染进程里只有这一个入口会建画布，
    模块求值时装一次即可。 */
 installLiquidCaptureCompat()
+
+/**
+ * 画布初始化失败就退回普通 DOM。库在拿不到 WebGPU 适配器、拿不到画布上下文、
+ * 或者纹理超过设备上限时是直接 `throw`（core 的 `WebGpuDomContentSource`），这些
+ * 都发生在挂载期，没有边界就会冒到整棵树上把俯瞰视图一起带走。捕获特性缺失只是
+ * 其中一种 —— 有特性、但设备画不出来，同样得退。
+ */
+class LiquidStageBoundary extends Component<{ readonly onFail: () => void; readonly children: ReactNode },
+  { readonly failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError(): { readonly failed: true } {
+    return { failed: true }
+  }
+
+  componentDidCatch(error: unknown): void {
+    console.error('[overview-liquid] 画布初始化失败，退回普通 DOM', error)
+    this.props.onFail()
+  }
+
+  render(): ReactNode {
+    return this.state.failed ? null : this.props.children
+  }
+}
 
 /** 浮条在舞台里的盒子，相对舞台左上角，取整数像素。 */
 interface BarBox {
@@ -119,6 +143,8 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
   }, [backdropRefs])
 
   const ready = size.width > 0 && size.height > 0
+  const [failed, setFailed] = useState(false)
+  const handleFailure = (): void => setFailed(true)
 
   /* 衬底子树是随画布一起挂上的，挂载前调用方量不到里面的元素。挂上之后叫它一次。 */
   useEffect(() => {
@@ -168,28 +194,35 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
 
 
   return <div className="overview-liquid-stage" ref={stageRef}>
-    {ready && <LiquidCanvas ref={canvasRef} frameloop="demand"
-      style={{ width: '100%', height: '100%' }}
-      canvasStyle={{ display: 'block', width: '100%', height: '100%' }}
-      onError={error => console.error('[overview-liquid] 帧循环失败', error)}>
-      {/* 换肤只改 CSS 变量，玻璃的染色却是挂载时读进去的，所以按外观重挂一次场景图。 */}
-      <Frame key={theme} width={size.width} height={size.height}>
-        <ZStack alignment="topLeading">
-          <Html sizing="fill">
-            <div className="overview-liquid-substrate">{children}</div>
-          </Html>
-          {boxes.map((box, index) => box && (
-            <Padding key={index} insets={{ left: box.left, top: box.top }}>
-              <GlassContainer {...glassFor(theme)}>
-                <Frame width={box.width} height={box.height}>
-                  <Glass {...BAR_CORNER} />
-                </Frame>
-              </GlassContainer>
-            </Padding>
-          ))}
-        </ZStack>
-      </Frame>
-    </LiquidCanvas>}
+    {ready && (failed
+      ? <div className="overview-liquid-substrate">{children}</div>
+      : <LiquidStageBoundary onFail={handleFailure}>
+          <LiquidCanvas ref={canvasRef} frameloop="demand"
+            style={{ width: '100%', height: '100%' }}
+            canvasStyle={{ display: 'block', width: '100%', height: '100%' }}
+            onError={error => {
+              console.error('[overview-liquid] 帧循环失败，退回普通 DOM', error)
+              handleFailure()
+            }}>
+            {/* 换肤只改 CSS 变量，玻璃的染色却是挂载时读进去的，所以按外观重挂一次场景图。 */}
+            <Frame key={theme} width={size.width} height={size.height}>
+              <ZStack alignment="topLeading">
+                <Html sizing="fill">
+                  <div className="overview-liquid-substrate">{children}</div>
+                </Html>
+                {boxes.map((box, index) => box && (
+                  <Padding key={index} insets={{ left: box.left, top: box.top }}>
+                    <GlassContainer {...glassFor(theme)}>
+                      <Frame width={box.width} height={box.height}>
+                        <Glass {...BAR_CORNER} />
+                      </Frame>
+                    </GlassContainer>
+                  </Padding>
+                ))}
+              </ZStack>
+            </Frame>
+          </LiquidCanvas>
+        </LiquidStageBoundary>)}
   </div>
 }
 
