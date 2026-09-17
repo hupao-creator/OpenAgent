@@ -132,9 +132,10 @@ def check_verification(value):
     # turns a stale run into a rerun request rather than a pass.
     runs = [check for check in value["checkRuns"] if check.get("name") == VERIFICATION_CHECK]
     if not runs:
-        # A run whose publication fails takes the job's own check run down with it,
-        # which the loop above reports as a failure; a run that never started is
-        # still in flight, so wait for it rather than calling it blocked.
+        # The default-branch publisher is what creates this check run, so its absence
+        # means the evidence has not arrived: the verify run may still be in flight, or
+        # the publisher refused a payload that names another commit or came from a fork.
+        # None of those is a pass, so wait for the check run rather than calling it blocked.
         signals.append(pending("No {} check run for this commit yet; wait for CI, or push the branch if none is scheduled.".format(VERIFICATION_CHECK)))
     else:
         run = max(runs, key=lambda check: check.get("id") or 0)
