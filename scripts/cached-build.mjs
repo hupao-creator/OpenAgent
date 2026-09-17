@@ -42,9 +42,14 @@ export function runCachedBuild(mode) {
       : ['build:main', 'build:preload', 'build:renderer', '--filter=openagent-desktop']
     const env = { ...process.env, TURBO_TELEMETRY_DISABLED: '1',
       OPENAGENT_BUILD_TOOLCHAIN: `${process.version}/${process.platform}/${process.arch}/pnpm@${version}` }
+    // electron-vite transpiles its config to a name derived from `Date.now()` and
+    // unlinks it once imported, so two target builds starting in the same
+    // millisecond make the later import fail. The three desktop targets are small,
+    // so serialising them is cheap and is what makes this build deterministic.
     const args = [...pnpm[1], 'exec', 'turbo', 'run', ...targets,
       process.env.OPENAGENT_FORCE_BUILD === '1' ? '--cache=local:w' : '--cache=local:rw',
-      `--cache-dir=${cache}`, '--env-mode=strict', '--summarize', '--concurrency=4']
+      `--cache-dir=${cache}`, '--env-mode=strict', '--summarize',
+      `--concurrency=${mode === 'packages' ? 4 : 1}`]
     const planned = spawnSync(pnpm[0], [...args, '--dry=json'], { cwd: root, env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
     if (planned.error || planned.status !== 0) throw new Error(`Build planning failed: ${planned.error?.message || planned.stderr}`)
     const plan = JSON.parse(planned.stdout)

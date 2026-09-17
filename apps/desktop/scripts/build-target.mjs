@@ -1,17 +1,17 @@
 import { resolveConfig } from 'electron-vite'
 import { build } from 'vite'
+import { isConfigTempCollision } from './build-config-collision.mjs'
 
 const target = process.argv[2]
 if (!['main', 'preload', 'renderer'].includes(target)) throw new Error(`Unknown build target: ${target}`)
 process.env.NODE_ENV_ELECTRON_VITE = 'production'
-// electron-vite transpiles the TypeScript config to `electron.vite.config.<Date.now()>.mjs`
-// and deletes it once imported. Three targets build concurrently, so two processes
-// starting in the same millisecond share that one name and the later import fails.
+// The cached build runs these targets one at a time, but a concurrent invocation still
+// shares electron-vite's temp config path; retry that collision, never a real config error.
 let resolved
 for (let attempt = 0; !resolved; ) {
   try { resolved = await resolveConfig({}, 'build', 'production') }
   catch (error) {
-    if (++attempt >= 3 || error.code !== 'ENOENT' || !/electron\.vite\.config\.\d+\.mjs/.test(error.message)) throw error
+    if (++attempt >= 5 || !isConfigTempCollision(error)) throw error
   }
 }
 const { config } = resolved
