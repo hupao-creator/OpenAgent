@@ -12,7 +12,7 @@ python3 scripts/pr-gate.py gate 123 [--only a,b] [--skip a,b]
 python3 scripts/pr-gate.py merge 123 [--check] [--merge|--rebase]
 ```
 
-每个命令只做一件事；`snapshot` 是其他命令的读模型原子。收集 threads 与 statuses/check-runs 时绑定最终读取的 HEAD，check-runs 同时读取 HEAD 和 PR merge commit（CI 把 `verify` 挂在后者），期间 HEAD 或 base 变化则整体标记 `unknown` 要求重试。`comments` 和 `poll` 额外查询讨论线程的解决和过期状态；行内评论保留路径、行号、commit、链接及同线程回复；所有列表分页读取。
+每个命令只做一件事；`snapshot` 是其他命令的读模型原子。收集 threads 与 statuses/check-runs 时绑定最终读取的 HEAD，check-runs 同时读取 HEAD 和 PR merge commit（`verify` 挂在 HEAD；读 merge commit 是为了不漏掉挂在别处的检查），期间 HEAD 或 base 变化则整体标记 `unknown` 要求重试。`comments` 和 `poll` 额外查询讨论线程的解决和过期状态；行内评论保留路径、行号、commit、链接及同线程回复；所有列表分页读取。
 
 `poll` 在状态或完成证据变化时即时向 stderr 输出简短 JSON 进展，最终完整结果仍写 stdout，便于重定向保存而不混入进展记录。若当前 HEAD 的完成摘要已到、但结果格式未识别，会明确输出 `unrecognized-result`；超时结果也保留 diagnostic，避免把识别失败误当成审查仍在运行。
 
