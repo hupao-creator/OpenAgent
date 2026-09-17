@@ -4,7 +4,7 @@ import { RendererCapabilitiesProvider } from '@openagent/plugin-kit/renderer'
 import { ConversationOverview } from '../../../src/renderer/src/components/ConversationOverview'
 import { getOverviewCameraCockpit } from '../../../src/renderer/src/overview-motion'
 import type { OverviewCameraMemory } from '../../../src/renderer/src/overview-motion/camera'
-import { EMPTY_BOX, OverviewActions, TagFilterBar, glassFor, hitTestHost, measureBar, type BarBox } from './liquid-bars'
+import { BAR_CORNER, EMPTY_BOX, OverviewActions, TagFilterBar, glassFor, hitTestHost, measureBar, type BarBox } from './liquid-bars'
 import { canvasDrawElementGap, installLiquidCaptureCompat } from './liquid-capture-compat'
 import { LiquidUnsupported } from './LiquidUnsupported'
 import { createMotionFrame } from './scenarios'
@@ -157,7 +157,7 @@ export function OverviewLiquidLivePlayground(): React.JSX.Element {
                 <Padding insets={{ top: 16 }}>
                   <GlassContainer {...glassFor(theme)}>
                     <Frame width={filterBox.width} height={filterBox.height}>
-                      <Glass cornerRadius={13} pointerEvents
+                      <Glass {...BAR_CORNER} pointerEvents
                         onPointerMove={onFilterMove}
                         onPointerLeave={onFilterLeave}
                         onClick={event => {
@@ -178,7 +178,7 @@ export function OverviewLiquidLivePlayground(): React.JSX.Element {
                 <Padding insets={{ top: 16, right: 18 }}>
                   <GlassContainer {...glassFor(theme)}>
                     <Frame width={actionsBox.width} height={actionsBox.height}>
-                      <Glass cornerRadius={13} pointerEvents
+                      <Glass {...BAR_CORNER} pointerEvents
                         onPointerMove={onActionsMove}
                         onPointerLeave={onActionsLeave}
                         onClick={event => {

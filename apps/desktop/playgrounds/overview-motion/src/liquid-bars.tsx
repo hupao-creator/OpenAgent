@@ -79,6 +79,12 @@ export function glassFor(theme: string): typeof GLASS_FOR_THEME.light {
   return theme === 'dark' ? GLASS_FOR_THEME.dark : GLASS_FOR_THEME.light
 }
 
+/* 生产两条栏的圆角是 CSS `border-radius: 13px`，正圆角。库的 `cornerSmoothing` 默认
+   0.6，走的是 iOS 那种连续曲率的方圆形（`core` 里 `DEFAULT_CORNER_SMOOTHING = 0.6`，
+   注释说 "tuned for an iOS-like squircle"）—— 同样写 13，看着比生产更圆，弧也拉得更长，
+   因为方形圆的曲率过渡铺得比圆弧宽。要和生产对齐就得把这个默认值按回 0。 */
+export const BAR_CORNER = { cornerRadius: 13, cornerSmoothing: 0 }
+
 interface TagFilterBarProps {
   readonly hostRef?: React.Ref<HTMLDivElement>
   readonly selected: string

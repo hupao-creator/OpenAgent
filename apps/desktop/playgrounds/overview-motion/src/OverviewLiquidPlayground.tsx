@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Frame, Glass, GlassContainer, Html, LiquidCanvas, Padding, ZStack, type LiquidCanvasRef } from '@liquid-dom/react'
-import { EMPTY_BOX, OverviewActions, TagFilterBar, glassFor, hitTestHost, measureBar, type BarBox } from './liquid-bars'
+import { BAR_CORNER, EMPTY_BOX, OverviewActions, TagFilterBar, glassFor, hitTestHost, measureBar, type BarBox } from './liquid-bars'
 import { canvasDrawElementGap, installLiquidCaptureCompat } from './liquid-capture-compat'
 import { LiquidUnsupported } from './LiquidUnsupported'
 
@@ -138,7 +138,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
               <Padding insets={{ top: 16 }}>
                 <GlassContainer {...glassFor(theme)}>
                   <Frame width={filterBox.width} height={filterBox.height}>
-                    <Glass cornerRadius={13} pointerEvents
+                    <Glass {...BAR_CORNER} pointerEvents
                       onPointerMove={onFilterMove}
                       onPointerLeave={onFilterLeave}
                       onClick={event => {
@@ -159,7 +159,7 @@ export function OverviewLiquidPlayground(): React.JSX.Element {
               <Padding insets={{ top: 16, right: 18 }}>
                 <GlassContainer {...glassFor(theme)}>
                   <Frame width={actionsBox.width} height={actionsBox.height}>
-                    <Glass cornerRadius={13} pointerEvents
+                    <Glass {...BAR_CORNER} pointerEvents
                       onPointerMove={onActionsMove}
                       onPointerLeave={onActionsLeave}
                       onClick={event => {
