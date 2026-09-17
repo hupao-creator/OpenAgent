@@ -5,6 +5,7 @@ import { measureVisibleCharacters } from '../card-generation/content'
 import { typesetBlock, type TypesetCaretPoint } from '../card-generation/typeset'
 import type { MotionRect, MotionRevealFrame, MotionTexture } from './worker-types'
 import { MOTION_LIMITS } from './runtime-limits'
+import { freezeCardDOM } from './card-snapshot'
 
 export interface PreparedMotionCard {
   rect: MotionRect
@@ -12,6 +13,11 @@ export interface PreparedMotionCard {
   assets: { id: string; bitmap: ImageBitmap }[]
   textures: MotionTexture[]
   caret: TypesetCaretPoint[]
+}
+
+export interface CapturedMotionCard {
+  prepare(signal: AbortSignal, embeddedFonts: string): Promise<PreparedMotionCard>
+  dispose(): void
 }
 
 let sequence = 0
@@ -42,11 +48,9 @@ export async function prewarmMotionCards(card: HTMLElement, signal?: AbortSignal
   return css
 }
 
-/** Capture real mounted content once; the execution side never asks DOM for a frame. */
-export async function prepareMotionCard(card: HTMLElement, origin: { x: number; y: number }, signal?: AbortSignal, embeddedFonts?: string): Promise<PreparedMotionCard> {
-  const fontEmbedCSS = embeddedFonts ?? await prewarmMotionCards(card, signal)
-  signal?.throwIfAborted()
-  const bounds = card.getBoundingClientRect(), scale = bounds.width / card.offsetWidth
+/** Synchronous sampling boundary: content, styles and measurements belong to one input. */
+export function captureMotionCard(card: HTMLElement, origin: { x: number; y: number }): CapturedMotionCard {
+  const target = card.getBoundingClientRect(), scale = target.width / card.offsetWidth
   const width = card.offsetWidth, height = card.offsetHeight
   if (!width || !height || !scale) throw new Error('Bart card has no layout')
   const ratio = Math.min(2, devicePixelRatio)
@@ -54,72 +58,103 @@ export async function prepareMotionCard(card: HTMLElement, origin: { x: number; 
   if (Math.max(width + padding * 2, height + padding * 2) * ratio > MOTION_LIMITS.textureSide) {
     throw new Error('Bart card snapshot exceeds the texture side budget')
   }
-  const prefix = `bart-card-${++sequence}`
-  const attribute = `data-bart-resource-${sequence}`
-  const blocks = cardRevealBlocks(card)
-  const measurements = blocks.map(block => {
-    const rect = block.getBoundingClientRect()
-    const clip = new DOMRect(Math.max(rect.left, bounds.left), Math.max(rect.top, bounds.top),
-      Math.max(0, Math.min(rect.right, bounds.right) - Math.max(rect.left, bounds.left)),
-      Math.max(0, Math.min(rect.bottom, bounds.bottom) - Math.max(rect.top, bounds.top)))
-    const singleLine = !block.matches('.thread-overview-excerpt, .report-overview-preview, .thread-card-extension, .thread-card-workflow-phase-cell, .thread-card-workflow-agent-cell')
-    const points = measureVisibleCharacters(block, clip, singleLine).map(point => ({ ...point,
-      left: point.left / scale, right: point.right / scale, top: point.top / scale,
-      bottom: point.bottom / scale, lineHeight: point.lineHeight / scale }))
-    if (block.classList.contains('thread-provider-status') && clip.width && clip.height) {
-      points.push({ left: 0, right: clip.width / scale, top: 0, bottom: clip.height / scale,
-        lineHeight: clip.height / scale, weight: 3.8 })
-    }
-    return { block, clip, singleLine, points }
-  }).filter(({ clip, points }) => clip.width > 0 && clip.height > 0 && points.length)
-  const options = { width: width + padding * 2, height: height + padding * 2, pixelRatio: ratio, fontEmbedCSS,
-    style: { width: `${width}px`, height: `${height}px`, visibility: 'visible', opacity: '1',
-      transform: `translate(${padding}px, ${padding}px)`, position: 'relative', inset: 'auto' } }
-  const assets: PreparedMotionCard['assets'] = []
-  const textures: MotionTexture[] = []
-  const caret: TypesetCaretPoint[] = []
-  let elapsed = 0
+  const frozen = freezeCardDOM(card)
+  let disposed = false, started = false
+  const dispose = (): void => { disposed = true; frozen.dispose() }
   try {
+    // Measure the same isolated DOM that will be serialized, in unscaled card
+    // coordinates. The live target rect remains a separate world-space fact.
+    Object.assign(frozen.element.style, { width: `${width}px`, height: `${height}px`,
+      transform: 'none', translate: 'none', rotate: 'none', scale: 'none',
+      position: 'relative', inset: '0', margin: '0' })
+    const bounds = frozen.element.getBoundingClientRect()
+    const prefix = `bart-card-${++sequence}`
+    const attribute = `data-bart-resource-${sequence}`
+    const measurements = cardRevealBlocks(frozen.element).map(block => {
+      const rect = block.getBoundingClientRect()
+      const clip = new DOMRect(Math.max(rect.left, bounds.left), Math.max(rect.top, bounds.top),
+        Math.max(0, Math.min(rect.right, bounds.right) - Math.max(rect.left, bounds.left)),
+        Math.max(0, Math.min(rect.bottom, bounds.bottom) - Math.max(rect.top, bounds.top)))
+      const singleLine = !block.matches('.thread-overview-excerpt, .report-overview-preview, .thread-card-extension, .thread-card-workflow-phase-cell, .thread-card-workflow-agent-cell')
+      const points = measureVisibleCharacters(block, clip, singleLine)
+      if (block.classList.contains('thread-provider-status') && clip.width && clip.height) {
+        points.push({ left: 0, right: clip.width, top: 0, bottom: clip.height,
+          lineHeight: clip.height, weight: 3.8 })
+      }
+      return { block, clip, singleLine, points }
+    }).filter(({ clip, points }) => clip.width > 0 && clip.height > 0 && points.length)
     measurements.forEach(({ block }) => block.setAttribute(attribute, ''))
-    const [full, shell] = await snapshotSurfaceVariants(card, options, [undefined, xml => {
-      xml.querySelectorAll<HTMLElement>(`[${attribute}], [${attribute}] *`).forEach(block => { block.style.visibility = 'hidden' })
-    }])
-    signal?.throwIfAborted()
-    const rect = { x: bounds.left - origin.x, y: bounds.top - origin.y, width: bounds.width, height: bounds.height }
-    assets.push({ id: prefix, bitmap: await createImageBitmap(shell, { premultiplyAlpha: 'none' }) })
-    signal?.throwIfAborted()
-    textures.push({ id: prefix, rect: { x: rect.x - padding * scale, y: rect.y - padding * scale,
-      width: rect.width + padding * scale * 2, height: rect.height + padding * scale * 2 }, from: 0 })
-    for (const [index, { clip, singleLine, points }] of measurements.entries()) {
-      // Crop on the same raster grid as the complete card to keep glyph pixels identical.
-      const left = Math.max(0, Math.floor((clip.left - bounds.left) / scale * ratio) - 2)
-      const top = Math.max(0, Math.floor((clip.top - bounds.top) / scale * ratio) - 2)
-      const right = Math.min(width * ratio, Math.ceil((clip.right - bounds.left) / scale * ratio) + 2)
-      const bottom = Math.min(height * ratio, Math.ceil((clip.bottom - bounds.top) / scale * ratio) + 2)
-      const x = left / ratio, y = top / ratio, w = (right - left) / ratio, h = (bottom - top) / ratio
-      const dx = (clip.left - bounds.left) / scale - x, dy = (clip.top - bounds.top) / scale - y
-      const duration = points.reduce((total, point) => total + point.weight, 0) / 38 * 1000
-      const typed = typesetBlock(points.map(point => ({ ...point,
-        left: point.left + dx, right: point.right + dx, top: point.top + dy, bottom: point.bottom + dy
-      })), { width: w, height: h, singleLine }, duration)
-      const reveal: MotionRevealFrame[] = typed.frames.map(frame => {
-        const polygon = String(frame.clipPath).match(/-?\d+(?:\.\d+)?/g)!.map(Number)
-        return { at: elapsed + Number(frame.offset) * duration,
-          x: polygon[6] * scale, top: polygon[5] * scale, bottom: polygon[9] * scale }
-      })
-      const id = `${prefix}-${index}`
-      assets.push({ id, bitmap: await createImageBitmap(full, left + padding * ratio, top + padding * ratio,
-        right - left, bottom - top, { premultiplyAlpha: 'none' }) })
-      signal?.throwIfAborted()
-      textures.push({ id, from: elapsed, rect: { x: rect.x + x * scale, y: rect.y + y * scale,
-        width: w * scale, height: h * scale }, reveal })
-      caret.push(...typed.caret.map(point => ({ at: elapsed + point.at,
-        x: rect.x + Math.max(13, Math.min(rect.width - 13, (x + point.x + 10) * scale)),
-        y: rect.y + Math.max(13, Math.min(rect.height - 13, (y + point.y) * scale)) })))
-      elapsed += duration + 34
+    const rect = { x: target.left - origin.x, y: target.top - origin.y, width: target.width, height: target.height }
+    return {
+      dispose,
+      async prepare(signal, embeddedFonts) {
+        if (disposed || started) throw new Error('Bart card snapshot already consumed')
+        if (signal.aborted) { dispose(); signal.throwIfAborted() }
+        const assertActive = (): void => {
+          signal.throwIfAborted()
+          if (disposed) throw new DOMException('Bart card snapshot disposed', 'AbortError')
+        }
+        started = true
+        signal.addEventListener('abort', dispose, { once: true })
+        const options = { width: width + padding * 2, height: height + padding * 2, pixelRatio: ratio,
+          fontEmbedCSS: embeddedFonts, fetchRequestInit: { signal },
+          style: { width: `${width}px`, height: `${height}px`, visibility: 'visible', opacity: '1',
+            transform: `translate(${padding}px, ${padding}px)`, position: 'relative', inset: 'auto' } }
+        const assets: PreparedMotionCard['assets'] = []
+        const textures: MotionTexture[] = []
+        const caret: TypesetCaretPoint[] = []
+        let elapsed = 0
+        try {
+          const [full, shell] = await snapshotSurfaceVariants(frozen.element, options, [undefined, xml => {
+            xml.querySelectorAll<HTMLElement>(`[${attribute}], [${attribute}] *`).forEach(block => { block.style.visibility = 'hidden' })
+          }])
+          assertActive()
+          assets.push({ id: prefix, bitmap: await createImageBitmap(shell, { premultiplyAlpha: 'none' }) })
+          assertActive()
+          textures.push({ id: prefix, rect: { x: rect.x - padding * scale, y: rect.y - padding * scale,
+            width: rect.width + padding * scale * 2, height: rect.height + padding * scale * 2 }, from: 0 })
+          for (const [index, { clip, singleLine, points }] of measurements.entries()) {
+            // Crop on the same raster grid as the complete card.
+            const left = Math.max(0, Math.floor((clip.left - bounds.left) * ratio) - 2)
+            const top = Math.max(0, Math.floor((clip.top - bounds.top) * ratio) - 2)
+            const right = Math.min(width * ratio, Math.ceil((clip.right - bounds.left) * ratio) + 2)
+            const bottom = Math.min(height * ratio, Math.ceil((clip.bottom - bounds.top) * ratio) + 2)
+            const x = left / ratio, y = top / ratio, w = (right - left) / ratio, h = (bottom - top) / ratio
+            const dx = clip.left - bounds.left - x, dy = clip.top - bounds.top - y
+            const duration = points.reduce((total, point) => total + point.weight, 0) / 38 * 1000
+            const typed = typesetBlock(points.map(point => ({ ...point,
+              left: point.left + dx, right: point.right + dx, top: point.top + dy, bottom: point.bottom + dy
+            })), { width: w, height: h, singleLine }, duration)
+            const reveal: MotionRevealFrame[] = typed.frames.map(frame => {
+              const polygon = String(frame.clipPath).match(/-?\d+(?:\.\d+)?/g)!.map(Number)
+              return { at: elapsed + Number(frame.offset) * duration,
+                x: polygon[6] * scale, top: polygon[5] * scale, bottom: polygon[9] * scale }
+            })
+            const id = `${prefix}-${index}`
+            assets.push({ id, bitmap: await createImageBitmap(full, left + padding * ratio, top + padding * ratio,
+              right - left, bottom - top, { premultiplyAlpha: 'none' }) })
+            assertActive()
+            textures.push({ id, from: elapsed, rect: { x: rect.x + x * scale, y: rect.y + y * scale,
+              width: w * scale, height: h * scale }, reveal })
+            caret.push(...typed.caret.map(point => ({ at: elapsed + point.at,
+              x: rect.x + Math.max(13, Math.min(rect.width - 13, (x + point.x + 10) * scale)),
+              y: rect.y + Math.max(13, Math.min(rect.height - 13, (y + point.y) * scale)) })))
+            elapsed += duration + 34
+          }
+          assertActive()
+          return { rect, duration: elapsed, assets, textures, caret }
+        } catch (error) { assets.forEach(asset => asset.bitmap.close()); throw error }
+        finally { signal.removeEventListener('abort', dispose); dispose() }
+      }
     }
-    signal?.throwIfAborted()
-    return { rect, duration: elapsed, assets, textures, caret }
-  } catch (error) { assets.forEach(asset => asset.bitmap.close()); throw error }
-  finally { measurements.forEach(({ block }) => block.removeAttribute(attribute)) }
+  } catch (error) { dispose(); throw error }
+}
+
+/** Convenience entry for single-card callers; batches sample all cards before any await. */
+export async function prepareMotionCard(card: HTMLElement, origin: { x: number; y: number }, signal?: AbortSignal, embeddedFonts?: string): Promise<PreparedMotionCard> {
+  const fontEmbedCSS = embeddedFonts ?? await prewarmMotionCards(card, signal)
+  signal?.throwIfAborted()
+  const captured = captureMotionCard(card, origin)
+  try { return await captured.prepare(signal ?? new AbortController().signal, fontEmbedCSS) }
+  finally { captured.dispose() }
 }

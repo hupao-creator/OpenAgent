@@ -1,7 +1,7 @@
 import { getOverviewCameraCockpit, getOverviewMotionCoordinator, type OverviewStageLease } from '../overview-motion'
 import { getBartSpatialRegistry } from './registry'
 import { createMotionSurface, type MotionRun } from './worker-client'
-import { motionCardRevision, prewarmMotionCards, prepareMotionCard, type PreparedMotionCard } from './card-assets'
+import { captureMotionCard, prewarmMotionCards, type CapturedMotionCard, type PreparedMotionCard } from './card-assets'
 import { compileGenerationProgram, withGenerationCharacter } from './generation-program'
 import { residentCharacter } from './CharacterCanvas'
 import { prepareWithinBudget, sealGeometry, sealMotionScene } from './scene-host'
@@ -94,15 +94,18 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     const dockContainer = dock.closest<HTMLElement>('.bart-dock') ?? dock
     const scroll = registry.scrollContainer()
     const plane = elements[0].closest<HTMLElement>('.thread-overview-plane')
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
-    reduced?.addEventListener('change', abort)
-    cleanups.push(() => reduced?.removeEventListener('change', abort))
+    // Environment invalidation is distinct from ordinary business updates, and
+    // applies during preparation as well as playback.
+    for (const query of ['(prefers-reduced-motion: reduce)', '(prefers-color-scheme: dark)']) {
+      const media = window.matchMedia?.(query)
+      media?.addEventListener('change', abort)
+      cleanups.push(() => media?.removeEventListener('change', abort))
+    }
     seal = sealMotionScene({ root, canvas, covered: [...elements, dockContainer],
       interactions: [scroll ?? plane ?? elements[0], ...elements, dockContainer],
       resources: plane ? [plane] : [], scroll: scroll ? [scroll] : [], freezeTransforms: [dockContainer] })
-    // Metadata and streamed status can arrive during capture or Worker upload.
-    // Keep the work pending and the original seal deadline across attempts;
-    // only a snapshot that is still current may become visible.
+    // A sampled batch may be older than live business state. Retry only invalid
+    // scene geometry, retaining the original deadline and pending work.
     const beforeDeadline = <T>(prepare: (sealSignal: AbortSignal) => Promise<T>): Promise<T> => {
       const remaining = MOTION_LIMITS.sealTimeout - (performance.now() - seal!.sealedAt)
       if (remaining <= 0) throw new Error('Bart scene sealing exceeded its budget')
@@ -116,9 +119,10 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       }
       const rootRect = root.getBoundingClientRect()
       surface!.resize(rootRect.width, rootRect.height)
-      const toolbar = scroll?.parentElement?.querySelector<HTMLElement>('.thread-overview-header')
-      const revision = (): string => elements.map(motionCardRevision).join('\0')
-      const valid = sealGeometry([root, dockContainer, ...elements, ...(scroll ? [scroll] : []), ...(toolbar ? [toolbar] : [])], revision)
+      const toolbarElement = (): HTMLElement | null | undefined => scroll?.parentElement?.querySelector<HTMLElement>('.thread-overview-header')
+      const toolbar = toolbarElement()
+      const geometryValid = sealGeometry([root, dockContainer, ...elements, ...(scroll ? [scroll] : []), ...(toolbar ? [toolbar] : [])], () => '')
+      const valid = (): boolean => toolbarElement() === toolbar && geometryValid()
       const initialCamera = getOverviewCameraCockpit().live?.transform
       // The resident SVG reserves room for orbits and a caption. Its stable body
       // outline supplies geometry; the Worker owns the live pose, never this DOM.
@@ -128,15 +132,26 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       const matrix = logo.getScreenCTM()
       if (!matrix || residentCharacter(logo) !== actor) throw new Error('Bart generation resident changed')
       const viewport = registry.viewportRootRect() ?? { x: 0, y: 0, width: rootRect.width, height: rootRect.height }
-      // A newly mounted tag bar can change the usable viewport before takeoff.
       if (toolbar) {
         const top = Math.max(viewport.y, toolbar.getBoundingClientRect().bottom - rootRect.top)
         viewport.height -= top - viewport.y; viewport.y = top
       }
-      for (const element of elements) {
-        const card = await prepareMotionCard(element, { x: rootRect.left, y: rootRect.top }, sealSignal, fonts)
-        if (sealSignal.aborted) { card.assets.forEach(asset => asset.bitmap.close()); sealSignal.throwIfAborted() }
-        cards.push(card)
+      const snapshots: CapturedMotionCard[] = []
+      const releaseSnapshots = (): void => snapshots.forEach(snapshot => snapshot.dispose())
+      sealSignal.addEventListener('abort', releaseSnapshots, { once: true })
+      try {
+        // Sample the entire batch in one Host task before any asynchronous
+        // encoding. Later cards cannot accidentally sample a later stream turn.
+        for (const element of elements) snapshots.push(captureMotionCard(element, { x: rootRect.left, y: rootRect.top }))
+        for (const snapshot of snapshots) {
+          sealSignal.throwIfAborted()
+          const card = await snapshot.prepare(sealSignal, fonts)
+          if (sealSignal.aborted) { card.assets.forEach(asset => asset.bitmap.close()); sealSignal.throwIfAborted() }
+          cards.push(card)
+        }
+      } finally {
+        sealSignal.removeEventListener('abort', releaseSnapshots)
+        releaseSnapshots()
       }
       if (!valid()) return undefined
       await surface!.load(cards.flatMap(card => card.assets))
@@ -189,9 +204,6 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     const resize = new ResizeObserver(onResize)
     resize.observe(root)
     cleanups.push(() => resize.disconnect())
-    const colorScheme = window.matchMedia?.('(prefers-color-scheme: dark)')
-    colorScheme?.addEventListener('change', abort)
-    cleanups.push(() => colorScheme?.removeEventListener('change', abort))
     await new Promise<void>((resolve, reject) => {
       const onAbort = (): void => reject(signal.reason)
       signal.addEventListener('abort', onAbort, { once: true })
