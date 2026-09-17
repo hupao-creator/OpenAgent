@@ -88,6 +88,18 @@ try {
   const clip = { x: Math.floor(card.x + camera.x - 20), y: Math.floor(card.y + camera.y - 20),
     width: Math.ceil(card.width + 40), height: Math.ceil(card.height + 40) }
   const phase = name => plan.phases.find(value => value.name === name).at
+  if (process.env.BART_MORPH_CURVE) {
+    const curve = []
+    for (const at of [300, 420, 470, 500, 520, 540, 560, 580, 600, 620, 650, 680, 720, 760, 820, 900, 1100]) {
+      await delay(Math.max(0, plan.origin + at - Date.now()))
+      const image = await contents.capturePage(clip)
+      const sized = bodies(image, false), surface = bodies(image, true)
+      curve.push({ at, elapsed: Math.round(Date.now() - plan.origin), size: image.getSize(),
+        width: sized[0]?.width ?? null, eyes: sized[0]?.eyes ?? null, bright: surface[0]?.width ?? null })
+    }
+    console.log('MORPH_CURVE', JSON.stringify({ output, clip, phases: plan.phases, curve }))
+    window.destroy(); app.exit(0)
+  }
   const samples = []
   async function capture(label, at) {
     await delay(Math.max(0, plan.origin + at - Date.now()))
@@ -96,22 +108,32 @@ try {
     samples.push(entry)
     return entry
   }
-  const inflated = await capture('inflated', phase('morph:0') + 55)
-  const stretched = await capture('stretched', phase('morph:0') + 105)
+  // The morph runs for 260ms of wall clock, and the silhouette it grows is only
+  // widest for a moment inside it. One sample pinned to an instant only reads the
+  // morph on a machine that samples the same instant, so span the window and ask
+  // whether the silhouette grew somewhere within it.
+  const inflated = await capture('inflated', phase('morph:0') + 15)
+  const expanding = []
+  for (const at of [60, 105, 150, 195]) expanding.push(await capture(`expanding-${at}`, phase('morph:0') + at))
   await capture('settled-card', phase('morph:0') + 240)
   const cursorA = await capture('caret-a', phase('reveal:0') + 350)
   const cursorB = await capture('caret-b', phase('reveal:0') + 750)
   // Keep PNG encoding and pixel analysis out of the short morph capture window.
+  const surfaces = ['settled-card', ...expanding.map(sample => sample.label)]
   for (const sample of samples) {
-    sample.bodies = bodies(sample.image, ['stretched', 'settled-card'].includes(sample.label))
+    sample.bodies = bodies(sample.image, surfaces.includes(sample.label))
     await writeFile(path.join(output, `${sample.label}.png`), sample.image.toPNG())
     delete sample.image
   }
   await writeFile(path.join(output, 'pixels.json'), JSON.stringify({ plan, clip, samples }, null, 2))
   const ratio = inflated.size.width / clip.width
-  assert.ok(inflated.bodies[0]?.width > 100 * ratio, `No inflated body: ${JSON.stringify(inflated)}`)
-  assert.ok(inflated.bodies[0]?.eyes >= 8 * ratio, `Morph lost its eyes: ${JSON.stringify(inflated)}`)
-  assert.ok(stretched.bodies[0]?.width > inflated.bodies[0].width * 1.35, `No expanding silhouette: ${JSON.stringify(stretched)}`)
+  const morphing = [inflated, ...expanding]
+  const silhouettes = morphing.map(sample => sample.bodies[0]).filter(Boolean)
+  assert.ok(silhouettes.some(body => body.width > 100 * ratio), `No inflated body: ${JSON.stringify(morphing)}`)
+  assert.ok(silhouettes.some(body => body.eyes >= 8 * ratio), `Morph lost its eyes: ${JSON.stringify(morphing)}`)
+  const widths = silhouettes.map(body => body.width)
+  assert.ok(widths.length && Math.max(...widths) > Math.min(...widths) * 1.35,
+    `No expanding silhouette: ${JSON.stringify(expanding)}`)
   for (const cursor of [cursorA, cursorB]) {
     const body = cursor.bodies.find(value => value.width >= 10 * ratio && value.width <= 28 * ratio && value.height >= 10 * ratio && value.height <= 28 * ratio)
     assert.ok(body && body.eyes >= 4 * ratio, `Typesetting Bart has no face: ${JSON.stringify(cursor)}`)
