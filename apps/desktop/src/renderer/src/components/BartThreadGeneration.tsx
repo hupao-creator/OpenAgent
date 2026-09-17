@@ -93,8 +93,7 @@ function BartPreparedGeneration({ work, onComplete }: {
       if (!active) return
       // Release native pending facts and the covering surface in this same Host
       // task. No guessed frame count or timeout is used as presentation proof.
-      flushSync(onComplete)
-      scene.dispose()
+      scene.handoff(() => flushSync(onComplete))
     }
     void scene.performed.then(finish, finish)
     return () => { active = false; scene.dispose() }
