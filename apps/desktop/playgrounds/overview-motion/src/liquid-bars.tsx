@@ -46,7 +46,12 @@ export function measureBar(root: HTMLElement | null, selector: string): BarBox {
    里，却不盖住底下那份没弯折的原图，tint 一重就只是把它涂白，重影和硬切的边都还在。
    剩下的项一律不显式给，用 0.1.1 的默认值（thickness 90 / displacementFactor 1 /
    ior 1.5 / dispersion 0），跟展示页保持一致。
-   注意展示页 master 上还有 `blendSupportGating`，0.1.1 里没有这个字段。 */
+   展示页还传了 `blendSupportGating={false}`，这里没有跟：它只存在于未发布的 master
+   （npm 上 latest 就是 0.1.1），而且即便有也用不上 —— 上游是拿它按形状面积调制
+   smooth-union 的融合半径，只在同一个容器装了多个形状时才生效
+   （core.ts 里 `container.blendSupportGating.enabled && activeCount > 1`）。展示页把
+   三个形状放进同一个 GlassContainer 互相滑动融合，所以需要；本场景每个容器只有一个
+   Glass，两条栏又分处屏幕两端、永远不会接触，开了也是空转。 */
 const GLASS_BASE = {
   spacing: 10,
   blur: 12,
