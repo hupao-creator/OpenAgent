@@ -2427,13 +2427,14 @@
 }
 
 /* 主消息绝大多数是单段 Markdown。让浏览器按实际行盒做四行裁剪，避免 inline
-   token、字形 ascent 等因素让理论 max-height 切到最后一行字身。 */
+   token、字形 ascent 等因素让理论 max-height 切到最后一行字身。唯一的那块可能
+   是标题、引用或列表，所以按“唯一块元素”而不是段落匹配。 */
 
-.thread-overview-excerpt:has(> .markdown-body > p:only-child) {
+.thread-overview-excerpt:has(> .markdown-body > :only-child) {
   max-height: none;
 }
 
-.thread-overview-excerpt .markdown-body > p:only-child {
+.thread-overview-excerpt .markdown-body > :only-child {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
@@ -2448,12 +2449,12 @@
 }
 
 .thread-card-identity[data-identity-size='1x2']
-  .thread-overview-excerpt:has(> .markdown-body > p:only-child) {
+  .thread-overview-excerpt:has(> .markdown-body > :only-child) {
   max-height: none;
 }
 
 .thread-card-identity[data-identity-size='1x2']
-  .thread-overview-excerpt .markdown-body > p:only-child {
+  .thread-overview-excerpt .markdown-body > :only-child {
   -webkit-line-clamp: 8;
 }
 
