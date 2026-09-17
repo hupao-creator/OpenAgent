@@ -73,7 +73,7 @@ async function verify() {
   if (checkoutHead !== sha) throw new Error(`Checkout is at ${checkoutHead}, not the verified commit ${sha}`)
   const base = process.env.VERIFY_BASE || null
   const plan = planVerification({ cwd: sourceRoot, sha, base, full: options.full })
-  if (process.platform !== 'darwin' && plan.requiredSteps.some(name => ['development', 'report-runtime', 'lifecycle-runtime', 'bart-isolation', 'dev-scripts'].includes(name))) {
+  if (process.platform !== 'darwin' && plan.requiredSteps.some(name => ['development', 'report-runtime', 'lifecycle-runtime', 'dev-scripts'].includes(name))) {
     throw new Error('Selected native/development checks require macOS')
   }
   const packageJson = JSON.parse(git('show', `${sha}:package.json`))
@@ -107,7 +107,6 @@ async function verify() {
     OPENAGENT_BUILD_EVIDENCE_DIR: join(directory, 'build-cache'),
     OPENAGENT_LIFECYCLE_EVIDENCE_ROOT: join(directory, 'lifecycle'),
     OPENAGENT_APPEARANCE_EVIDENCE_ROOT: join(directory, 'appearance'),
-    BART_ISOLATION_OUTPUT: join(directory, 'bart-isolation'),
     OPENAGENT_FORCE_BUILD: options['force-build'] ? '1' : '0'
   }
   // Children read an immutable plan, never the concurrently updated result.json.
@@ -176,13 +175,12 @@ async function verify() {
           entry.exitCode = code
           entry.signal = signal
           if (!interrupted && !timedOut && code === 0) done()
-          else reject(Object.assign(new Error(`${name}: ${interrupted || (timedOut ? 'timeout' : signal || `exit ${code}`)}`),
-            { environmentInconclusive: name === 'bart-isolation' && code === 75 && !interrupted && !timedOut && !signal }))
+          else reject(new Error(`${name}: ${interrupted || (timedOut ? 'timeout' : signal || `exit ${code}`)}`))
         })
       })
       entry.status = 'passed'
     } catch (error) {
-      entry.status = error.environmentInconclusive ? 'environment-inconclusive' : 'failed'
+      entry.status = 'failed'
       entry.error = error.message
       annotate('error', `verify: ${name} ${error.message}`)
       console.error(tail)
@@ -239,7 +237,6 @@ async function verify() {
     await step('build', ...pnpm(['--dir', 'apps/desktop', 'build:bundles']))
     await step('report-runtime', ...pnpm(['--dir', 'apps/desktop', 'test:report-runtime']))
     await step('lifecycle-runtime', ...pnpm(['--dir', 'apps/desktop', 'test:lifecycle-runtime']))
-    await step('bart-isolation', ...pnpm(['--dir', 'apps/desktop', 'test:bart-isolation']))
     await step('tracked-diff', 'git', ['diff', '--exit-code', 'HEAD'])
     if (command('git', ['status', '--porcelain'])) {
       throw new Error('Verification left unexpected tracked or untracked source changes')
@@ -247,9 +244,9 @@ async function verify() {
     assertPlanCompleted(plan, result.steps)
     result.status = 'passed'
   } catch (error) {
-    result.status = interrupted ? 'interrupted' : error.environmentInconclusive ? 'environment-inconclusive' : 'failed'
+    result.status = interrupted ? 'interrupted' : 'failed'
     result.error = error.message
-    process.exitCode = error.environmentInconclusive ? 75 : 1
+    process.exitCode = 1
   } finally {
     try {
       const cacheEvidence = join(directory, 'build-cache')
@@ -332,7 +329,7 @@ async function finishCheck(check, result) {
     command('gh', ['api', '--method', 'PATCH', `repos/${check.repository}/check-runs/${check.id}`, '--input', '-'], {
       input: JSON.stringify({
         status: 'completed',
-        conclusion: result.status === 'passed' ? 'success' : result.status === 'environment-inconclusive' ? 'neutral' : 'failure',
+        conclusion: result.status === 'passed' ? 'success' : 'failure',
         completed_at: new Date().toISOString(),
         details_url: runUrl(check.repository),
         output: checkOutput(result)

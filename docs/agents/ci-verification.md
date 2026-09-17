@@ -37,7 +37,9 @@ check run 挂在 PR 的 merge commit 上，因此 base 前进后 GitHub 重算 m
 
 热更新检查在 `scripts/verify-development.mjs`，只在检出内临时修改 fixture 源码并恢复。
 任何必跑步骤失败都会停止后续步骤、保留日志并让 job 失败，不会报告成功。
-Bart 隔离检查以退出码 75 表示 runner 环境无法测量，结论记为 `neutral`，门禁按失败处理。
+Bart 隔离套件不在 CI 中运行：它需要 1180×780 的原生窗口，托管的 macOS runner 只有
+1024×653，坐标、合成手势和准入预算都无法成立。该套件只在真机手动执行，见
+[Bart 隔离测量](bart-isolation.md)。
 
 ## 证据与门禁
 

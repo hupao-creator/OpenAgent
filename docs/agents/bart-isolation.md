@@ -34,8 +34,8 @@ busy loop 的入口/出口记录 renderer 绝对时间。Main 不再轮询 ready
 
 采集不足 20 次独立机会、观测窗口某个四分区不足校准采样密度的一半（至少两次），或短动作前四分之一
 已经被 renderer 帧调度消耗，均不能证明隔离成立：退出 75，结果为
-`environment-inconclusive`。完整验证保留该分类，GitHub status 发布 `error`；
-门禁仍阻止合并。没有自动重试，也不把不可测量场景记成通过。
+`environment-inconclusive`。该套件不在 CI 门禁中运行，退出 75 由调用方自行判定；
+没有自动重试，也不把不可测量场景记成通过。
 
 ## 5000ms 场景的 flow 下界
 

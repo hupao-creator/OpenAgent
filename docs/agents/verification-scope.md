@@ -31,11 +31,14 @@ merge-base 时失败，不发布成功。
 | 包源码 | 该包及依赖它的工作区的类型检查和测试；影响桌面时追加构建，非 renderer 源码再追加原生回归 |
 | 工作区内 `.test.*` / `.spec.*` | 所属工作区类型检查和测试，跳过生产构建、热更新和原生回归 |
 | 独立报告/生命周期 Electron 测试入口 | 构建及对应原生回归 |
-| Bart、Overview 相机、协调者设置页 renderer 源码，或隔离验收入口 | 追加 `bart-isolation`：独立构建 Lab，串行运行真实 Electron 的 2 秒/5 秒阻塞与交接检查 |
+| Bart、Overview 相机、协调者设置页 renderer 源码 | 与其余 renderer 源码相同，无额外原生步骤 |
 | manifests、锁文件、构建配置、验证器及其测试、共享测试 fixture/helper、其他未分类路径 | 全量 |
 
 产品验证会安装锁定依赖、构建全部包并生成/核对 registry、执行全仓 lint。
-完整验证包含 `bart-isolation`。所有原生运行时检查在构建、单测完成后串行运行，避免测量受到并行重负载干扰；该步骤需要 macOS 原生窗口环境。
+完整验证不含 `bart-isolation`：Bart 原生 Electron 验收需要 1180×780 的原生窗口，
+托管的 GitHub runner 给不出这个尺寸，因此该套件不在 CI 中运行，只在真机上
+`pnpm --dir apps/desktop test:bart-isolation` 手动执行；改动这些测试入口按未分类路径走全量。
+其余原生运行时检查在构建、单测完成后串行运行，避免测量受到并行重负载干扰。
 这些准备步骤仍共享，缩小的是类型检查及回归测试的工作区集合和昂贵运行时步骤。
 包依赖图来自受检提交，包含 dependencies、devDependencies、peerDependencies、optionalDependencies，
 按反向依赖传递闭包选择消费者，因此修改 contracts/test-kit 会扩大范围。

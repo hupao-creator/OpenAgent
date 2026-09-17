@@ -52,14 +52,16 @@ test('tests, renderer, native and development checks are independently selected'
   has(plan(['scripts/open-dev-app.mjs']), 'script-syntax', 'dev-scripts')
 })
 
-test('Bart and its geometry dependencies require the native isolation gate', () => {
+test('Bart renderer sources require no native window gate', () => {
   for (const path of ['bart-motion/motion.worker.ts', 'overview-motion/camera.ts',
     'components/HarnessSettingsPage.tsx', 'components/BartLogo.css']) {
-    has(plan([`apps/desktop/src/renderer/src/${path}`]), 'bart-isolation')
+    const renderer = plan([`apps/desktop/src/renderer/src/${path}`])
+    has(renderer, 'build')
+    skips(renderer, 'bart-isolation', 'lifecycle-runtime', 'report-runtime')
   }
-  const native = plan(['apps/desktop/tests/bart-worker-suite.mjs'])
-  has(native, 'bart-isolation', 'install', 'lint')
-  skips(native, 'regressions', 'lifecycle-runtime')
+  // The Electron suites need a native window the hosted runner cannot size, so
+  // changing them falls through to full verification rather than gating on them.
+  assert.deepEqual(plan(['apps/desktop/tests/bart-worker-suite.mjs']).requiredSteps, fullSteps)
 })
 
 test('unknown, global configuration, verifier, fixtures and no baseline require full verification', () => {
