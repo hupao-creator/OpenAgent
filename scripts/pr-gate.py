@@ -127,8 +127,9 @@ def check_verification(value):
             signals.append(pending("Check is running: {}.".format(check["name"])))
         elif check.get("conclusion") not in {"success", "neutral", "skipped"}:
             signals.append(blocked("Check failed: {}.".format(check["name"])))
-    # The workflow attaches its check run to the merge commit, so a base change
-    # replaces it; the recorded scope evidence still binds the tested head and base.
+    # The workflow attaches its check run to the verified head, so it survives a
+    # base advance; the recorded scope evidence is what binds the tested base and
+    # turns a stale run into a rerun request rather than a pass.
     runs = [check for check in value["checkRuns"] if check.get("name") == VERIFICATION_CHECK]
     if not runs:
         # A run whose publication fails takes the job's own check run down with it,

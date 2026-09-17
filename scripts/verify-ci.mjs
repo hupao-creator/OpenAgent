@@ -17,7 +17,7 @@ if (options.help) {
 
 Reads the verified commit from VERIFY_HEAD (default: HEAD of the checkout) and the
 comparison baseline from VERIFY_BASE (absent: full verification). Publishes a
-GitHub check run when GITHUB_REPOSITORY, GITHUB_TOKEN and VERIFY_CHECK_SHA are set.
+GitHub check run when GITHUB_REPOSITORY and GITHUB_TOKEN are set.
 Native and development checks require macOS.`)
 } else {
   try { await verify() } catch (error) {
@@ -128,7 +128,7 @@ async function verify() {
   process.on('SIGTERM', onTerminate)
   console.log(`Verifying ${sha}\nEvidence: ${directory}`)
   save()
-  const check = await startCheck()
+  const check = await startCheck(sha)
 
   async function step(name, program, args, timeoutMs = stepTimeout(name)) {
     if (!plan.requiredSteps.includes(name)) return
@@ -295,12 +295,15 @@ function checkOutput(result) {
   }
 }
 
-async function startCheck() {
+async function startCheck(sha) {
   const repository = process.env.GITHUB_REPOSITORY
-  if (!repository || !process.env.GITHUB_TOKEN || !process.env.VERIFY_CHECK_SHA) return null
+  if (!repository || !process.env.GITHUB_TOKEN) return null
+  // Attach to the commit that was verified, never to an event payload's merge
+  // commit: that field still names the previous head on a `synchronize`, and the
+  // gate reads check runs off the head, so the run would be invisible.
   const payload = {
     name: context,
-    head_sha: process.env.VERIFY_CHECK_SHA,
+    head_sha: sha,
     status: 'in_progress',
     started_at: new Date().toISOString(),
     details_url: runUrl(repository),

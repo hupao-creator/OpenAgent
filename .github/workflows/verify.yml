@@ -41,10 +41,6 @@ jobs:
           VERIFY_HEAD: ${{ github.event.pull_request.head.sha }}
           VERIFY_BASE: ${{ github.event.pull_request.base.sha }}
           VERIFY_PR: ${{ github.event.pull_request.number }}
-          # Attached to the merge commit so GitHub invalidates it when the base moves.
-          # A PR whose test merge cannot be computed (conflicts) still verifies, and
-          # the gate's scope evidence binds the tested head and base either way.
-          VERIFY_CHECK_SHA: ${{ github.event.pull_request.merge_commit_sha || github.event.pull_request.head.sha }}
         run: node scripts/verify-ci.mjs
       - name: Upload evidence
         if: always()

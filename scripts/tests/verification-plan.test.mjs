@@ -149,7 +149,7 @@ test('CI runner executes a light scope, publishes scope evidence and never turns
   const evidence = join(f.root, 'evidence')
   const env = {
     ...process.env, PATH: `${bin}:${process.env.PATH}`, npm_execpath: fakePnpm,
-    VERIFY_HEAD: sha, VERIFY_BASE: base, VERIFY_PR: '1', VERIFY_CHECK_SHA: sha,
+    VERIFY_HEAD: sha, VERIFY_BASE: base, VERIFY_PR: '1',
     GITHUB_REPOSITORY: 'owner/repo', GITHUB_TOKEN: 'token'
   }
   f.run(process.execPath, ['scripts/verify-ci.mjs', '--evidence', evidence], { env })
@@ -161,12 +161,15 @@ test('CI runner executes a light scope, publishes scope evidence and never turns
   const published = readFileSync(calls, 'utf8')
   assert.match(published, new RegExp(`scope-v2:scoped:${sha}:${base}`))
   assert.match(published, /check-runs\/42/)
+  // The gate reads check runs off the head, and the event payload's merge commit
+  // lags one head behind on a push, so the run has to name the verified commit.
+  assert.match(published, new RegExp(`"head_sha":"${sha}"`))
   assert.match(readFileSync(join(evidence, 'summary.md'), 'utf8'), /Desktop verification/)
 
   f.write('scripts/open-dev-app.mjs', 'invalid syntax (\n')
   const brokenSha = f.commit()
   const broken = spawnSync(process.execPath, ['scripts/verify-ci.mjs', '--evidence', evidence], {
-    cwd: f.cwd, env: { ...env, VERIFY_HEAD: brokenSha, VERIFY_CHECK_SHA: brokenSha }, encoding: 'utf8'
+    cwd: f.cwd, env: { ...env, VERIFY_HEAD: brokenSha }, encoding: 'utf8'
   })
   assert.equal(broken.status, 1, broken.stderr + broken.stdout)
   const failed = JSON.parse(readFileSync(join(evidence, 'result.json'), 'utf8'))

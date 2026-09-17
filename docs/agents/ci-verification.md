@@ -15,9 +15,10 @@ workflow 检出 PR head（`fetch-depth: 0`，以便计算 merge-base），以 PR
 比较基线，按[分级规则](verification-scope.md)在同一次检出内执行必跑步骤。与旧版本一致，
 验证的是 PR head，不构造与 base 的临时合并提交。
 
-check run 挂在 PR 的 merge commit 上，因此 base 前进后 GitHub 重算 merge commit，
-旧检查不再适用，需要更新分支重新触发验证；check run 内记录的 base 与门禁读到的当前 base
-不一致同样会拦截。无法计算 test merge（例如存在冲突）时退回挂在 PR head 上，验证照常运行。
+check run 挂在 PR head 上，也就是这次真正验证的那个提交。曾经挂 merge commit，但事件负载里的
+`pull_request.merge_commit_sha` 在 `synchronize` 时仍指向上一个 head，check run 会落到门禁不读的
+SHA 上；head 是唯一稳定的落点。base 前进后 check run 仍在，但证据行里记录的 base 已经过期，
+门禁因此要求重跑而不是放行。
 
 ## 检查范围
 
@@ -55,7 +56,7 @@ Bart 隔离套件不在 CI 中运行：它需要 1180×780 的原生窗口，托
 `verify` check run 的 `output.summary` 以 `scope-v2:<full|scoped>:<受检 SHA>:<base SHA>`
 开头，门禁据此校验。`scripts/pr-gate.py` 的 `checkVerification` 要求：
 
-- HEAD 或 merge commit 上存在名为 `verify` 的 check run，且已完成且结论为 success
+- HEAD 上存在名为 `verify` 的 check run，且已完成且结论为 success
   （尚无该 check run 时按 pending 处理，等待 CI 启动）；
 - 证据行中的受检 SHA 与 base SHA 与当前快照一致（PR 新增提交或 base 前进后必须重跑）；
 - 快照采集期间 HEAD 与 base 未变化，且没有其他失败的 status 或 check run。
