@@ -1,0 +1,66 @@
+{
+  "name": "@openagent/harness-pi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pi Agent Harness plugin for OpenAgent",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./main": {
+      "types": "./dist/main/entry.d.ts",
+      "default": "./dist/main/entry.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer/entry.d.ts",
+      "default": "./dist/renderer/entry.js"
+    },
+    "./package.json": "./package.json",
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "default": "./dist/manifest.js"
+    },
+    "./test-support": {
+      "types": "./dist/test-support/index.d.ts",
+      "default": "./dist/test-support/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node -e \"fs.cpSync('src/renderer/pi.css', 'dist/renderer/pi.css')\"",
+    "test": "node ../../scripts/build-packages.mjs && vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@openagent/contracts": "workspace:*",
+    "@openagent/plugin-kit": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@openagent/test-kit": "workspace:*",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^24.3.1",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "jsdom": "^26.1.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,46 @@
+diff --git a/dist/mock-server.d.ts b/dist/mock-server.d.ts
+index cd4d855dda0fef06d98926c0c3863ded8e9a4d8c..f8052525890ef00d6b6e8fe9b943517ef0aa5d77 100644
+--- a/dist/mock-server.d.ts
++++ b/dist/mock-server.d.ts
+@@ -5,6 +5,8 @@ import { RequestHistory } from "./history.js";
+ import type { LogLevel } from "./logger.js";
+ /** Options for constructing a `MockServer` or calling `createMock()`. */
+ export interface MockServerOptions {
++    /** Observe protocol/parser/route failures before they are sent to the client. */
++    readonly onRejectedRequest?: (request: { method: string; url: string; body: unknown; statusCode: number }) => Promise<void>;
+     /**
+      * Port to listen on. Pass `0` for a random port (useful in tests).
+      * @defaultValue `0`
+diff --git a/dist/mock-server.js b/dist/mock-server.js
+index 988918ba99f302467fd86af9db154b1a28eebc8d..5ef02995d290a231d35e5e7262e4bb8729837ba0 100644
+--- a/dist/mock-server.js
++++ b/dist/mock-server.js
+@@ -59,6 +59,16 @@ export class MockServer {
+             }),
+         };
+         this.app = Fastify({ logger: false });
++        if (options.onRejectedRequest) {
++            this.app.addHook("onSend", async (request, reply, payload) => {
++                if (reply.statusCode >= 400) await options.onRejectedRequest({
++                    method: request.method, url: request.url, body: request.body, statusCode: reply.statusCode
++                });
++                return payload;
++            });
++        }
++        // Claude Code probes its configured API origin before making Messages requests.
++        this.app.head("/api/hello", async (_request, reply) => reply.code(200).send());
+         const deps = {
+             engine: this.engine,
+             history: this.history_,
+diff --git a/dist/sse-writer.js b/dist/sse-writer.js
+index 43ebb932c22779dc465140bef0781b6c8b30862c..cd7a10ca393a4a2070112676ee57341820bf8ba8 100644
+--- a/dist/sse-writer.js
++++ b/dist/sse-writer.js
+@@ -14,6 +14,7 @@ export async function writeSSE(reply, chunks, options = {}) {
+         Connection: "keep-alive",
+     });
+     for (const chunk of chunks) {
++        if (reply.raw.destroyed) break;
+         reply.raw.write(formatSSEChunk(chunk));
+         if (latency > 0)
+             await sleep(latency);

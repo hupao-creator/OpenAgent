@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.web.json",
+  "compilerOptions": { "composite": false },
+  "include": ["renderer.bench.tsx", "../src/renderer/src/globals.ts"]
+}

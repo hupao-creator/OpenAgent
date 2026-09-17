@@ -1,0 +1,1183 @@
+{
+  "scope": "Issue #143 phase 3: Pi native Handle completion/retry/terminal properties and Pi RPC transport chunking, correlation, cancellation, failure cleanup and request-bound properties. Test-only change (tests/property/native-harness.property.test.ts, tests/property/pi-rpc.property.test.ts, tests/fixtures/fake-pi-rpc.mjs, tests/property/check.ts and documentation); no production module changed. The `faults` array below lists the nine mutations that substantiate acceptance criterion C4. Six of them were added while answering review findings rather than being part of the original set: `rpc-delivers-response-for-unknown-id` and `rpc-decodes-latin1` are the direct evidence that the correlation and chunking legs they answer for are load-bearing; `handle-keeps-summary-after-empty-turn` is the direct evidence for the earlier `native-harness.property.test.ts` finding that the empty settled turn was reachable only through a generated draw; `handle-clears-summary-on-stop-path` is the evidence for the later finding that the stop paths kept only one of their two halves asserted; and `rpc-fails-without-clearing-pending-bounds` and `rpc-failure-does-not-release-its-process` are the evidence for the finding that the failure-mode property could not tell a cleaned wait or a released process from one that only looked settled. All six are recorded here rather than being left as claims in a reply.",
+  "baseSha": "df4c5911afdf31562c6f037a681a8bca289544e2",
+  "propertySha256": {
+    "apps/desktop/tests/property/native-harness.property.test.ts": "f9dbf0ed5e2ae971a68e1933848a8a5bcde0f70a6ae7eed99c2e750ab64b45eb",
+    "apps/desktop/tests/property/pi-rpc.property.test.ts": "cb4b80b53eb6cdd44955d931cc27efe019dfa2f467bb9da708135f8c4d004610",
+    "apps/desktop/tests/fixtures/fake-pi-rpc.mjs": "8b288dd551b41a25cd01db4b2a11e4cbd93f29fe5ea92b5c574f0502dcc60c4e",
+    "apps/desktop/tests/property/check.ts": "bd97aa46b8a373cea699b00649f03da0660c52da527c71746a015595acf88a6a"
+  },
+  "lockfileSha256": "586a82485666acb5e6c1a598bfc2b3549309f692ac5a02379c3cade0da53d037",
+  "environment": {
+    "node": "v22.22.2",
+    "pnpm": "10.17.1",
+    "fastCheck": "4.9.0",
+    "vitest": "4.1.10",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "faults": [
+    {
+      "fault": "handle-settles-on-agent-end",
+      "selector": "native Pi public Handle and projection contract",
+      "file": "packages/harness-pi/src/main/thread/handle.ts",
+      "edit": "the native event switch settled the Execution on `agent_end` instead of `agent_settled`",
+      "effect": "a normal turn commits its terminal state at the end of the assistant message, before Pi has settled the session, which is the completion boundary the issue names first",
+      "assertion": "AssertionError: retrying agent_end: expected 'failed' to be 'running'",
+      "detection": {
+        "property": "native Pi public Handle and projection contract",
+        "seed": -1146108822,
+        "path": "0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "id": "execution-mandatory-0",
+            "retries": [
+              "Temporary failure"
+            ],
+            "answer": "Final answer",
+            "finish": "settled",
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send acknowledgement → generated retry attempts → settled/failure/interrupt terminal → late native traffic → repeated dispose → rejected send",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "native Pi public Handle and projection contract",
+        "seed": -1146108822,
+        "path": "0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "id": "execution-mandatory-0",
+            "retries": [
+              "Temporary failure"
+            ],
+            "answer": "Final answer",
+            "finish": "settled",
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send acknowledgement → generated retry attempts → settled/failure/interrupt terminal → late native traffic → repeated dispose → rejected send",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 30,
+      "restored": "production source restored before the candidate commit; `git status --porcelain` empty for apps/desktop/src and packages, handle.ts sha256 692bd401c8eec0f55387f93a92d0f5345272a6f4fffeb02af879c615856739e7 and rpc.ts sha256 a94351dcf83bf2d8a25e6180a0b33fe7a99d9437a76f987ba566056898f877f2; the restored tree then passed its whole property suite, 16 files / 86 tests (.agents/local/151-faults/restored.txt)",
+      "shrink": "The fault is caught by the first mandatory terminal path, which carries one retry attempt: the property asserts after that attempt that the Execution is still running and finds it already failed (path 0, 0 shrink steps). The replay reproduces the counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/151-faults/A-run.txt",
+        "detectSha256": "5d23495e311aaf843d6d0467dcb9fd6e880c5d0d1506b99b9a0aa1078b6f8ae4",
+        "mutation": ".agents/local/151-faults/A-mutation.diff",
+        "mutationSha256": "1088cd0cdd3ef244a74aafa5be8198993e5fb1d004e4ff2c8f5d1b6732bc0d6c",
+        "replay": ".agents/local/151-faults/A-replay.txt",
+        "replaySha256": "b17f98dd447b182d43c49bfcfacb60bb440e9e985699801467c49d3d22894c9e"
+      }
+    },
+    {
+      "fault": "rpc-drops-per-request-abort",
+      "selector": "pi rpc targeted request cancellation",
+      "file": "packages/harness-pi/src/main/runtime/rpc.ts",
+      "edit": "the pending request no longer registers the caller signal's abort listener",
+      "effect": "cancelling one request stops cancelling it: the held request stays pending until the native reply arrives and then resolves with a value, so cancellation silently stops being targeted",
+      "assertion": "AssertionError: expected 'fulfilled' to be 'rejected'",
+      "detection": {
+        "property": "pi rpc targeted request cancellation",
+        "seed": 1277439374,
+        "path": "0",
+        "numRuns": 8,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "entries": [
+              {
+                "value": "kept",
+                "cancel": false
+              },
+              {
+                "value": "cancelled",
+                "cancel": true
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → held echoes → generated cancellations → release → repeated abort → fresh request → abort after resolution",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "pi rpc targeted request cancellation",
+        "seed": 1277439374,
+        "path": "0",
+        "numRuns": 8,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "entries": [
+              {
+                "value": "kept",
+                "cancel": false
+              },
+              {
+                "value": "cancelled",
+                "cancel": true
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → held echoes → generated cancellations → release → repeated abort → fresh request → abort after resolution",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 8,
+      "restored": "production source restored before the candidate commit; `git status --porcelain` empty for apps/desktop/src and packages, handle.ts sha256 692bd401c8eec0f55387f93a92d0f5345272a6f4fffeb02af879c615856739e7 and rpc.ts sha256 a94351dcf83bf2d8a25e6180a0b33fe7a99d9437a76f987ba566056898f877f2; the restored tree then passed its whole property suite, 16 files / 86 tests (.agents/local/151-faults/restored.txt)",
+      "shrink": "The cancellation property carries one mandatory mixed example -- a kept request and a cancelled request -- so the fault is caught on that example directly rather than by a generated draw (path 0 of its 8-sample tier, 0 shrink steps). The replay reproduces it at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/151-faults/B-run.txt",
+        "detectSha256": "71a2f204da16caebf748bf6c64018692d030bce4fc7edf71a4f4ec442ec03d4a",
+        "mutation": ".agents/local/151-faults/B-mutation.diff",
+        "mutationSha256": "617c136ec6d9546d167658902386c26b92d92b9bfdad075b54671d9c11b68965",
+        "replay": ".agents/local/151-faults/B-replay.txt",
+        "replaySha256": "1f839922c7074d78f21af0bbd64a148566a2228c84e6f16d20e4f179e6334e35"
+      }
+    },
+    {
+      "fault": "dispose-leaves-pending-work-pending",
+      "selector": "pi rpc failure termination and cleanup",
+      "file": "packages/harness-pi/src/main/runtime/rpc.ts",
+      "edit": "dispose recorded the failure but no longer rejected or cleared the pending request map",
+      "effect": "a disposed connection leaves its controlled work pending forever, which is exactly the cleanup the issue asks the failure-mode property to bound",
+      "assertion": "Error: dispose pending requests: controlled work did not settle",
+      "detection": {
+        "property": "pi rpc failure termination and cleanup",
+        "seed": 770700095,
+        "path": "6",
+        "numRuns": 12,
+        "completedRuns": 7,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "mode": "dispose",
+            "pending": 1,
+            "disposals": 2
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → pending native work → each mandatory failure mode → all pending reject → failure released its own process → disposal settles every bound → repeated dispose → late request/write reject → exited double",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "pi rpc failure termination and cleanup",
+        "seed": 770700095,
+        "path": "6",
+        "numRuns": 12,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "mode": "dispose",
+            "pending": 1,
+            "disposals": 2
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → pending native work → each mandatory failure mode → all pending reject → failure released its own process → disposal settles every bound → repeated dispose → late request/write reject → exited double",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 12,
+      "restored": "production source restored before the candidate commit; `git status --porcelain` empty for apps/desktop/src and packages, handle.ts sha256 692bd401c8eec0f55387f93a92d0f5345272a6f4fffeb02af879c615856739e7 and rpc.ts sha256 a94351dcf83bf2d8a25e6180a0b33fe7a99d9437a76f987ba566056898f877f2; the restored tree then passed its whole property suite, 16 files / 86 tests (.agents/local/151-faults/restored.txt)",
+      "shrink": "The `dispose` mode is a mandatory example, so the fault is caught on that example directly (path 6 of the 12-sample tier, 0 shrink steps) rather than by a lucky draw. The replay reproduces it at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/151-faults/C-run.txt",
+        "detectSha256": "8489e5364852e82436a743eb5673b27fb6c5e73f63f5f18e3e394a222fee4bf5",
+        "mutation": ".agents/local/151-faults/C-mutation.diff",
+        "mutationSha256": "27d795ed32ef30f16eff24dceb16d74868710c38468bf41c3986602f3b798dd7",
+        "replay": ".agents/local/151-faults/C-replay.txt",
+        "replaySha256": "581557773d3577f16a5fd80334289b0ec47d29565bc1ae03d9db97853973ae29"
+      }
+    },
+    {
+      "fault": "rpc-delivers-response-for-unknown-id",
+      "selector": "pi rpc out-of-order response correlation",
+      "file": "packages/harness-pi/src/main/runtime/rpc.ts",
+      "edit": "a `response` whose id matches no pending request is broadcast to the event listeners instead of being dropped",
+      "effect": "a native reply nothing asked for surfaces as a public event, so the adapter no longer owns what a response means",
+      "assertion": "AssertionError: expected [ { type: 'response', …(3) } ] to deeply equal []",
+      "detection": {
+        "property": "pi rpc out-of-order response correlation",
+        "seed": 215905466,
+        "path": "0:0:0:0:0",
+        "numRuns": 8,
+        "completedRuns": 1,
+        "numShrinks": 4,
+        "counterexample": [
+          {
+            "values": [
+              "",
+              " ",
+              "中"
+            ],
+            "order": "reverse",
+            "ghosts": [
+              ""
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → held echoes → forged responses → release out of request order → per-request values in arrival order",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "pi rpc out-of-order response correlation",
+        "seed": 215905466,
+        "path": "0:0:0:0:0",
+        "numRuns": 8,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "values": [
+              "",
+              " ",
+              "中"
+            ],
+            "order": "reverse",
+            "ghosts": [
+              ""
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → held echoes → forged responses → release out of request order → per-request values in arrival order",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 8,
+      "restored": "production source restored before the candidate commit; `git status --porcelain` empty for apps/desktop/src and packages, handle.ts sha256 692bd401c8eec0f55387f93a92d0f5345272a6f4fffeb02af879c615856739e7 and rpc.ts sha256 a94351dcf83bf2d8a25e6180a0b33fe7a99d9437a76f987ba566056898f877f2; the restored tree then passed its whole property suite, 16 files / 86 tests (.agents/local/151-faults/restored.txt)",
+      "shrink": "fast-check minimized the failing sample in 4 shrink steps to 3 held values ('', ' ', '中') released in reverse order with 1 forged identifier; the shrunk world is itself out of order, and the replay reproduces it at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/151-faults/D-run.txt",
+        "detectSha256": "2c39763aa9aaaeefd1ea76f17a4c01ace036a3765f67badd9e457273bb244013",
+        "mutation": ".agents/local/151-faults/D-mutation.diff",
+        "mutationSha256": "85e66a221664c497788d5c186d67470011f5a018a45fd4226d0e3437d16808eb",
+        "replay": ".agents/local/151-faults/D-replay.txt",
+        "replaySha256": "d70a2363272c04b7c411661060ae5d323dc1900f4f5fe35662e0ba372261c0fc"
+      }
+    },
+    {
+      "fault": "rpc-decodes-latin1",
+      "selector": "pi rpc chunk boundary assembly",
+      "file": "packages/harness-pi/src/main/runtime/rpc.ts",
+      "edit": "the streaming decoder is constructed as `new StringDecoder('latin1')` instead of `'utf8'`",
+      "effect": "the assembly stops being encoding-aware, so a record carrying a multi-byte character decodes to mojibake; the property detects that the decoder must be UTF-8. This is deliberately not read as evidence that a chunk boundary fell inside a character: a latin1 decoder is stateless per byte, so it yields the same text whether the record arrives whole or split, and the mutation would be detected under the pre-fix coalescing fixture too. See the guide's fault section, which states the same limit.",
+      "assertion": "AssertionError: expected 'ä¸\\u00adð\\u009f\\u0099\\u0082æ\\u0096\\u0…' to be '中🙂文'",
+      "detection": {
+        "property": "pi rpc chunk boundary assembly",
+        "seed": -1226496066,
+        "path": "0",
+        "numRuns": 8,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "value": "中🙂文",
+            "crlf": false,
+            "handshake": [
+              1
+            ],
+            "plans": [
+              [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              [
+                2,
+                3,
+                5
+              ]
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect with a chunked handshake → one echo per generated byte-chunk plan → final unchunked echo",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "pi rpc chunk boundary assembly",
+        "seed": -1226496066,
+        "path": "0",
+        "numRuns": 8,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "value": "中🙂文",
+            "crlf": false,
+            "handshake": [
+              1
+            ],
+            "plans": [
+              [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              [
+                2,
+                3,
+                5
+              ]
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect with a chunked handshake → one echo per generated byte-chunk plan → final unchunked echo",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 8,
+      "restored": "production source restored before the candidate commit; `git status --porcelain` empty for apps/desktop/src and packages, handle.ts sha256 692bd401c8eec0f55387f93a92d0f5345272a6f4fffeb02af879c615856739e7 and rpc.ts sha256 a94351dcf83bf2d8a25e6180a0b33fe7a99d9437a76f987ba566056898f877f2; the restored tree then passed its whole property suite, 16 files / 86 tests (.agents/local/151-faults/restored.txt)",
+      "shrink": "the chunk property carries one mandatory multi-byte example whose plan splits `中🙂文` one byte at a time, and the fault is caught on it directly: path 0 of the 8-sample tier, 0 shrink steps, replay at 0. What the example buys is that a latin1 decoder is called in on every run rather than only on a draw a run might miss, so the mutation is evidence that the assembly must be encoding-aware. It is not evidence that a generated boundary reaches the decoder, for the reason recorded in `effect`: latin1 mangles the value whether the record arrives whole or split. Boundary separation is the mandatory example's claim, and the guide does not read this mutation for it.",
+      "logs": {
+        "detect": ".agents/local/151-faults/E-run.txt",
+        "detectSha256": "6c9805b778990bbedf6da62a59d44cf23f283b8e4b9d547e56a1a5a0e92a0ae0",
+        "mutation": ".agents/local/151-faults/E-mutation.diff",
+        "mutationSha256": "ee26991727f25675021fb2d671b592c137205005d63d24db4b25303d593bbf6b",
+        "replay": ".agents/local/151-faults/E-replay.txt",
+        "replaySha256": "e762ffedbc8434238849f93b744a6d47f6267bcaabbba13e9dc246ae12ff5642"
+      }
+    },
+    {
+      "fault": "handle-keeps-summary-after-empty-turn",
+      "selector": "native Pi public Handle and projection contract",
+      "file": "packages/harness-pi/src/main/thread/handle.ts",
+      "edit": "`finish` fell back to the Execution's accumulated summary when the final assistant message carried no text",
+      "effect": "a completed turn with an empty answer kept the retry text as its summary instead of reporting none, so the terminal record describes text the turn never delivered",
+      "assertion": "AssertionError: expected 'Temporary failure' to be null",
+      "detection": {
+        "property": "native Pi public Handle and projection contract",
+        "seed": 1721966190,
+        "path": "6",
+        "numRuns": 30,
+        "completedRuns": 7,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "id": "execution-mandatory-empty-settled",
+            "retries": [
+              "Temporary failure"
+            ],
+            "answer": "",
+            "finish": "settled",
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send acknowledgement → generated retry attempts → settled/failure/interrupt terminal → late native traffic → repeated dispose → rejected send",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "native Pi public Handle and projection contract",
+        "seed": 1721966190,
+        "path": "6",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "id": "execution-mandatory-empty-settled",
+            "retries": [
+              "Temporary failure"
+            ],
+            "answer": "",
+            "finish": "settled",
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send acknowledgement → generated retry attempts → settled/failure/interrupt terminal → late native traffic → repeated dispose → rejected send",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 30,
+      "restored": "production source restored before the candidate commit; `git status --porcelain` empty for apps/desktop/src and packages, handle.ts sha256 692bd401c8eec0f55387f93a92d0f5345272a6f4fffeb02af879c615856739e7 and rpc.ts sha256 a94351dcf83bf2d8a25e6180a0b33fe7a99d9437a76f987ba566056898f877f2; the restored tree then passed its whole property suite, 16 files / 86 tests (.agents/local/151-faults/restored.txt)",
+      "shrink": "The empty completed turn is the seventh mandatory example, so the fault is caught on that example directly (path 6 of the 30-sample tier, 0 shrink steps) with no generated sample involved, and the replay reproduces it at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/151-faults/F-run.txt",
+        "detectSha256": "b719b99c5172fc0ae2fb9a5be3bc43d8df6d5f0ef43091a1c5460978ff76ea49",
+        "mutation": ".agents/local/151-faults/F-mutation.diff",
+        "mutationSha256": "4ad0f449e097ffc4ee580d480f000a9ccc25799cc2345c8d8fd22b5f1b9a7930",
+        "replay": ".agents/local/151-faults/F-replay.txt",
+        "replaySha256": "c7de35ff213c7601413f341d24c821d58ac9a39a21177e336c0a0052e1b26e7b"
+      }
+    },
+    {
+      "fault": "handle-clears-summary-on-stop-path",
+      "selector": "native Pi public Handle and projection contract",
+      "file": "packages/harness-pi/src/main/thread/handle.ts",
+      "edit": "`finish` omitted the summary whenever the terminal was reached through `stop()`, so a stop-driven terminal lost the text it is required to carry",
+      "effect": "an interrupted or process-failed Execution reports no summary at all, even though the last assistant message before it carried text the terminal record is required to keep",
+      "assertion": "AssertionError: expected null to be 'Temporary failure'",
+      "detection": {
+        "property": "native Pi public Handle and projection contract",
+        "seed": 332238431,
+        "path": "3",
+        "numRuns": 30,
+        "completedRuns": 4,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "id": "execution-mandatory-3",
+            "retries": [
+              "Temporary failure"
+            ],
+            "answer": "Final answer",
+            "finish": "interrupt",
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send acknowledgement → generated retry attempts → settled/failure/interrupt terminal → late native traffic → repeated dispose → rejected send",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "native Pi public Handle and projection contract",
+        "seed": 332238431,
+        "path": "3",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "id": "execution-mandatory-3",
+            "retries": [
+              "Temporary failure"
+            ],
+            "answer": "Final answer",
+            "finish": "interrupt",
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send acknowledgement → generated retry attempts → settled/failure/interrupt terminal → late native traffic → repeated dispose → rejected send",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 30,
+      "restored": "production source restored before the candidate commit; `git status --porcelain` empty for apps/desktop/src and packages, handle.ts sha256 692bd401c8eec0f55387f93a92d0f5345272a6f4fffeb02af879c615856739e7 and rpc.ts sha256 a94351dcf83bf2d8a25e6180a0b33fe7a99d9437a76f987ba566056898f877f2; the restored tree then passed its whole property suite, 16 files / 86 tests (.agents/local/151-faults/restored.txt)",
+      "shrink": "The `interrupt` and `process-failure` mandatory examples are each preceded by one retry, so the property reaches the stop-path terminal carrying text on every run; the fault fails path 3 of the 30-sample tier in 0 shrink steps, with no generated sample involved, and the replay reproduces it at 0 further steps. Before those two examples carried a retry this regression was reachable only through a draw, which is what the review finding said.",
+      "logs": {
+        "detect": ".agents/local/151-faults/G-run.txt",
+        "detectSha256": "36066bf8304f21fce9366386e0cb25f5a41cd350ac20712ac7ebf01026cf23ea",
+        "mutation": ".agents/local/151-faults/G-mutation.diff",
+        "mutationSha256": "f565c7fd9dc7b84c5440370342a07a6ee84745478d52e88da256dcf7a0e604d2",
+        "replay": ".agents/local/151-faults/G-replay.txt",
+        "replaySha256": "1a347756f5cc244858ba97fffd01ab311982f1a0a38cc83225095b5f6f437fc2"
+      }
+    },
+    {
+      "fault": "rpc-fails-without-clearing-pending-bounds",
+      "selector": "pi rpc failure termination and cleanup",
+      "file": "packages/harness-pi/src/main/runtime/rpc.ts",
+      "edit": "`fail` rejected and cleared the pending map but no longer called each entry's `clean()`, leaving the 30 s request bound and the caller's abort listener registered",
+      "effect": "a connection that failed still holds one live timer per pending request until the bound fires, so the failure path reports its error and releases nothing",
+      "assertion": "AssertionError: expected 2 to be +0",
+      "detection": {
+        "property": "pi rpc failure termination and cleanup",
+        "seed": 437158413,
+        "path": "0",
+        "numRuns": 12,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "mode": "exit",
+            "pending": 1,
+            "disposals": 2
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → pending native work → each mandatory failure mode → all pending reject → failure released its own process → disposal settles every bound → repeated dispose → late request/write reject → exited double",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "pi rpc failure termination and cleanup",
+        "seed": 437158413,
+        "path": "0",
+        "numRuns": 12,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "mode": "exit",
+            "pending": 1,
+            "disposals": 2
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → pending native work → each mandatory failure mode → all pending reject → failure released its own process → disposal settles every bound → repeated dispose → late request/write reject → exited double",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 12,
+      "restored": "production source restored before the candidate commit; `git status --porcelain` empty for apps/desktop/src and packages, handle.ts sha256 692bd401c8eec0f55387f93a92d0f5345272a6f4fffeb02af879c615856739e7 and rpc.ts sha256 a94351dcf83bf2d8a25e6180a0b33fe7a99d9437a76f987ba566056898f877f2; the restored tree then passed its whole property suite, 16 files / 86 tests (.agents/local/151-faults/restored.txt)",
+      "shrink": "The failure-mode property counts the live fake timers once the disposal the failure started has settled, so every surviving bound is visible (path 0 of the 12-sample tier, 0 shrink steps, replay at 0). The count is the observation: a rejected-and-cleared request settles exactly like a cleaned one, so no assertion on the settlement can tell the two apart. The mutation is caught with the timer still registered rather than when it fires, because `fail` returns early once a failure is set.",
+      "logs": {
+        "detect": ".agents/local/151-faults/H-run.txt",
+        "detectSha256": "924ce6a3d7388313cd41be73797efa5737a74857e6ad1ba3401197442d69e537",
+        "mutation": ".agents/local/151-faults/H-mutation.diff",
+        "mutationSha256": "ea46d1f3f09f8759b365b737d7686812eb674d19a18d5864bad6af9ec6598b96",
+        "replay": ".agents/local/151-faults/H-replay.txt",
+        "replaySha256": "cb7c976abc59ff6c4cf6abd4c6c4a3430d4060011d15c99de6f16ccec444c3ab"
+      }
+    },
+    {
+      "fault": "rpc-failure-does-not-release-its-process",
+      "selector": "pi rpc failure termination and cleanup",
+      "file": "packages/harness-pi/src/main/runtime/rpc.ts",
+      "edit": "`fail` reported the failure and rejected the pending work but no longer called `dispose()`, so the child outlived the connection it belonged to",
+      "effect": "a broken stream or a rejected record leaves the process double running after its connection is already dead, which is the automatic cleanup the completion contract requires",
+      "assertion": "Error: ENOENT: no such file or directory, open '/var/folders/yh/1n42q4_n0wqd_fx2s24092gh0000gn/T/pi-rpc-property-Kyhtv7/exited'",
+      "detection": {
+        "property": "pi rpc failure termination and cleanup",
+        "seed": -497047326,
+        "path": "2:1:1",
+        "numRuns": 12,
+        "completedRuns": 3,
+        "numShrinks": 2,
+        "counterexample": [
+          {
+            "mode": "invalid",
+            "pending": 1,
+            "disposals": 2
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → pending native work → each mandatory failure mode → all pending reject → failure released its own process → disposal settles every bound → repeated dispose → late request/write reject → exited double",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "pi rpc failure termination and cleanup",
+        "seed": -497047326,
+        "path": "2:1:1",
+        "numRuns": 12,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "mode": "invalid",
+            "pending": 1,
+            "disposals": 2
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "connect → pending native work → each mandatory failure mode → all pending reject → failure released its own process → disposal settles every bound → repeated dispose → late request/write reject → exited double",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 12,
+      "restored": "production source restored before the candidate commit; `git status --porcelain` empty for apps/desktop/src and packages, handle.ts sha256 692bd401c8eec0f55387f93a92d0f5345272a6f4fffeb02af879c615856739e7 and rpc.ts sha256 a94351dcf83bf2d8a25e6180a0b33fe7a99d9437a76f987ba566056898f877f2; the restored tree then passed its whole property suite, 16 files / 86 tests (.agents/local/151-faults/restored.txt)",
+      "shrink": "The marker is asserted before the property issues any disposal of its own, so it reads whether the failure released the process rather than whether the test did (path 2:1:1 of the 12-sample tier, 2 shrink steps, replay at 0). The poll runs on the real clock because the property holds the virtual one, which is also why the `dispose` mode of this experiment passes: its terminal arrives through a caller disposal.",
+      "logs": {
+        "detect": ".agents/local/151-faults/I-run.txt",
+        "detectSha256": "24650fdd42bd6f953edef170699119b3d6138c139ce3a76252c47e4b8d1ce734",
+        "mutation": ".agents/local/151-faults/I-mutation.diff",
+        "mutationSha256": "2d0bf9ceafc0d59535a15e35a74a7b6ecb95a628e0febbef73914275633ea9f4",
+        "replay": ".agents/local/151-faults/I-replay.txt",
+        "replaySha256": "a295c45a4e6d3b2bbdc95015543f78ce39ad2cec090af07e53a519af4072c2ed"
+      }
+    }
+  ],
+  "commands": {
+    "normal": "pnpm test:properties",
+    "family": "pnpm test:properties -- -t 'pi rpc'",
+    "explore": "FC_EXPLORE=1 pnpm test:properties:explore -- -t '<selector>'",
+    "replay": "FC_RUNS=<runs> FC_SEED=<seed> FC_PATH='<path>' pnpm test:properties:replay -- -t '<selector>'"
+  },
+  "samples": {
+    "native-harness.property.test.ts": "The Pi family declares { normal: 30, explore: 100 }. The file default is { normal: 30, explore: 1000 }, which the three earlier Harness families inherit — they pass no sampleBudget at all — so the Pi family is the only one in this file that overrides it. The sample owns an in-process double, so all 30 samples cost about 230 ms. Seven examples are mandatory — the six Pi terminal paths and the empty completed turn — so they run first and count towards the 30 rather than adding to it.",
+    "pi-rpc.property.test.ts": "{ normal: 8, explore: 60 } for the chunking, correlation and cancellation properties, { normal: 12, explore: 60 } for the failure-mode property and { normal: 6, explore: 30 } for the request bound, because each sample spawns a real child process and pays its startup, handshake and exit — in the delivered tier that is most of the 6.47 s the 42 samples cost — and the timeout property additionally advances a virtual clock. The failure-mode tier is 12 because its eight declared modes are mandatory examples: eight of the twelve samples are those modes, and four are generated. The cancellation property spends one of its eight samples on a mandatory mixed kept-and-cancelled example, so \"only the requested work\" is exercised by every run instead of by a draw that could cancel all of its entries or none.",
+    "sampleCountDecision": "The RPC families first declared 10 normal samples and were reduced to 8 (6 for the timeout property) after the first sweep showed real subprocess startup dominating. The failure-mode family was then raised back to 12, because eight of its samples are now mandatory examples and the tier has to be at least that long for all of them to run: fast-check takes `numRuns` values from the front of a stream whose head is the example list, so a tier below the example count would silently truncate the list instead of the generated samples. Coverage of a declared mode is therefore structural rather than a per-run draw. The delivered tier runs 42 samples in 6.47 s of test bodies, about 154 ms each. Criterion 5 asks for mocks at large scale and few real-subprocess regressions, which is why only the transport family spawns a process and only at the IO tier."
+  },
+  "cost": {
+    "method": "Whole property suite (pnpm test:properties -- --reporter=verbose) on the same checkout and machine, 6 alternating runs with the property directory replaced by the base-SHA version (baseline) and by the candidate version (candidate). Vitest startup included; package install excluded. The six pairs were captured in one uninterrupted window with the machine to itself, and both legs still move by several seconds between captures, which is why all six pairs are reported and why the gate is read from the paired medians. pairedDifferencesSeconds is the same-round (chronological) difference, candidate run i minus baseline run i, which is the comparison the alternation exists to make. Ranking the two lists separately pairs them the same way in this sweep: 7.74 / 6.45 / 5.90 / 6.18 / 6.50 / 6.53. The swept candidate is identified by the propertySha256 entries above, which are the delivered revision of those files.",
+    "suiteWithoutNewFilesSeconds": [
+      45.5,
+      48.1,
+      48.8,
+      48.05,
+      47.42,
+      48.22
+    ],
+    "suiteWithNewFilesSeconds": [
+      55.33,
+      54.28,
+      54.72,
+      53.24,
+      53.95,
+      53.87
+    ],
+    "medianDifferenceSeconds": 6.04,
+    "pairedDifferencesSeconds": [
+      9.83,
+      6.18,
+      5.92,
+      5.19,
+      6.53,
+      5.65
+    ],
+    "medianPairedDifferenceSeconds": 6.05,
+    "counts": {
+      "before": "15 files / 80 tests",
+      "after": "16 files / 86 tests"
+    },
+    "testBodySeconds": {
+      "before": [
+        41.69,
+        44.23,
+        45.01,
+        44.29,
+        43.59,
+        44.45
+      ],
+      "after": [
+        51.28,
+        50.25,
+        50.69,
+        49.19,
+        49.88,
+        49.88
+      ]
+    },
+    "deliveredTierPropertySeconds": {
+      "method": "Median of each property's own duration across the 6 candidate sweeps, inside the suite.",
+      "piRpc": {
+        "chunk assembly": 1.12,
+        "correlation": 1.04,
+        "cancellation": 1.04,
+        "failure modes": 2.49,
+        "request bound": 0.78
+      },
+      "piRpcBodiesTotal": 6.47,
+      "piHandleTerminalPaths": 0.22,
+      "piRpcBodiesPlusHandleBody": 6.69
+    },
+    "addedByFile": {
+      "tests/property/pi-rpc.property.test.ts": {
+        "candidateSeconds": [
+          6.49,
+          6.45,
+          6.89,
+          6.46,
+          6.97,
+          6.4
+        ],
+        "baselineSeconds": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "medianDifferenceSeconds": 6.47
+      },
+      "tests/property/native-harness.property.test.ts": {
+        "candidateSeconds": [
+          14.3,
+          13.54,
+          13.34,
+          12.69,
+          12.74,
+          12.77
+        ],
+        "baselineSeconds": [
+          11.73,
+          13.65,
+          14.4,
+          13.91,
+          13.46,
+          13.99
+        ],
+        "medianDifferenceSeconds": -0.73
+      }
+    },
+    "logs": {
+      "baseline-1": "/tmp/143-cost3/final-baseline-1.log",
+      "baseline-2": "/tmp/143-cost3/final-baseline-2.log",
+      "baseline-3": "/tmp/143-cost3/final-baseline-3.log",
+      "baseline-4": "/tmp/143-cost3/final-baseline-4.log",
+      "baseline-5": "/tmp/143-cost3/final-baseline-5.log",
+      "baseline-6": "/tmp/143-cost3/final-baseline-6.log",
+      "candidate-1": "/tmp/143-cost3/final-candidate-1.log",
+      "candidate-2": "/tmp/143-cost3/final-candidate-2.log",
+      "candidate-3": "/tmp/143-cost3/final-candidate-3.log",
+      "candidate-4": "/tmp/143-cost3/final-candidate-4.log",
+      "candidate-5": "/tmp/143-cost3/final-candidate-5.log",
+      "candidate-6": "/tmp/143-cost3/final-candidate-6.log"
+    },
+    "slowestPropertiesCandidate": [
+      {
+        "file": "tests/property/native-harness.property.test.ts",
+        "name": "native Codex public Handle and projection contract",
+        "seconds": 9.4
+      },
+      {
+        "file": "tests/property/native-harness.property.test.ts",
+        "name": "native Claude public Handle and projection contract",
+        "seconds": 4.56
+      },
+      {
+        "file": "tests/property/opencode-permissions.property.test.ts",
+        "name": "OpenCode background approval respects generated admission and replay order",
+        "seconds": 3.97
+      },
+      {
+        "file": "tests/property/pi-rpc.property.test.ts",
+        "name": "pi rpc ends pending work and releases its process for every failure mode",
+        "seconds": 2.48
+      },
+      {
+        "file": "tests/property/storage.property.test.ts",
+        "name": "storage preparation order fences old versions including ABA",
+        "seconds": 1.75
+      },
+      {
+        "file": "tests/property/attachments.property.test.ts",
+        "name": "attachment invalid index fails closed after reopen",
+        "seconds": 1.34
+      },
+      {
+        "file": "tests/property/attachments.property.test.ts",
+        "name": "attachment owner sets protect files across serial operations and reopen",
+        "seconds": 1.3
+      },
+      {
+        "file": "tests/property/storage.property.test.ts",
+        "name": "Report archive commits survive flush and close",
+        "seconds": 1.24
+      },
+      {
+        "file": "tests/property/storage.property.test.ts",
+        "name": "storage scoped commands pair revisions and durable outcomes",
+        "seconds": 1.2
+      },
+      {
+        "file": "tests/property/lifecycle.property.test.ts",
+        "name": "lifecycle old interaction answers never reach replacement interactions",
+        "seconds": 1.15
+      }
+    ],
+    "addedFilesAlone": {
+      "method": "Vitest run of each phase-3 family alone, one worker, default sample counts (/tmp/143-cost3/pi-rpc-only.log and pi-handle-only.log). Both figures are whole-file durations including Vitest startup, so they add.",
+      "piRpcFileSeconds": 7.18,
+      "piRpcTestBodiesSeconds": 6.94,
+      "piHandleFamilySeconds": 0.979,
+      "piHandleTestBodySeconds": 0.23,
+      "exploreMethod": "FC_EXPLORE=1 Vitest run of each family alone at its declared exploration counts (/tmp/143-cost3/pi-explore-rpc.log and pi-explore-handle.log).",
+      "piRpcExploreSeconds": 43.41,
+      "piHandleExploreSeconds": 1.63
+    },
+    "perFileSeconds": {
+      "tests/property/attachments.property.test.ts": {
+        "baselineSeconds": [
+          2.61,
+          2.79,
+          2.65,
+          2.75,
+          2.63,
+          2.66
+        ],
+        "candidateSeconds": [
+          2.64,
+          2.83,
+          2.79,
+          2.58,
+          2.85,
+          2.73
+        ]
+      },
+      "tests/property/check.test.ts": {
+        "baselineSeconds": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "candidateSeconds": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "tests/property/command-input.property.test.ts": {
+        "baselineSeconds": [
+          0.14,
+          0.15,
+          0.16,
+          0.16,
+          0.16,
+          0.14
+        ],
+        "candidateSeconds": [
+          0.16,
+          0.14,
+          0.14,
+          0.13,
+          0.16,
+          0.14
+        ]
+      },
+      "tests/property/directory.property.test.ts": {
+        "baselineSeconds": [
+          0.02,
+          0.02,
+          0.02,
+          0.02,
+          0.02,
+          0.02
+        ],
+        "candidateSeconds": [
+          0.02,
+          0.02,
+          0.02,
+          0.02,
+          0.02,
+          0.02
+        ]
+      },
+      "tests/property/harness-settings.property.test.ts": {
+        "baselineSeconds": [
+          0.12,
+          0.12,
+          0.12,
+          0.12,
+          0.12,
+          0.12
+        ],
+        "candidateSeconds": [
+          0.12,
+          0.12,
+          0.12,
+          0.12,
+          0.12,
+          0.12
+        ]
+      },
+      "tests/property/layout.property.test.ts": {
+        "baselineSeconds": [
+          0.02,
+          0.02,
+          0.02,
+          0.02,
+          0.02,
+          0.02
+        ],
+        "candidateSeconds": [
+          0.02,
+          0.02,
+          0.02,
+          0.02,
+          0.02,
+          0.02
+        ]
+      },
+      "tests/property/lifecycle.property.test.ts": {
+        "baselineSeconds": [
+          7.92,
+          7.98,
+          7.92,
+          7.91,
+          7.93,
+          7.88
+        ],
+        "candidateSeconds": [
+          7.93,
+          7.97,
+          7.9,
+          7.96,
+          7.95,
+          7.94
+        ]
+      },
+      "tests/property/markdown.property.test.ts": {
+        "baselineSeconds": [
+          0.52,
+          0.7,
+          0.6,
+          0.59,
+          0.56,
+          0.56
+        ],
+        "candidateSeconds": [
+          0.6,
+          0.53,
+          0.51,
+          0.66,
+          0.77,
+          0.53
+        ]
+      },
+      "tests/property/native-harness.property.test.ts": {
+        "baselineSeconds": [
+          11.73,
+          13.65,
+          14.4,
+          13.91,
+          13.46,
+          13.99
+        ],
+        "candidateSeconds": [
+          14.3,
+          13.54,
+          13.34,
+          12.69,
+          12.74,
+          12.77
+        ]
+      },
+      "tests/property/opencode-permissions.property.test.ts": {
+        "baselineSeconds": [
+          4.05,
+          3.9,
+          4.47,
+          4.2,
+          4.07,
+          4.2
+        ],
+        "candidateSeconds": [
+          4.41,
+          4.07,
+          4.18,
+          3.86,
+          3.85,
+          4.3
+        ]
+      },
+      "tests/property/overview-selection.property.test.ts": {
+        "baselineSeconds": [
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.04
+        ],
+        "candidateSeconds": [
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.04,
+          0.04
+        ]
+      },
+      "tests/property/pi-rpc.property.test.ts": {
+        "baselineSeconds": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "candidateSeconds": [
+          6.49,
+          6.45,
+          6.89,
+          6.46,
+          6.97,
+          6.4
+        ]
+      },
+      "tests/property/renderer.property.test.ts": {
+        "baselineSeconds": [
+          0.03,
+          0.03,
+          0.03,
+          0.03,
+          0.03,
+          0.04
+        ],
+        "candidateSeconds": [
+          0.03,
+          0.03,
+          0.03,
+          0.03,
+          0.03,
+          0.03
+        ]
+      },
+      "tests/property/report-archive.property.test.ts": {
+        "baselineSeconds": [
+          4.75,
+          4.78,
+          4.78,
+          4.77,
+          4.74,
+          4.77
+        ],
+        "candidateSeconds": [
+          4.81,
+          4.76,
+          4.77,
+          4.78,
+          4.82,
+          4.74
+        ]
+      },
+      "tests/property/report-thread.property.test.ts": {
+        "baselineSeconds": [
+          0.03,
+          0.03,
+          0.04,
+          0.04,
+          0.04,
+          0.04
+        ],
+        "candidateSeconds": [
+          0.05,
+          0.04,
+          0.05,
+          0.04,
+          0.04,
+          0.05
+        ]
+      },
+      "tests/property/storage.property.test.ts": {
+        "baselineSeconds": [
+          9.69,
+          10.01,
+          9.75,
+          9.72,
+          9.76,
+          9.96
+        ],
+        "candidateSeconds": [
+          9.64,
+          9.68,
+          9.89,
+          9.78,
+          9.48,
+          10.03
+        ]
+      }
+    }
+  },
+  "chunkBoundarySeparation": {
+    "method": "A probe spawns the same fixture over the same kind of pipe, drives a one-byte chunk plan with a boundary inside a three-byte character, and counts the reads that begin with a UTF-8 continuation byte. Such a read is proof that the previous read ended inside a character. The probe's reader is a plain pipe reader, not `rpc.ts`'s own, which a test-only change cannot instrument.",
+    "runs": 20,
+    "runsWithSeparatedBoundary": {
+      "before": 19,
+      "after": 20
+    },
+    "runsWithout": {
+      "before": 1,
+      "after": 0
+    },
+    "note": "The pre-fix run without one issued 184 reads and none began with a continuation byte, so it reassembled every character inside a single read.",
+    "chunkAssemblyPropertySeconds": {
+      "before": 1.3,
+      "after": 4.3
+    },
+    "whyScoped": "Yielding a timer at every interior boundary instead costs about 2 ms per boundary, which took the chunk-assembly property from about 1.3 s to about 4.3 s. In the sweep window that first tried it the candidate leg was 66.92 s against a 53.54 s baseline -- +13.38 s, over the ≤10 s gate -- which is why the guarantee is scoped rather than extended. That variant was measured and discarded. The kept artifact, every-boundary-yield-candidate.log, carries the candidate leg only; the baseline and the paired difference are recorded in .agents/local/151-evidence/finding-round7-fixes.txt.",
+    "artifacts": {
+      "chunk-read-probe.mjs": {
+        "path": ".agents/local/151-evidence/chunk-read-probe.mjs",
+        "sha256": "a655b4ce85789faf1b86f8f1c9c6649a84d542f72373024b1c1163f3f30676a4"
+      },
+      "chunk-read-probe-before.txt": {
+        "path": ".agents/local/151-evidence/chunk-read-probe-before.txt",
+        "sha256": "8e9e748a80fb80201a855e2a2bbcab4c7b4aea8a8a34eed6ac4e961c6e83b01b"
+      },
+      "chunk-read-probe-after.txt": {
+        "path": ".agents/local/151-evidence/chunk-read-probe-after.txt",
+        "sha256": "7f27f29f5e99c53425f1b5d6fab217ee34a00fc14c9574a728b96994a35c9d1d"
+      },
+      "chunk-read-probe-summary.txt": {
+        "path": ".agents/local/151-evidence/chunk-read-probe-summary.txt",
+        "sha256": "75795773d5496fa8000e010035395bc3a962d443bb9e8740c9edff9d03d1c7e6"
+      },
+      "every-boundary-yield-candidate.log": {
+        "path": ".agents/local/151-evidence/every-boundary-yield-candidate.log",
+        "sha256": "567c310b72167b7046ffc6a30d736d33a51f449f38ecc37d042a8b3ba3a20f7a"
+      }
+    }
+  }
+}

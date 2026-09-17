@@ -1,0 +1,161 @@
+/* Form primitives are intentionally scoped to the full-window settings page. */
+.settings-page {
+  --sf-text: light-dark(#282a2e, #e2e6eb);
+  --sf-muted: light-dark(#72747a, #adb5c0);
+  --sf-line: light-dark(rgba(35, 40, 48, .09), rgba(224, 229, 218, 0.09));
+  --sf-accent: light-dark(#426b9a, #8ebbea);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.settings-page .sf-group { margin: 0 0 22px; min-width: 0; }
+.settings-page .sf-group-heading { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 0 0 10px; }
+.settings-page .sf-group-heading h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--sf-text); }
+.settings-page .sf-group-heading p, .settings-page .sf-row-copy p { margin: 5px 0 0; color: var(--sf-muted); font-size: 12px; line-height: 1.55; font-weight: 400; }
+.settings-page .sf-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, 44%); gap: 16px 28px; align-items: center; min-width: 0; min-height: 62px; padding: 15px 0; }
+.settings-page .sf-row-copy, .settings-page .sf-row-control { min-width: 0; }
+.settings-page .sf-row-copy { position: relative; }
+.settings-page .sf-row-copy > label { color: var(--sf-text); font-size: 13px; font-weight: 500; line-height: 1.5; }
+/* A row's explanation is a hover hint where rows keep their two columns, and the
+   ordinary second line below that, where a stacked row has no hover to reveal it
+   and a popup would sit over the control it explains. */
+.settings-page .sf-row-hint { display: none; }
+@media (min-width: 621px) {
+  .settings-page .sf-row:not(.sf-row-stacked) .sf-row-hint { display: inline-grid; place-items: center; width: 14px; height: 14px; margin-left: 6px; padding: 0; background: transparent; border: 1px solid var(--sf-line); border-radius: 50%; color: var(--sf-muted); font-size: 9px; font-weight: 600; line-height: 1; vertical-align: 1px; cursor: help; }
+  .settings-page .sf-row:not(.sf-row-stacked) .sf-row-hint::before { content: '?'; }
+  .settings-page .sf-row:not(.sf-row-stacked) .sf-row-copy .sf-row-description { position: absolute; z-index: 6; top: 100%; left: 0; margin: 7px 0 0; max-width: 320px; padding: 8px 10px; border: 1px solid light-dark(#dfe3e9, #48515e); border-radius: 8px; background: light-dark(#fff, #2c2d29); box-shadow: 0 8px 22px #26384e1f, 0 2px 6px #26384e0f; opacity: 0; visibility: hidden; transition: opacity 120ms ease-out, visibility 120ms; }
+  .settings-page .sf-row:not(.sf-row-stacked) .sf-row-hint:hover + .sf-row-description,
+  .settings-page .sf-row:not(.sf-row-stacked) .sf-row-hint:focus-visible + .sf-row-description,
+  .settings-page .sf-row:not(.sf-row-stacked) .sf-row-description:hover { opacity: 1; visibility: visible; }
+  .settings-page .sf-row:not(.sf-row-stacked) .sf-row-hint:focus-visible { outline: 2px solid var(--sf-accent); outline-offset: 3px; }
+}
+.settings-page .sf-row-stacked { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.settings-page .sf-row-control:has(> .sf-toggle) { display: flex; justify-content: flex-end; }
+.settings-page .sf-input, .settings-page .sf-select, .settings-page .sf-textarea {
+  display: block; width: 100%; min-width: 0; min-height: 34px; padding: 7px 10px;
+  border: 1px solid light-dark(rgba(35, 40, 48, .14), rgba(224, 229, 218, 0.14)); border-radius: 7px;
+  color: var(--sf-text); background: light-dark(rgba(255,255,255,.85), rgba(44, 47, 51, 0.85)); font: inherit; font-size: 13px; line-height: 1.4;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.settings-page .sf-textarea { min-height: 112px; resize: vertical; }
+.settings-page :is(.sf-input,.sf-select,.sf-textarea,.sf-toggle):focus-visible { outline: 3px solid rgba(66,107,154,.22); outline-offset: 2px; border-color: var(--sf-accent); }
+.settings-page :is(.sf-input,.sf-select,.sf-textarea)[aria-invalid=true] { border-color: light-dark(#b84943, #f0988d); }
+.settings-page :is(.sf-input,.sf-select,.sf-textarea,.sf-toggle):disabled { opacity: .5; cursor: not-allowed; }
+/* Keep native selection, focus, and form events; style the picker itself in Electron. */
+.settings-page .sf-select {
+  appearance: none;
+  padding: 7px 36px 7px 12px;
+  border-color: var(--sf-line);
+  border-radius: 6px;
+  background-color: light-dark(rgba(35, 40, 48, .025), rgba(255, 255, 255, .025));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%23929498' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 14px center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.settings-page .sf-select:hover:not(:disabled), .settings-page .sf-select:open {
+  background-color: light-dark(rgba(35, 40, 48, .05), rgba(255, 255, 255, .05));
+  border-color: light-dark(rgba(35, 40, 48, .16), rgba(255, 255, 255, .16));
+}
+.settings-page .sf-select:focus-visible {
+  outline: 2px solid light-dark(rgba(35, 40, 48, .22), rgba(255, 255, 255, .25));
+  outline-offset: 2px;
+  border-color: light-dark(rgba(35, 40, 48, .24), rgba(255, 255, 255, .24));
+}
+@supports (appearance: base-select) {
+  .settings-page .sf-select, .settings-page .sf-select::picker(select) { appearance: base-select; }
+  .settings-page .sf-select {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-inline-end: 14px;
+    background-image: none;
+  }
+  .settings-page .sf-select::picker-icon {
+    content: '';
+    flex: 0 0 6px;
+    width: 6px;
+    height: 6px;
+    margin-inline-start: auto;
+    margin-block-start: -3px;
+    border: solid var(--sf-muted);
+    border-width: 0 1.3px 1.3px 0;
+    transform: rotate(45deg);
+    transition: transform 140ms ease;
+  }
+  .settings-page .sf-select:open::picker-icon { transform: translateY(3px) rotate(225deg); }
+  .settings-page .sf-select::picker(select) {
+    box-sizing: border-box;
+    inline-size: anchor-size(self-inline);
+    max-inline-size: calc(100vw - 24px);
+    max-block-size: min(288px, 70dvh);
+    margin: 5px 0;
+    padding: 4px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    border: 1px solid light-dark(rgba(35, 40, 48, .1), rgba(255, 255, 255, .09));
+    border-radius: 8px;
+    background: light-dark(#fff, #292b2f);
+    color: var(--sf-text);
+    box-shadow: 0 6px 20px light-dark(rgba(0, 0, 0, .1), rgba(0, 0, 0, .25)), 0 2px 5px rgba(0, 0, 0, .06);
+    font: inherit;
+    opacity: 0;
+    transition: opacity 120ms ease, display 120ms allow-discrete, overlay 120ms allow-discrete;
+  }
+  .settings-page .sf-select:open::picker(select) { opacity: 1; }
+  @starting-style {
+    .settings-page .sf-select:open::picker(select) { opacity: 0; }
+  }
+  .settings-page .sf-select option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 30px;
+    padding: 6px 9px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--sf-text);
+    font-weight: 400;
+    line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .settings-page .sf-select option:checked { background: light-dark(rgba(35, 40, 48, .035), rgba(255, 255, 255, .035)); }
+  .settings-page .sf-select option:is(:hover, :focus):not(:disabled) {
+    background: light-dark(rgba(35, 40, 48, .075), rgba(255, 255, 255, .085));
+    outline: none;
+  }
+  .settings-page .sf-select option::checkmark {
+    content: '✓';
+    order: 1;
+    flex-shrink: 0;
+    margin-inline-start: auto;
+    color: var(--sf-muted);
+    font-size: 12px;
+  }
+  .settings-page .sf-select option:disabled { color: var(--sf-muted); opacity: .5; cursor: not-allowed; }
+  @media (prefers-reduced-motion: reduce) {
+    .settings-page .sf-select, .settings-page .sf-select::picker-icon, .settings-page .sf-select::picker(select) { transition: none; }
+  }
+}
+.settings-page .sf-toggle { appearance: none; width: 32px; height: 20px; flex: 0 0 32px; border: 0; border-radius: 20px; background: light-dark(#c6c8cb, #66707d); position: relative; cursor: pointer; margin: 0; transition: background 150ms; }
+.settings-page .sf-toggle::after { content: ''; position: absolute; width: 16px; height: 16px; top: 2px; left: 2px; border-radius: 50%; background: light-dark(white, #2c2d29); box-shadow: 0 1px 3px #0002; transition: transform 150ms; }
+.settings-page .sf-toggle:checked { background: var(--sf-accent); }
+.settings-page .sf-toggle:checked::after { transform: translateX(12px); }
+.settings-page .sf-notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; color: var(--sf-muted); font-size: 12px; line-height: 1.55; }
+.settings-page .sf-notice p { margin: 0; }
+.settings-page .sf-error, .settings-page .sf-notice-error { color: light-dark(#ad413c, #f0988d); font-size: 12px; line-height: 1.5; }
+.settings-page .sf-notice-warning { color: light-dark(#906b28, #e6bd78); }
+.settings-page .sf-notice-success { color: light-dark(#3c745a, #8fc7a6); }
+@media (max-width: 620px) {
+  .settings-page .sf-row { grid-template-columns: minmax(0,1fr); gap: 9px; }
+  .settings-page .sf-row:has(.sf-toggle) { grid-template-columns: minmax(0,1fr) auto; }
+}
+.settings-page .sf-notice { background: none; border: 0; border-radius: 0; margin: 0; box-shadow: none; }
+.settings-page .sf-executable { padding: 0 0 10px; }
+.settings-page .sf-executable + .sf-executable { border-top: 1px solid var(--sf-line); }
+.settings-page .sf-executable .sf-cli-label { margin: 0 0 4px; color: var(--sf-text); font-size: 13px; font-weight: 500; line-height: 1.5; }
+.settings-page .sf-executable .sf-notice { padding: 3px 0 5px; font-size: 12px; overflow-wrap: anywhere; }
+.settings-page .sf-executable-control { display: flex; align-items: center; gap: 8px; }

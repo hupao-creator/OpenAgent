@@ -1,0 +1,341 @@
+{
+  "issue": 96,
+  "sourceBase": "19113a6dd048344c98eabc57cfde82ba747f47c2",
+  "faults": [
+    {
+      "family": "stale-stop",
+      "temporaryFault": {
+        "file": "apps/desktop/src/main/harness-thread-runtime.ts",
+        "original": "executionId !== expectedExecutionId) {",
+        "replacement": "false) {"
+      },
+      "failure": {
+        "property": "lifecycle stale Stop",
+        "seed": 96,
+        "path": "0:0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 2,
+        "counterexample": [
+          1,
+          false
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "await each generated event in input order; explicit gates are described by the property",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "lifecycle stale Stop",
+        "seed": 96,
+        "path": "0:0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          1,
+          false
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "await each generated event in input order; explicit gates are described by the property",
+        "replayPath": null
+      },
+      "failureLogSha256": "a6fdedc2d2c6ffafd88e770db1a0d82540d97d3821f3dd0ed1965200070b4117",
+      "replayLogSha256": "5ad1b095f716d1696d4f628130f860f02b4d9c530a73023ae12abacd661eead5"
+    },
+    {
+      "family": "opening-cleanup",
+      "temporaryFault": {
+        "file": "apps/desktop/src/main/harness-thread-runtime.ts",
+        "original": "() => this.convergeInterruptedObservation()\n        )",
+        "replacement": "() => Promise.resolve()\n        )"
+      },
+      "failure": {
+        "property": "lifecycle failed opening",
+        "seed": 96,
+        "path": "0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 1,
+        "counterexample": [
+          false,
+          1
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "await each generated event in input order; explicit gates are described by the property",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "lifecycle failed opening",
+        "seed": 96,
+        "path": "0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          false,
+          1
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "await each generated event in input order; explicit gates are described by the property",
+        "replayPath": null
+      },
+      "failureLogSha256": "3a25faa7de2f10f45cadf7fe8c2ba6ff2b2a3259d55bd4eea6a1f4e560e4820a",
+      "replayLogSha256": "27345563ca88495712887229f7a1e1cca6d03f7264401eceb2e2595f0d738ffb"
+    },
+    {
+      "family": "admission-durability",
+      "temporaryFault": {
+        "file": "apps/desktop/src/main/harness-thread-runtime.ts",
+        "original": "await this.options.store.flushThread(this.options.threadId)\n    signal.throwIfAborted()",
+        "replacement": "void this.options.store.flushThread(this.options.threadId)\n    signal.throwIfAborted()"
+      },
+      "failure": {
+        "property": "lifecycle native admission",
+        "seed": 96,
+        "path": "0:1",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 1,
+        "counterexample": [
+          "dispose",
+          1
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "await each generated event in input order; explicit gates are described by the property",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "lifecycle native admission",
+        "seed": 96,
+        "path": "0:1",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          "dispose",
+          1
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "await each generated event in input order; explicit gates are described by the property",
+        "replayPath": null
+      },
+      "failureLogSha256": "ed2d15ddf25d6ef93d99a41feba489ba1231598071f5c496938a3a081fcac8c9",
+      "replayLogSha256": "23ab5ba795b4cee2ae833e094c89d29f953c1ad229fb63592ca2073b03549614"
+    },
+    {
+      "family": "ordinary-disposal-fence",
+      "temporaryFault": {
+        "file": "apps/desktop/src/main/harness-thread-runtime.ts",
+        "original": "    this.acceptingObservations = false\n    this.claims.clear()\n    this.nativeExecutionAdmissions.clear()\n    this.executionContexts.clear()\n    this.interruptedExecutionIds.clear()\n    this.nativeInterruptSucceededExecutionIds.clear()\n    this.refValid = false\n    this.disposed = true\n    this.disposing = false",
+        "replacement": "    this.acceptingObservations = true\n    this.claims.clear()\n    this.nativeExecutionAdmissions.clear()\n    this.executionContexts.clear()\n    this.interruptedExecutionIds.clear()\n    this.nativeInterruptSucceededExecutionIds.clear()\n    this.refValid = false\n    this.disposed = false\n    this.disposing = false"
+      },
+      "failure": {
+        "property": "lifecycle failed opening",
+        "seed": 96,
+        "path": "0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 1,
+        "counterexample": [
+          false,
+          1
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "await each generated event in input order; explicit gates are described by the property",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "lifecycle failed opening",
+        "seed": 96,
+        "path": "0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          false,
+          1
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "await each generated event in input order; explicit gates are described by the property",
+        "replayPath": null
+      },
+      "failureLogSha256": "a9ed83d7a7c6c2e8609637037e3f27b11d03bdfde8b3c0ab6b10dc85213766af",
+      "replayLogSha256": "3cd7a786b70bdaa6c75a0e732fbdcd259be4a7e9eaef6344fac82e391ecd1c2c"
+    }
+  ],
+  "controlledEventOrder": {
+    "stale-stop": "send A \u2192 stop or complete A \u2192 enter unpublished B \u2192 duplicate Stop(A) \u2192 release B \u2192 assert B running and no new native interrupt",
+    "opening-cleanup": "claim/open publication (awaited or unawaited) \u2192 opening throws \u2192 drain/converge interrupted \u2192 reopen \u2192 send B \u2192 reject old-context commits",
+    "admission-durability": "reject unclaimed/abandoned/unpublished \u2192 claim/publish \u2192 hold authorization \u2192 hold durability \u2192 allow/deny/dispose/terminal \u2192 release \u2192 assert native continuation authority",
+    "ordinary-disposal-fence": "dispose successful Handle \u2192 fail separate opening \u2192 reopen/send successor \u2192 attempt formerly valid snapshot through disposed context \u2192 must reject and preserve successor"
+  },
+  "exploration": {
+    "command": "FC_RUNS=100 FC_SEED=96 pnpm test:properties:explore -- -t lifecycle",
+    "samplesPerProperty": 100,
+    "propertiesPassed": 7,
+    "vitestWallSeconds": 60.12,
+    "testSeconds": 56.5,
+    "exitCode": 0,
+    "logSha256": "edb4324e182bdf4bd794dad991caa3f8294b06419b8fae768bd1a9b324bd34bf"
+  },
+  "cost": {
+    "environment": {
+      "node": "v22.22.2",
+      "pnpm": "10.17.1",
+      "os": "26.5.1",
+      "architecture": "arm64"
+    },
+    "runs": [
+      {
+        "label": "baseline",
+        "seed": 96,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/harness-thread-runtime.test.ts",
+          "tests/codex-runtime-lifecycle.test.ts",
+          "tests/claude-transport-lifecycle.test.ts",
+          "tests/opencode-runtime-cleanup.test.ts",
+          "--maxWorkers=1",
+          "--testTimeout=15000"
+        ],
+        "wallSeconds": 5.465,
+        "exitCode": 0
+      },
+      {
+        "label": "candidate",
+        "seed": 96,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/harness-thread-runtime.test.ts",
+          "tests/codex-runtime-lifecycle.test.ts",
+          "tests/claude-transport-lifecycle.test.ts",
+          "tests/opencode-runtime-cleanup.test.ts",
+          "tests/property/lifecycle.property.test.ts",
+          "tests/property/native-harness.property.test.ts",
+          "--maxWorkers=1",
+          "--testTimeout=15000"
+        ],
+        "wallSeconds": 24.293,
+        "exitCode": 0
+      },
+      {
+        "label": "baseline",
+        "seed": 97,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/harness-thread-runtime.test.ts",
+          "tests/codex-runtime-lifecycle.test.ts",
+          "tests/claude-transport-lifecycle.test.ts",
+          "tests/opencode-runtime-cleanup.test.ts",
+          "--maxWorkers=1",
+          "--testTimeout=15000"
+        ],
+        "wallSeconds": 4.734,
+        "exitCode": 0
+      },
+      {
+        "label": "candidate",
+        "seed": 97,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/harness-thread-runtime.test.ts",
+          "tests/codex-runtime-lifecycle.test.ts",
+          "tests/claude-transport-lifecycle.test.ts",
+          "tests/opencode-runtime-cleanup.test.ts",
+          "tests/property/lifecycle.property.test.ts",
+          "tests/property/native-harness.property.test.ts",
+          "--maxWorkers=1",
+          "--testTimeout=15000"
+        ],
+        "wallSeconds": 23.732,
+        "exitCode": 0
+      },
+      {
+        "label": "baseline",
+        "seed": 98,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/harness-thread-runtime.test.ts",
+          "tests/codex-runtime-lifecycle.test.ts",
+          "tests/claude-transport-lifecycle.test.ts",
+          "tests/opencode-runtime-cleanup.test.ts",
+          "--maxWorkers=1",
+          "--testTimeout=15000"
+        ],
+        "wallSeconds": 5.326,
+        "exitCode": 0
+      },
+      {
+        "label": "candidate",
+        "seed": 98,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/harness-thread-runtime.test.ts",
+          "tests/codex-runtime-lifecycle.test.ts",
+          "tests/claude-transport-lifecycle.test.ts",
+          "tests/opencode-runtime-cleanup.test.ts",
+          "tests/property/lifecycle.property.test.ts",
+          "tests/property/native-harness.property.test.ts",
+          "--maxWorkers=1",
+          "--testTimeout=15000"
+        ],
+        "wallSeconds": 35.24,
+        "exitCode": 0
+      }
+    ],
+    "medianAddedWallSeconds": 18.967,
+    "limitations": "Sequential maxWorkers=1 adjacent suite comparison; includes Vitest startup, SQLite worker and fixture subprocess costs; excludes package rebuild and install, not whole-verifier or Effect runtime performance. Measurements precede F1 additional late-context assertions; final full-verifier timing is separately reported in the PR."
+  },
+  "generatorArtifacts": {
+    "apps/desktop/tests/property/lifecycle.property.test.ts": "f365749aea4a7ed3360cd1ca84fe4386559242f4a538ff089c536e031131b16a",
+    "apps/desktop/tests/property/lifecycle-driver.ts": "30b9d750d8e07ac33a2163f4e7528f09722480b4e82786eb53856df901fda8a7",
+    "pnpm-lock.yaml": "06f90d9ed11d1ce07879bcd8ae54724fcbcb699f2d73ffcc3d34ee49432d4b22"
+  },
+  "integrationNote": "After recorded fault and timing runs, an explicit AbortSignal return annotation fixed Node composite declaration checking. It changes no runtime behavior or generators. Shared replay reporter integration retains M3b attachment event-order diagnostics. Later main PR #95 adds the Pi Harness and changes the workspace lockfile. generatorArtifacts retains the original experiment lockfile hash; integratedLockfileSha256 records the integrated candidate lockfile separately. fast-check stays 4.9.0 and the M2 generators are unchanged. Pi is outside Issue #96\u2019s original three-Harness scope.",
+  "integratedLockfileSha256": "586a82485666acb5e6c1a598bfc2b3549309f692ac5a02379c3cade0da53d037",
+  "reviewCorrection": {
+    "finding": "F1 / discussion_r3964370059",
+    "change": "Retain successful disposed and failed-opening contexts separately; assert abort and reject both their formerly valid snapshots and successor-identity publications. Input generator unchanged; all three original Core faults rerun/replayed and a fourth ordinary-disposal fence fault detected/shrunk/replayed. All production mutations restored.",
+    "targetedCommand": "FC_RUNS=30 FC_SEED=96 pnpm --dir apps/desktop exec vitest run tests/property/lifecycle.property.test.ts -t 'lifecycle failed opening'",
+    "targetedResult": "1 property passed, 30 samples",
+    "logSha256": "6b783fed2d24ddee62c7a2879333a9bca9e67ee74adab67f8fb4e771e804346a"
+  }
+}

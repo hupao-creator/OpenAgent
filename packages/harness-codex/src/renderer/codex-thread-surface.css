@@ -1,0 +1,60 @@
+/* Codex-native extensions; document, message and interaction styling is shared. */
+.codex-native-action-error {
+  margin: 12px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.codex-native-elicitation code {
+  display: block;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.codex-native-terminals {
+  margin: 24px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.codex-native-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.codex-native-section-title strong {
+  font-weight: 500;
+}
+
+.codex-native-terminal {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 11px;
+}
+
+.codex-native-terminal code {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-native-terminal small {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,142 @@
+.motion-playground {
+  --motion-line: light-dark(#dedfd9, #373a36);
+  --motion-muted: light-dark(#73786f, #a0a79a);
+  --motion-accent: light-dark(#48624b, #b6d5ad);
+  --motion-surface: light-dark(#fafbf8, #20231f);
+  height: 100dvh;
+  min-width: 360px;
+  display: grid;
+  grid-template-rows: 88px minmax(0, 1fr);
+  color: light-dark(#242b25, #e5e9e1);
+  background: var(--motion-surface);
+  font-family: 'Inter Variable', sans-serif;
+  font-size: 13px;
+}
+.motion-playground button, .motion-playground select { font: inherit; color: inherit; }
+.motion-playground button { cursor: pointer; }
+.motion-playground button:disabled { opacity: .4; cursor: default; }
+.motion-playground button:focus-visible, .motion-playground select:focus-visible { outline: 2px solid var(--motion-accent); outline-offset: 3px; }
+.motion-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 28px; border-bottom: 1px solid var(--motion-line); }
+.motion-brand > span { font-size: 9px; letter-spacing: .16em; color: var(--motion-muted); }
+.motion-brand h1 { margin: 5px 0 0; font-size: 23px; font-weight: 560; letter-spacing: -.8px; }
+.motion-environment { display: flex; gap: 24px; }
+.motion-environment label { display: flex; align-items: center; gap: 10px; color: var(--motion-muted); font-size: 11px; }
+.motion-playground select { padding: 6px 8px; border: 1px solid var(--motion-line); border-radius: 5px; background: var(--motion-surface); }
+.motion-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: 0; }
+.motion-preview { display: grid; grid-template-rows: minmax(0, 1fr) 44px; min-width: 0; min-height: 0; background: light-dark(#f0f1ec, #191c18); }
+.motion-stage { width: 100%; height: 100%; min-height: 0; margin: 0 auto; }
+.motion-stage .thread-overview { border: 0; box-shadow: none; }
+.motion-stage-footer { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 0 20px; border-top: 1px solid var(--motion-line); background: var(--motion-surface); color: var(--motion-muted); font-size: 10px; }
+.motion-readout { display: flex; align-items: center; gap: 20px; font-variant-numeric: tabular-nums; }
+.motion-readout > span { display: flex; align-items: center; gap: 6px; }
+.motion-readout i { width: 5px; height: 5px; border-radius: 50%; background: var(--motion-muted); }
+.motion-readout i[data-busy='true'] { background: var(--motion-accent); box-shadow: 0 0 0 3px light-dark(#dce6d9, #394833); }
+.motion-inspector { min-height: 0; overflow: auto; border-left: 1px solid var(--motion-line); }
+.motion-section { padding: 22px; border-bottom: 1px solid var(--motion-line); }
+.motion-section h2 { margin: 0 0 14px; font-size: 12px; font-weight: 600; }
+.motion-section p { color: var(--motion-muted); font-size: 12px; line-height: 1.75; margin: 0 0 16px; }
+.motion-layout-summary dl { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-variant-numeric: tabular-nums; }
+.motion-layout-summary dt { font-size: 10px; color: var(--motion-muted); margin-bottom: 4px; }
+.motion-layout-summary dd { margin: 0; font-size: 13px; }
+.motion-scenarios { display: grid; gap: 3px; }
+.motion-scenarios button { display: flex; align-items: center; gap: 15px; text-align: left; padding: 10px 12px; border: 0; border-radius: 5px; background: transparent; transition: background 120ms; }
+.motion-scenarios button > span { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--motion-muted); }
+.motion-scenarios button:hover, .motion-actions button:hover { background: light-dark(#ecefe7, #30382b); }
+.motion-scenarios button[aria-pressed='true'] { color: var(--motion-accent); background: light-dark(#e8ede3, #30382b); font-weight: 600; }
+.motion-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.motion-section-heading > span { color: var(--motion-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.motion-transport { display: flex; gap: 8px; margin-bottom: 16px; }
+.motion-transport button { display: flex; align-items: center; justify-content: center; gap: 7px; height: 34px; min-width: 34px; border: 1px solid var(--motion-line); border-radius: 5px; background: transparent; }
+.motion-transport .motion-primary { flex: 1; border-color: transparent; color: light-dark(#fff, #1d291c); background: var(--motion-accent); }
+.motion-interval { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--motion-muted); }
+.motion-interval select { max-width: 152px; }
+.motion-steps { list-style: none; margin: 18px 0 14px; padding: 0; }
+.motion-steps li { display: flex; align-items: center; gap: 12px; padding: 7px 0; color: var(--motion-muted); font-size: 11px; }
+.motion-steps li > span { font-size: 10px; font-variant-numeric: tabular-nums; }
+.motion-steps li[aria-current] { color: var(--motion-accent); font-weight: 600; }
+.motion-steps li[data-done='true'] { opacity: .55; }
+.motion-playback small { color: var(--motion-muted); font-size: 10px; line-height: 1.7; }
+.motion-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.motion-actions button { padding: 7px 9px; border: 1px solid var(--motion-line); border-radius: 4px; background: transparent; font-size: 11px; }
+.motion-events ol { padding-left: 16px; margin: 0; color: var(--motion-muted); font-size: 11px; line-height: 1.9; }
+.motion-events output { display: block; margin-top: 12px; color: var(--motion-accent); font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .motion-workspace { grid-template-columns: minmax(0, 1fr) 260px; }
+  .motion-section { padding: 18px; }
+  .motion-stage-footer { padding: 0 12px; }
+  .motion-stage-footer > span { display: none; }
+  .motion-readout { gap: 12px; }
+}
+@media (max-width: 680px) {
+  .motion-playground { height: 100dvh; display: block; overflow-y: auto; }
+  .motion-header { padding: 16px; flex-wrap: wrap; gap: 16px; }
+  .motion-environment { gap: 16px; }
+  .motion-workspace { grid-template-columns: minmax(0, 1fr); }
+  .motion-preview { height: 65dvh; min-height: 440px; }
+  .motion-inspector { overflow: visible; border-left: 0; border-top: 1px solid var(--motion-line); }
+  .motion-scenarios { grid-template-columns: 1fr 1fr; }
+}
+
+/* 生产样式里只剩两块按 @media (prefers-color-scheme) 切肤色的规则（styles.css 的
+   筛选栏 / 缩放按钮 / 空状态）。媒体查询跟随操作系统，页面改不了，所以外观选择器
+   在浏览器里驱动不了它们 —— 上面设的 color-scheme 只管 light-dark()。这里按
+   `data-theme` 把两组值重述一遍，让预览主题自洽。
+   下面每个值都以 styles.css 为准；改那边记得同步这里。 */
+:root[data-theme='light'] .thread-tag-filter-bar,
+:root[data-theme='light'] .thread-overview-actions {
+  border-color: rgba(255, 255, 255, 0.56);
+  box-shadow: 0 14px 36px rgba(32, 33, 30, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    inset 0 1px rgba(255, 255, 255, 0.82), inset 0 0 14px rgba(255, 255, 255, 0.3);
+}
+:root[data-theme='light'] .thread-tag-filter-bar:focus-within {
+  border-color: rgba(25, 114, 95, 0.3);
+}
+:root[data-theme='light'] .thread-tag-filter-option,
+:root[data-theme='light'] .thread-overview-actions .icon-button { color: rgba(32, 33, 30, 0.64); }
+:root[data-theme='light'] .thread-tag-filter-option:hover,
+:root[data-theme='light'] .thread-overview-actions .icon-button:hover {
+  background: rgba(255, 255, 255, 0.34);
+  color: var(--ink);
+}
+:root[data-theme='light'] .thread-tag-filter-option.active {
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(43, 41, 35, 0.09);
+}
+:root[data-theme='light'] .thread-overview-actions .icon-button.active {
+  background: rgba(25, 114, 95, 0.16);
+  color: var(--accent);
+}
+:root[data-theme='light'] .thread-overview-empty { color: var(--faint); text-shadow: none; }
+:root[data-theme='light'] .thread-overview-empty strong { color: var(--muted); }
+
+:root[data-theme='dark'] .thread-tag-filter-bar,
+:root[data-theme='dark'] .thread-overview-actions {
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.34),
+    inset 0 1px rgba(255, 255, 255, 0.46), inset 0 0 14px rgba(255, 255, 255, 0.14);
+}
+:root[data-theme='dark'] .thread-tag-filter-bar:focus-within {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+:root[data-theme='dark'] .thread-tag-filter-option { color: rgba(255, 255, 255, 0.7); }
+:root[data-theme='dark'] .thread-overview-actions .icon-button { color: rgba(255, 255, 255, 0.72); }
+:root[data-theme='dark'] .thread-tag-filter-option:hover,
+:root[data-theme='dark'] .thread-overview-actions .icon-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.96);
+}
+:root[data-theme='dark'] .thread-tag-filter-option.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.96);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.18);
+}
+:root[data-theme='dark'] .thread-overview-actions .icon-button.active {
+  background: rgba(34, 152, 126, 0.24);
+  color: rgba(226, 255, 248, 0.96);
+}
+:root[data-theme='dark'] .thread-overview-empty {
+  color: rgba(255, 255, 255, 0.48);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+:root[data-theme='dark'] .thread-overview-empty strong { color: rgba(255, 255, 255, 0.7); }

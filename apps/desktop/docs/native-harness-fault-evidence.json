@@ -1,0 +1,240 @@
+{
+  "kind": "test-only native transport omission mutation; not a production defect",
+  "fault": "NATIVE_PROPERTY_FAULT=drop-text skips generated OpenCode text events at the runtime server seam",
+  "command": "NATIVE_PROPERTY_FAULT=drop-text FC_RUNS=30 FC_SEED=9603 pnpm --dir apps/desktop exec vitest run tests/property/native-harness.property.test.ts -t 'native OpenCode public Handle and projection contract' --testTimeout=15000",
+  "detection": {
+    "property": "native OpenCode public Handle and projection contract",
+    "seed": 9603,
+    "path": "0:0:0:0:0",
+    "numRuns": 30,
+    "completedRuns": 1,
+    "numShrinks": 4,
+    "counterexample": [
+      {
+        "id": "execution-0",
+        "chunks": [
+          "hello"
+        ],
+        "stop": false,
+        "disposals": 1
+      }
+    ],
+    "fastCheck": "4.9.0",
+    "node": "v22.22.2",
+    "eventOrder": "open → send/session → generated text deltas → done or interrupt/cancel acknowledgement → await terminal → late text/done → repeated dispose → rejected send",
+    "replayPath": null
+  },
+  "replayCommand": "NATIVE_PROPERTY_FAULT=drop-text FC_RUNS=30 FC_SEED=9603 FC_PATH='0:0:0:0:0' pnpm test:properties:replay -- -t 'native OpenCode public Handle and projection contract'",
+  "replay": {
+    "property": "native OpenCode public Handle and projection contract",
+    "seed": 9603,
+    "path": "0:0:0:0:0",
+    "numRuns": 30,
+    "completedRuns": 1,
+    "numShrinks": 0,
+    "counterexample": [
+      {
+        "id": "execution-0",
+        "chunks": [
+          "hello"
+        ],
+        "stop": false,
+        "disposals": 1
+      }
+    ],
+    "fastCheck": "4.9.0",
+    "node": "v22.22.2",
+    "eventOrder": "open → send/session → generated text deltas → done or interrupt/cancel acknowledgement → await terminal → late text/done → repeated dispose → rejected send",
+    "replayPath": null
+  },
+  "actualEvents": [
+    "open Handle",
+    "send execution-0",
+    "session native-session",
+    "drop text-delta hello (fault)",
+    "done completed",
+    "commit public completed summary Run fixture",
+    "assert expected summary hello: FAIL",
+    "finally dispose"
+  ],
+  "assertion": {
+    "expected": "hello",
+    "actual": "Run fixture"
+  },
+  "faultRunExitCode": 1,
+  "replayExitCode": 1,
+  "cleanReplayCommand": "FC_RUNS=30 FC_SEED=9603 FC_PATH='0:0:0:0:0' pnpm test:properties:replay -- -t 'native OpenCode public Handle and projection contract'",
+  "cleanReplayExitCode": 0,
+  "limitations": "Only generated native event order is replayed. No control over OS subprocess scheduling. The retained mutant is opt-in test fixture code; it is disabled for all passing verification.",
+  "logSha256": {
+    "native-fault.log": "3a0aa4cacf4dd65a97965987100afc573cf27cf8834ec8cf8499e0c6f9013074",
+    "native-fault-replay.log": "2317ee669d5c353d83a5c25b46be99c4349ad3e393c4125c2c7f900f5b6686e7",
+    "native-clean-replay.log": "62eaa0be76d61eab83f0d36e3c378c228e92da71bf6c813817bff7a5de420f55"
+  },
+  "additionalProviderMutations": [
+    {
+      "provider": "Codex",
+      "fault": "Temporary production resolveExecution replaced known-execution lookup with null",
+      "mutatedFile": "packages/harness-codex/src/shared/session-state.ts",
+      "sourceRestoredSha256": "61327d71d3b42522aaa0ec9730704a911ea333a46416c2472b51c3c5a79fb771",
+      "detection": {
+        "property": "native Codex public Handle and projection contract",
+        "seed": 9601,
+        "path": "0:0:0:0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 4,
+        "counterexample": [
+          {
+            "id": "execution-0",
+            "chunks": [
+              "hello"
+            ],
+            "stop": false,
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send → app-server approval → await public waiting → respond or interrupt → await terminal → optional fork read → repeated dispose → rejected send",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "native Codex public Handle and projection contract",
+        "seed": 9601,
+        "path": "0:0:0:0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "id": "execution-0",
+            "chunks": [
+              "hello"
+            ],
+            "stop": false,
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send → app-server approval → await public waiting → respond or interrupt → await terminal → optional fork read → repeated dispose → rejected send",
+        "replayPath": null
+      },
+      "commandArgv": [
+        "pnpm",
+        "--dir",
+        "apps/desktop",
+        "exec",
+        "vitest",
+        "run",
+        "tests/property/native-harness.property.test.ts",
+        "-t",
+        "native Codex public Handle and projection contract"
+      ],
+      "environment": {
+        "FC_RUNS": "30",
+        "FC_SEED": "9601"
+      },
+      "replayEnvironment": {
+        "FC_RUNS": "30",
+        "FC_SEED": "9601",
+        "FC_PATH": "0:0:0:0:0"
+      },
+      "exitCodes": {
+        "detect": 1,
+        "replay": 1,
+        "cleanReplay": 0
+      },
+      "expectedFailure": "known execution lookup must equal committed public terminal, received null",
+      "eventSequence": "open → send → app-server approval → await public waiting → respond or interrupt → await terminal → optional fork read → repeated dispose → rejected send",
+      "logsSha256": {
+        "detect": "5f786113e4fa25634d63a6a1d70363335407a7e935f84569344d0deb4fde1edb",
+        "replay": "e42c339c11a5223d9a7bdfff268fec1625640025a5d656ef9e388c4a18c4b674",
+        "cleanReplay": "f793d5ed7e2aefaf5280aa3436e9ce442dc4ce1ebea3539411dd0414a95cb748"
+      }
+    },
+    {
+      "provider": "Claude",
+      "fault": "Temporary production resolveExecution replaced known-execution lookup with null",
+      "mutatedFile": "packages/harness-claude/src/main/thread/observation.ts",
+      "sourceRestoredSha256": "305747a9d4604cde42a4dbb28f16ec67a68aea9a0bad9700ae53505550dfbf00",
+      "detection": {
+        "property": "native Claude public Handle and projection contract",
+        "seed": 9602,
+        "path": "0:0:0:0:0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 5,
+        "counterexample": [
+          {
+            "id": "execution-0",
+            "chunks": [
+              "hello"
+            ],
+            "stop": false,
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send → stream-json chunks in generated order → optional background snapshot → native result → await terminal → repeated dispose → rejected send",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "native Claude public Handle and projection contract",
+        "seed": 9602,
+        "path": "0:0:0:0:0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "id": "execution-0",
+            "chunks": [
+              "hello"
+            ],
+            "stop": false,
+            "disposals": 1
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "open → send → stream-json chunks in generated order → optional background snapshot → native result → await terminal → repeated dispose → rejected send",
+        "replayPath": null
+      },
+      "commandArgv": [
+        "pnpm",
+        "--dir",
+        "apps/desktop",
+        "exec",
+        "vitest",
+        "run",
+        "tests/property/native-harness.property.test.ts",
+        "-t",
+        "native Claude public Handle and projection contract"
+      ],
+      "environment": {
+        "FC_RUNS": "30",
+        "FC_SEED": "9602"
+      },
+      "replayEnvironment": {
+        "FC_RUNS": "30",
+        "FC_SEED": "9602",
+        "FC_PATH": "0:0:0:0:0:0"
+      },
+      "exitCodes": {
+        "detect": 1,
+        "replay": 1,
+        "cleanReplay": 0
+      },
+      "expectedFailure": "known execution lookup must equal committed public terminal, received null",
+      "eventSequence": "open → send → stream-json chunks in generated order → optional background snapshot → native result → await terminal → repeated dispose → rejected send",
+      "logsSha256": {
+        "detect": "bd9c6f9be8a96e3b0f734281e8cd8bd840c987886dce0236494589cd14b13f26",
+        "replay": "2714e8534b467b64230fac064f65836b8cad8b0bc649d7d6d63a5ee9746ea20d",
+        "cleanReplay": "171e45c129fa2c0ec49d70d33d5583c4f635a791a6433294c02dbffb46b2a91b"
+      }
+    }
+  ]
+}

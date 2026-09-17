@@ -1,0 +1,127 @@
+.settings-page { --settings-page-surface-color: light-dark(rgba(242,245,249,.5), rgba(44, 47, 51, 0.5)); visibility: hidden; position: fixed; inset: 0; z-index: 50; isolation: isolate; backdrop-filter: blur(24px) saturate(1.15); -webkit-app-region: no-drag; color: var(--sf-text); }
+.settings-page-surface { position: absolute; inset: 0; background: var(--settings-page-surface-color); pointer-events: none; }
+.settings-page-content { position: absolute; inset: 0; display: grid; grid-template-columns: 220px minmax(0,1fr); overflow: hidden; }
+.settings-page[data-phase=closing] .settings-page-content { pointer-events: none; }
+.settings-page-sidebar { display: flex; min-width: 0; min-height: 0; flex-direction: column; background: light-dark(#e5eaf1, #24292f); border-right: 1px solid light-dark(rgba(50,65,85,.08), rgba(224, 229, 218, 0.08)); }
+.settings-page-heading { height: 110px; flex: 0 0 110px; display: flex; align-items: end; gap: 9px; padding: 0 20px 20px; -webkit-app-region: drag; }
+.settings-page-heading h1 { font-size: 16px; line-height: 28px; font-weight: 600; margin: 0; letter-spacing: -.025em; }
+.settings-page-heading .icon-button { width: 28px; height: 28px; color: light-dark(#656e7b, #aeb7c3); }
+.settings-page-tabs { padding: 0 12px 24px; overflow: auto; }
+.settings-page-tabs .settings-tab { width: 100%; height: 38px; margin-bottom: 3px; padding: 0 12px; font-size: 13px; font-weight: 400; color: light-dark(#555f6d, #b6bfcb); border-radius: 7px; transition: none; }
+.settings-page-tabs .settings-tab.active { color: light-dark(#26384e, #e0e7f0); background: light-dark(rgba(255,255,255,.82), rgba(44, 47, 51, 0.82)); box-shadow: 0 1px 3px #34435a09; font-weight: 500; }
+.settings-page-tabs .settings-tab:hover:not(.active) { background: light-dark(#ffffff50, #ffffff15); }
+.settings-page-tabs .settings-tab-icon { width: 20px; color: inherit; }
+.settings-page-main { min-width: 0; min-height: 0; display: grid; grid-template-rows: 110px minmax(0,1fr); background: light-dark(#fafafb, #1e2227); }
+.settings-page-title { display: flex; align-items: end; padding: 0 max(32px, calc((100% - 800px) / 2)) 23px; -webkit-app-region: drag; background: transparent; }
+.settings-page-title h2 { font-size: 20px; font-weight: 600; letter-spacing: -.035em; margin: 0; line-height: 28px; }
+.settings-page-body { min-width: 0; min-height: 0; overflow: auto; padding: 10px 32px 32px; scrollbar-gutter: stable; }
+.settings-page-form { max-width: 800px; margin: 0 auto; }
+.settings-page-fields { display: block; margin: 0; padding: 0; min-width: 0; border: 0; }
+.settings-page :is(button,summary):focus-visible { outline: 3px solid light-dark(#426b9a45, #8ebbea70); outline-offset: 2px; }
+.settings-page :is(.provider-settings-stack,.harness-settings-stack) { animation: none; }
+.settings-page .settings-inline-action { font-size: 12px; font-weight: 400; border: 0; padding: 2px 0; color: var(--sf-accent); background: none; }
+.settings-page .settings-page-danger { padding: 0 0 12px; }
+.settings-page .danger-button { font-size: 12px; min-height: 32px; }
+.platform-win32 .settings-page-title, .platform-linux .settings-page-title { padding-right: max(32px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) - 48px)); }
+@media (max-width: 620px) {
+  .settings-page-content { grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); }
+  .settings-page-sidebar { border-right: 0; border-bottom: 1px solid var(--sf-line); }
+  .settings-page-heading { height: 80px; flex-basis: 80px; padding: 38px 20px 10px; }
+  .settings-page-tabs { display: flex; padding: 0 12px 9px; gap: 4px; flex-shrink: 0; }
+  .settings-page-tabs > div { flex-shrink: 0; }
+  .settings-page-tabs .settings-tab { margin: 0; width: auto; height: 34px; }
+  .settings-page-main { grid-template-rows: 62px minmax(0,1fr); }
+  .settings-page-title { padding: 0 20px 14px; }
+  .settings-page-body { padding: 10px 20px 20px; }
+}
+
+.local-agents { position: relative; padding: 0 0 8px; }
+.harness-icon-row { display: flex; align-items: center; gap: 16px; }
+.harness-icon { position: relative; display: grid; place-items: center; width: 48px; height: 48px; padding: 11px; border: 1px solid var(--sf-line); border-radius: 13px; background: light-dark(#fff, #2c2d29); color: var(--sf-text); cursor: pointer; transition: background 140ms, border-color 140ms, transform 140ms; }
+.harness-icon img { display: block; width: 26px; height: 26px; object-fit: contain; color-scheme: inherit; background: transparent; }
+.harness-icon:hover, .harness-icon.is-active { background: light-dark(#f0f3f7, #333e4c); border-color: light-dark(#426b9a40, #8ebbea70); transform: translateY(-1px); }
+.harness-icon.is-selected { background: light-dark(#eef3fa, #2f3b49); border-color: var(--sf-accent); box-shadow: 0 0 0 1px var(--sf-accent); }
+.harness-icon:focus-visible { outline: 2px solid var(--sf-accent); outline-offset: 4px; }
+.harness-icon[data-state=missing] img { opacity: .48; }
+.harness-icon[aria-disabled=true], .harness-icon:disabled { cursor: default; }
+.harness-icon:disabled { opacity: .45; }
+.harness-icon-badge { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; border: 2px solid light-dark(#fafafb, #1e2227); background: light-dark(#eef1f5, #323b47); color: var(--sf-accent); }
+.harness-icon[data-state=installed] .harness-icon-badge { background: light-dark(#e7f2ec, #253d30); color: light-dark(#458163, #8fc7a6); }
+.harness-icon[data-state=error] .harness-icon-badge { background: light-dark(#fbede9, #432e27); color: light-dark(#b66543, #efa47e); }
+.local-agent-detail { position: absolute; top: 100%; left: 0; z-index: 5; width: min(380px, 100%); padding-top: 10px; animation: local-agent-reveal 140ms ease-out; }
+.local-agent-detail-surface { border: 1px solid light-dark(#dfe3e9, #48515e); background: light-dark(#fff, #2c2d29); border-radius: 12px; padding: 16px; box-shadow: 0 8px 28px #26384e14, 0 2px 6px #26384e08; max-height: 350px; overflow: auto; }
+.local-agent-detail header { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.local-agent-detail header strong { font-size: 13px; font-weight: 600; }
+.local-agent-detail header span { color: var(--sf-muted); font-size: 11px; }
+.local-agent-detail header span[data-state=installed] { color: light-dark(#458163, #8fc7a6); }
+.local-agent-detail p { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--sf-muted); }
+.local-agent-detail .sf-row { min-height: 0; padding: 14px 0 0; gap: 6px; }
+.local-agent-detail .sf-row-copy > label { font-size: 11px; font-weight: 400; color: var(--sf-muted); }
+.local-agent-detail .sf-input { font-size: 11px; height: 32px; padding: 0 9px; }
+.local-agent-detail .sf-executable { padding: 0; }
+.local-agent-detail .sf-notice { font-size: 11px; margin-top: 10px; overflow-wrap: anywhere; }
+.local-agent-detail .local-agent-error { color: light-dark(#ac583e, #efa47e); max-height: 130px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.local-agent-live { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@keyframes local-agent-reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+
+/* The map is the row's whole answer, so it spans the row under its label and
+   frames itself. The padding is load-bearing: Bart's body is wider than its
+   anchor, and the dispatch icons sit flush on both edges. */
+.harness-dispatch-map {
+  position: relative; width: 100%;
+  padding: 26px 18px 18px;
+  border: 1px solid light-dark(rgba(35, 40, 48, .14), rgba(224, 229, 218, .14));
+  border-radius: 12px;
+}
+.harness-dispatch-map .harness-icon { border-color: transparent; background: transparent; box-shadow: none; }
+.harness-dispatch-map .harness-icon:hover { background: light-dark(#edf0f4, #292e34); }
+.harness-dispatch-map [data-row=host] { position: relative; height: 88px; }
+.harness-dispatch-map [data-row=host] .harness-icon { position: absolute; top: 44px; transform: translate(-50%, -50%) scale(var(--host-scale, 1)); transition: transform 480ms cubic-bezier(.4, 0, .2, 1); }
+.harness-dispatch-map [data-row=host] .harness-icon.is-selected { z-index: 2; }
+.harness-dispatch-map [data-row=host] .harness-icon > img { transition: opacity 160ms 180ms; }
+.harness-dispatch-map [data-row=host] .harness-icon.is-selected > img { opacity: 0; transition: opacity 140ms 560ms; }
+.harness-dispatch-map [data-row=dispatch] { justify-content: space-between; }
+.harness-dispatch-map [data-row=dispatch] .harness-icon:disabled { opacity: 1; }
+.harness-dispatch-map [data-row=dispatch] .harness-icon::after { content: ''; position: absolute; bottom: 2px; left: 50%; width: 13px; height: 2px; border-radius: 2px; background: var(--sf-accent); opacity: 0; transform: translateX(-50%) scaleX(.5); transition: opacity 180ms, transform 180ms; }
+.harness-dispatch-map [data-row=dispatch] .harness-icon.is-selected::after { opacity: .6; transform: translateX(-50%) scaleX(1); }
+.bart-coordinator-rail { position: absolute; inset: 0; z-index: 3; pointer-events: none; transition: transform 720ms cubic-bezier(.4, 0, .2, 1); }
+.bart-coordinator-anchor { position: absolute; left: 0; top: 44px; width: 48px; height: 48px; transform: translate(-50%, -50%) scale(1.7); pointer-events: none; }
+.bart-coordinator { position: absolute; inset: 0; }
+.bart-host-identity { position: absolute; inset: 0; pointer-events: none; transform-origin: 50% 80%; }
+.bart-host-character { position: absolute; inset: 0; transform-origin: 50% 80%; }
+.bart-coordinator.is-receiving :is(.bart-host-character, .bart-face, .bart-host-body, .bart-host-engine) { animation-play-state: paused; }
+.bart-host-body { position: absolute; left: 50%; top: 50%; width: 72px; height: 72px; margin: -36px; }
+.bart-host-engine { position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin-left: -6px; margin-top: 5px; }
+/* The mark sits on Bart's black body, so a monochrome logo has to resolve its
+   dark-scheme artwork here; otherwise pi/opencode draw black on black. */
+.bart-host-engine img { display: block; width: 100%; height: 100%; object-fit: contain; color-scheme: dark; }
+.bart-host-engine-mark { display: block; width: 100%; height: 100%; transition: opacity 160ms, transform 160ms; }
+.bart-host-engine-mark[data-arriving] { animation: bart-driver-arrive 1050ms ease-out both; }
+.bart-host-engine-previous { position: absolute; inset: 0; animation: bart-driver-depart 1050ms ease-out both; }
+@keyframes bart-driver-arrive { 0%, 69% { opacity: 0; transform: scale(.6); } 86% { opacity: 1; transform: scale(1.15); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes bart-driver-depart { 0% { opacity: 1; transform: scale(1); } 65% { opacity: .2; transform: scale(.8); } 70%, 100% { opacity: 0; transform: scale(.6); } }
+/* The Bart tab has no group headings, so its sections sit closer than the page default. */
+.settings-page .bart-settings .sf-group { margin-bottom: 8px; }
+/* The harness section and the plain rows below it are one run of related choices. */
+.settings-page .bart-settings > .sf-group ~ .sf-group { margin-top: -10px; }
+/* The two rows are one control: the connector lines express the split between them. */
+.harness-dispatch-map .harness-icon-row + .harness-icon-row { margin-top: 64px; }
+.harness-dispatch-lines { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.harness-dispatch-line { fill: none; stroke: var(--sf-accent); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: 5 7; opacity: .7; }
+
+@media (prefers-reduced-motion: reduce) {
+  .harness-dispatch-line { animation: none; }
+  .bart-coordinator, .bart-host-identity, .bart-host-character, .bart-host-character .bart-face, .bart-host-body, .bart-host-engine, .bart-host-engine-mark, .bart-host-engine-previous { animation: none; }
+  .bart-coordinator-rail, .bart-coordinator-anchor, .harness-dispatch-map [data-row=host] .harness-icon, .harness-dispatch-map [data-row=host] .harness-icon > img { transition: none; }
+}
+
+.harness-dispatch-lines, .harness-dispatch-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.harness-dispatch-canvas { opacity: 0; }
+[data-dispatch-worker='true'] > .harness-dispatch-canvas { opacity: 1; }
+[data-dispatch-worker='true'] > .harness-dispatch-lines { visibility: hidden; }
+
+.harness-host-slot { position: absolute; inset: 0; pointer-events: none; transition: transform 480ms cubic-bezier(.4, 0, .2, 1); }
+.harness-host-slot > .harness-icon { left: 0; pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) { .harness-host-slot { transition: none; } }
+
+.harness-dispatch-lines { color: var(--sf-accent); }

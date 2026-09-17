@@ -1,0 +1,92 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": [
+    "scripts/cached-build.mjs",
+    "scripts/build-packages.mjs",
+    "patches/**",
+    ".env*"
+  ],
+  "globalEnv": [
+    "OPENAGENT_BUILD_TOOLCHAIN",
+    "NODE_ENV",
+    "SOURCE_DATE_EPOCH",
+    "VITE_*",
+    "MAIN_VITE_*",
+    "PRELOAD_VITE_*",
+    "RENDERER_VITE_*",
+    "NODE_OPTIONS"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!tests/**",
+        "!docs/**",
+        "!README.md"
+      ],
+      "outputs": [
+        "dist/**",
+        "node_modules/.cache/tsconfig.build.tsbuildinfo"
+      ]
+    },
+    "openagent-desktop#build:main": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "resources/**",
+        "electron.vite.config.*",
+        "scripts/build-target.mjs",
+        "tsconfig*.json",
+        ".env*",
+        "package.json",
+        "!src/renderer/**/*.css"
+      ],
+      "outputs": [
+        "out/main/**"
+      ]
+    },
+    "openagent-desktop#build:preload": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "resources/**",
+        "electron.vite.config.*",
+        "scripts/build-target.mjs",
+        "tsconfig*.json",
+        ".env*",
+        "package.json",
+        "!src/renderer/**/*.css"
+      ],
+      "outputs": [
+        "out/preload/**"
+      ]
+    },
+    "openagent-desktop#build:renderer": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "resources/**",
+        "electron.vite.config.*",
+        "scripts/build-target.mjs",
+        "tsconfig*.json",
+        ".env*",
+        "package.json"
+      ],
+      "outputs": [
+        "out/renderer/**"
+      ]
+    }
+  }
+}

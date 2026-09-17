@@ -1,0 +1,24 @@
+html, body, #root { min-height: 100%; height: auto; margin: 0; overflow: visible; }
+body { overflow: auto; background: var(--canvas); color: var(--ink); }
+.single-lab { min-height: 100vh; padding: 24px; }
+.single-lab-header { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.single-lab-header > label { margin-left: auto; font-size: 13px; }
+.single-lab-header select { color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+.single-lab-stage { min-height: 470px; display: grid; align-items: center; justify-items: center; padding: 40px 0; overflow-x: auto; }
+.single-lab-grid { display: grid; grid-auto-rows: var(--thread-card-row-height); gap: var(--thread-card-gap); width: max-content; }
+.single-lab-controls { margin: 0 auto; max-width: 1080px; border-top: 1px solid var(--line); padding: 24px 0; }
+.single-lab-controls > small, .single-lab-note { color: var(--muted); font-size: 12px; }
+.single-lab-controls > p { margin: 10px 0 16px; }
+.single-lab-switch { display: flex; flex-wrap: wrap; gap: 6px; }
+.single-lab-header button, .single-lab-controls button { font: inherit; cursor: pointer; }
+.single-lab-switch button, .single-lab-controls form button { border: 1px solid var(--line); background: var(--surface); color: var(--muted); padding: 8px 12px; border-radius: 7px; font-size: 13px; }
+.single-lab-switch button[aria-pressed=true] { color: var(--ink); background: var(--surface-strong); border-color: var(--ink); }
+.single-lab-controls output { display: block; min-height: 20px; font-size: 13px; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .single-lab { padding: 16px; } .single-lab-stage { justify-items: start; } }
+
+
+.single-lab-scenarios { margin-top: 14px; }
+.single-lab-footer { display: flex; align-items: center; gap: 16px; margin-top: 22px; font-size: 12px; color: var(--muted); }
+.single-lab-footer button { border: 0; color: var(--muted); background: transparent; padding: 4px 0; font-size: 12px; }
+.single-lab-footer button:last-child { margin-left: auto; }
+.single-lab-empty { color: var(--muted); font-size: 14px; }

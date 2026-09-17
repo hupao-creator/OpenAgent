@@ -1,0 +1,71 @@
+/*
+ * The draft attachment chips belong to AttachmentChips, wherever it is mounted
+ * — the main Composer and the Bart Dock both render them, and the Bart Lab
+ * mounts the Dock without the app's token sheet. The two tokens this file needs
+ * carry their app values as fallbacks so a stray mount stays readable.
+ */
+
+.bart-attachment-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 9px 12px 0;
+  scrollbar-width: thin;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  max-width: 210px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px 5px 8px;
+  border: 1px solid var(--line-soft, light-dark(#eae8e2, #383a33));
+  border-radius: 7px;
+  background: light-dark(#f4f3ee, #30322b);
+  color: var(--muted, light-dark(#77776f, #a5a79d));
+  font-size: 9.5px;
+}
+
+.attachment-chip.pending {
+  border-style: dashed;
+}
+
+.attachment-chip.pending .attachment-status {
+  font-style: italic;
+}
+
+.attachment-chip.failed {
+  border-color: color-mix(in srgb, var(--danger, light-dark(#b4493f, #f0988d)) 35%, var(--line-soft, light-dark(#eae8e2, #383a33)));
+  background: color-mix(in srgb, var(--danger, light-dark(#b4493f, #f0988d)) 5%, light-dark(#fff, #2c2d29));
+  color: var(--danger, light-dark(#b4493f, #f0988d));
+}
+
+.attachment-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-chip button {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.attachment-chip button:hover {
+  background: light-dark(rgba(32, 33, 30, 0.08), rgba(224, 229, 218, 0.08));
+}
+
+.attachment-size {
+  color: color-mix(in srgb, var(--muted, light-dark(#77776f, #a5a79d)) 70%, transparent);
+  font-size: 9px;
+  white-space: nowrap;
+}

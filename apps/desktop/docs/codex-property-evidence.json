@@ -1,0 +1,2955 @@
+{
+  "scope": "Codex harness property families delivered beside the harness baseline: persisted state machine oracle, JsonLines framing, interaction decision matrix, Bart telemetry normalization and tool configuration identity. Nineteen temporary production mutations, each detected, replayed and restored against the delivered sources at this revision; none is retained as runtime code.",
+  "baseSha": "e1c9367938d341f9f212619ef199a7e8a5ddb3ea",
+  "propertySha256": {
+    "apps/desktop/tests/property/codex-state.property.test.ts": "b22fa7145b4e2eb54afd2ceaf024c00de4582fd9913f0df89a1c247d6ed30ab6",
+    "apps/desktop/tests/property/codex-jsonlines.property.test.ts": "ab63735773052e526496d3de452ef1e9a33ebe81fa71beba4ec2cc43b7b8c9f8",
+    "apps/desktop/tests/property/codex-interaction.property.test.ts": "ef71c394bdbd767627d8d780c80da33fa49f8d3844d2c1e70fc334e1b36fecdc",
+    "apps/desktop/tests/property/codex-bart-usage.property.test.ts": "d3fb98db26fa9d29efd0db0123c36d14e018753a0912bc6106baede2a21f5e39",
+    "apps/desktop/tests/property/codex-tool-identity.property.test.ts": "7881741fcfd34b7528d23712186c63998ab34e66c7a6ead951a4093a25e9e98b",
+    "apps/desktop/tests/property/check.ts": "bd97aa46b8a373cea699b00649f03da0660c52da527c71746a015595acf88a6a"
+  },
+  "lockfileSha256": "b47a5e9a3b9860b64bda0c33319aa58bc58959d1d4a934be765562eec9d55223",
+  "environment": {
+    "node": "v22.22.2",
+    "pnpm": "10.17.1",
+    "fastCheck": "4.9.0",
+    "vitest": "4.1.10",
+    "platform": "macOS 26.5.1",
+    "arch": "arm64"
+  },
+  "faults": [
+    {
+      "fault": "codex-turns-truncation-head-retention",
+      "selector": "codex turns truncate to the last 200 and every retained turn keeps its own prompt",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "stageCodexExecution turns truncation changed from slice(-MAX_TURNS) (keep the newest 200) to slice(0, MAX_TURNS) (keep the oldest 200)",
+      "effect": "retained turns keep the oldest window (exec-0...) instead of the newest (exec-<total-1>...), so the first retained executionId no longer matches the newest round and the tail-preservation contract breaks",
+      "detection": {
+        "property": "codex turns truncate to the last 200 and every retained turn keeps its own prompt",
+        "seed": 867498033,
+        "path": "0:0:0:0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 4,
+        "counterexample": [{ "seedAt": 0, "extra": 0, "atDelta": 0 }],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "201..231 stage/settle rounds → assert the retained window is exactly the newest 200 turns with their own prompts",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex turns truncate to the last 200 and every retained turn keeps its own prompt",
+        "seed": 867498033,
+        "path": "0:0:0:0:0",
+        "numRuns": 30,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [{ "seedAt": 0, "extra": 0, "atDelta": 0 }],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "201..231 stage/settle rounds → assert the retained window is exactly the newest 200 turns with their own prompts",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 30,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "fast-check minimized the first failing sample in 4 shrink step(s) to [{\"seedAt\": 0, \"extra\": 0, \"atDelta\": 0}]; the replay reproduces that minimized counterexample at 0 further shrink steps.",
+      "logs": {
+        "detectSha256": "a429fa86a1750af4c62b73edb4b16bf5cd6874e3fa593791d776ceb739b9617c",
+        "replaySha256": "63cd2e1fcac9f1ca2972490537469e679d521689c7e9e52e6f0c0f03a13a2dca",
+        "restoredSha256": "0672bbef46cc8a71f86ace7d1794fb7c812db2b8e0a52582e427defb78b1f395"
+      }
+    },
+    {
+      "fault": "codex-jsonlines-crlf-alternative",
+      "selector": "codex JsonLines output depends only on the byte stream, never on chunk boundaries",
+      "file": "packages/openagent-plugin-kit/src/main/json-lines.ts",
+      "edit": "JsonLines.push framing changed from splitting on /\\r?\\n/ to splitting on '\\n', dropping the CRLF alternative",
+      "effect": "a CRLF-terminated line keeps its trailing carriage return, so two passes over the same byte stream diverge and the framing stops depending on the bytes alone",
+      "detection": {
+        "property": "codex JsonLines output depends only on the byte stream, never on chunk boundaries",
+        "seed": 1047095615,
+        "path": "1:0:2",
+        "numRuns": 100,
+        "completedRuns": 2,
+        "numShrinks": 2,
+        "counterexample": [{ "lines": [], "eol": "\r\n", "trailing": true, "cuts": [] }],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "join the generated lines into one byte stream → whole-stream pass → re-read the same bytes under a generated cut plan",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex JsonLines output depends only on the byte stream, never on chunk boundaries",
+        "seed": 1047095615,
+        "path": "1:0:2",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [{ "lines": [], "eol": "\r\n", "trailing": true, "cuts": [] }],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "join the generated lines into one byte stream → whole-stream pass → re-read the same bytes under a generated cut plan",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored and verified by SHA-256 4507daa40e9deab41e5c1c6152098f1a71d4468349a923b811e391b001cc1a5f (matches pre-mutation baseline); plugin-kit rebuilt and the same clean replay passed",
+      "shrink": "fast-check minimized the first failing sample in 2 shrink step(s) to [{\"lines\": [], \"eol\": \"\\r\\n\", \"trailing\": true, \"cuts\": []}]; the replay reproduces that minimized counterexample at 0 further shrink steps.",
+      "logs": {
+        "detectSha256": "6d7436cb08a96a567ca7a3ce069d73beb7414730cad6bf3ffe38aed88f6eac80",
+        "replaySha256": "686d61231a5195bcd3309d7408aa7e35f1a142c69c3c9477ae1656097ea991b9",
+        "restoredSha256": "547b9396343fab02a3cbc5fa9c8737e09785c3fd18d0b70200dc8517d45fd290"
+      }
+    },
+    {
+      "fault": "codex-approval-timeout-decline-fallback",
+      "selector": "codex timeout decline is indistinguishable from the user choosing cancel or deny",
+      "file": "packages/harness-codex/src/main/runtime/app-server.ts",
+      "edit": "defaultInteractionDecline's approval fallback changed from the encoded cancel result ({ decision: 'cancel' } with resolution 'cancel') to { decision: 'decline' } with resolution 'decline'",
+      "effect": "the encoded user-cancel wire is { decision: 'cancel' } but the timeout produced { decision: 'decline' }, so the timeout ≡ user-cancel isomorphism breaks for approval interactions",
+      "detection": {
+        "property": "codex timeout decline is indistinguishable from the user choosing cancel or deny",
+        "seed": -1341107009,
+        "path": "0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [{
+          "method": "item/commandExecution/requestApproval",
+          "params": { "interactionId": "native-1" }
+        }],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "parse each native method → encode its cancel (or deny) action → the timeout decline response and resolution match it exactly",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex timeout decline is indistinguishable from the user choosing cancel or deny",
+        "seed": -1341107009,
+        "path": "0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [{
+          "method": "item/commandExecution/requestApproval",
+          "params": { "interactionId": "native-1" }
+        }],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "parse each native method → encode its cancel (or deny) action → the timeout decline response and resolution match it exactly",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored and verified by SHA-256 ad2827f086b8ee3ba4852b2fae855060604dce9548487da1d62d09ec9bd7fec9 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '0', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "dc3e47e52ce5861db109449910e6c4321d076a3ec52fa271976231d01f308880",
+        "replaySha256": "bc8bcebb1ae4ae937837ecc0fcb70686fb7c7830e6680815e06e4d11d6bb5d54",
+        "restoredSha256": "6e8a8cf78a71c55030d1751981005613f35b85ddbec49037aea4a792219e3b75"
+      }
+    },
+    {
+      "fault": "codex-bart-negative-percent-guard",
+      "selector": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+      "file": "packages/harness-codex/src/bart/usage.ts",
+      "edit": "percentValue dropped its value >= 0 guard, so negative native usedPercent values were accepted and rounded instead of being rejected to null",
+      "effect": "the normalized window carried a negative percentage (rounded from the native value) where the input-derived oracle expects null, so a negative native value is reported as usable capacity",
+      "detection": {
+        "property": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+        "seed": -903966298,
+        "path": "6:1:1:2:1:1:1:1:1:4:3:3:3",
+        "numRuns": 100,
+        "completedRuns": 7,
+        "numShrinks": 12,
+        "counterexample": [
+          {
+            "payload": {
+              "rateLimitsByLimitId": {
+                "d0": {
+                  "spendControlReached": false,
+                  "secondary": {
+                    "usedPercent": -1000000000
+                  }
+                }
+              }
+            },
+            "observedAt": 0
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+        "seed": -903966298,
+        "path": "6:1:1:2:1:1:1:1:1:4:3:3:3",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "payload": {
+              "rateLimitsByLimitId": {
+                "d0": {
+                  "spendControlReached": false,
+                  "secondary": {
+                    "usedPercent": -1000000000
+                  }
+                }
+              }
+            },
+            "observedAt": 0
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored and verified by SHA-256 a9c4b0e832468a43b25e0fba79e67b93e7c099046f1d9264794e01172dbdd892 (matches pre-mutation baseline); clean run passed",
+      "shrink": "fast-check detected the fault after 7 sample(s), minimized it in 12 shrink step(s), and replayed the same counterexample at 0 further shrink steps.",
+      "logs": {
+        "detectSha256": "54d2895f79d74f63c1966c7dcea6f41d4289466aff21558b4d31821bdc604149",
+        "replaySha256": "2dec18bc6aa0d8fed2ca695db3f6ccf34bfcece6d5087ae5835eacae697326eb",
+        "restoredSha256": "517dc4d8b3657304b97871fc3abebaad41fc5d7ad7c90a855bb9c721cc435c87"
+      }
+    },
+    {
+      "fault": "codex-tool-identity-name-sort",
+      "selector": "codex toolConfigurationIdentity ignores binding order and schema key order",
+      "file": "packages/harness-codex/src/main/thread/thread-handle.ts",
+      "edit": "toolConfigurationIdentity stopped sorting its tool definitions by name, so permuting the bindings array changed the identity hash",
+      "effect": "swapping two bindings changed the identity hash although the tool set is identical, which would spuriously rotate the native tool configuration",
+      "detection": {
+        "property": "codex toolConfigurationIdentity ignores binding order and schema key order",
+        "seed": 1586162000,
+        "path": "0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "mode": "extend",
+          "bindings": [
+          {
+          "name": "tool-0",
+          "description": "first",
+          "inputSchema": {
+          "k0": { "k0": 1, "k1": 2 }
+        }
+        },
+          {
+          "name": "tool-1",
+          "description": "second",
+          "inputSchema": {
+          "k0": { "k0": 3, "k1": 4 }
+        }
+        }
+        ],
+          "swaps": [1]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generate a tool injection → permute bindings and reverse every schema key order → the identity hash is unchanged, while renames and mode flips are detected",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex toolConfigurationIdentity ignores binding order and schema key order",
+        "seed": 1586162000,
+        "path": "0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "mode": "extend",
+          "bindings": [
+          {
+          "name": "tool-0",
+          "description": "first",
+          "inputSchema": {
+          "k0": { "k0": 1, "k1": 2 }
+        }
+        },
+          {
+          "name": "tool-1",
+          "description": "second",
+          "inputSchema": {
+          "k0": { "k0": 3, "k1": 4 }
+        }
+        }
+        ],
+          "swaps": [1]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generate a tool injection → permute bindings and reverse every schema key order → the identity hash is unchanged, while renames and mode flips are detected",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored and verified by SHA-256 86f5537566a388628bdbe67b8f7b9467fda1b75a3b693dfc51311a35136aa98a (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '0', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "2af3aa1b773c67acbd73ea05db9544f930791b63dfe5ce3d4cbc30447bb10bcb",
+        "replaySha256": "f204450a0e7b60fa8d6b81f10919c9e3c19cccb2c13fff44653d06db657fb908",
+        "restoredSha256": "24867e2139ae176b5d27d7ba217a16d7a83efb37dfabf1149c33334661b4af7e"
+      }
+    },
+    {
+      "fault": "codex-usage-event-effect-omitted",
+      "selector": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "reduceCodexEvent's 'usage' case returned the unchanged turn instead of { ...turn, updatedAt: timestamp, usage: event.usage }",
+      "effect": "a native usage event leaves the turn's usage unset, so the recorded quota is silently dropped; the state stays internally consistent, so only the per-event expected-effect oracle (not the invariants) can see it — this fault exists to prove that oracle has teeth",
+      "detection": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": 1520111741,
+        "path": "12:0:1:1:1:1:1:1:3:1:2:3:3:3:3:2:2:2:2",
+        "numRuns": 50,
+        "completedRuns": 13,
+        "numShrinks": 18,
+        "counterexample": [
+          {
+          "seedAt": 0,
+          "rounds": [
+          {
+          "executionId": "id0",
+          "input": {
+          "parts": [{ "kind": "mention", "name": "id0", "path": "/property" }]
+        },
+          "messageId": "id0",
+          "atDelta": 0,
+          "steps": [
+          {
+          "op": "event",
+          "event": { "type": "usage", "usage": {} },
+          "generatedId": "id0",
+          "atDelta": 0
+        }
+        ],
+          "terminal": { "kind": "settle", "outcome": "completed" }
+        }
+        ]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": 1520111741,
+        "path": "12:0:1:1:1:1:1:1:3:1:2:3:3:3:3:2:2:2:2",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "seedAt": 0,
+          "rounds": [
+          {
+          "executionId": "id0",
+          "input": {
+          "parts": [{ "kind": "mention", "name": "id0", "path": "/property" }]
+        },
+          "messageId": "id0",
+          "atDelta": 0,
+          "steps": [
+          {
+          "op": "event",
+          "event": { "type": "usage", "usage": {} },
+          "generatedId": "id0",
+          "atDelta": 0
+        }
+        ],
+          "terminal": { "kind": "settle", "outcome": "completed" }
+        }
+        ]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "fast-check minimized the first failing sample in 18 shrink step(s) to [{\"seedAt\": 0, \"rounds\": [{\"executionId\": \"id0\", \"input\": {\"parts\": [{\"kind\": \"mention\", \"name\": \"id0\", \"path\": \"/property\"}]}, \"messageId\": \"id0\", \"atDelta\": 0, \"steps\": [{\"op\": \"event\", \"event\": {\"type\": \"usage\", \"usage\": {}}, \"generatedId\": \"id0\", \"atDelta\": 0}], \"terminal\": {\"kind\": \"settle\", \"outcome\": \"completed\"}}]}]; the replay reproduces that minimized counterexample at 0 further shrink steps.",
+      "logs": {
+        "detectSha256": "c86f6106eff8491cf967f2ba4508a27b695e6b32481745e54f75016965e9eff3",
+        "replaySha256": "6b4dee62f411829471bb9e72b361e2795467b7f1e7037f7704009ab58ef784ac",
+        "restoredSha256": "c0f211e2cd4f96424f5f5ea56c71a91a9ed85105db3f1f67cc5fd83ef597ffe8"
+      }
+    },
+    {
+      "fault": "codex-plan-cap-removed",
+      "selector": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "the plan reducer kept every generated step (plan: event.steps) instead of slicing to the persisted 200-step cap (plan: event.steps.slice(0, 200))",
+      "effect": "the mandatory 230-step plan example persists a plan the validator refuses, so the state stops round-tripping; without that example the generated plans never reach the cap and the suite stayed green — this fault proves the plan-cap example has teeth",
+      "detection": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": 1217123544,
+        "path": "0",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "seedAt": 0,
+          "rounds": [
+          {
+          "executionId": "exec-plan-cap",
+          "input": {
+          "parts": [{ "kind": "text", "text": "plan probe" }]
+        },
+          "messageId": "msg-plan-cap",
+          "atDelta": 0,
+          "steps": [
+          {
+          "op": "event",
+          "event": {
+          "type": "plan",
+          "steps": [
+          { "step": "step 0", "status": "pending" },
+          { "step": "step 1", "status": "pending" },
+          { "step": "step 2", "status": "pending" },
+          { "step": "step 3", "status": "pending" },
+          { "step": "step 4", "status": "pending" },
+          { "step": "step 5", "status": "pending" },
+          { "step": "step 6", "status": "pending" },
+          { "step": "step 7", "status": "pending" },
+          { "step": "step 8", "status": "pending" },
+          { "step": "step 9", "status": "pending" },
+          { "step": "step 10", "status": "pending" },
+          { "step": "step 11", "status": "pending" },
+          { "step": "step 12", "status": "pending" },
+          { "step": "step 13", "status": "pending" },
+          { "step": "step 14", "status": "pending" },
+          { "step": "step 15", "status": "pending" },
+          { "step": "step 16", "status": "pending" },
+          { "step": "step 17", "status": "pending" },
+          { "step": "step 18", "status": "pending" },
+          { "step": "step 19", "status": "pending" },
+          { "step": "step 20", "status": "pending" },
+          { "step": "step 21", "status": "pending" },
+          { "step": "step 22", "status": "pending" },
+          { "step": "step 23", "status": "pending" },
+          { "step": "step 24", "status": "pending" },
+          { "step": "step 25", "status": "pending" },
+          { "step": "step 26", "status": "pending" },
+          { "step": "step 27", "status": "pending" },
+          { "step": "step 28", "status": "pending" },
+          { "step": "step 29", "status": "pending" },
+          { "step": "step 30", "status": "pending" },
+          { "step": "step 31", "status": "pending" },
+          { "step": "step 32", "status": "pending" },
+          { "step": "step 33", "status": "pending" },
+          { "step": "step 34", "status": "pending" },
+          { "step": "step 35", "status": "pending" },
+          { "step": "step 36", "status": "pending" },
+          { "step": "step 37", "status": "pending" },
+          { "step": "step 38", "status": "pending" },
+          { "step": "step 39", "status": "pending" },
+          { "step": "step 40", "status": "pending" },
+          { "step": "step 41", "status": "pending" },
+          { "step": "step 42", "status": "pending" },
+          { "step": "step 43", "status": "pending" },
+          { "step": "step 44", "status": "pending" },
+          { "step": "step 45", "status": "pending" },
+          { "step": "step 46", "status": "pending" },
+          { "step": "step 47", "status": "pending" },
+          { "step": "step 48", "status": "pending" },
+          { "step": "step 49", "status": "pending" },
+          { "step": "step 50", "status": "pending" },
+          { "step": "step 51", "status": "pending" },
+          { "step": "step 52", "status": "pending" },
+          { "step": "step 53", "status": "pending" },
+          { "step": "step 54", "status": "pending" },
+          { "step": "step 55", "status": "pending" },
+          { "step": "step 56", "status": "pending" },
+          { "step": "step 57", "status": "pending" },
+          { "step": "step 58", "status": "pending" },
+          { "step": "step 59", "status": "pending" },
+          { "step": "step 60", "status": "pending" },
+          { "step": "step 61", "status": "pending" },
+          { "step": "step 62", "status": "pending" },
+          { "step": "step 63", "status": "pending" },
+          { "step": "step 64", "status": "pending" },
+          { "step": "step 65", "status": "pending" },
+          { "step": "step 66", "status": "pending" },
+          { "step": "step 67", "status": "pending" },
+          { "step": "step 68", "status": "pending" },
+          { "step": "step 69", "status": "pending" },
+          { "step": "step 70", "status": "pending" },
+          { "step": "step 71", "status": "pending" },
+          { "step": "step 72", "status": "pending" },
+          { "step": "step 73", "status": "pending" },
+          { "step": "step 74", "status": "pending" },
+          { "step": "step 75", "status": "pending" },
+          { "step": "step 76", "status": "pending" },
+          { "step": "step 77", "status": "pending" },
+          { "step": "step 78", "status": "pending" },
+          { "step": "step 79", "status": "pending" },
+          { "step": "step 80", "status": "pending" },
+          { "step": "step 81", "status": "pending" },
+          { "step": "step 82", "status": "pending" },
+          { "step": "step 83", "status": "pending" },
+          { "step": "step 84", "status": "pending" },
+          { "step": "step 85", "status": "pending" },
+          { "step": "step 86", "status": "pending" },
+          { "step": "step 87", "status": "pending" },
+          { "step": "step 88", "status": "pending" },
+          { "step": "step 89", "status": "pending" },
+          { "step": "step 90", "status": "pending" },
+          { "step": "step 91", "status": "pending" },
+          { "step": "step 92", "status": "pending" },
+          { "step": "step 93", "status": "pending" },
+          { "step": "step 94", "status": "pending" },
+          { "step": "step 95", "status": "pending" },
+          { "step": "step 96", "status": "pending" },
+          { "step": "step 97", "status": "pending" },
+          { "step": "step 98", "status": "pending" },
+          { "step": "step 99", "status": "pending" },
+          { "step": "step 100", "status": "pending" },
+          { "step": "step 101", "status": "pending" },
+          { "step": "step 102", "status": "pending" },
+          { "step": "step 103", "status": "pending" },
+          { "step": "step 104", "status": "pending" },
+          { "step": "step 105", "status": "pending" },
+          { "step": "step 106", "status": "pending" },
+          { "step": "step 107", "status": "pending" },
+          { "step": "step 108", "status": "pending" },
+          { "step": "step 109", "status": "pending" },
+          { "step": "step 110", "status": "pending" },
+          { "step": "step 111", "status": "pending" },
+          { "step": "step 112", "status": "pending" },
+          { "step": "step 113", "status": "pending" },
+          { "step": "step 114", "status": "pending" },
+          { "step": "step 115", "status": "pending" },
+          { "step": "step 116", "status": "pending" },
+          { "step": "step 117", "status": "pending" },
+          { "step": "step 118", "status": "pending" },
+          { "step": "step 119", "status": "pending" },
+          { "step": "step 120", "status": "pending" },
+          { "step": "step 121", "status": "pending" },
+          { "step": "step 122", "status": "pending" },
+          { "step": "step 123", "status": "pending" },
+          { "step": "step 124", "status": "pending" },
+          { "step": "step 125", "status": "pending" },
+          { "step": "step 126", "status": "pending" },
+          { "step": "step 127", "status": "pending" },
+          { "step": "step 128", "status": "pending" },
+          { "step": "step 129", "status": "pending" },
+          { "step": "step 130", "status": "pending" },
+          { "step": "step 131", "status": "pending" },
+          { "step": "step 132", "status": "pending" },
+          { "step": "step 133", "status": "pending" },
+          { "step": "step 134", "status": "pending" },
+          { "step": "step 135", "status": "pending" },
+          { "step": "step 136", "status": "pending" },
+          { "step": "step 137", "status": "pending" },
+          { "step": "step 138", "status": "pending" },
+          { "step": "step 139", "status": "pending" },
+          { "step": "step 140", "status": "pending" },
+          { "step": "step 141", "status": "pending" },
+          { "step": "step 142", "status": "pending" },
+          { "step": "step 143", "status": "pending" },
+          { "step": "step 144", "status": "pending" },
+          { "step": "step 145", "status": "pending" },
+          { "step": "step 146", "status": "pending" },
+          { "step": "step 147", "status": "pending" },
+          { "step": "step 148", "status": "pending" },
+          { "step": "step 149", "status": "pending" },
+          { "step": "step 150", "status": "pending" },
+          { "step": "step 151", "status": "pending" },
+          { "step": "step 152", "status": "pending" },
+          { "step": "step 153", "status": "pending" },
+          { "step": "step 154", "status": "pending" },
+          { "step": "step 155", "status": "pending" },
+          { "step": "step 156", "status": "pending" },
+          { "step": "step 157", "status": "pending" },
+          { "step": "step 158", "status": "pending" },
+          { "step": "step 159", "status": "pending" },
+          { "step": "step 160", "status": "pending" },
+          { "step": "step 161", "status": "pending" },
+          { "step": "step 162", "status": "pending" },
+          { "step": "step 163", "status": "pending" },
+          { "step": "step 164", "status": "pending" },
+          { "step": "step 165", "status": "pending" },
+          { "step": "step 166", "status": "pending" },
+          { "step": "step 167", "status": "pending" },
+          { "step": "step 168", "status": "pending" },
+          { "step": "step 169", "status": "pending" },
+          { "step": "step 170", "status": "pending" },
+          { "step": "step 171", "status": "pending" },
+          { "step": "step 172", "status": "pending" },
+          { "step": "step 173", "status": "pending" },
+          { "step": "step 174", "status": "pending" },
+          { "step": "step 175", "status": "pending" },
+          { "step": "step 176", "status": "pending" },
+          { "step": "step 177", "status": "pending" },
+          { "step": "step 178", "status": "pending" },
+          { "step": "step 179", "status": "pending" },
+          { "step": "step 180", "status": "pending" },
+          { "step": "step 181", "status": "pending" },
+          { "step": "step 182", "status": "pending" },
+          { "step": "step 183", "status": "pending" },
+          { "step": "step 184", "status": "pending" },
+          { "step": "step 185", "status": "pending" },
+          { "step": "step 186", "status": "pending" },
+          { "step": "step 187", "status": "pending" },
+          { "step": "step 188", "status": "pending" },
+          { "step": "step 189", "status": "pending" },
+          { "step": "step 190", "status": "pending" },
+          { "step": "step 191", "status": "pending" },
+          { "step": "step 192", "status": "pending" },
+          { "step": "step 193", "status": "pending" },
+          { "step": "step 194", "status": "pending" },
+          { "step": "step 195", "status": "pending" },
+          { "step": "step 196", "status": "pending" },
+          { "step": "step 197", "status": "pending" },
+          { "step": "step 198", "status": "pending" },
+          { "step": "step 199", "status": "pending" },
+          { "step": "step 200", "status": "pending" },
+          { "step": "step 201", "status": "pending" },
+          { "step": "step 202", "status": "pending" },
+          { "step": "step 203", "status": "pending" },
+          { "step": "step 204", "status": "pending" },
+          { "step": "step 205", "status": "pending" },
+          { "step": "step 206", "status": "pending" },
+          { "step": "step 207", "status": "pending" },
+          { "step": "step 208", "status": "pending" },
+          { "step": "step 209", "status": "pending" },
+          { "step": "step 210", "status": "pending" },
+          { "step": "step 211", "status": "pending" },
+          { "step": "step 212", "status": "pending" },
+          { "step": "step 213", "status": "pending" },
+          { "step": "step 214", "status": "pending" },
+          { "step": "step 215", "status": "pending" },
+          { "step": "step 216", "status": "pending" },
+          { "step": "step 217", "status": "pending" },
+          { "step": "step 218", "status": "pending" },
+          { "step": "step 219", "status": "pending" },
+          { "step": "step 220", "status": "pending" },
+          { "step": "step 221", "status": "pending" },
+          { "step": "step 222", "status": "pending" },
+          { "step": "step 223", "status": "pending" },
+          { "step": "step 224", "status": "pending" },
+          { "step": "step 225", "status": "pending" },
+          { "step": "step 226", "status": "pending" },
+          { "step": "step 227", "status": "pending" },
+          { "step": "step 228", "status": "pending" },
+          { "step": "step 229", "status": "pending" }
+        ]
+        },
+          "generatedId": "gen-plan-cap",
+          "atDelta": 0
+        }
+        ],
+          "terminal": { "kind": "settle", "outcome": "completed" }
+        }
+        ]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": 1217123544,
+        "path": "0",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "seedAt": 0,
+          "rounds": [
+          {
+          "executionId": "exec-plan-cap",
+          "input": {
+          "parts": [{ "kind": "text", "text": "plan probe" }]
+        },
+          "messageId": "msg-plan-cap",
+          "atDelta": 0,
+          "steps": [
+          {
+          "op": "event",
+          "event": {
+          "type": "plan",
+          "steps": [
+          { "step": "step 0", "status": "pending" },
+          { "step": "step 1", "status": "pending" },
+          { "step": "step 2", "status": "pending" },
+          { "step": "step 3", "status": "pending" },
+          { "step": "step 4", "status": "pending" },
+          { "step": "step 5", "status": "pending" },
+          { "step": "step 6", "status": "pending" },
+          { "step": "step 7", "status": "pending" },
+          { "step": "step 8", "status": "pending" },
+          { "step": "step 9", "status": "pending" },
+          { "step": "step 10", "status": "pending" },
+          { "step": "step 11", "status": "pending" },
+          { "step": "step 12", "status": "pending" },
+          { "step": "step 13", "status": "pending" },
+          { "step": "step 14", "status": "pending" },
+          { "step": "step 15", "status": "pending" },
+          { "step": "step 16", "status": "pending" },
+          { "step": "step 17", "status": "pending" },
+          { "step": "step 18", "status": "pending" },
+          { "step": "step 19", "status": "pending" },
+          { "step": "step 20", "status": "pending" },
+          { "step": "step 21", "status": "pending" },
+          { "step": "step 22", "status": "pending" },
+          { "step": "step 23", "status": "pending" },
+          { "step": "step 24", "status": "pending" },
+          { "step": "step 25", "status": "pending" },
+          { "step": "step 26", "status": "pending" },
+          { "step": "step 27", "status": "pending" },
+          { "step": "step 28", "status": "pending" },
+          { "step": "step 29", "status": "pending" },
+          { "step": "step 30", "status": "pending" },
+          { "step": "step 31", "status": "pending" },
+          { "step": "step 32", "status": "pending" },
+          { "step": "step 33", "status": "pending" },
+          { "step": "step 34", "status": "pending" },
+          { "step": "step 35", "status": "pending" },
+          { "step": "step 36", "status": "pending" },
+          { "step": "step 37", "status": "pending" },
+          { "step": "step 38", "status": "pending" },
+          { "step": "step 39", "status": "pending" },
+          { "step": "step 40", "status": "pending" },
+          { "step": "step 41", "status": "pending" },
+          { "step": "step 42", "status": "pending" },
+          { "step": "step 43", "status": "pending" },
+          { "step": "step 44", "status": "pending" },
+          { "step": "step 45", "status": "pending" },
+          { "step": "step 46", "status": "pending" },
+          { "step": "step 47", "status": "pending" },
+          { "step": "step 48", "status": "pending" },
+          { "step": "step 49", "status": "pending" },
+          { "step": "step 50", "status": "pending" },
+          { "step": "step 51", "status": "pending" },
+          { "step": "step 52", "status": "pending" },
+          { "step": "step 53", "status": "pending" },
+          { "step": "step 54", "status": "pending" },
+          { "step": "step 55", "status": "pending" },
+          { "step": "step 56", "status": "pending" },
+          { "step": "step 57", "status": "pending" },
+          { "step": "step 58", "status": "pending" },
+          { "step": "step 59", "status": "pending" },
+          { "step": "step 60", "status": "pending" },
+          { "step": "step 61", "status": "pending" },
+          { "step": "step 62", "status": "pending" },
+          { "step": "step 63", "status": "pending" },
+          { "step": "step 64", "status": "pending" },
+          { "step": "step 65", "status": "pending" },
+          { "step": "step 66", "status": "pending" },
+          { "step": "step 67", "status": "pending" },
+          { "step": "step 68", "status": "pending" },
+          { "step": "step 69", "status": "pending" },
+          { "step": "step 70", "status": "pending" },
+          { "step": "step 71", "status": "pending" },
+          { "step": "step 72", "status": "pending" },
+          { "step": "step 73", "status": "pending" },
+          { "step": "step 74", "status": "pending" },
+          { "step": "step 75", "status": "pending" },
+          { "step": "step 76", "status": "pending" },
+          { "step": "step 77", "status": "pending" },
+          { "step": "step 78", "status": "pending" },
+          { "step": "step 79", "status": "pending" },
+          { "step": "step 80", "status": "pending" },
+          { "step": "step 81", "status": "pending" },
+          { "step": "step 82", "status": "pending" },
+          { "step": "step 83", "status": "pending" },
+          { "step": "step 84", "status": "pending" },
+          { "step": "step 85", "status": "pending" },
+          { "step": "step 86", "status": "pending" },
+          { "step": "step 87", "status": "pending" },
+          { "step": "step 88", "status": "pending" },
+          { "step": "step 89", "status": "pending" },
+          { "step": "step 90", "status": "pending" },
+          { "step": "step 91", "status": "pending" },
+          { "step": "step 92", "status": "pending" },
+          { "step": "step 93", "status": "pending" },
+          { "step": "step 94", "status": "pending" },
+          { "step": "step 95", "status": "pending" },
+          { "step": "step 96", "status": "pending" },
+          { "step": "step 97", "status": "pending" },
+          { "step": "step 98", "status": "pending" },
+          { "step": "step 99", "status": "pending" },
+          { "step": "step 100", "status": "pending" },
+          { "step": "step 101", "status": "pending" },
+          { "step": "step 102", "status": "pending" },
+          { "step": "step 103", "status": "pending" },
+          { "step": "step 104", "status": "pending" },
+          { "step": "step 105", "status": "pending" },
+          { "step": "step 106", "status": "pending" },
+          { "step": "step 107", "status": "pending" },
+          { "step": "step 108", "status": "pending" },
+          { "step": "step 109", "status": "pending" },
+          { "step": "step 110", "status": "pending" },
+          { "step": "step 111", "status": "pending" },
+          { "step": "step 112", "status": "pending" },
+          { "step": "step 113", "status": "pending" },
+          { "step": "step 114", "status": "pending" },
+          { "step": "step 115", "status": "pending" },
+          { "step": "step 116", "status": "pending" },
+          { "step": "step 117", "status": "pending" },
+          { "step": "step 118", "status": "pending" },
+          { "step": "step 119", "status": "pending" },
+          { "step": "step 120", "status": "pending" },
+          { "step": "step 121", "status": "pending" },
+          { "step": "step 122", "status": "pending" },
+          { "step": "step 123", "status": "pending" },
+          { "step": "step 124", "status": "pending" },
+          { "step": "step 125", "status": "pending" },
+          { "step": "step 126", "status": "pending" },
+          { "step": "step 127", "status": "pending" },
+          { "step": "step 128", "status": "pending" },
+          { "step": "step 129", "status": "pending" },
+          { "step": "step 130", "status": "pending" },
+          { "step": "step 131", "status": "pending" },
+          { "step": "step 132", "status": "pending" },
+          { "step": "step 133", "status": "pending" },
+          { "step": "step 134", "status": "pending" },
+          { "step": "step 135", "status": "pending" },
+          { "step": "step 136", "status": "pending" },
+          { "step": "step 137", "status": "pending" },
+          { "step": "step 138", "status": "pending" },
+          { "step": "step 139", "status": "pending" },
+          { "step": "step 140", "status": "pending" },
+          { "step": "step 141", "status": "pending" },
+          { "step": "step 142", "status": "pending" },
+          { "step": "step 143", "status": "pending" },
+          { "step": "step 144", "status": "pending" },
+          { "step": "step 145", "status": "pending" },
+          { "step": "step 146", "status": "pending" },
+          { "step": "step 147", "status": "pending" },
+          { "step": "step 148", "status": "pending" },
+          { "step": "step 149", "status": "pending" },
+          { "step": "step 150", "status": "pending" },
+          { "step": "step 151", "status": "pending" },
+          { "step": "step 152", "status": "pending" },
+          { "step": "step 153", "status": "pending" },
+          { "step": "step 154", "status": "pending" },
+          { "step": "step 155", "status": "pending" },
+          { "step": "step 156", "status": "pending" },
+          { "step": "step 157", "status": "pending" },
+          { "step": "step 158", "status": "pending" },
+          { "step": "step 159", "status": "pending" },
+          { "step": "step 160", "status": "pending" },
+          { "step": "step 161", "status": "pending" },
+          { "step": "step 162", "status": "pending" },
+          { "step": "step 163", "status": "pending" },
+          { "step": "step 164", "status": "pending" },
+          { "step": "step 165", "status": "pending" },
+          { "step": "step 166", "status": "pending" },
+          { "step": "step 167", "status": "pending" },
+          { "step": "step 168", "status": "pending" },
+          { "step": "step 169", "status": "pending" },
+          { "step": "step 170", "status": "pending" },
+          { "step": "step 171", "status": "pending" },
+          { "step": "step 172", "status": "pending" },
+          { "step": "step 173", "status": "pending" },
+          { "step": "step 174", "status": "pending" },
+          { "step": "step 175", "status": "pending" },
+          { "step": "step 176", "status": "pending" },
+          { "step": "step 177", "status": "pending" },
+          { "step": "step 178", "status": "pending" },
+          { "step": "step 179", "status": "pending" },
+          { "step": "step 180", "status": "pending" },
+          { "step": "step 181", "status": "pending" },
+          { "step": "step 182", "status": "pending" },
+          { "step": "step 183", "status": "pending" },
+          { "step": "step 184", "status": "pending" },
+          { "step": "step 185", "status": "pending" },
+          { "step": "step 186", "status": "pending" },
+          { "step": "step 187", "status": "pending" },
+          { "step": "step 188", "status": "pending" },
+          { "step": "step 189", "status": "pending" },
+          { "step": "step 190", "status": "pending" },
+          { "step": "step 191", "status": "pending" },
+          { "step": "step 192", "status": "pending" },
+          { "step": "step 193", "status": "pending" },
+          { "step": "step 194", "status": "pending" },
+          { "step": "step 195", "status": "pending" },
+          { "step": "step 196", "status": "pending" },
+          { "step": "step 197", "status": "pending" },
+          { "step": "step 198", "status": "pending" },
+          { "step": "step 199", "status": "pending" },
+          { "step": "step 200", "status": "pending" },
+          { "step": "step 201", "status": "pending" },
+          { "step": "step 202", "status": "pending" },
+          { "step": "step 203", "status": "pending" },
+          { "step": "step 204", "status": "pending" },
+          { "step": "step 205", "status": "pending" },
+          { "step": "step 206", "status": "pending" },
+          { "step": "step 207", "status": "pending" },
+          { "step": "step 208", "status": "pending" },
+          { "step": "step 209", "status": "pending" },
+          { "step": "step 210", "status": "pending" },
+          { "step": "step 211", "status": "pending" },
+          { "step": "step 212", "status": "pending" },
+          { "step": "step 213", "status": "pending" },
+          { "step": "step 214", "status": "pending" },
+          { "step": "step 215", "status": "pending" },
+          { "step": "step 216", "status": "pending" },
+          { "step": "step 217", "status": "pending" },
+          { "step": "step 218", "status": "pending" },
+          { "step": "step 219", "status": "pending" },
+          { "step": "step 220", "status": "pending" },
+          { "step": "step 221", "status": "pending" },
+          { "step": "step 222", "status": "pending" },
+          { "step": "step 223", "status": "pending" },
+          { "step": "step 224", "status": "pending" },
+          { "step": "step 225", "status": "pending" },
+          { "step": "step 226", "status": "pending" },
+          { "step": "step 227", "status": "pending" },
+          { "step": "step 228", "status": "pending" },
+          { "step": "step 229", "status": "pending" }
+        ]
+        },
+          "generatedId": "gen-plan-cap",
+          "atDelta": 0
+        }
+        ],
+          "terminal": { "kind": "settle", "outcome": "completed" }
+        }
+        ]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '0', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "4f57abdc9ea48991af349c74646003d0d58baf9da0b9e059f4028795d0f164dd",
+        "replaySha256": "2d7cb8e6d6df07b0028d8c91ba0696efe1878c27449df08e5ed34f1c35384a0a",
+        "restoredSha256": "09d42d08adfabf7ff087493d4f100a1c72a0ca63e89ae322bb54cc816c371299"
+      }
+    },
+    {
+      "fault": "codex-delta-batcher-drops-newer-delta",
+      "selector": "codex delta batching is answer-equivalent to reducing every delta on its own",
+      "file": "packages/harness-codex/src/main/thread/thread-handle.ts",
+      "edit": "the production mergeDeltaEvents kept the buffered delta and dropped the newer one under the same entity (delta: last.delta instead of last.delta + event.delta)",
+      "effect": "batched reduction loses text the per-delta reduction keeps, so the advertised batch-versus-sequential equivalence fails against the production batcher rather than against a test-local reimplementation",
+      "detection": {
+        "property": "codex delta batching is answer-equivalent to reducing every delta on its own",
+        "seed": 693364545,
+        "path": "0",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "seedAt": 0,
+          "deltas": [{ "entity": 0, "delta": "a" }, { "entity": 0, "delta": "b" }, { "entity": 2, "delta": "c" }, { "entity": 2, "delta": "d" }]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage → reduce each delta on its own vs reduce the production batched merge → answers, reasoning and assistant items agree",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex delta batching is answer-equivalent to reducing every delta on its own",
+        "seed": 693364545,
+        "path": "0",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "seedAt": 0,
+          "deltas": [{ "entity": 0, "delta": "a" }, { "entity": 0, "delta": "b" }, { "entity": 2, "delta": "c" }, { "entity": 2, "delta": "d" }]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage → reduce each delta on its own vs reduce the production batched merge → answers, reasoning and assistant items agree",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 86f5537566a388628bdbe67b8f7b9467fda1b75a3b693dfc51311a35136aa98a (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '0', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "af68ad1f0aed337d94d80f735507edb85e015252b4dad4e0b4456c3cb9f4073a",
+        "replaySha256": "c9d2a30a5342d39bacee648005881a05435147a92ef425f50b2e20007c82bbb6",
+        "restoredSha256": "4ac40864044f3d3019fd5b9cc4b2b725c7db845a5f75130d14d659fc2d5ea1e2"
+      }
+    },
+    {
+      "fault": "codex-bart-percentage-constant",
+      "selector": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+      "file": "packages/harness-codex/src/bart/usage.ts",
+      "edit": "percentValue returned a constant 0 for every accepted percentage instead of the rounded native value",
+      "effect": "every window reports 0% used; the rounding, remaining, exhaustion and scope assertions all stay satisfied because they derive from the same output, so only the input-derived percentage comparison catches it — this fault proves that oracle has teeth",
+      "detection": {
+        "property": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+        "seed": -2131929907,
+        "path": "0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "payload": {
+              "rateLimits": {
+                "limitId": "p3",
+                "primary": {
+                  "usedPercent": 88
+                }
+              },
+              "rateLimitsByLimitId": {
+                "p3": {
+                  "limitId": "p3",
+                  "primary": {
+                    "usedPercent": 11
+                  }
+                }
+              }
+            },
+            "observedAt": 1000
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+        "seed": -2131929907,
+        "path": "0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "payload": {
+              "rateLimits": {
+                "limitId": "p3",
+                "primary": {
+                  "usedPercent": 88
+                }
+              },
+              "rateLimitsByLimitId": {
+                "p3": {
+                  "limitId": "p3",
+                  "primary": {
+                    "usedPercent": 11
+                  }
+                }
+              }
+            },
+            "observedAt": 1000
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored and verified by SHA-256 a9c4b0e832468a43b25e0fba79e67b93e7c099046f1d9264794e01172dbdd892 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '0', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "f82150954b7779a1e001ce7ff6c043bc23c8c017900a1810dadf732b182ea2d3",
+        "replaySha256": "4e26ea0292df1feb9d737734339ed8891da00390bb193152fd4814ca0e4cceba",
+        "restoredSha256": "14aaf229d5e823c954cfe64043feb8497742b151c20036eb0bd02a5a65de8caa"
+      }
+    },
+    {
+      "fault": "codex-bart-no-window-reach-dropped",
+      "selector": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+      "file": "packages/harness-codex/src/bart/usage.ts",
+      "edit": "the no-window early return dropped the explicit provider reach and always reported `limitReached: null` instead of `explicitlyReached ? true : null`",
+      "effect": "a frame whose provider bucket sets spendControlReached or rateLimitReachedType but carries no recognizable window is reported as unknown capacity instead of exhausted, so a reached account reads as merely unreadable",
+      "detection": {
+        "property": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+        "seed": 1969900115,
+        "path": "1",
+        "numRuns": 100,
+        "completedRuns": 2,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "payload": {
+              "rateLimits": {
+                "limitId": "p4"
+              },
+              "rateLimitsByLimitId": {
+                "p4": {
+                  "limitId": "p4",
+                  "rateLimitReachedType": "p4"
+                }
+              }
+            },
+            "observedAt": 2000
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+        "seed": 1969900115,
+        "path": "1",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "payload": {
+              "rateLimits": {
+                "limitId": "p4"
+              },
+              "rateLimitsByLimitId": {
+                "p4": {
+                  "limitId": "p4",
+                  "rateLimitReachedType": "p4"
+                }
+              }
+            },
+            "observedAt": 2000
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored and verified by SHA-256 a9c4b0e832468a43b25e0fba79e67b93e7c099046f1d9264794e01172dbdd892 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '1', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "6e0b40a5515af21fbf5cc44c1e888298108f16fc3f85854dafcc17c3141d9d3b",
+        "replaySha256": "f8e16b337c2a821880a05b3d76ad09bc202a5850c6cf8a9a723825328308be7c",
+        "restoredSha256": "37caef74cac7307fc8c0e227c2dc68809e0da7f030bb68ce4dae7e3e6eea5c4b"
+      }
+    },
+    {
+      "fault": "codex-interaction-action-dropped",
+      "selector": "codex encodes every advertised action of every native interaction into its legal wire union",
+      "file": "packages/harness-codex/src/main/runtime/app-server.ts",
+      "edit": "CODEX_APPROVAL_ACTIONS stopped advertising the allow-session decision, so command and file approvals no longer offered it",
+      "effect": "a supported decision disappears while every remaining action still encodes, admission still passes and the timeout tests stay green; only the independently declared expected action set per method rejects it",
+      "detection": {
+        "property": "codex encodes every advertised action of every native interaction into its legal wire union",
+        "seed": 773185929,
+        "path": "0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "request": {
+          "method": "item/commandExecution/requestApproval",
+          "params": { "interactionId": "native-1", "command": "cargo test" }
+        },
+          "choices": [{ "mode": "option", "optionIndex": 0, "text": "" }]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "parse each native method → clear admission → encode every advertised action against the documented wire union",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex encodes every advertised action of every native interaction into its legal wire union",
+        "seed": 773185929,
+        "path": "0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "request": {
+          "method": "item/commandExecution/requestApproval",
+          "params": { "interactionId": "native-1", "command": "cargo test" }
+        },
+          "choices": [{ "mode": "option", "optionIndex": 0, "text": "" }]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "parse each native method → clear admission → encode every advertised action against the documented wire union",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored and verified by SHA-256 ad2827f086b8ee3ba4852b2fae855060604dce9548487da1d62d09ec9bd7fec9 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '0', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "98b4739e43c7ac6fd03a309da632abe69a6a47405b0ab02d24383ebefb9a22df",
+        "replaySha256": "a6b5b0afffecd67e69c8f11918511ea2032fd495e37e49a34d563e62fc5d03dd",
+        "restoredSha256": "bcefd35331c141f32134a7fc9f959371ca26808af0fb4a678e7ac2322ef16f40"
+      }
+    },
+    {
+      "fault": "codex-session-binding-not-applied",
+      "selector": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "bindCodexPrimarySession dropped the primarySessionId assignment for an accepted session event (returned { ...state, updatedAt: nextAt(state, at) } instead of binding the native id)",
+      "effect": "the generated session event is accepted and the state stays valid, monotone and reference-unique, so the invariants see nothing; the property rejects it only because it compares the resulting binding with the event session id — without that comparison the mutation is invisible",
+      "detection": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -402630854,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 2,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -402630854,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '1', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "312bef858f206c64a659a4a907321dd11d31ef222674ce497421f7ddae41bea3",
+        "replaySha256": "8c500f1bf154d72a29798299bc18d9c0c1310c446ed9ef1ac1b29d9d8e8bdfc6",
+        "restoredSha256": "be80cb102776fed02b7139d59a2b0947bacdbf994377b0b761a27817b9bf121b"
+      }
+    },
+    {
+      "fault": "codex-activity-end-stale-id",
+      "selector": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "the activity-end reducer compared the activity id against a stale value (`${event.activityId}-stale`), so it never matched the activity it closes",
+      "effect": "a running activity is never terminalized and keeps its status, so a native close is silently dropped; the mandatory entity-lifecycle example names the running activity the following event closes, and the per-event expected-effect assertion fails with the live status instead of the closed one",
+      "detection": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -583351980,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 2,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -583351980,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '1', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "ea8e8069026460875a3218d6c369e0942a5665452922e9c6e4b6fa4708e7b89d",
+        "replaySha256": "c797e51070c8f0886bc86ab8ec92fded99f1fcc1009c3f4588228255861ca71c",
+        "restoredSha256": "746abeeeaf4f0a9999ca5449bd9886747099d711b434b49d2e5522bfa9bda58f"
+      }
+    },
+    {
+      "fault": "codex-activity-update-turn-timestamp-stale",
+      "selector": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "the activity-update reducer returned the prior turn instead of { ...turn, updatedAt: timestamp }",
+      "effect": "the activity list is legitimately unchanged and the state-level timestamp still advances through mapActiveTurn, so every other invariant holds; only the turn updatedAt assertion — which derives the expected stamp from the event time rather than from the reducer output — rejects it",
+      "detection": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -1175895992,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 2,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -1175895992,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '1', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "b6fa4e45c5c697923649b80a33c36b30e281c248394a7f60c3f3b8f0a8e5b3d6",
+        "replaySha256": "5402a73aadfa119c0ad174a82c5d8ac28da183b90994c34923a5998d2bf89fb8",
+        "restoredSha256": "5ae3249036420371558c917f4da8a0d57ba65cd735ffd0e2ec5a08d174c7d13e"
+      }
+    },
+    {
+      "fault": "codex-activity-end-target-deleted",
+      "selector": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "the activity-end reducer deleted the activity it closes (filter) instead of terminalizing it in place (map)",
+      "effect": "the state stays valid, monotone and reference-unique and the streamed text is unaffected, so only the target-survival assertion — the pre-state activity must remain present carrying the event status and detail — rejects it",
+      "detection": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -698872641,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 2,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -698872641,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '1', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "9a34e48b927ba9a1c8673c071cde40a87e2cc28cb188bde7d2e5aa561806d6ea",
+        "replaySha256": "ba8ece5d1ec62110f6d0ab84562ee1905090acf3fbf1a04bb514db1b573aac9f",
+        "restoredSha256": "d8ec003485621e854144a079bf1f775aa093114ddc08252929f4e72c6a56efb3"
+      }
+    },
+    {
+      "fault": "codex-interaction-status-flattened",
+      "selector": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "interactionStatus flattened every native resolution to the generic 'resolved' by dropping its accept/submit/cancel/decline branches",
+      "effect": "the interaction leaves pending exactly as before and the resolution string is still persisted, so the weaker not-pending check passed; only the exact per-resolution status comparison (allowed / submitted / cancelled / denied) rejects it",
+      "detection": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -1138363660,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 2,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -1138363660,
+        "path": "1",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "rounds": [
+              {
+                "executionId": "exec-entity-lifecycle",
+                "input": {
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "entity lifecycle probe"
+                    }
+                  ]
+                },
+                "messageId": "msg-entity-lifecycle",
+                "atDelta": 0,
+                "steps": [
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-start",
+                      "activity": {
+                        "id": "act-probe",
+                        "kind": "command",
+                        "label": "probe",
+                        "status": "running"
+                      }
+                    },
+                    "generatedId": "gen-activity-start",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-update",
+                      "activityId": "act-probe",
+                      "detail": "progress"
+                    },
+                    "generatedId": "gen-activity-update",
+                    "atDelta": 0
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "activity-end",
+                      "activityId": "act-probe",
+                      "status": "completed"
+                    },
+                    "generatedId": "gen-activity-end",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-opened",
+                      "interaction": {
+                        "kind": "command-approval",
+                        "id": "int-probe",
+                        "title": "probe",
+                        "blocksTurn": true,
+                        "status": "pending",
+                        "actions": [
+                          {
+                            "id": "deny",
+                            "intent": "deny",
+                            "label": "deny"
+                          }
+                        ],
+                        "questions": []
+                      }
+                    },
+                    "generatedId": "gen-interaction-open",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "interaction-closed",
+                      "interactionId": "int-probe",
+                      "resolution": "accept"
+                    },
+                    "generatedId": "gen-interaction-close",
+                    "atDelta": 1
+                  },
+                  {
+                    "op": "event",
+                    "event": {
+                      "type": "session",
+                      "sessionId": "sess-probe"
+                    },
+                    "generatedId": "gen-session",
+                    "atDelta": 1
+                  }
+                ],
+                "terminal": {
+                  "kind": "settle",
+                  "outcome": "completed"
+                }
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '1', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "4880a8245eaec70a0714a101b839d44db2b7182608dca871210b948d0d04a42f",
+        "replaySha256": "f673edaa628f14aa9abc412a5575e4549c29b24b8ecedb5dc32db13a0fcf63f1",
+        "restoredSha256": "cccaf97791c42793bc063fbd39e14decbf47764579197d7b6ed43b1bffcf938c"
+      }
+    },
+    {
+      "fault": "codex-done-outcome-flattened",
+      "selector": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "the done reducer marked every formerly streaming assistant item complete regardless of event.outcome",
+      "effect": "the turn still terminalizes, pending interactions are still cancelled and nothing streams afterwards, so the earlier settlement checks pass; only the outcome-specific comparison (failed and cancelled histories for failed and interrupted runs) rejects it",
+      "detection": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -142132192,
+        "path": "10",
+        "numRuns": 50,
+        "completedRuns": 11,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "seedAt": 0,
+          "rounds": [
+          {
+          "executionId": "exec-outcome",
+          "input": {
+          "parts": [{ "kind": "text", "text": "settlement probe" }]
+        },
+          "messageId": "msg-outcome",
+          "atDelta": 0,
+          "steps": [
+          {
+          "op": "event",
+          "event": { "type": "text-delta", "itemId": "item-stream", "delta": "answer" },
+          "generatedId": "gen-text",
+          "atDelta": 0
+        },
+          {
+          "op": "event",
+          "event": { "type": "done", "outcome": "failed" },
+          "generatedId": "gen-done",
+          "atDelta": 0
+        }
+        ],
+          "terminal": { "kind": "settle", "outcome": "failed" }
+        }
+        ]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex persisted state stays valid, monotone and reference-unique under generated native runs",
+        "seed": -142132192,
+        "path": "10",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+          "seedAt": 0,
+          "rounds": [
+          {
+          "executionId": "exec-outcome",
+          "input": {
+          "parts": [{ "kind": "text", "text": "settlement probe" }]
+        },
+          "messageId": "msg-outcome",
+          "atDelta": 0,
+          "steps": [
+          {
+          "op": "event",
+          "event": { "type": "text-delta", "itemId": "item-stream", "delta": "answer" },
+          "generatedId": "gen-text",
+          "atDelta": 0
+        },
+          {
+          "op": "event",
+          "event": { "type": "done", "outcome": "failed" },
+          "generatedId": "gen-done",
+          "atDelta": 0
+        }
+        ],
+          "terminal": { "kind": "settle", "outcome": "failed" }
+        }
+        ]
+        }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "no shrink: the failure fires on the mandatory example at path '10', so the recorded counterexample is the first failing sample unchanged; the replay reproduces it at 0 additional shrink steps.",
+      "logs": {
+        "detectSha256": "efb585311654bb16eed78ca7193909e51c140b6aa51e995e747f6c91ff8ca901",
+        "replaySha256": "b1b6323275eef8051606148552508257d1933fe9411a94f2852c832390457fe6",
+        "restoredSha256": "39e38572bff54f2e8da84bbac58d2f85da099bc96925724dc1669d526384586f"
+      }
+    },
+    {
+      "fault": "codex-text-truncation-head-retention",
+      "selector": "codex oversized text keeps only the documented tail behind an ellipsis marker",
+      "file": "packages/harness-codex/src/shared/state.ts",
+      "edit": "tail kept the first cap - 2 characters instead of the last cap - 2 behind the ellipsis marker",
+      "effect": "oversized reasoning/error/answer payloads have distinct final characters, so keeping the head loses the final marker; the oversized-text property rejects the mutation on its first generated sample",
+      "detection": {
+        "property": "codex oversized text keeps only the documented tail behind an ellipsis marker",
+        "seed": 2150913,
+        "path": "0:0:0:0",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 3,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "overflow": 0
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one staged turn → oversized reasoning delta, error message and final text → each persisted field is exactly the documented capped suffix",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex oversized text keeps only the documented tail behind an ellipsis marker",
+        "seed": 2150913,
+        "path": "0:0:0:0",
+        "numRuns": 50,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "seedAt": 0,
+            "overflow": 0
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one staged turn → oversized reasoning delta, error message and final text → each persisted field is exactly the documented capped suffix",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 50,
+      "restored": "production source restored and verified by SHA-256 87440e0d94211ffe2c86a872a50239cd61986f062617b1f3603feaca4468a5b1 (matches pre-mutation baseline); clean run passed",
+      "shrink": "fast-check detected the fault after 1 sample(s), minimized it in 3 shrink step(s), and replayed the same counterexample at 0 further shrink steps.",
+      "logs": {
+        "detectSha256": "245daf5f6ce87630af374a0ff16abe755710441dc81f30375836cfefd9110858",
+        "replaySha256": "4af7629b2ab3231062f98d69a237e9a0fa2fea624178d1fee136d74a018ef66b",
+        "restoredSha256": "409a43305f4ad62c983e366a389e8f55763d0300765b58ca8c9a927c3b4f11a7"
+      }
+    },
+    {
+      "fault": "codex-model-scope-misclassified",
+      "selector": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+      "file": "packages/harness-codex/src/bart/usage.ts",
+      "edit": "the non-provider scope branch returned feature instead of model, consequently omitting the model selector",
+      "effect": "the mandatory named and unnamed model buckets require the exact model scope and input-derived selector; the property rejects feature scope even though it remains non-provider",
+      "detection": {
+        "property": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+        "seed": 2150914,
+        "path": "2",
+        "numRuns": 100,
+        "completedRuns": 3,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "payload": {
+              "rateLimitsByLimitId": {
+                "d0": {
+                  "limitName": "model-name",
+                  "primary": {
+                    "usedPercent": 10
+                  }
+                },
+                "d1": {
+                  "secondary": {
+                    "usedPercent": 20
+                  }
+                }
+              }
+            },
+            "observedAt": 3000
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "codex bart windows carry consistent percentages, unique ids and provider/model scopes",
+        "seed": 2150914,
+        "path": "2",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "payload": {
+              "rateLimitsByLimitId": {
+                "d0": {
+                  "limitName": "model-name",
+                  "primary": {
+                    "usedPercent": 10
+                  }
+                },
+                "d1": {
+                  "secondary": {
+                    "usedPercent": 20
+                  }
+                }
+              }
+            },
+            "observedAt": 3000
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored and verified by SHA-256 a9c4b0e832468a43b25e0fba79e67b93e7c099046f1d9264794e01172dbdd892 (matches pre-mutation baseline); clean run passed",
+      "shrink": "fast-check detected the fault after 3 sample(s), minimized it in 0 shrink step(s), and replayed the same counterexample at 0 further shrink steps.",
+      "logs": {
+        "detectSha256": "0f92aa474ce3a71a41619d5c097d2a3bbb1a8942db4d86e5dd6abce9ab966028",
+        "replaySha256": "eec53ffa27b1335c3f830d3d2e3b85feb72b390648d8c073928bb98d3ffe8a5e",
+        "restoredSha256": "3ca5226aa1c95126f7b49fff781fa25c606e9f890a45d3b3683ed6edc2c4077a"
+      }
+    }
+  ],
+  "finalRecapture": {
+    "sourceBaseCommit": "4e891bfe87ad520f751f36a7b10d5ad7e9e0bed3",
+    "capturedAt": "2026-09-13T11:52:37.391Z",
+    "scope": "All twelve existing mutations tied to the two edited Codex property files were detected, replayed and restored against their updated propertySha256 sources. Two new mutations prove distinct-tail retention and exact model scope. The remaining five Codex and eleven Claude mutations retain their unchanged source hashes.",
+    "logDirectory": ".agents/local/property-faults/pr215-final",
+    "faults": [
+      "codex-turns-truncation-head-retention",
+      "codex-bart-negative-percent-guard",
+      "codex-usage-event-effect-omitted",
+      "codex-plan-cap-removed",
+      "codex-bart-percentage-constant",
+      "codex-bart-no-window-reach-dropped",
+      "codex-session-binding-not-applied",
+      "codex-activity-end-stale-id",
+      "codex-activity-update-turn-timestamp-stale",
+      "codex-activity-end-target-deleted",
+      "codex-interaction-status-flattened",
+      "codex-done-outcome-flattened",
+      "codex-text-truncation-head-retention",
+      "codex-model-scope-misclassified"
+    ]
+  },
+  "commands": {
+    "normal": "pnpm test:properties",
+    "family": "cd apps/desktop && pnpm exec vitest run tests/property/codex-*.property.test.ts --maxWorkers=1 (filter by file path rather than by `-t <family>`, which silently drops properties whose test name lacks the family word; a path handed to `pnpm test:properties -- <path>` also runs the whole suite, because the wrapper always passes tests/property as its first filter and vitest unions the filters)",
+    "explore": "cd apps/desktop && FC_EXPLORE=1 pnpm exec vitest run tests/property/codex-*.property.test.ts --maxWorkers=1",
+    "replay": "FC_RUNS=<numRuns> FC_SEED=<seed> FC_PATH='<path>' pnpm test:properties:replay -- -t '<selector>'",
+    "mutationDetect": "FC_RUNS=<runs> FC_SEED=<seed> pnpm --dir apps/desktop exec vitest run tests/property/<file> --maxWorkers=1 -t '<selector>'",
+    "mutationReplay": "FC_RUNS=<numRuns> FC_SEED=<seed> FC_PATH='<path>' pnpm --dir apps/desktop exec vitest run tests/property/<file> --maxWorkers=1 -t '<selector>'",
+    "jsonLinesBuild": "pnpm --dir packages/openagent-plugin-kit run build (required after each JSON Lines source mutation and after restoration, before running mutationDetect or mutationReplay)"
+  },
+  "samples": {
+    "codex-state.property.test.ts": "the state-machine invariant, tail-truncation and delta-batch properties keep 50 normal / 500 exploration (reduced from the 100/1000 pure tier for the ≤10 s cost gate); the 200-turn truncation window property keeps 30/100 because each sample stages MAX_TURNS + 1 rounds. The state-machine property asserts a per-event expected effect (the owned mutation of each native event type) before the general invariants, so a reducer case that silently drops its own field fails even when the remaining state stays internally consistent. A mandatory 230-step plan example opens the state-machine property, so the reducer's 200-step head-keeping plan slice is exercised on every run — the generated domain never reaches the cap. Mandatory entity-lifecycle examples open an activity, an interaction that blocks its turn and a Primary Session so each close/progress event is retargeted at the live entity it closes and the resulting status change is asserted, including the waiting-input → running resume of the last blocking interaction, whose expected status is derived from the pre-state and the closed id; the session branch additionally asserts the accepted event's binding directly, since that binding is the event's only observable effect and observe skips the monotonicity check when the reducer returns the prior object. The same targeted examples pin the four effect details the generated domain leaves implicit: an activity-update must stamp the turn's updatedAt, an activity-end must leave a live target terminalized and an unknown target's activity list untouched, an interaction-closed must map the resolution to its exact persisted status rather than a generic one, and a done event must settle former streaming assistant items to the outcome-specific status. Mandatory resolution and outcome examples (eight interaction resolutions, three done outcomes, each rewinding a single step of the entity-lifecycle scenario) keep those mappings on every run. The delta-batch property reduces each delta on its own and again through the production mergeDeltaEvents exported from main/thread/thread-handle.ts, so a lossy production batcher fails the equivalence instead of a test-local reimplementation passing it",
+    "codex-jsonlines.property.test.ts": "100 normal / 1000 exploration; opens with a mandatory example that pushes 中🙂文 one byte at a time through an unterminated stream",
+    "codex-interaction.property.test.ts": "100 normal / 1000 exploration per property; mandatory examples open one sample per native method, and every admitted interaction's advertised action ids are compared against an independently declared expected set per method (commandExecution/fileChange approvals: allow-once, allow-session, deny, cancel; permissions approval: allow-once, allow-session, deny; tool requestUserInput: submit, cancel; mcpServer elicitation: submit, deny, cancel), so a dropped action fails even though every remaining action still encodes; question ids stay distinct inside one request, because the public contract requires unique question ids and a repeated native id is refused fail-closed at admission instead of projected",
+    "codex-bart-usage.property.test.ts": "100 normal / 1000 exploration per property; provider/model id spaces may overlap so the primary bucket's insert-only precedence stays reachable, a mandatory overlap example carries one limit id in both buckets with distinguishable quotas on every run, a second mandatory example pins a dictionary bucket that shadows the frame's primary id and carries the reach flag with no recognizable window (the frame reports the explicit reach, not the tri-state fold over an empty provider window list), and every window's percentage, positive-only duration and ISO-or-omitted reset timestamp are compared against the input-derived expectation; the scope and limitReached oracles read the resolved bucket map, so a shadowing dictionary bucket contributes its own provider-scoped flags",
+    "codex-tool-identity.property.test.ts": "100 normal / 1000 exploration per property; key-order permutations recurse through object-valued members and nested arrays, and the generated domain is backed by mandatory examples: a nested object whose inner key order is reversed, and a two-binding tool whose bindings are swapped. Binding swaps are therefore exercised on every run rather than only when a generated injection happens to contain two distinct bindings."
+  },
+  "cost": {
+    "method": "Final local review remeasured three alternating whole-suite baseline/candidate pairs, three Codex exploration runs and three per-file runs for each of the two edited properties, using the propertySha256 sources above. Every wall measurement includes registry generation followed by one Vitest process with --maxWorkers=1. The three unchanged Codex files retain their preceding per-file wall measurements; test body times are sums of assertion durations from the final whole-suite candidate run. Measurements were sequential on the user's active Mac; wall times include ambient load.",
+    "fileWallSeconds": {
+      "codex-state.property.test.ts": 4.17,
+      "codex-jsonlines.property.test.ts": 0.93,
+      "codex-interaction.property.test.ts": 1.18,
+      "codex-bart-usage.property.test.ts": 2.36,
+      "codex-tool-identity.property.test.ts": 1.18
+    },
+    "testBodyMilliseconds": {
+      "codex-state": 778,
+      "codex-jsonlines": 13,
+      "codex-interaction": 65,
+      "codex-bart-usage": 45,
+      "codex-tool-identity": 49
+    },
+    "exploration": "Final source hashes passed FC_EXPLORE=1 in all three Codex family runs (5 files / 14 tests): 9.77 / 9.61 / 12.30 s wall, median 9.77 s, including registry generation. The three heavy state properties use 500 samples, the 200-turn property 100, and other properties 1000. Each of the fourteen recaptured mutations also passed its normal-tier replay after byte-exact production restore; the two new mutations cover head retention and model-to-feature scope regression.",
+    "gate": "Three alternating whole-suite pairs include check.test.ts in both legs: baseline 16 files / 100 tests at 67.04 / 71.44 / 95.23 s, candidate 25 files / 125 tests at 70.62 / 72.71 / 79.21 s. Median difference 1.27 s; same-round differences 3.58 / 1.27 / -16.02 s. This is within the <=10 s-per-phase gate. The nine new files add 25 tests.",
+    "finalMeasurements": {
+      "baseline": [
+        67.04,
+        71.44,
+        95.23
+      ],
+      "candidate": [
+        70.62,
+        72.71,
+        79.21
+      ],
+      "medianDifferenceSeconds": 1.27,
+      "pairedDifferencesSeconds": [
+        3.58,
+        1.27,
+        -16.02
+      ],
+      "explore": [
+        9.77,
+        9.61,
+        12.3
+      ],
+      "exploreMedian": 9.77,
+      "rows": [
+        {
+          "name": "without-1",
+          "seconds": 67.04,
+          "files": 16,
+          "tests": 100,
+          "passed": 100,
+          "success": true
+        },
+        {
+          "name": "with-1",
+          "seconds": 70.62,
+          "files": 25,
+          "tests": 125,
+          "passed": 125,
+          "success": true
+        },
+        {
+          "name": "without-2",
+          "seconds": 71.44,
+          "files": 16,
+          "tests": 100,
+          "passed": 100,
+          "success": true
+        },
+        {
+          "name": "with-2",
+          "seconds": 72.71,
+          "files": 25,
+          "tests": 125,
+          "passed": 125,
+          "success": true
+        },
+        {
+          "name": "without-3",
+          "seconds": 95.23,
+          "files": 16,
+          "tests": 100,
+          "passed": 100,
+          "success": true
+        },
+        {
+          "name": "with-3",
+          "seconds": 79.21,
+          "files": 25,
+          "tests": 125,
+          "passed": 125,
+          "success": true
+        },
+        {
+          "name": "codex-explore-1",
+          "seconds": 9.77,
+          "files": 5,
+          "tests": 14,
+          "passed": 14,
+          "success": true
+        },
+        {
+          "name": "codex-explore-2",
+          "seconds": 9.61,
+          "files": 5,
+          "tests": 14,
+          "passed": 14,
+          "success": true
+        },
+        {
+          "name": "codex-explore-3",
+          "seconds": 12.3,
+          "files": 5,
+          "tests": 14,
+          "passed": 14,
+          "success": true
+        },
+        {
+          "name": "codex-state.property.test.ts-1",
+          "seconds": 4.17,
+          "files": 1,
+          "tests": 4,
+          "passed": 4,
+          "success": true
+        },
+        {
+          "name": "codex-state.property.test.ts-2",
+          "seconds": 5.18,
+          "files": 1,
+          "tests": 4,
+          "passed": 4,
+          "success": true
+        },
+        {
+          "name": "codex-state.property.test.ts-3",
+          "seconds": 3.34,
+          "files": 1,
+          "tests": 4,
+          "passed": 4,
+          "success": true
+        },
+        {
+          "name": "codex-bart-usage.property.test.ts-1",
+          "seconds": 2.25,
+          "files": 1,
+          "tests": 2,
+          "passed": 2,
+          "success": true
+        },
+        {
+          "name": "codex-bart-usage.property.test.ts-2",
+          "seconds": 2.36,
+          "files": 1,
+          "tests": 2,
+          "passed": 2,
+          "success": true
+        },
+        {
+          "name": "codex-bart-usage.property.test.ts-3",
+          "seconds": 2.36,
+          "files": 1,
+          "tests": 2,
+          "passed": 2,
+          "success": true
+        }
+      ],
+      "logDirectory": ".agents/local/property-faults/pr215-final",
+      "measurementsSha256": "2bb75086b7d67ebc3d8ca07a0ee07b02fdba5a2c36bcc45970c7a96c0b7308c5"
+    }
+  },
+  "limitations": "Pure in-process properties only: no subprocess, OS scheduling, storage or filesystem ordering is generated. Native Handle behavior stays with native-harness.property.test.ts; settings merges stay with harness-settings.property.test.ts. Every checkAsync property name equals its outer vitest it() title, and the recorded selector per fault is that shared title, so generated replay commands select exactly one test; a name that was not a substring of its it() title (as earlier revisions of these files had) would silently select nothing. Mutation runs used the tier recorded in each fault's detection block (30 for the 200-turn truncation window, 50 for the codex-state properties, 100 elsewhere) with the failing seed pinned, so re-running the recorded mutationDetect command reproduces the recorded detect log and counterexample exactly and the recorded mutationReplay command reproduces it at 0 additional shrink steps. Detection seeds are drawn from the recorded runs and are negative for some faults, which fast-check accepts. The families' normal tier is 100 except codex-state's three heaviest properties (50) and its 200-turn truncation window property (30). toolConfigurationIdentity's generated keys stay in a safe ASCII range because localeCompare ties would re-expose insertion order; percentValue's honest domain is non-negative with two-decimal rounding (values above 100 pass through by design). The raw detect/replay/restored logs live under the gitignored .agents/local/property-faults/ scratch area, so only their SHA-256 digests travel with the repo; each digest covers the full vitest output for that stage. Every mutation was removed by restoring the exact original source bytes (SHA-256 verified against the pre-mutation digest, which is the hash of the file as delivered); no runtime fault switch is retained. The recorded propertySha256 values are the hashes of the delivered files at the time of this capture, so a later edit to a property file invalidates them and the evidence must be recaptured.",
+  "jsonLinesRecapture": {
+    "baseSha": "53d539267c1d4f9e664dbc14da0ad8cd1fa132e9",
+    "capturedAt": "2026-09-14T01:13:45.758159+00:00",
+    "source": "packages/openagent-plugin-kit/src/main/json-lines.ts",
+    "sourceSha256": "4507daa40e9deab41e5c1c6152098f1a71d4468349a923b811e391b001cc1a5f",
+    "property": "apps/desktop/tests/property/codex-jsonlines.property.test.ts",
+    "propertySha256": "ab63735773052e526496d3de452ef1e9a33ebe81fa71beba4ec2cc43b7b8c9f8",
+    "lockfileSha256": "fe2017963384b251777f0735d40866c960d937e1483f75e90eeaac1d9cbf54af",
+    "environment": {
+      "node": "v22.22.2",
+      "pnpm": "10.17.1",
+      "fastCheck": "4.9.0",
+      "vitest": "4.1.10",
+      "platform": "macOS 26.5.1",
+      "arch": "arm64"
+    },
+    "faults": [
+      "codex-jsonlines-crlf-alternative"
+    ],
+    "build": "pnpm --dir packages/openagent-plugin-kit run build",
+    "logsDirectory": ".agents/local/property-faults/pr-238-jsonlines",
+    "note": "Only the relocated JSON Lines family was recaptured here; other mutation records retain their original capture provenance. The public plugin-kit/main import resolves dist, so rebuild plugin-kit after applying each source mutation and again after byte-exact restoration, before detection, replay, or clean replay."
+  }
+}

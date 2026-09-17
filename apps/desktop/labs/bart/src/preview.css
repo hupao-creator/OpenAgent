@@ -1,0 +1,50 @@
+:root {
+  font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  --ease-emphasized: cubic-bezier(0.2, 0.78, 0.2, 1);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: #f1f1ec; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:focus-visible { outline: 2px solid #82a787; outline-offset: 4px; }
+.bart-preview { position: relative; width: 100%; height: 100%; isolation: isolate; }
+
+/* Keep production layout and animation intact; only anchor the specimen to the stage. */
+.bart-preview .bart-dock {
+  left: 50% !important;
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  /* The Dock writes its own placement onto the element — its corner, its drag
+     offset, and the shift that keeps it clear of the app's panels — and in a
+     stage this small that shift reaches hundreds of pixels, enough to carry the
+     specimen off the canvas. Outranking an inline declaration takes `!important`,
+     so the centering holds whatever the Dock decides about a window it cannot
+     see. */
+  translate: -50% -50% !important;
+  /* Production keeps the Dock transparent to the pointer so it never blocks the
+     app behind it. The stage has nothing behind it, and the shortcut menu only
+     appears while the Dock is hovered — with nothing to hover, the input could
+     be closed here but never reopened. Dragging stays off through the surface
+     below, which is the only thing that would start one. */
+  pointer-events: auto;
+}
+.bart-preview .bart-dock-drag-surface { pointer-events: none; }
+.bart-preview[data-guides='true']::before,
+.bart-preview[data-guides='true']::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.2;
+  z-index: 0;
+}
+.bart-preview[data-guides='true']::before { inset: 50% 0 auto; border-top: 1px dashed #577b5f; }
+.bart-preview[data-guides='true']::after { inset: 0 auto 0 50%; border-left: 1px dashed #577b5f; }
+.bart-preview[data-guides='true'] .bart-dock { outline: 1px solid #8ea593; }
+/* The Lab labels the synthetic input separately from Bart's displayed fragment. */
+.cadence-source { position: absolute; top: 16px; left: 20px; z-index: 5; display: grid; gap: 5px; font-size: 11px; color: #718269; pointer-events: none; }
+.cadence-source small { font-size: 9px; opacity: .75; }

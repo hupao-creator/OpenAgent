@@ -1,0 +1,251 @@
+diff --git a/packages/harness-opencode/package.json b/packages/harness-opencode/package.json
+index 1b74a440..bd574a6e 100644
+--- a/packages/harness-opencode/package.json
++++ b/packages/harness-opencode/package.json
+@@ -35,7 +35,8 @@
+   },
+   "dependencies": {
+     "@openagent/contracts": "workspace:*",
+-    "@openagent/plugin-kit": "workspace:*"
++    "@openagent/plugin-kit": "workspace:*",
++    "effect": "3.22.1"
+   },
+   "peerDependencies": {
+     "cross-spawn": "^7.0.6",
+diff --git a/packages/harness-opencode/src/main/runtime/directory-preparation.ts b/packages/harness-opencode/src/main/runtime/directory-preparation.ts
+index 92b85cab..1029cbd5 100644
+--- a/packages/harness-opencode/src/main/runtime/directory-preparation.ts
++++ b/packages/harness-opencode/src/main/runtime/directory-preparation.ts
+@@ -1,83 +1,96 @@
++import * as Cause from 'effect/Cause'
++import * as Effect from 'effect/Effect'
++import * as Exit from 'effect/Exit'
++import * as Fiber from 'effect/Fiber'
+ import { debugLog, ensureDebugContext, inDebugContext, startDebugSpan } from '../debug.js'
+-import { throwIfAborted, waitForOpenCodePromise } from './cancellation.js'
+ 
+-// Native configuration can install plugin dependencies and recover its own
+-// stale npm lock after 60s. Keep this separate from the 10s provider request.
+ export const OPENCODE_DIRECTORY_PREPARATION_TIMEOUT_MS = 90_000
+-
+ interface PendingPreparation {
+-  readonly controller: AbortController
+-  readonly promise: Promise<void>
++  readonly fiber: Fiber.RuntimeFiber<void, unknown>
+   waiters: number
++  reason?: Error
+ }
+ 
+ /** Directory readiness belongs to one native process generation. */
+ export class OpenCodeDirectoryPreparation {
+   private readonly ready = new Set<string>()
+   private readonly pending = new Map<string, PendingPreparation>()
+-
+   constructor(private readonly initialize: (cwd: string, signal: AbortSignal) => Promise<void>) {}
+ 
+   async prepare(cwd: string, signal?: AbortSignal): Promise<void> {
+-    if (signal) throwIfAborted(signal)
+-    if (this.ready.has(cwd)) return
+-    let pending = this.pending.get(cwd)
+-    if (!pending) {
+-      const controller = new AbortController()
+-      const promise = this.run(cwd, controller.signal).then(() => {
+-        throwIfAborted(controller.signal)
+-        if (this.pending.get(cwd)?.promise === promise) this.ready.add(cwd)
+-      }).finally(() => {
+-        if (this.pending.get(cwd)?.promise === promise) this.pending.delete(cwd)
+-      })
+-      pending = { controller, promise, waiters: 0 }
+-      this.pending.set(cwd, pending)
+-    } else {
+-      debugLog('opencode.directory.prepare.join', { cwd, waiters: pending.waiters })
+-    }
+-    pending.waiters += 1
+-    try {
+-      await waitForOpenCodePromise(pending.promise, signal)
+-      if (signal) throwIfAborted(signal)
+-    } finally {
+-      pending.waiters -= 1
+-      if (pending.waiters === 0 && this.pending.get(cwd) === pending) {
+-        // Remove before abort so an immediate retry cannot join abandoned work.
+-        this.pending.delete(cwd)
+-        pending.controller.abort(new Error('OpenCode 目录准备已无等待者'))
+-      }
++    if (signal?.aborted) throw signal.reason
++    const exit = await Effect.runPromiseExit(this.prepareEffect(cwd), { signal })
++    if (Exit.isFailure(exit)) {
++      if (signal?.aborted) throw signal.reason
++      throw Cause.squash(exit.cause)
+     }
+   }
+ 
+-  private async run(cwd: string, callerSignal: AbortSignal): Promise<void> {
+-    const deadline = new AbortController()
+-    const signal = AbortSignal.any([callerSignal, deadline.signal])
+-    const timer = setTimeout(() => deadline.abort(
+-      new Error('OpenCode 原生目录与插件准备超时（90s）')
+-    ), OPENCODE_DIRECTORY_PREPARATION_TIMEOUT_MS)
+-    const parent = ensureDebugContext({ harnessId: 'opencode' })
+-    const span = inDebugContext(parent, () => startDebugSpan('opencode.directory.prepare', {
+-      purpose: 'native-directory-plugin-preparation', cwd,
+-      timeoutMs: OPENCODE_DIRECTORY_PREPARATION_TIMEOUT_MS
+-    }))
+-    try {
+-      await inDebugContext(span.context, () => waitForOpenCodePromise(this.initialize(cwd, signal), signal))
+-      throwIfAborted(signal)
+-      span.end({ status: 'ready' })
+-    } catch (error) {
+-      const failure = signal.aborted ? signal.reason : error
+-      span.fail(failure instanceof Error ? failure : new Error(String(failure)), {
+-        status: deadline.signal.aborted ? 'timeout' : callerSignal.aborted ? 'cancelled' : 'failed'
+-      })
+-      throw failure
+-    } finally {
+-      clearTimeout(timer)
+-    }
++  private prepareEffect(cwd: string): Effect.Effect<void, unknown> {
++    const self = this
++    return Effect.gen(function* () {
++      if (self.ready.has(cwd)) return
++      yield* Effect.acquireUseRelease(
++        Effect.gen(function* () {
++          let pending = self.pending.get(cwd)
++          if (!pending) {
++            const fiber = yield* Effect.forkDaemon(Effect.interruptible(self.run(cwd)))
++            pending = { fiber, waiters: 0 }
++            self.pending.set(cwd, pending)
++          } else debugLog('opencode.directory.prepare.join', { cwd, waiters: pending.waiters })
++          pending.waiters += 1
++          return pending
++        }),
++        pending => Fiber.join(pending.fiber).pipe(
++          Effect.catchAllCause(cause => Effect.fail(pending.reason ?? Cause.squash(cause))),
++          Effect.tap(() => Effect.sync(() => {
++            if (self.pending.get(cwd) === pending) self.ready.add(cwd)
++          }))
++        ),
++        pending => Effect.gen(function* () {
++          pending.waiters -= 1
++          if (pending.waiters === 0 && self.pending.get(cwd) === pending) {
++            self.pending.delete(cwd)
++            yield* Fiber.interrupt(pending.fiber)
++          }
++        })
++      )
++    })
++  }
++
++  private run(cwd: string): Effect.Effect<void, unknown> {
++    return Effect.suspend(() => {
++      const parent = ensureDebugContext({ harnessId: 'opencode' })
++      const span = inDebugContext(parent, () => startDebugSpan('opencode.directory.prepare', {
++        purpose: 'native-directory-plugin-preparation', cwd,
++        timeoutMs: OPENCODE_DIRECTORY_PREPARATION_TIMEOUT_MS
++      }))
++      const timeout = new Error('OpenCode 原生目录与插件准备超时（90s）')
++      return Effect.tryPromise({
++        try: signal => inDebugContext(span.context, () => this.initialize(cwd, signal)),
++        catch: error => error
++      }).pipe(
++        Effect.timeoutFail({ duration: OPENCODE_DIRECTORY_PREPARATION_TIMEOUT_MS, onTimeout: () => timeout }),
++        Effect.onExit(exit => Effect.sync(() => {
++          if (Exit.isSuccess(exit)) span.end({ status: 'ready' })
++          else {
++            const failure = Cause.squash(exit.cause)
++            span.fail(failure instanceof Error ? failure : new Error(String(failure), { cause: failure }), {
++              status: failure === timeout ? 'timeout' : Cause.isInterruptedOnly(exit.cause) ? 'cancelled' : 'failed'
++            })
++          }
++        }))
++      )
++    })
+   }
+ 
+   invalidate(error: Error): void {
+     this.ready.clear()
+-    for (const pending of this.pending.values()) pending.controller.abort(error)
++    const pending = [...this.pending.values()]
+     this.pending.clear()
++    for (const entry of pending) {
++      entry.reason = error
++      Effect.runSync(Fiber.interruptFork(entry.fiber))
++    }
+   }
+ }
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index da5e4e85..907feb8e 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -191,6 +191,9 @@ importers:
+       '@openagent/plugin-kit':
+         specifier: workspace:*
+         version: link:../openagent-plugin-kit
++      effect:
++        specifier: 3.22.1
++        version: 3.22.1
+     devDependencies:
+       '@types/node':
+         specifier: ^24.3.1
+@@ -1546,6 +1549,9 @@ packages:
+   duplexer2@0.1.4:
+     resolution: {integrity: sha512-asLFVfWWtJ90ZyOUHMqk7/S2w2guQKxUI2itj3d92ADHhxUSbCMGi1f1cBcJ7xM1To+pE/Khbwo1yuNbMEPKeA==}
+ 
++  effect@3.22.1:
++    resolution: {integrity: sha512-TNoXushmPOBAjJlthF5d2QwnX2xBPEtcNJr5XKNKbRLbDvBcOYkXlYDfvGfSA0zriwLFuCll5MDtNMAdZL17PQ==}
++
+   ejs@3.1.10:
+     resolution: {integrity: sha512-UeJmFfOrAQS8OJWPZ4qtgHyWExa088/MtK5UEyoJGFH67cDEXkZSviOiKRCZ4Xij0zxI3JECgYs3oKx+AizQBA==}
+     engines: {node: '>=0.10.0'}
+@@ -1666,6 +1672,10 @@ packages:
+   extend@3.0.2:
+     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==}
+ 
++  fast-check@3.23.2:
++    resolution: {integrity: sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==}
++    engines: {node: '>=8.0.0'}
++
+   fast-check@4.9.0:
+     resolution: {integrity: sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==}
+     engines: {node: '>=12.17.0'}
+@@ -2316,6 +2326,9 @@ packages:
+     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
+     engines: {node: '>=6'}
+ 
++  pure-rand@6.1.0:
++    resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
++
+   pure-rand@8.4.2:
+     resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==}
+ 
+@@ -4026,6 +4039,11 @@ snapshots:
+     dependencies:
+       readable-stream: 2.3.8
+ 
++  effect@3.22.1:
++    dependencies:
++      '@standard-schema/spec': 1.1.0
++      fast-check: 3.23.2
++
+   ejs@3.1.10:
+     dependencies:
+       jake: 10.9.4
+@@ -4214,6 +4232,10 @@ snapshots:
+ 
+   extend@3.0.2: {}
+ 
++  fast-check@3.23.2:
++    dependencies:
++      pure-rand: 6.1.0
++
+   fast-check@4.9.0:
+     dependencies:
+       pure-rand: 8.4.2
+@@ -5103,6 +5125,8 @@ snapshots:
+ 
+   punycode@2.3.1: {}
+ 
++  pure-rand@6.1.0: {}
++
+   pure-rand@8.4.2: {}
+ 
+   pvtsutils@1.3.6:

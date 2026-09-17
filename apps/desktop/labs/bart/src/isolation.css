@@ -1,0 +1,22 @@
+html, body, #root { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+.isolation { position: relative; width: 100%; height: 100%; background: rgba(246,245,240,.9); color: #20231e; font: 12px Inter Variable, sans-serif; }
+.isolation header { position: absolute; inset: 24px 28px auto; display: flex; justify-content: space-between; letter-spacing: 1px; }
+.isolation-cards { position: absolute; left: 70px; top: 110px; display: grid; grid-template-columns: repeat(2, 360px); grid-auto-rows: 200px; gap: 16px; }
+.isolation-scroll { position: absolute; right: 34px; top: 90px; width: 210px; height: 225px; overflow: auto; border-block: 1px solid #c9cac2; padding: 10px 0; }
+.isolation-row { height: 38px; display: flex; gap: 10px; align-items: center; }
+.isolation > .bart-dock { right: 440px; bottom: 105px; z-index: 1; }
+.isolation-settings { position: absolute; left: 710px; top: 245px; width: 220px; height: 220px; display: grid; place-content: center; justify-items: center; border: 1px solid #ffffff90; border-radius: 24px; background: #ffffff50; backdrop-filter: blur(24px); box-shadow: 0 24px 65px #33333320; z-index: 3; }
+.isolation-settings [data-occlusion] { position: absolute; left: 25px; top: 20px; width: 50px; height: 28px; display: grid; place-content: center; background: #a8bad2; color: #1b3047; }
+.isolation-reply { position: absolute; left: 480px; top: 505px; width: 260px; height: 200px; --bart-dock-logo-height: 145px; display: grid; place-content: center; }
+.isolation-scene { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+.isolation-scene[hidden] { display: none; }
+.isolation-negative { position: absolute; top: 440px; left: 70px; display: grid; }
+.isolation footer { position: absolute; bottom: 24px; left: 28px; display: flex; gap: 12px; z-index: 4; }
+.isolation button:not(.bart-reply-target) { border: 1px solid #cacdc4; border-radius: 5px; padding: 8px 12px; background: #fdfdf7; color: #20231e; }
+.production-viewport { position: absolute; top: 70px; left: 60px; width: 800px; height: 540px; overflow: hidden; border: 1px solid #bfc5b9; }
+.production-plane { position: absolute; inset: 0 auto auto 0; width: 800px; height: 1300px; transform-origin: top left; }
+.production-native-reference { position: absolute; left: 14px; top: 0; width: 16px; display: grid; }
+.production-native-reference i { display: block; }
+.production-negative { position: absolute; top: 440px; left: 930px; display: grid; }
+.cross-page-seat { position: absolute; left: 300px; top: 110px; width: 500px; height: 110px; }
+.cross-page-isolation.is-seated > .bart-dock { visibility: hidden; }

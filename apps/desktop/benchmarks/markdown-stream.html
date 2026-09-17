@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Streaming Markdown production benchmark</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 20px; }
+      #benchmark-surface { height: 540px; overflow: auto; border: 1px solid #ccc; }
+      #benchmark-json { white-space: pre-wrap; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./markdown-stream.bench.tsx"></script>
+  </body>
+</html>

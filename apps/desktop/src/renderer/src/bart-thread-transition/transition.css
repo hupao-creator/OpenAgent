@@ -1,0 +1,26 @@
+/* Each live page keeps its final viewport layout. The only zooming surface is
+   a bounded Canvas, above Overview work and below the settings page. */
+.bart-camera-surface {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  outline: none;
+}
+/* Overview keeps painting its own opaque canvas, including during capture. */
+.bart-camera-surface[data-bart-camera-session] { background: var(--canvas); }
+.bart-camera-surface[data-camera-hidden] { opacity: 0; pointer-events: none; }
+.bart-camera-surface > .workspace { height: 100%; }
+[data-bart-camera-dock] { pointer-events: none; }
+[data-bart-camera-dock][inert] { pointer-events: none; }
+.bart-camera-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 49;
+  contain: strict;
+  opacity: 0;
+  pointer-events: none;
+}
+[data-bart-camera-active] > .bart-camera-canvas { opacity: 1; }
+[data-bart-camera-active] .workspace { view-transition-name: none; }

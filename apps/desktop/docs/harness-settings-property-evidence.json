@@ -1,0 +1,2882 @@
+{
+  "scope": "Issue #143 Phase 1 (H1-H4 Harness settings, B1 public command input). Twelve temporary production mutations - at least one per Harness, both the creation and the Thread-update path for Codex and OpenCode (Codex also covers the accepted creation branch), three at the command boundary (the settings shell, the Bart directory-tag normalization in the shared contract, and the router absolute-path guard) - detected, minimized, replayed and restored; no production defect discovered or shipped. The whole sweep was re-run against the exact revision of the two property files recorded in propertySha256, so every recorded detection belongs to the tests as delivered.",
+  "baseSha": "2d03f0744a71bf9684f865adeca8a40a814323cb",
+  "propertySha256": {
+    "apps/desktop/tests/property/harness-settings.property.test.ts": "dba06033a1c546207450d881e4f388e121999cd1fb9bf03b18cb3d1e4f9aec46",
+    "apps/desktop/tests/property/command-input.property.test.ts": "93ebf054dc14127c8e09e9c0be34a02a218c9f6dbce64ea1adf9eb2d2bda0069"
+  },
+  "lockfileSha256": "586a82485666acb5e6c1a598bfc2b3549309f692ac5a02379c3cade0da53d037",
+  "environment": {
+    "node": "v22.22.2",
+    "pnpm": "10.17.1",
+    "fastCheck": "4.9.0",
+    "vitest": "4.1.10",
+    "platform": "macOS 26.5.1",
+    "arch": "arm64"
+  },
+  "faults": [
+    {
+      "fault": "codex-unknown-field-rejection",
+      "selector": "Codex public creation accepts only the four documented fields",
+      "file": "packages/harness-codex/src/shared/settings.ts",
+      "edit": "removed assertOnlyKeys(value, ['model', 'effort', 'serviceTier', 'permissionMode'], label) from normalizeCodexThreadSettingsRequest",
+      "effect": "an unsupported creation field is silently dropped instead of refused; the promise resolves",
+      "detection": {
+        "property": "Codex public creation accepts only the four documented fields",
+        "seed": 143,
+        "path": "0:0:0:0:1:0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 5,
+        "counterexample": [
+          {
+            "model": "alpha",
+            "forged": "executablePath"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated public request with an optional forged native field; a forged field must perform no catalog load",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Codex public creation accepts only the four documented fields",
+        "seed": 143,
+        "path": "0:0:0:0:1:0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "model": "alpha",
+            "forged": "executablePath"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated public request with an optional forged native field; a forged field must perform no catalog load",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 5 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/codex-unknown-field-rejection.detect.log",
+        "detectSha256": "60644d4a950b15813e761068fb0ccc58c4072bd0fc861b0085c7105bca64f4ce",
+        "replay": ".agents/local/143-faults/codex-unknown-field-rejection.replay.log",
+        "replaySha256": "6651072b8499f5da5cacc9cc0d0f352b7a34dbbbd83f990a3ee3587922cfe049",
+        "restored": ".agents/local/143-faults/codex-unknown-field-rejection.restored.log",
+        "restoredSha256": "e673ae44de80fc7b24e392ebbdb75a7e458ff4dbdeb1ce4d145c4460fa29499c"
+      }
+    },
+    {
+      "fault": "codex-accepted-branch-widening",
+      "selector": "Codex public creation accepts only the four documented fields",
+      "file": "packages/harness-codex/src/main/settings.ts",
+      "edit": "the creation resolution adds executablePath: '/usr/local/bin/codex' to the returned settings",
+      "effect": "an accepted creation request resolves with a native executable path it never named",
+      "detection": {
+        "property": "Codex public creation accepts only the four documented fields",
+        "seed": 143,
+        "path": "6:0:0:0:0:0",
+        "numRuns": 100,
+        "completedRuns": 7,
+        "numShrinks": 5,
+        "counterexample": [
+          {
+            "model": "alpha"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated public request with an optional forged native field; a forged field must perform no catalog load",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Codex public creation accepts only the four documented fields",
+        "seed": 143,
+        "path": "6:0:0:0:0:0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "model": "alpha"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated public request with an optional forged native field; a forged field must perform no catalog load",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 5 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/codex-accepted-branch-widening.detect.log",
+        "detectSha256": "f330e040fbe1765e9f8cf5b44db7f4f7d11366eda0597da88fbbc6973d3da41c",
+        "replay": ".agents/local/143-faults/codex-accepted-branch-widening.replay.log",
+        "replaySha256": "08d45672a8c5647e14126af6775a3b8ac9eee6c84ba7b7bde13b775ec75e5e7c",
+        "restored": ".agents/local/143-faults/codex-accepted-branch-widening.restored.log",
+        "restoredSha256": "4de5078fa0cd4e0e786dad04eb2b3d5a93b96881baef2031ca2f45a4260f8e08"
+      }
+    },
+    {
+      "fault": "codex-update-dependent-reset",
+      "selector": "Codex Thread updates never retain an unbidden effort or service tier across a model switch",
+      "file": "packages/harness-codex/src/main/settings.ts",
+      "edit": "modelChanged ? undefined : current.effort -> current.effort in applyThreadSettingsUpdate",
+      "effect": "a Thread update that switches model carries the previous model's effort onto the new one",
+      "detection": {
+        "property": "Codex Thread updates never retain an unbidden effort or service tier across a model switch",
+        "seed": 143,
+        "path": "6:2:3",
+        "numRuns": 100,
+        "completedRuns": 7,
+        "numShrinks": 2,
+        "counterexample": [
+          {
+            "currentModel": "beta",
+            "currentEffort": "low",
+            "updateModel": "alpha"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated current and updated model/effort/serviceTier; a model switch re-determines every sibling it does not name",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Codex Thread updates never retain an unbidden effort or service tier across a model switch",
+        "seed": 143,
+        "path": "6:2:3",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "currentModel": "beta",
+            "currentEffort": "low",
+            "updateModel": "alpha"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated current and updated model/effort/serviceTier; a model switch re-determines every sibling it does not name",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 2 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/codex-update-dependent-reset.detect.log",
+        "detectSha256": "61e0f9489005e40f0161acedec5267c0a9620a05e1063a752e5bcb6a48c0a778",
+        "replay": ".agents/local/143-faults/codex-update-dependent-reset.replay.log",
+        "replaySha256": "07f471429ca412c6e9eb35b09b846cefd03a5d5102937aa54fb1a3f1f66dbc87",
+        "restored": ".agents/local/143-faults/codex-update-dependent-reset.restored.log",
+        "restoredSha256": "eb00bfd294568a362b83ec589bd83034a7f7484d84664e67712ae1c5a64f259c"
+      }
+    },
+    {
+      "fault": "claude-dependent-effort-reset",
+      "selector": "Claude model switches never retain an unrequested effort",
+      "file": "packages/harness-claude/src/main/settings.ts",
+      "edit": "delete resolved.effort -> void resolved.effort in resolveThreadSettings",
+      "effect": "a creation request that names a model but no effort keeps the default effort",
+      "detection": {
+        "property": "Claude model switches never retain an unrequested effort",
+        "seed": 143,
+        "path": "13:0:1",
+        "numRuns": 100,
+        "completedRuns": 14,
+        "numShrinks": 2,
+        "counterexample": [
+          {
+            "mergedModel": "opus",
+            "requestedModel": "opus"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated inherited model/effort with an optional explicit model request and optional effort override",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Claude model switches never retain an unrequested effort",
+        "seed": 143,
+        "path": "13:0:1",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "mergedModel": "opus",
+            "requestedModel": "opus"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated inherited model/effort with an optional explicit model request and optional effort override",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 2 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/claude-dependent-effort-reset.detect.log",
+        "detectSha256": "3204ecf2a447e64f471cea05f0f524ed8d87f7d2c92378cafa09105af4699644",
+        "replay": ".agents/local/143-faults/claude-dependent-effort-reset.replay.log",
+        "replaySha256": "e7f540c7c08716246b9c67c4650abbef6340c5f760c2aa5dba7477c9d673914a",
+        "restored": ".agents/local/143-faults/claude-dependent-effort-reset.restored.log",
+        "restoredSha256": "62f420189bb9cb92e4956c3a306bd06f2e16c004b6fb97761ca1b4e48d3b3005"
+      }
+    },
+    {
+      "fault": "claude-retained-tool-filters",
+      "selector": "Claude Threads with native content keep their fixed tool and goal configuration",
+      "file": "packages/harness-claude/src/main/settings.ts",
+      "edit": "for (const key of ['allowedTools', 'disallowedTools'] as const) -> for (const key of [] as const) in the retained-session branch",
+      "effect": "a Host-default refresh replaces the native session tool filters and introduces ones it never had",
+      "detection": {
+        "property": "Claude Threads with native content keep their fixed tool and goal configuration",
+        "seed": 143,
+        "path": "0:0:0:0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 3,
+        "counterexample": [
+          {
+            "field": "allowedTools",
+            "tools": [
+              "Bash"
+            ],
+            "goalMode": false
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated tool-list update and goal-mode switch on a Thread that already owns native content, refreshed against a Host-default request carrying its own fixed filters",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Claude Threads with native content keep their fixed tool and goal configuration",
+        "seed": 143,
+        "path": "0:0:0:0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "field": "allowedTools",
+            "tools": [
+              "Bash"
+            ],
+            "goalMode": false
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated tool-list update and goal-mode switch on a Thread that already owns native content, refreshed against a Host-default request carrying its own fixed filters",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 3 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/claude-retained-tool-filters.detect.log",
+        "detectSha256": "a9c6fe98b64c333a3713cb84810ef20608fa728a91998c555aad94ecde21dcd0",
+        "replay": ".agents/local/143-faults/claude-retained-tool-filters.replay.log",
+        "replaySha256": "12688616f6bee285a5d2820070fa8af10f8d2ce987a4c25390adb87547aa3aa5",
+        "restored": ".agents/local/143-faults/claude-retained-tool-filters.restored.log",
+        "restoredSha256": "f26dbf093920f26e2f63a62afc0edb6607161946bd09eb26f7f0bc3c32979d2c"
+      }
+    },
+    {
+      "fault": "opencode-dependent-variant-reset",
+      "selector": "OpenCode explicit model or provider requests never retain an unnamed variant",
+      "file": "packages/harness-opencode/src/main/settings.ts",
+      "edit": "delete merged.variant -> void merged.variant for the provider-only branch of resolveThreadSettings",
+      "effect": "a provider switch carries the previous model variant onto the new selection",
+      "detection": {
+        "property": "OpenCode explicit model or provider requests never retain an unnamed variant",
+        "seed": 143,
+        "path": "32:1",
+        "numRuns": 100,
+        "completedRuns": 33,
+        "numShrinks": 1,
+        "counterexample": [
+          {
+            "requested": "provider-only"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated model/provider switch with an optional named variant, plus a qualified selector combined with provider",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "OpenCode explicit model or provider requests never retain an unnamed variant",
+        "seed": 143,
+        "path": "32:1",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "requested": "provider-only"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated model/provider switch with an optional named variant, plus a qualified selector combined with provider",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 1 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/opencode-dependent-variant-reset.detect.log",
+        "detectSha256": "361e4610e4200ed5b8aea2aea3b9fbc78ee0b285a221fcb6d91759e0ea3e0dbf",
+        "replay": ".agents/local/143-faults/opencode-dependent-variant-reset.replay.log",
+        "replaySha256": "ba4e8bab2ee1cc7ddcaea4d9567306283900483e61358da822e844a5ce8fb050",
+        "restored": ".agents/local/143-faults/opencode-dependent-variant-reset.restored.log",
+        "restoredSha256": "9f306c3502586e3c06f9c6cf03302cde57dca0b182af69342291f3cec4af34f7"
+      }
+    },
+    {
+      "fault": "opencode-update-variant-reset",
+      "selector": "OpenCode Thread updates never retain an unnamed variant across a model or provider switch",
+      "file": "packages/harness-opencode/src/main/settings.ts",
+      "edit": "delete mutable.variant -> void mutable.variant in both reset branches of applyThreadSettingsUpdate",
+      "effect": "a Thread update that switches model or provider carries the previous variant onto the new selection",
+      "detection": {
+        "property": "OpenCode Thread updates never retain an unnamed variant across a model or provider switch",
+        "seed": 143,
+        "path": "13:1",
+        "numRuns": 100,
+        "completedRuns": 14,
+        "numShrinks": 1,
+        "counterexample": [
+          {
+            "currentVariant": "fast",
+            "update": "other-model"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated variant and one of three selections (unchanged, other provider, other model); only an unchanged selection keeps an unnamed variant",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "OpenCode Thread updates never retain an unnamed variant across a model or provider switch",
+        "seed": 143,
+        "path": "13:1",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "currentVariant": "fast",
+            "update": "other-model"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated variant and one of three selections (unchanged, other provider, other model); only an unchanged selection keeps an unnamed variant",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 1 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/opencode-update-variant-reset.detect.log",
+        "detectSha256": "168e4190359607cf6897028e8dba6bb292187efa4399a6da81ea6808f6b646aa",
+        "replay": ".agents/local/143-faults/opencode-update-variant-reset.replay.log",
+        "replaySha256": "2355b85ced6c8ff9c6408a8d60e3adbd1acdf4dedb444263fd21795a7a7c5d36",
+        "restored": ".agents/local/143-faults/opencode-update-variant-reset.restored.log",
+        "restoredSha256": "18332e677f85ad2d79023c884e348c87cec1dfd4dfbeb3b5619908600f090c03"
+      }
+    },
+    {
+      "fault": "pi-unknown-field-accepted",
+      "selector": "Pi public options accept only provider, model and thinking level",
+      "file": "packages/harness-pi/src/main/settings.ts",
+      "edit": "removed assertKeys(value, keys) from normalizeUpdate",
+      "effect": "a creation request carrying a field outside the public option set is silently dropped instead of refused, and the runtime starts",
+      "detection": {
+        "property": "Pi public options accept only provider, model and thinking level",
+        "seed": 143,
+        "path": "0:0:0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 2,
+        "counterexample": [
+          "a"
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated Pi request carrying a field outside the public option set",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Pi public options accept only provider, model and thinking level",
+        "seed": 143,
+        "path": "0:0:0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          "a"
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated Pi request carrying a field outside the public option set",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 2 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/pi-unknown-field-accepted.detect.log",
+        "detectSha256": "9168dd9065b51481fd307e5de15083165fb7fb3d0c09235c0d4ffed2bcc46cc7",
+        "replay": ".agents/local/143-faults/pi-unknown-field-accepted.replay.log",
+        "replaySha256": "1084a0be158850736fded498b9a73e2ce80850cdba6b70df51da31f29d66e82a",
+        "restored": ".agents/local/143-faults/pi-unknown-field-accepted.restored.log",
+        "restoredSha256": "eb7b305fe85820a5a6bde7c1f17de7d20e277b84e21ed0231f6a0a888b21296a"
+      }
+    },
+    {
+      "fault": "pi-dependent-thinking-reset",
+      "selector": "Pi provider and model switches re-determine an unrequested thinking level",
+      "file": "packages/harness-pi/src/main/settings.ts",
+      "edit": "delete result.thinkingLevel -> void result.thinkingLevel in apply()",
+      "effect": "the previous model's level is carried onto a switch instead of being re-determined",
+      "detection": {
+        "property": "Pi provider and model switches re-determine an unrequested thinking level",
+        "seed": 143,
+        "path": "30",
+        "numRuns": 100,
+        "completedRuns": 31,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "current": "anthropic/reasoner",
+            "requested": "openai/fast",
+            "carriedLevel": "low"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated provider/model switch with an optional explicit thinking level; an unsupported level is rejected by the target catalog",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Pi provider and model switches re-determine an unrequested thinking level",
+        "seed": 143,
+        "path": "30",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "current": "anthropic/reasoner",
+            "requested": "openai/fast",
+            "carriedLevel": "low"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated provider/model switch with an optional explicit thinking level; an unsupported level is rejected by the target catalog",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check reported 0 shrink steps because this property draws its input from enumerated constants, and fast-check does not shrink across such a branch: the recorded counterexample is the first failing sample unchanged. That is a limitation of the generator, not evidence that the input is minimal — a smaller failing input can exist for the same mutation. The replay reproduces the same counterexample.",
+      "logs": {
+        "detect": ".agents/local/143-faults/pi-dependent-thinking-reset.detect.log",
+        "detectSha256": "6d3649928670c5b2b636b4d6ef547b20116672eccd3f9aa6c416aba5e3995543",
+        "replay": ".agents/local/143-faults/pi-dependent-thinking-reset.replay.log",
+        "replaySha256": "ca28ab28755a8ac0045ecea61a99192b3095e15859f50abd1c1402b80c70b581",
+        "restored": ".agents/local/143-faults/pi-dependent-thinking-reset.restored.log",
+        "restoredSha256": "5d9f63af546909c85fd4e4fd03e0207f20aac7ceeedecbb1ba3cfdc13d9a8d27"
+      }
+    },
+    {
+      "fault": "command-unknown-field-rejection",
+      "selector": "Every structured command channel refuses an unsupported field without reaching the service",
+      "file": "apps/desktop/src/main/command-router.ts",
+      "edit": "removed assertOpenAgentSettingsShell(rawSettings) from the app:update-settings handler",
+      "effect": "an unsupported settings field reaches updateAppSettings instead of being refused",
+      "detection": {
+        "property": "Every structured command channel refuses an unsupported field without reaching the service",
+        "seed": 143,
+        "path": "12:1:1",
+        "numRuns": 100,
+        "completedRuns": 13,
+        "numShrinks": 2,
+        "counterexample": [
+          {
+            "channel": "app:update-settings",
+            "base": {
+              "locale": "zh-CN",
+              "appearance": "dark",
+              "bart": {
+                "hostHarnessPreference": "codex",
+                "targetHarnessIds": [],
+                "autoIntervention": false,
+                "routingGuidance": null
+              },
+              "harnesses": {}
+            },
+            "reaches": "updateAppSettings"
+          },
+          "__forged",
+          true
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "the same generated structured command on two boundaries: a control call without the forged sibling, then the request carrying it; only the forged request must fail, before any service call",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Every structured command channel refuses an unsupported field without reaching the service",
+        "seed": 143,
+        "path": "12:1:1",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "channel": "app:update-settings",
+            "base": {
+              "locale": "zh-CN",
+              "appearance": "dark",
+              "bart": {
+                "hostHarnessPreference": "codex",
+                "targetHarnessIds": [],
+                "autoIntervention": false,
+                "routingGuidance": null
+              },
+              "harnesses": {}
+            },
+            "reaches": "updateAppSettings"
+          },
+          "__forged",
+          true
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "the same generated structured command on two boundaries: a control call without the forged sibling, then the request carrying it; only the forged request must fail, before any service call",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 2 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/command-unknown-field-rejection.detect.log",
+        "detectSha256": "316847547e4029b2ee236021fe576e82d2ade7a8888344f1ae0ba164858e753b",
+        "replay": ".agents/local/143-faults/command-unknown-field-rejection.replay.log",
+        "replaySha256": "24eb23561904c8d9e04b485a86153a777098b7b4f31b9cfef55a7ca1c50ae7fa",
+        "restored": ".agents/local/143-faults/command-unknown-field-rejection.restored.log",
+        "restoredSha256": "a84ec25c7f4ab6e66821432198698908cfabe450125d6e4a0e344c562431f1bb"
+      }
+    },
+    {
+      "fault": "contract-bart-tag-untrimmed",
+      "selector": "Bart submit accepts exactly the documented input shapes",
+      "file": "packages/openagent-contracts/src/command-schemas.ts",
+      "edit": "removed .transform(value => value.trim()) from trimmedString; the contract is consumed from the package's built dist, so packages were rebuilt around the edit",
+      "effect": "a directory tag is forwarded exactly as sent instead of normalized, so the service receives an untrimmed value",
+      "detection": {
+        "property": "Bart submit accepts exactly the documented input shapes",
+        "seed": 143,
+        "path": "1",
+        "numRuns": 100,
+        "completedRuns": 2,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "parts": [
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              }
+            ],
+            "directoryTag": "\tWorkspace\n"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated Bart request; a refused request must reach no service, staging or external call",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Bart submit accepts exactly the documented input shapes",
+        "seed": 143,
+        "path": "1",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "parts": [
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              },
+              {
+                "value": {
+                  "kind": "text",
+                  "text": "x"
+                },
+                "accepted": true,
+                "content": true
+              }
+            ],
+            "directoryTag": "\tWorkspace\n"
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated Bart request; a refused request must reach no service, staging or external call",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 100,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check reported 0 shrink steps because this property draws its input from enumerated constants, and fast-check does not shrink across such a branch: the recorded counterexample is the first failing sample unchanged. That is a limitation of the generator, not evidence that the input is minimal — a smaller failing input can exist for the same mutation. The replay reproduces the same counterexample.",
+      "logs": {
+        "detect": ".agents/local/143-faults/contract-bart-tag-untrimmed.detect.log",
+        "detectSha256": "b2b54864faf26125bb9b06398a358d4bda081c7377feda2d95157075878725f8",
+        "replay": ".agents/local/143-faults/contract-bart-tag-untrimmed.replay.log",
+        "replaySha256": "70a47ccf004da3e4206332f398ccf2c4a30a6d6783554a357f71dd59a02f6432",
+        "restored": ".agents/local/143-faults/contract-bart-tag-untrimmed.restored.log",
+        "restoredSha256": "e30da9638967b46dccabc01ba269613d57531fd7fb84311278cce324e952fa67"
+      }
+    },
+    {
+      "fault": "command-file-path-absolute-guard",
+      "selector": "Bart submit accepts exactly the documented input shapes",
+      "file": "apps/desktop/src/main/command-router.ts",
+      "edit": "(!isAbsolute(part.file.path) || !attachmentStore.isManagedPath(part.file.path)) -> !attachmentStore.isManagedPath(part.file.path) in validateInputPaths",
+      "effect": "a local-file part whose path is managed but relative is admitted instead of refused, because the absolute-path half of the rule is gone",
+      "detection": {
+        "property": "Bart submit accepts exactly the documented input shapes",
+        "seed": 143,
+        "path": "691:1:2",
+        "numRuns": 1000,
+        "completedRuns": 692,
+        "numShrinks": 2,
+        "counterexample": [
+          {
+            "parts": [
+              {
+                "value": {
+                  "kind": "local-file",
+                  "file": {
+                    "id": "file-1",
+                    "path": "relative.png",
+                    "name": "a.png",
+                    "mimeType": "image/png",
+                    "size": 10
+                  }
+                },
+                "accepted": false,
+                "content": true
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated Bart request; a refused request must reach no service, staging or external call",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Bart submit accepts exactly the documented input shapes",
+        "seed": 143,
+        "path": "691:1:2",
+        "numRuns": 1000,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "parts": [
+              {
+                "value": {
+                  "kind": "local-file",
+                  "file": {
+                    "id": "file-1",
+                    "path": "relative.png",
+                    "name": "a.png",
+                    "mimeType": "image/png",
+                    "size": 10
+                  }
+                },
+                "accepted": false,
+                "content": true
+              }
+            ]
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "one generated Bart request; a refused request must reach no service, staging or external call",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 1000,
+      "restored": "production source restored before commit; `git status --porcelain` empty for that file",
+      "shrink": "fast-check minimized the first failing sample in 2 shrink step(s); the replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/143-faults/command-file-path-absolute-guard.detect.log",
+        "detectSha256": "345a8693e17cf6b4b3a92b65c7f3d0a42b75d0cc3e602366957868b3299c4982",
+        "replay": ".agents/local/143-faults/command-file-path-absolute-guard.replay.log",
+        "replaySha256": "56fa99ab1b598590981f69e53e8aaa33aa23a98443dbb244b9e581a89b89d755",
+        "restored": ".agents/local/143-faults/command-file-path-absolute-guard.restored.log",
+        "restoredSha256": "943a17524c2f14cb18d8f4624a30f029dac0b7e357ba99e476b94fac5ed503ef"
+      }
+    }
+  ],
+  "commands": {
+    "normal": "pnpm test:properties",
+    "family": "pnpm test:properties -- -t 'Codex public creation'",
+    "explore": "FC_SEED=143 FC_RUNS=1000 pnpm test:properties:explore -- -t <selector>",
+    "replay": "FC_RUNS=100 FC_SEED=143 FC_PATH='<path>' pnpm test:properties:replay -- -t <selector>"
+  },
+  "samples": {
+    "harness-settings.property.test.ts": "100 normal / 1000 exploration per property; every native boundary is a test-owned mock",
+    "command-input.property.test.ts": "100 normal / 1000 exploration per property; in-memory service, staging and openExternal spies"
+  },
+  "cost": {
+    "method": "Three alternating runs of the whole property suite with and without the two new files on the same checkout, one Vitest worker, default seed, desktop load uncontrolled.",
+    "suiteWithoutNewFilesSeconds": [
+      40.59,
+      42.76,
+      43.05
+    ],
+    "suiteWithNewFilesSeconds": [
+      44.71,
+      41.41,
+      44.74
+    ],
+    "medianDifferenceSeconds": 1.95,
+    "slowestPropertiesNormal": [
+      {
+        "name": "Bart submit accepts exactly the documented input shapes",
+        "seconds": 0.052
+      },
+      {
+        "name": "Every structured command channel refuses an unsupported field without reaching the service",
+        "seconds": 0.044
+      },
+      {
+        "name": "Opening an external link forwards only a normalized HTTP(S) URL",
+        "seconds": 0.03
+      }
+    ],
+    "slowestPropertiesExplore": [
+      {
+        "name": "Every structured command channel refuses an unsupported field without reaching the service",
+        "seconds": 0.441
+      },
+      {
+        "name": "Bart submit accepts exactly the documented input shapes",
+        "seconds": 0.356
+      },
+      {
+        "name": "Opening an external link forwards only a normalized HTTP(S) URL",
+        "seconds": 0.253
+      }
+    ],
+    "counts": {
+      "before": "10 files / 32 tests",
+      "after": "12 files / 51 tests"
+    },
+    "twoNewFilesAloneSeconds": {
+      "method": "Vitest's own Duration line for `pnpm exec vitest run <the two files> --maxWorkers=1`, with and without FC_SEED=143 FC_RUNS=1000; the in-body figure is Vitest's breakdown of the same run.",
+      "normal": 1.81,
+      "exploreAt1000Samples": 4.01,
+      "insideTestBodiesNormal": 0.33,
+      "insideTestBodiesExplore": 2.56
+    }
+  }
+}

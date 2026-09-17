@@ -1,0 +1,55 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2023"
+    ],
+    "types": [
+      "node",
+      "electron",
+      "vitest/globals"
+    ],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "composite": true
+  },
+  "include": [
+    "electron.vite.config.ts",
+    "src/main/**/*.ts",
+    "src/preload/**/*.ts",
+    "src/shared/**/*.ts",
+    "src/generated/**/*.ts",
+    "src/renderer/src/markdown/decodeNamedCharacterReference.ts",
+    "src/renderer/src/bart-motion/geometry.ts",
+    "src/renderer/src/bart-thread-transition/transitions.ts",
+    "src/renderer/src/bart-thread-transition/eye-dive.ts",
+    "src/renderer/src/bart-composer-geometry.ts",
+    "src/renderer/src/bart-role.ts",
+    "src/renderer/src/bart-visual-operation.ts",
+    "src/renderer/src/conversation-overview-layout.ts",
+    "src/renderer/src/overview-layout.ts",
+    "src/renderer/src/overview-layout-movement.ts",
+    "src/renderer/src/overview-layout-occupancy.ts",
+    "src/renderer/src/overview-layout-search.ts",
+    "src/renderer/src/bart-motion/types.ts",
+    "src/renderer/src/bart-motion/planner.ts",
+    "src/renderer/src/components/bart-dock-placement.ts",
+    "src/renderer/src/components/bart-cross-page-flight.ts",
+    "tests/**/*.ts",
+    "playgrounds/thread-detail/src/native-fixtures/*.ts",
+    "playgrounds/thread-detail/src/fixtures.ts",
+    "../../packages/harness-*/src/main/**/*.ts",
+    "../../packages/harness-*/src/shared/**/*.ts",
+    "../../packages/harness-*/src/bart/**/*.ts",
+    "../../packages/openagent-plugin-kit/src/renderer/markdown/incremental-markdown.ts",
+    "../../packages/openagent-plugin-kit/src/renderer/markdown/markdown-worker-types.ts",
+    "../../packages/openagent-plugin-kit/src/renderer/markdown/mermaid-queue.ts",
+    "../../packages/openagent-plugin-kit/src/shared/**/*.ts"
+  ]
+}

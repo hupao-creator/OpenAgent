@@ -1,0 +1,166 @@
+/*
+ * Locked Bart role decoration. Every measurement is the value locked in the
+ * 400x310 Bart Lab study stage, expressed in `--bart-role-unit` so the same
+ * module renders at the Dock's body size without scaling Bart itself. The
+ * Lab mounts it by setting `--bart-dock-logo-height: 224px`.
+ */
+.bart-role-stage {
+  --bart-role-unit: calc(var(--bart-dock-logo-height, 210px) / 224);
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: calc(-55 * var(--bart-role-unit));
+  width: calc(400 * var(--bart-role-unit));
+  height: calc(310 * var(--bart-role-unit));
+  margin-left: calc(-200 * var(--bart-role-unit));
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ---- Reasoning: bounded tail arc, native blue dot, attentive eyes ---- */
+
+.bart-role-arc {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* Fade fully before the path's left endpoint, so a clipped word never starts
+     with a hard edge. The latest text stays legible above the blue dot. */
+  mask-image: linear-gradient(to right, transparent 28%, #000 40%, #000 65%, transparent 80%);
+}
+
+.bart-role-arc text {
+  fill: #718269;
+  font-size: 10px;
+  letter-spacing: 1.3px;
+  opacity: 0.62;
+}
+
+.bart-role-avatar {
+  position: absolute;
+  left: calc(88 * var(--bart-role-unit));
+  top: calc(55 * var(--bart-role-unit));
+  width: calc(224 * var(--bart-role-unit));
+  height: calc(224 * var(--bart-role-unit));
+  /* The locked head turn. It carries only the attentive eyes, so Bart's own
+     body keeps its size, ink bounds and drag measurements. */
+  transform: rotate(-4deg);
+}
+
+.bart-dock:has(.bart-logo[data-worker-ready='true']) .bart-role-avatar { visibility: hidden; }
+
+.bart-role-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.bart-role-face rect {
+  fill: #f7f5ee;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(-7deg);
+}
+
+.bart-role-gaze {
+  transform: translate(-8px, -21px);
+}
+
+/*
+ * The attentive eyes wait with Bart, so they blink on the clock the waiting pose
+ * keeps in the logo (`BLINK_INTERVAL_EAGER_*`, 1.4–2.6s) rather than on the
+ * resting one. The excursion is the same 320ms — 16% of this period, where the
+ * resting 6.7s clock needs 4% for it — because the two eyes are the same eyes,
+ * seen either side of the rule below.
+ */
+.bart-role-eyes {
+  transform-origin: 320px 282px;
+
+}
+
+/*
+ * The locked attentive eyes replace the expression engine's own face. This one
+ * stays with the Dock because the face it hides is not one the logo draws: the
+ * decoration above is standing in for it, and the decoration does not travel.
+ */
+.bart-dock[data-role='reasoning'] .bart-logo .bart-face {
+  visibility: hidden;
+}
+
+
+
+/* ---- Tool fallback: green dot of the same geometry, short upright eyes ---- */
+
+/*
+ * Keyed on the logo rather than on the Dock, because the logo is what presents
+ * these: a flight copy wearing the source's role is outside the Dock's scope and
+ * still has to draw the dot and the locked eyes the Dock was drawing, or the
+ * copy leaves with a blue dot and its eyes springing back open. The role's
+ * transform is not here — that is a matrix, and the flight carries it — so
+ * nothing here is felt twice by a copy that has both.
+ *
+ * Reuse the native thought dot whole — stroke, anchor and spring-in all come
+ * from the same state the blue dot uses, so the two shapes stay geometrically
+ * identical and only the colour differs.
+ */
+.bart-logo[data-role='tool'] .bart-status-dot {
+  fill: #34c759;
+}
+
+.bart-logo[data-role='tool'] .bart-face rect {
+  transform: none;
+}
+
+.bart-dock[data-role='tool'] .bart-logo .bart-face {
+  transform-origin: 320px 240px;
+  transform: translate(22px, 28px) scale(1, 0.62);
+}
+
+.bart-role-arrival {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bart-role-signature {
+  position: absolute;
+  left: calc(50% + 71 * var(--bart-role-unit));
+  top: calc(109 * var(--bart-role-unit));
+  width: min(calc(124 * var(--bart-role-unit)), calc(50% - 77 * var(--bart-role-unit)));
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  color: #788173;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: calc(10 * var(--bart-role-unit));
+  font-weight: 400;
+  line-height: 1.6;
+  animation: bart-role-arrive 480ms ease-out both;
+}
+
+.bart-role-tool-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bart-role-parens {
+  flex-shrink: 0;
+  color: #9ba393;
+}
+
+@keyframes bart-role-arrive {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bart-role-eyes,
+  .bart-role-signature {
+    animation: none;
+  }
+}

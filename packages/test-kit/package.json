@@ -1,0 +1,29 @@
+{
+  "name": "@openagent/test-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Test-only shared kit: fixture session state, plugin open contexts, capability role derivation, and the per-Harness native test adapter contract. Production code must never import this package.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@openagent/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "typescript": "^7.0.2"
+  }
+}

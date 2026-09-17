@@ -1,0 +1,14 @@
+{
+  "suites": [
+    "core"
+  ],
+  "harnesses": [
+    "codex",
+    "claude",
+    "pi"
+  ],
+  "hosts": [
+    "auto"
+  ],
+  "providers": {}
+}

@@ -1,0 +1,25 @@
+version = 1
+name = "OpenAgent"
+
+[setup]
+script = "pnpm install --frozen-lockfile"
+
+[[actions]]
+name = "Dev"
+icon = "run"
+command = "pnpm dev"
+
+[[actions]]
+name = "Typecheck"
+icon = "test"
+command = "pnpm typecheck"
+
+[[actions]]
+name = "Test"
+icon = "test"
+command = "pnpm test"
+
+[[actions]]
+name = "Build"
+icon = "tool"
+command = "pnpm build"

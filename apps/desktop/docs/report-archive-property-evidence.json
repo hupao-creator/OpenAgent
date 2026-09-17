@@ -1,0 +1,300 @@
+{
+  "scope": "Issue #143 Phase 2 (F1 Report fields, F2 Overview selection, L1/L2 archive rules and the archive-report command, S1 archive durability). Three temporary production mutations - the two the issue names for this phase (ignoring the latest-ID match, wrongly widening the archive propagation range) plus the dismissed-failure repeat - detected, minimized, replayed and restored. No production defect was discovered or shipped, and no production file differs from the base commit. The whole sweep was re-run against the exact revision of the four property files recorded in propertySha256, at the sample counts those files declare, so every recorded detection belongs to the tests as delivered. The archive role generator was corrected before this freeze so that coverage is decided by each Thread's own current Execution, and the interleaving's archived-population assertion, the Overview filter property's independent Report view and the fixture's `resolveExecution` disclosure comment were corrected after review, as were the interleaving's deletion racer target and the two whole-record comparisons that replace flag-only and field-subset assertions (the Report unarchive leg and the raced unrelated Agent); and every artifact below was re-taken against the revision recorded in propertySha256. That re-take was repeated once more after review: the reference-replacement leg was strengthened from a comparison of the archive flags to a comparison of the whole Thread collection, and the rejection property's oversize-shape comment in report-thread.property.test.ts was corrected, so the three fault captures, the sample-tier runs, the full normal entry and the cost sweep all belong to the two property files exactly as delivered here rather than to an earlier revision of them.",
+  "baseSha": "80fe5e1338da694206b53ec4dc58b630051cf619",
+  "propertySha256": {
+    "apps/desktop/tests/property/report-thread.property.test.ts": "cc088fd1664da5dc73574eba86a8fa7b2f0112cd0119f5e63f329fa08f96fa79",
+    "apps/desktop/tests/property/overview-selection.property.test.ts": "78c247462bee23023c12c825de0478e9b12b3dd75153069453de99ec530d5a66",
+    "apps/desktop/tests/property/report-archive.property.test.ts": "657c8824abc6788b86ab555524200999b48c3bc73c160b600b17750d66311df2",
+    "apps/desktop/tests/property/storage.property.test.ts": "5e7518581b38c3d53085362fc2ae16aa0a30e6693066b7dbc68517212df8f586"
+  },
+  "lockfileSha256": "586a82485666acb5e6c1a598bfc2b3549309f692ac5a02379c3cade0da53d037",
+  "environment": {
+    "node": "v22.22.2",
+    "pnpm": "10.17.1",
+    "fastCheck": "4.9.0",
+    "vitest": "4.1.10",
+    "platform": "macOS 26.5.1",
+    "arch": "arm64"
+  },
+  "faults": [
+    {
+      "fault": "archive-ignores-latest-id-match",
+      "selector": "An archive covers exactly the referenced Threads whose latest Execution matches",
+      "file": "apps/desktop/src/shared/openagent-state.ts",
+      "edit": "archiveReport dropped the `thread.observation.latestExecution?.executionId !== reference.executionId` clause, so a referenced Thread is archived whatever Execution it currently observes",
+      "effect": "a Report reference alone archives a Thread whose current Execution is a different one (or none at all), which is exactly the 'historical completed reference must not archive the current Execution' rule the issue states",
+      "detection": {
+        "property": "An archive covers exactly the referenced Threads whose latest Execution matches",
+        "seed": 1643310127,
+        "path": "0:0",
+        "numRuns": 6,
+        "completedRuns": 1,
+        "numShrinks": 1,
+        "counterexample": [
+          {
+            "referenceId": "E1",
+            "roles": [
+              "diverged"
+            ],
+            "extraReferences": []
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "a Report referencing a generated set of Thread roles, each with its own current Execution",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "An archive covers exactly the referenced Threads whose latest Execution matches",
+        "seed": 1643310127,
+        "path": "0:0",
+        "numRuns": 6,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "referenceId": "E1",
+            "roles": [
+              "diverged"
+            ],
+            "extraReferences": []
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "a Report referencing a generated set of Thread roles, each with its own current Execution",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 6,
+      "restored": "production source restored before commit; `git status --porcelain` empty for apps/desktop/src and packages",
+      "shrink": "fast-check minimized the failing sample in 1 shrink step(s) to a world holding a single `diverged` role - a Thread that observes a different completed Execution than the one the Report names, which the dropped match clause archives on the mere presence of a reference. Captures of this fault have reduced to either shape, and they discriminate the mutation equally, so this record describes only the capture below. The replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/146-faults/A-run.txt",
+        "detectSha256": "5c7b1327dad3638c0ba63a1710f56050de5c0a7b9030de379caeba391b900483",
+        "replay": ".agents/local/146-faults/A-replay.txt",
+        "replaySha256": "2d8a664394ae9eed5a6f8ca616f0d0997237180f867577e0b8fe96aec8bfdd6e"
+      }
+    },
+    {
+      "fault": "archive-over-broad-propagation",
+      "selector": "An archive covers exactly the referenced Threads whose latest Execution matches",
+      "file": "apps/desktop/src/shared/openagent-state.ts",
+      "edit": "archiveReport iterated every Thread in the state instead of the Report's referenced Thread, so any Thread whose latest Execution ID equals a referenced Execution ID is archived",
+      "effect": "the archive reaches Threads the Report never referenced, widening its affected set beyond the locked reference scope",
+      "detection": {
+        "property": "An archive covers exactly the referenced Threads whose latest Execution matches",
+        "seed": 1015862783,
+        "path": "3:0:0:0",
+        "numRuns": 6,
+        "completedRuns": 4,
+        "numShrinks": 3,
+        "counterexample": [
+          {
+            "referenceId": "E1",
+            "roles": [
+              "matched"
+            ],
+            "extraReferences": []
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "a Report referencing a generated set of Thread roles, each with its own current Execution",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "An archive covers exactly the referenced Threads whose latest Execution matches",
+        "seed": 1015862783,
+        "path": "3:0:0:0",
+        "numRuns": 6,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          {
+            "referenceId": "E1",
+            "roles": [
+              "matched"
+            ],
+            "extraReferences": []
+          }
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "a Report referencing a generated set of Thread roles, each with its own current Execution",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 6,
+      "restored": "production source restored before commit; `git status --porcelain` empty for apps/desktop/src and packages",
+      "shrink": "fast-check minimized the failing sample in 3 shrink step(s) to a world whose only role is the covered `matched` Agent, so the widened propagation range archives an unreferenced record. The replay reproduces that minimized counterexample at 0 further steps.",
+      "note": "The counterexample keeps one referenced Agent and drops the 'unrelated' Agent the world always commits: that Agent is never referenced, so the fault archives a Thread no reference covers. Detection requires the generated Report to reference the Execution that always-present Agent observes (E1); a sample that draws the other reference ID passes. It was detected on the first recorded attempt at the delivered 6 samples.",
+      "logs": {
+        "detect": ".agents/local/146-faults/B-run.txt",
+        "detectSha256": "b0135870216c1ef568da81b951583c5674d12bc2fc19fdb15519a6f8dde39105",
+        "replay": ".agents/local/146-faults/B-replay.txt",
+        "replaySha256": "77c58ba9ee8563818e06001172e2206bfde6d26ba8724ec544a1d6fb86a4ff6c"
+      }
+    },
+    {
+      "fault": "dismissed-failure-rearchives",
+      "selector": "Only a strictly later failed Execution re-archives after an unarchive",
+      "file": "apps/desktop/src/shared/openagent-state.ts",
+      "edit": "shouldAutoArchiveFailedExecution returned `true` for a repeat of the already recorded Execution ID instead of `observed.status !== 'failed'`",
+      "effect": "a failure the user observed, dismissed by unarchiving the Thread, archives again as soon as the same failure is seen a second time - the 'failure, recovery, repeated observation, unarchive' sequence of the issue",
+      "detection": {
+        "property": "Only a strictly later failed Execution re-archives after an unarchive",
+        "seed": -343911620,
+        "path": "0:0:0",
+        "numRuns": 6,
+        "completedRuns": 1,
+        "numShrinks": 2,
+        "counterexample": [
+          1,
+          1
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "a dismissed failure followed by a distinct failed Execution with a generated start time",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "Only a strictly later failed Execution re-archives after an unarchive",
+        "seed": -343911620,
+        "path": "0:0:0",
+        "numRuns": 6,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          1,
+          1
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "a dismissed failure followed by a distinct failed Execution with a generated start time",
+        "maxCommands": null,
+        "explore": false,
+        "replayPath": null
+      },
+      "samples": 6,
+      "restored": "production source restored before commit; `git status --porcelain` empty for apps/desktop/src and packages",
+      "shrink": "fast-check minimized the failing sample in 2 shrink step(s) to a pair of equal start times, where the repeated recorded Execution ID must not archive. The replay reproduces that minimized counterexample at 0 further steps.",
+      "logs": {
+        "detect": ".agents/local/146-faults/C-run.txt",
+        "detectSha256": "76f4233b6e77c5a3f2e5f3c947cc595f5dcd3623e61aa730eee2490faf2933f1",
+        "replay": ".agents/local/146-faults/C-replay.txt",
+        "replaySha256": "1af2fabdcb6b4f89efd4c19471f366effd873bf913d22553aee7959d56bc1aa0"
+      }
+    }
+  ],
+  "commands": {
+    "normal": "pnpm test:properties",
+    "family": "pnpm test:properties -- -t 'An archive covers exactly'",
+    "explore": "FC_SEED=143 FC_RUNS=60 pnpm test:properties:explore -- -t '<selector>'",
+    "replay": "FC_RUNS=6 FC_SEED=<seed> FC_PATH='<path>' pnpm test:properties:replay -- -t '<selector>'"
+  },
+  "samples": {
+    "report-thread.property.test.ts": "100 normal / 1000 exploration per property; pure module, no process, socket, clock or file",
+    "overview-selection.property.test.ts": "shared synchronous check driver, so the shared 100 normal / 1000 exploration defaults; pure selector",
+    "report-archive.property.test.ts": "6 normal / 60 exploration per property; every sample owns a temporary directory and a real SQLite store — roughly forty times a pure sample. The tier was chosen against the storage family's own fault-boundary tier, measured directly on the delivered file: its fourteen cases take 6.11 s of Vitest wall time at FC_RUNS=6 and 9.16 s at FC_RUNS=10 (/tmp/143-cost2/archive-6-samples-r13.log and archive-10-samples-r13.log, re-taken against the delivered revision of this file), so the delivered tier keeps about 3 s of family cost out of the suite.",
+    "storage.property.test.ts": "the family's existing 10 normal / 100 exploration tiers, plus 6 / 40 for the recovery boundaries; the new archive property reuses 10 / 100",
+    "sampleCountDecision": "The archive family first declared 10 normal samples. Because every one of its samples owns a temporary directory and a real SQLite store (about forty times the cost of a pure sample), the family was reduced to 6, the smallest tier the storage family already uses for its own fault boundaries; the reduction was checked directly on the delivered file, whose fourteen cases take 6.11 s of Vitest wall time at FC_RUNS=6 against 9.16 s at FC_RUNS=10 (/tmp/143-cost2/archive-{6,10}-samples-r13.log, re-taken against the delivered revision of this file). The preliminary sweep's suite-level figure for the 10-sample tier is not part of the delivered evidence and is therefore not restated here. Detection evidence was re-captured at the delivered default; the archive assertions are gate-driven rather than volume-driven."
+  },
+  "cost": {
+    "method": "Three alternating runs of the whole property suite with and without the phase-2 files on the same checkout, one Vitest worker, default seed, verbose reporter, desktop activity uncontrolled. The sweep alternates within each round — baseline 1, candidate 1, baseline 2, candidate 2, baseline 3, candidate 3 — so a machine warming up or cooling down hits both trees. The method has now been applied seven times to this phase and the same-round pairs have ranged from -0.94 s to +14.44 s while the median differences have ranged from +3.62 s to +9.02 s. This round's pairs are 10.70 / 3.39 / 9.02 s for a median difference of +9.02 s — inside the ≤10 s gate, by about a second, and the round is reported as it was measured rather than re-run until a quieter machine appeared. The widest pair is the first: the candidate opened the round at its slowest (53.05 s) while the baseline ran its fastest (42.35 s), so the drift reached the two trees at different points of the alternating cycle. The narrowest is the second (47.99 against 51.38 s), which holds the baseline's slowest run, and the third (42.44 against 51.46 s) returned each tree to within about half a second of its own median, which is why the median difference and the third pair agree. The gate is read off a round's median difference as the issue prescribes, and every round's pairs are recorded beside its median rather than one pair standing in for the measurement. The baseline tree is the property directory of the base commit; the candidate tree is the delivered one. Raw logs: /tmp/143-cost2/final-{baseline,candidate}-{1,2,3}.log.",
+    "suiteWithoutNewFilesSeconds": [
+      42.35,
+      47.99,
+      42.44
+    ],
+    "suiteWithNewFilesSeconds": [
+      53.05,
+      51.38,
+      51.46
+    ],
+    "medianDifferenceSeconds": 9.02,
+    "pairedDifferencesSeconds": [
+      10.7,
+      3.39,
+      9.02
+    ],
+    "counts": {
+      "before": "12 files / 51 tests",
+      "after": "15 files / 80 tests"
+    },
+    "testBodySeconds": {
+      "before": [
+        38.35,
+        43.39,
+        38.46
+      ],
+      "after": [
+        47.94,
+        46.54,
+        46.8
+      ]
+    },
+    "addedByFileMedian": {
+      "report-archive.property.test.ts": 5.62,
+      "storage.property.test.ts": 2.57,
+      "report-thread.property.test.ts": 0.04,
+      "overview-selection.property.test.ts": 0.05
+    },
+    "addedByFileNote": "Median of each file's summed test-body duration across the three runs. The three phase-2 files are absent from the baseline tree, so their rows are whole medians; storage.property.test.ts exists on both sides and its row is the difference of the two sides' medians. Unrelated files also moved in the same window, and not all one way — native-harness.property.test.ts, the slowest family, ran 10.02 s as a candidate median against 11.16 s in the baseline runs (a fall of 1.14 s) while opencode-permissions.property.test.ts rose 0.17 s (4.17 s to 4.34 s) and lifecycle.property.test.ts 0.24 s (9.44 s to 9.68 s) — so these per-file figures are reported next to the suite-level medians rather than summed with them, and a movement in either direction between rounds is machine drift rather than coverage.",
+    "threeNewFilesAloneSeconds": {
+      "method": "Vitest's own Duration line for `pnpm --dir apps/desktop exec vitest run <the three files> --maxWorkers=1`, with and without FC_EXPLORE=1.",
+      "normal": 6.52,
+      "exploreAtDeclaredDefaults": 56.09,
+      "insideTestBodiesNormal": 5.81,
+      "insideTestBodiesExplore": 55.34,
+      "exploreResult": "28 tests passed at the declared exploration defaults (1000 samples per pure property, 60 for the archive family)."
+    },
+    "slowestPropertiesNormal": [
+      {
+        "name": "native Codex public Handle and projection contract",
+        "file": "native-harness.property.test.ts",
+        "seconds": 6.16,
+        "newInThisPhase": false
+      },
+      {
+        "name": "native Claude public Handle and projection contract",
+        "file": "native-harness.property.test.ts",
+        "seconds": 3.98,
+        "newInThisPhase": false
+      },
+      {
+        "name": "OpenCode background approval respects generated admission and replay order",
+        "file": "opencode-permissions.property.test.ts",
+        "seconds": 3.82,
+        "newInThisPhase": false
+      },
+      {
+        "name": "storage preparation order fences old versions including ABA",
+        "file": "storage.property.test.ts",
+        "seconds": 2.19,
+        "newInThisPhase": false
+      },
+      {
+        "name": "storage scoped commands pair revisions and durable outcomes",
+        "file": "storage.property.test.ts",
+        "seconds": 1.78,
+        "newInThisPhase": false
+      },
+      {
+        "name": "attachment invalid index fails closed after reopen",
+        "file": "attachments.property.test.ts",
+        "seconds": 1.7,
+        "newInThisPhase": false
+      }
+    ],
+    "sampleCountDecision": "The archive family first declared 10 normal samples. Because every one of its samples owns a temporary directory and a real SQLite store (about forty times the cost of a pure sample), the family was reduced to 6, the smallest tier the storage family already uses for its own fault boundaries; the tier was chosen against the direct measurement of this file recorded under `samples` rather than a suite-level estimate. Detection evidence was re-captured at that delivered default; the archive assertions are gate-driven rather than volume-driven."
+  }
+}

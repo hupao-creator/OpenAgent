@@ -1,0 +1,216 @@
+/* Notion document tokens. Scoped to opted-in thread surfaces, never overview or Report. */
+.thread-detail-theme {
+  --canvas: light-dark(#fff, #191919);
+  --surface: light-dark(#f6f5f4, #202020);
+  --surface-strong: light-dark(#fff, #252525);
+  --surface-soft: light-dark(#fafaf9, #202020);
+  --ink: light-dark(#37352f, #d4d3cf);
+  --ink-strong: light-dark(#1a1a1a, #eeeeec);
+  --muted: light-dark(#787671, #a19e98);
+  --faint: light-dark(#98958e, #96928c);
+  --line: light-dark(#e5e3df, #383735);
+  --line-soft: light-dark(#eeedeb, #2d2c2a);
+  --accent: light-dark(#5645d4, #b5a7ff);
+  --accent-soft: light-dark(#eeebfb, #302a46);
+  --thread-action-accent: var(--accent);
+  --thread-provider-color: var(--accent);
+  --thread-surface-accent: var(--accent);
+  --danger: light-dark(#b44841, #e69a92);
+  --success: light-dark(#47785b, #8aba9b);
+  --warning: light-dark(#986b32, #d4ac76);
+  color: var(--ink);
+  background: var(--canvas);
+  font-family: 'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.thread-detail-frame { position: relative; isolation: isolate; }
+.thread-detail-running-indicator { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; pointer-events: none; }
+.thread-detail { position: relative; height: 100%; min-height: 0; min-width: 0; flex: 1; container-type: inline-size; }
+.thread-detail-theme.workspace > .workspace-header { border-bottom-color: var(--line-soft); background: var(--canvas); }
+.thread-detail-theme.workspace > .composer-wrap { width: min(744px, calc(100% - 64px)); padding: 14px 0 16px; }
+.thread-detail-theme .composer { border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); box-shadow: none; }
+.thread-detail-theme .composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
+.thread-detail .message-scroll { height: 100%; padding: 0; overflow-y: auto; scrollbar-gutter: stable; }
+/* The document page is a script-focus target for message location, not a tab
+   stop, so it never draws a ring around the whole reading area. */
+.thread-detail .thread-detail-parent-page:focus { outline: none; }
+.thread-detail .message-column { width: min(var(--reading-width, 744px), calc(100% - 64px)); margin: 0 auto; padding: max(44px, var(--thread-detail-top-space, 0px)) 0 36px; }
+.thread-detail .message-list { display: block; padding: 0; }
+.thread-detail-document { margin: 0 0 12px; }
+.thread-detail-page-icon { width: fit-content; margin: 0 0 18px; font-size: 44px; line-height: 1.1; }
+.thread-detail-document h2 { font-size: 30px; font-weight: 650; letter-spacing: -.8px; line-height: 1.25; color: var(--ink-strong); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-detail-plugin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 15px; }
+.thread-detail-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 10px; border-bottom: 1px solid var(--line-soft); padding-bottom: 12px; margin-bottom: 24px; font-size: 11px; color: var(--muted); }
+.thread-detail-toolbar button { display: inline-flex; gap: 5px; align-items: center; padding: 4px 6px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; }
+.thread-detail-toolbar button:hover { background: var(--surface); color: var(--ink); }
+.thread-detail-turn + .thread-detail-turn { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line-soft); }
+.thread-detail-row { margin: 0 0 16px; min-width: 0; }
+.thread-detail-user { margin-bottom: 26px; }
+.thread-detail-row > .message { margin: 0; padding: 0; width: 100%; display: block; }
+.thread-detail .assistant-content { width: 100%; padding: 0; min-width: 0; }
+.thread-detail .user-message > div { max-width: none; width: 100%; border: 0; border-radius: 5px; background: var(--surface); padding: 14px 16px; box-shadow: none; }
+.thread-detail .user-message .steering-label { font-size: 10px; font-weight: 500; color: var(--muted); }
+.thread-detail .markdown-body { font-size: var(--reading-font, 14px); line-height: 1.8; color: var(--ink); overflow-wrap: anywhere; }
+.thread-detail .markdown-body > :first-child { margin-top: 0; }
+.thread-detail .markdown-body > :last-child { margin-bottom: 0; }
+.thread-detail .markdown-body p { margin: 0 0 14px; }
+.thread-detail .markdown-body :is(h1, h2, h3) { color: var(--ink-strong); font-weight: 600; letter-spacing: -.25px; margin: 26px 0 12px; }
+.thread-detail .markdown-body h1 { font-size: 24px; }
+.thread-detail .markdown-body h2 { font-size: 20px; }
+.thread-detail .markdown-body h3 { font-size: 16px; }
+.thread-detail .markdown-body :not(pre) > code {
+  display: inline;
+  padding: 2px 5px;
+  overflow: visible;
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  border-radius: 3px;
+  font-size: .88em;
+  line-height: normal;
+  vertical-align: baseline;
+  white-space: break-spaces;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.thread-detail .markdown-body pre { background: var(--surface); color: var(--ink); border: 0; border-radius: 5px; padding: 16px; font-size: 12px; line-height: 1.7; overflow: auto; }
+.thread-detail .markdown-body blockquote { padding: 3px 0 3px 15px; border-left: 3px solid var(--line); background: transparent; }
+.thread-detail .markdown-body a { color: var(--accent); text-underline-offset: 3px; }
+.thread-detail .markdown-body :is(ul, ol) { padding-left: 23px; }
+.thread-detail .markdown-body li { margin: 5px 0; }
+.thread-detail .markdown-body table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.thread-detail .markdown-body :is(th, td) { border: 1px solid var(--line); padding: 8px 11px; }
+.thread-detail .markdown-body th { font-weight: 500; background: var(--surface); }
+.thread-detail-turn-footer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 10px; color: var(--muted); margin-top: 18px; }
+.thread-detail .message-attachments { margin-top: 10px; justify-content: flex-start; }
+.thread-detail .message-attachment { border: 1px solid var(--line); border-radius: 4px; background: var(--canvas); box-shadow: none; color: var(--muted); }
+.thread-detail .thread-detail-work { color: var(--muted); font-size: 12px; }
+.thread-detail .activity-group { margin: 0; padding: 0; border: 0; background: transparent; }
+.thread-detail :is(.activity-group-summary, .activity-summary) { min-height: 30px; padding: 6px 0; background: transparent; border: 0; color: var(--muted); font-size: 11px; }
+.thread-detail :is(.activity-group-summary, .activity-summary):hover { color: var(--ink); background: var(--surface-soft); }
+.thread-detail .activity-row { min-height: 30px; }
+.thread-detail :is(.activity-state, .activity-group-state) { color: var(--muted); width: 20px; }
+.thread-detail :is(.activity-output, .activity-command, .activity-detail) { background: var(--surface); border: 0; border-radius: 4px; font-size: 11px; line-height: 1.6; }
+.thread-detail .status-spinner { border-top-color: var(--accent); }
+.thread-detail .thread-surface-plan { border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; padding: 5px 0 5px 14px; margin: 12px 0; }
+.thread-detail .thread-surface-work-heading { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
+.thread-detail .thread-surface-work-heading strong { font-weight: 500; }
+.thread-detail .thread-surface-work-count { margin-left: auto; font-size: 10px; }
+.thread-detail .thread-surface-work-icon { display: inline-flex; width: 14px; height: 14px; }
+.thread-detail .thread-surface-work-icon svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.3; }
+.thread-detail .thread-surface-plan > p { font-size: 12px; line-height: 1.65; color: var(--muted); }
+.thread-detail .plan-list { display: grid; gap: 9px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 12px; }
+.thread-detail .plan-list li { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+.thread-detail .plan-list li.inProgress { color: var(--ink); }
+.thread-detail .thread-surface-step-state { display: inline-flex; width: 12px; height: 12px; align-items: center; justify-content: center; }
+.thread-detail .thread-surface-step-state svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 1.5; }
+.thread-detail .thread-surface-pending-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); }
+.thread-detail .thread-surface-disclosure { margin: 0; border: 0; background: transparent; }
+.thread-detail .thread-surface-disclosure > summary { display: flex; align-items: center; gap: 8px; list-style: none; font-size: 11px; padding: 6px 0; cursor: pointer; }
+.thread-detail .thread-surface-disclosure > summary::-webkit-details-marker { display: none; }
+.thread-detail .thread-surface-disclosure-chevron { margin-left: auto; }
+.thread-detail .thread-surface-disclosure[open] .thread-surface-disclosure-chevron { transform: rotate(90deg); }
+.thread-detail .thread-surface-disclosure-body { border-left: 1px solid var(--line); margin-top: 8px; padding-left: 14px; }
+.thread-detail .thread-surface-disclosure-body .markdown-body { color: var(--muted); font-size: 12px; }
+.thread-detail .agent-artifact { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.thread-detail .artifact-summary { padding: 4px 0; font-size: 11px; color: var(--muted); }
+.thread-detail .artifact-body { padding: 10px 0 0; border: 0; }
+.thread-detail .artifact-body pre { padding: 14px; border-radius: 4px; background: var(--surface); max-height: 360px; overflow: auto; font-size: 11px; }
+.thread-detail .thread-detail-request { margin: 18px 0 0; padding: 20px 0 0; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; background: transparent; box-shadow: none; animation: none; }
+.thread-detail-turn > .thread-detail-row:first-child > .thread-detail-request { margin-top: 0; padding-top: 0; border-top: 0; }
+.thread-detail .thread-detail-request > header { display: flex; gap: 9px; align-items: flex-start; background: transparent; border: 0; padding: 0; margin: 0 0 17px; }
+.thread-detail .thread-detail-request > header > :first-child:not(div) { color: var(--muted); flex-shrink: 0; margin-top: 3px; }
+.thread-detail .thread-detail-request > header > div { flex: 1; min-width: 0; }
+.thread-detail .thread-detail-request > header strong { font-size: 16px; font-weight: 600; color: var(--ink-strong); line-height: 1.5; }
+.thread-detail .thread-detail-request > header p { margin: 9px 0 0; font-size: 13px; line-height: 1.65; color: var(--muted); }
+.thread-detail .thread-detail-request > header small { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.thread-detail .thread-detail-request :is(pre, .interaction-resource) { display: block; width: 100%; padding: 14px 16px; margin: 12px 0 16px; border: 0; border-radius: 4px; background: var(--surface); color: var(--ink); font-size: 12px; line-height: 1.6; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.thread-detail .thread-detail-request > footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; padding: 0; margin: 22px 0 0; border: 0; background: transparent; }
+.thread-detail .thread-detail-request > footer > span:empty { display: none; }
+.thread-detail .thread-detail-request > footer button { min-height: 34px; padding: 8px 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 500; cursor: pointer; box-shadow: none; }
+.thread-detail .thread-detail-request > footer button:hover { background: var(--surface); }
+.thread-detail .thread-detail-request > footer :is(.interaction-primary, .primary) { order: -1; background: var(--accent); color: var(--canvas); }
+.thread-detail .thread-detail-request > footer :is(.interaction-primary, .primary):hover { background: color-mix(in srgb, var(--accent) 85%, var(--ink-strong)); }
+.thread-detail .thread-detail-request :is(button, input, textarea):disabled { opacity: .45; cursor: not-allowed; }
+.thread-detail .thread-detail-request :is(input:not([type=radio]):not([type=checkbox]), textarea) { display: block; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink); font-size: 12px; line-height: 1.65; box-shadow: none; }
+.thread-detail .thread-detail-request textarea { min-height: 64px; resize: vertical; }
+.thread-detail .thread-detail-request :is(input, textarea)::placeholder { color: var(--faint); }
+.thread-detail :is(button, input, textarea, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.thread-detail .interaction-question { display: block; margin: 18px 0; padding: 0; border: 0; }
+.thread-detail .interaction-question-prompt { display: block; margin-bottom: 12px; color: var(--ink); }
+.thread-detail .interaction-question-prompt strong { display: block; font-size: 13px; font-weight: 500; }
+.thread-detail .interaction-question-prompt small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.thread-detail .interaction-question-options { display: grid; gap: 4px; }
+.thread-detail .interaction-question-options button { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.thread-detail .interaction-question-options button:hover { background: var(--surface-soft); }
+.thread-detail .interaction-question-options button.active { background: var(--surface); }
+.thread-detail .interaction-question-options button::before { content: ''; flex-shrink: 0; width: 14px; height: 14px; margin-top: 2px; border: 1px solid var(--faint); border-radius: 50%; }
+.thread-detail .interaction-question-options[data-select=multiple] button::before { border-radius: 3px; }
+.thread-detail .interaction-question-options button.active::before { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px var(--surface); }
+.thread-detail .interaction-question-option-text { display: block; }
+.thread-detail .interaction-question-option-text b { font-size: 13px; font-weight: 500; }
+.thread-detail .interaction-question-options small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.thread-detail .interaction-question-input { margin-top: 12px; }
+.thread-detail .interaction-question-other { width: 100%; min-height: 44px; font-size: 13px; text-align: left; }
+.thread-detail .interaction-question-other-input { margin: 0; min-height: 44px; }
+.thread-detail :is(.message-error, .claude-renderer-inline-error) { display: flex; align-items: flex-start; gap: 8px; padding: 14px 0; margin: 12px 0; border: 0; border-top: 1px solid var(--line-soft); color: var(--danger); background: transparent; font-size: 12px; line-height: 1.65; }
+.thread-detail :is(.message-notice, .interaction-card.resolved) { padding: 8px 0; border: 0; background: transparent; color: var(--muted); font-size: 11px; }
+.thread-detail-empty-state { display: grid; justify-items: center; padding: 48px 0 60px; }
+.thread-detail-empty-state pre { margin: 0; padding: 0; border: 0; background: transparent; color: var(--muted); font: 14px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre; }
+.thread-detail .load-older-messages { display: block; margin: 0 auto 24px; border: 0; background: var(--surface); color: var(--muted); border-radius: 5px; padding: 7px 10px; font-size: 11px; }
+.thread-detail-jump { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); color: var(--muted); box-shadow: 0 2px 6px #0001; font-size: 11px; cursor: pointer; }
+@container (min-width: 1024px) {
+  .thread-detail .message-column { padding-top: 24px; }
+}
+@container (max-width: 540px) {
+  .thread-detail .message-column { width: calc(100% - 36px); padding-top: max(28px, var(--thread-detail-top-space, 0px)); }
+  .thread-detail-document h2 { font-size: 24px; }
+  .thread-detail-toolbar { gap: 7px 5px; }
+  .thread-detail .thread-detail-request > header strong { font-size: 14px; }
+}
+
+/* Timestamp and usage typography. */
+.thread-detail-completed-time,
+.thread-detail-token-usage {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Menlo, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+/* Historical turns open as document subpages; the latest stays expanded. */
+.thread-detail-subpage-link {
+  position: relative; display: flex; align-items: flex-start; width: 100%;
+  margin: 2px 0 12px; padding: 8px 0; text-align: left;
+  border: 0; border-radius: 3px; background: transparent;
+  color: var(--ink); cursor: pointer; line-height: 1.6;
+  transition: background 120ms ease;
+}
+.thread-detail-subpage-link:hover { background: var(--surface); }
+.thread-detail-subpage-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.thread-detail-subpage-copy { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.thread-detail-subpage-summary { color: var(--muted); font-size: 13px; line-height: 1.7; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-detail-subpage-copy time { color: var(--muted); margin-top: 2px; }
+.thread-detail-subpage-title {
+  font-size: 14px; font-weight: 500; text-decoration: underline;
+  text-decoration-color: var(--line); text-underline-offset: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.thread-detail-subpage { position: absolute; inset: 0; background: var(--canvas); }
+.thread-detail-subpage .thread-detail-document { margin-bottom: 28px; }
+
+/* Clip the translated child at the reading viewport, without changing its width. */
+.thread-detail-subpage { overflow: hidden; }
+.thread-detail-subpage > .message-scroll { animation: thread-subpage-enter 360ms cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes thread-subpage-enter { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: translateX(0); } }
+.thread-detail-history-divider { border: 0; border-top: 1px solid var(--line-soft); margin: 24px 0; }
+.thread-detail-breadcrumb { display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 28px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.thread-detail-breadcrumb button { display: flex; align-items: center; gap: 4px; font: inherit; max-width: min(45%, 216px); min-width: 0; padding: 3px 5px 3px 0; border: 0; border-radius: 3px; background: transparent; color: inherit; cursor: pointer; }
+.thread-detail-breadcrumb button:hover { color: var(--ink-strong); background: var(--surface); }
+.thread-detail-breadcrumb button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.thread-detail-breadcrumb button svg { flex-shrink: 0; }
+.thread-detail-breadcrumb button span, .thread-detail-breadcrumb-current { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.thread-detail-breadcrumb-current { flex: 0 1 auto; min-width: 0; max-width: 216px; }
+
+.thread-detail-turn-footer > .thread-detail-token-usage::before { content: '·'; margin-right: 6px; }
+.thread-detail-turn-footer time { font-family: 'JetBrains Mono', 'SFMono-Regular', Menlo, monospace; font-variant-numeric: tabular-nums; letter-spacing: .04em; }

@@ -1,0 +1,179 @@
+{
+  "measuredAt": "2026-09-08T00:10:00.399299+00:00",
+  "source": {
+    "baseCommit": "f3230c5a36446b8a1985f99b6b5b29a0be8cb6da",
+    "workingTree": "Uncommitted architecture fixes F01–F15; no real agents launched.",
+    "bundle": "apps/desktop/out/renderer-benchmark/assets/renderer-BYncFwN4.js",
+    "bundleSha256": "68292f438dda679b49cd240a6ff291feb68b96414b43dc8b024167af1e46976d"
+  },
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "width": 1280,
+    "height": 720,
+    "cpu": "Apple M1 Pro",
+    "os": "macOS 26.5.1 (25F80)",
+    "react": "19.2.8",
+    "server": "http://127.0.0.1:4177",
+    "automation": "Playwright CLI named session architecture-f14"
+  },
+  "method": {
+    "threads": 48,
+    "turnsPerThread": 24,
+    "warmupUpdates": 10,
+    "samples": 60,
+    "entrypoint": "await window.rendererBenchmark.run(60)",
+    "buildCommands": [
+      "pnpm --dir apps/desktop exec tsc --noEmit -p benchmarks/tsconfig.renderer-bench.json",
+      "pnpm --dir apps/desktop exec vite build --config benchmarks/vite.renderer-bench.config.ts"
+    ],
+    "measurement": "Renderer notification plus synchronous React render/commit. Excludes fixture creation, transport/cloning, asynchronous Markdown and paint. One run per scenario; not an isolated statistical before/after comparison. Existing renderer-results.json is unchanged."
+  },
+  "results": [
+    {
+      "harness": "codex",
+      "mode": "overview",
+      "threads": 48,
+      "turnsPerThread": 24,
+      "samples": 60,
+      "updateMedianMs": 1.5,
+      "updateP95Ms": 1.7999999523162842,
+      "reactTotalMs": 25.900000035762787,
+      "reactCommits": 192,
+      "projectionCalls": 60,
+      "domElements": 4646,
+      "renderedTurns": 0,
+      "revision": "71",
+      "ui": {
+        "overview": true,
+        "fatal": null
+      },
+      "console": "Total messages: 1 (Errors: 0, Warnings: 0)\nReturning 0 messages for level \"error\""
+    },
+    {
+      "harness": "codex",
+      "mode": "background",
+      "threads": 48,
+      "turnsPerThread": 24,
+      "samples": 60,
+      "updateMedianMs": 0.19999998807907104,
+      "updateP95Ms": 0.30000001192092896,
+      "reactTotalMs": 1.1000000834465027,
+      "reactCommits": 60,
+      "projectionCalls": 0,
+      "domElements": 454,
+      "renderedTurns": 24,
+      "revision": "71",
+      "ui": {
+        "overview": false,
+        "detail": true,
+        "fatal": null
+      },
+      "console": "Total messages: 1 (Errors: 0, Warnings: 0)\nReturning 0 messages for level \"error\""
+    },
+    {
+      "harness": "claude",
+      "mode": "overview",
+      "threads": 48,
+      "turnsPerThread": 24,
+      "samples": 60,
+      "updateMedianMs": 1.100000023841858,
+      "updateP95Ms": 1.5999999642372131,
+      "reactTotalMs": 30.29999965429306,
+      "reactCommits": 191,
+      "projectionCalls": 60,
+      "domElements": 4550,
+      "renderedTurns": 0,
+      "revision": "71",
+      "ui": {
+        "overview": true,
+        "detail": false,
+        "fatal": null
+      },
+      "console": "Total messages: 1 (Errors: 0, Warnings: 0)\nReturning 0 messages for level \"error\""
+    },
+    {
+      "harness": "claude",
+      "mode": "background",
+      "threads": 48,
+      "turnsPerThread": 24,
+      "samples": 60,
+      "updateMedianMs": 0.19999998807907104,
+      "updateP95Ms": 0.30000001192092896,
+      "reactTotalMs": 1.8000001907348633,
+      "reactCommits": 60,
+      "projectionCalls": 0,
+      "domElements": 464,
+      "renderedTurns": 24,
+      "revision": "71",
+      "ui": {
+        "overview": false,
+        "detail": true,
+        "fatal": null
+      },
+      "console": "Total messages: 1 (Errors: 0, Warnings: 0)\nReturning 0 messages for level \"error\""
+    },
+    {
+      "harness": "opencode",
+      "mode": "overview",
+      "threads": 48,
+      "turnsPerThread": 24,
+      "samples": 60,
+      "updateMedianMs": 1.600000023841858,
+      "updateP95Ms": 2.399999976158142,
+      "reactTotalMs": 28.90000009536743,
+      "reactCommits": 188,
+      "projectionCalls": 60,
+      "domElements": 4646,
+      "renderedTurns": 0,
+      "revision": "71",
+      "ui": {
+        "overview": true,
+        "detail": false,
+        "fatal": null
+      },
+      "console": "Total messages: 1 (Errors: 0, Warnings: 0)\nReturning 0 messages for level \"error\""
+    },
+    {
+      "harness": "opencode",
+      "mode": "background",
+      "threads": 48,
+      "turnsPerThread": 24,
+      "samples": 60,
+      "updateMedianMs": 0.19999998807907104,
+      "updateP95Ms": 0.20000004768371582,
+      "reactTotalMs": 1.3000001907348633,
+      "reactCommits": 60,
+      "projectionCalls": 0,
+      "domElements": 463,
+      "renderedTurns": 24,
+      "revision": "71",
+      "ui": {
+        "overview": false,
+        "detail": true,
+        "fatal": null
+      },
+      "console": "Total messages: 1 (Errors: 0, Warnings: 0)\nReturning 0 messages for level \"error\""
+    }
+  ],
+  "uiChecks": {
+    "allScenariosMounted": true,
+    "allBenchmarkRevisions": "71",
+    "allBrowserErrors": 0,
+    "allBrowserWarnings": 0,
+    "opencodeUserMessageToggle": "Passed: the fresh accessibility snapshot contains the pressed 隐藏用户消息 button and visible user-message text; screenshot visually inspected.",
+    "opencodeBackToOverview": "Passed: 48-item overview visible, revision 72.",
+    "opencodeOpenVisibleCard": {
+      "selectedDetail": true,
+      "heading": "渲染性能任务 24",
+      "renderedTurns": 24,
+      "revision": "73",
+      "fatal": null
+    },
+    "navigationConsole": "Total messages: 1 (Errors: 0, Warnings: 0)\nReturning 0 messages for level \"error\"",
+    "automationNote": "An initial attempt to click off-viewport card 1 timed out in the canvas. Retried using the visible card 24 from a fresh snapshot; navigation succeeded. No browser error was emitted.",
+    "screenshots": [
+      "output/playwright/architecture-f14/opencode-detail.png",
+      "output/playwright/architecture-f14/opencode-overview.png"
+    ]
+  }
+}

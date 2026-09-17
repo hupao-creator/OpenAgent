@@ -1,0 +1,3252 @@
+/* Structure and interaction styles owned by the reusable renderer components.
+ * Hosts supply theme custom properties; application layout stays with the host. */
+
+
+.activity-summary,
+.activity-group-summary {
+  -webkit-app-region: no-drag;
+  border: 0;
+  cursor: pointer;
+}
+
+.assistant-mark,
+.cli-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: light-dark(rgba(255, 255, 255, 0.58), rgba(44, 47, 51, 0.58));
+  color: light-dark(#4e504a, #c1c4b9);
+  font-weight: 680;
+}
+
+.provider-logo {
+  display: block;
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.provider-logo-fallback {
+  display: grid;
+  width: 1.35em;
+  height: 1.35em;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 4px;
+  background: light-dark(#ecebe6, #30322b);
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: 700;
+}
+
+.message-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-behavior: auto;
+}
+
+/* Provider surfaces do not add persistent chrome. They provide a scoped
+   presentation boundary so native artifacts can differ without forking the
+   shared Thread Shell, message geometry, interaction controls or Composer. */
+
+.thread-surface {
+  --thread-surface-accent: var(--accent);
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.message-column {
+  width: min(820px, calc(100% - 72px));
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 42px 0;
+}
+
+.load-older-messages {
+  display: block;
+  margin: -16px auto 30px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10.5px;
+}
+
+.load-older-messages:hover {
+  border-color: light-dark(#cfcdc5, #5a5d53);
+  color: var(--ink);
+}
+
+.message + .message {
+  margin-top: 30px;
+}
+
+.message-list,
+.message {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.user-message {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: flex-end;
+}
+
+.user-message > div {
+  min-width: 0;
+  max-width: min(72%, 620px);
+  padding: 10px 13px;
+  border: 1px solid light-dark(#dedbd3, #4b4d44);
+  border-radius: 14px 14px 4px 14px;
+  background: light-dark(#f0eee8, #30322b);
+  color: light-dark(#2b2c28, #dedfd7);
+  font-size: 13.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.assistant-message {
+  display: grid;
+  min-width: 0;
+  max-width: 100%;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 13px;
+}
+
+.assistant-message.bart-message {
+  display: block;
+}
+
+.assistant-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.assistant-mark .provider-logo {
+  width: 15px;
+  height: 15px;
+}
+
+.assistant-content {
+  min-width: 0;
+  max-width: 100%;
+  padding-top: 2px;
+}
+
+.agent-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.status-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border: 1.5px solid light-dark(#c5c4bd, #686b60);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+.markdown-body {
+  min-width: 0;
+  max-width: 100%;
+  color: light-dark(#292a27, #dedfd7);
+  font-size: 14px;
+  line-height: 1.68;
+  overflow-wrap: anywhere;
+}
+
+.markdown-body > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.markdown-fallback {
+  white-space: pre-wrap;
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body pre,
+.markdown-body table {
+  margin: 0 0 14px;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin: 24px 0 10px;
+  color: light-dark(#20211e, #eeeee9);
+  font-weight: 680;
+  line-height: 1.28;
+}
+
+.markdown-body h1 {
+  font-size: 20px;
+}
+
+.markdown-body h2 {
+  font-size: 17px;
+}
+
+.markdown-body h3,
+.markdown-body h4 {
+  font-size: 14px;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 22px;
+}
+
+.markdown-body li + li {
+  margin-top: 4px;
+}
+
+.markdown-body code {
+  padding: 0.14em 0.34em;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  background: light-dark(#efeee9, #292b25);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 0.88em;
+}
+
+.markdown-body :not(pre) > code {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overflow-wrap: normal;
+  vertical-align: text-bottom;
+  white-space: pre;
+  word-break: normal;
+}
+
+.markdown-body pre {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #242520;
+  color: #ecece7;
+  line-height: 1.55;
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: pre;
+}
+
+.markdown-body pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: pre;
+}
+
+.markdown-body blockquote {
+  padding-left: 13px;
+  border-left: 2px solid light-dark(#cbc9c1, #56594f);
+  color: var(--muted);
+}
+
+.markdown-body a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-underline-offset: 2px;
+}
+
+.markdown-body table {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/* A `markdown-mermaid` element is created by the renderer worker to hold a
+   chart in place; React only renders into it. */
+.markdown-mermaid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.markdown-mermaid-figure {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: light-dark(rgba(255, 255, 255, 0.5), rgba(44, 47, 51, 0.35));
+}
+
+.markdown-mermaid-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.markdown-mermaid-label {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.markdown-mermaid-action {
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  transition: color var(--dur-instant) var(--ease-out);
+}
+
+.markdown-mermaid-action:hover {
+  color: var(--ink);
+}
+
+.markdown-mermaid-action[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.markdown-mermaid-view[hidden] {
+  display: none;
+}
+
+.markdown-mermaid-scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow: auto;
+  padding: 12px;
+}
+
+.markdown-mermaid-scroll > .markdown-mermaid-status {
+  text-align: center;
+}
+
+.markdown-mermaid-viewbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 8px 8px;
+}
+
+.markdown-mermaid-canvas {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.markdown-mermaid-canvas svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+/* The chart keeps its natural size and the frame scrolls, so a wide diagram
+   stays readable instead of shrinking its labels to nothing. */
+.markdown-mermaid-canvas[data-fit='actual'] {
+  max-width: none;
+}
+
+.markdown-mermaid-canvas[data-fit='actual'] svg {
+  max-width: none;
+}
+
+.markdown-mermaid-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.markdown-mermaid-fallback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+}
+
+.markdown-body .markdown-mermaid-source {
+  margin: 0;
+  border-radius: 0;
+}
+
+.activity {
+  margin-bottom: 7px;
+  color: var(--muted);
+}
+
+.activity-summary {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  background: transparent;
+  color: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  transition: color var(--dur-instant) var(--ease-out);
+}
+
+.activity-summary:hover {
+  color: var(--ink);
+}
+
+.activity-state {
+  display: grid;
+  place-items: center;
+  width: 14px;
+}
+
+.activity-state .status-spinner {
+  width: 11px;
+  height: 11px;
+}
+
+.activity-state .bart-logo,
+.activity-group-state .bart-logo {
+  color: var(--accent);
+}
+
+.activity-label {
+  overflow: hidden;
+  max-width: min(560px, 65vw);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity.failed {
+  color: var(--danger);
+}
+
+.activity-detail {
+  max-height: 220px;
+  margin: 5px 0 10px 21px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: light-dark(#686962, #b1b4a8);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.activity-detail-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows var(--dur-med) var(--ease-emphasized), opacity var(--dur-fast) var(--ease-out);
+}
+
+.activity-detail-wrap.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.activity-detail-wrap > .activity-detail {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.activity-detail-wrap.open > .activity-detail {
+  overflow: auto;
+}
+
+/* Collapsible tool-call group: one muted summary line instead of N activity
+   rows; running rows stay pinned below the summary during streaming. */
+
+.activity-group {
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.activity-group-summary {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  background: transparent;
+  color: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  transition: color var(--dur-instant) var(--ease-out);
+}
+
+.activity-group-summary:hover {
+  color: var(--ink);
+}
+
+.activity-group-state {
+  display: grid;
+  place-items: center;
+  width: 14px;
+}
+
+.activity-group-state .status-spinner {
+  width: 11px;
+  height: 11px;
+}
+
+.activity-group-state.failed {
+  color: var(--danger);
+}
+
+.activity-group-state.cancelled {
+  color: var(--muted);
+}
+
+.activity-group-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-group-pinned {
+  margin-top: 2px;
+}
+
+.activity-group-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows var(--dur-med) var(--ease-emphasized), opacity var(--dur-fast) var(--ease-out);
+}
+
+.activity-group-body.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.activity-group-rows {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.activity-group-body.open > .activity-group-rows {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.message-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 11px;
+  padding: 9px 11px;
+  border-left: 2px solid color-mix(in srgb, var(--danger) 75%, transparent);
+  background: color-mix(in srgb, var(--danger) 5%, transparent);
+  color: light-dark(#8f3f38, #f0988d);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.message-error svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.message-meta {
+  margin-top: 10px;
+  color: var(--faint);
+  font-size: 9.5px;
+}
+
+.thread-provider-logo {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.thread-state {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.thread-state.running {
+  color: var(--accent);
+}
+
+.thread-state.background {
+  color: var(--accent);
+}
+
+.thread-state.deciding {
+  color: var(--accent);
+}
+
+.thread-state.attention {
+  color: var(--warning);
+}
+
+.thread-state.failed {
+  color: var(--danger);
+}
+
+.thread-state.cancelled {
+  color: var(--muted);
+}
+
+.thread-state.running svg {
+  animation: thread-spin 1.2s linear infinite;
+}
+
+.thread-state.background svg {
+  animation: thread-spin 1.2s linear infinite;
+}
+
+.thread-state.deciding svg {
+  animation: thread-spin 1.2s linear infinite;
+}
+
+.activity-control {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.activity-row {
+  display: flex;
+  align-items: center;
+}
+
+.activity.nested {
+  margin-left: 21px;
+  padding-left: 9px;
+  border-left: 1px solid var(--line-soft);
+}
+
+.activity-control {
+  min-width: 23px;
+  height: 22px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 8.5px;
+  transition: background-color var(--dur-instant) var(--ease-out), color var(--dur-instant) var(--ease-out);
+}
+
+.activity-control:hover {
+  background: light-dark(#efeee9, #292b25);
+  color: var(--ink);
+}
+
+.message-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: light-dark(#f0efe9, #30322b);
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.message-notice.warning {
+  background: light-dark(#f6f0e4, #3b3326);
+  color: var(--warning);
+}
+
+.message-notice.error {
+  background: light-dark(#f8e9e6, #3d2b28);
+  color: var(--danger);
+}
+
+.interaction-card {
+  margin: 10px 0 14px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 11px;
+  background: light-dark(#fffefa, #262724);
+  box-shadow: 0 5px 18px rgba(43, 41, 35, 0.05);
+}
+
+.interaction-card > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px 13px 10px;
+  background: color-mix(in srgb, var(--accent-soft) 45%, light-dark(white, #2c2d29));
+}
+
+.interaction-card > header svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.interaction-card > header strong {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.interaction-card > header p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.interaction-input {
+  margin: 9px 12px;
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
+.interaction-input summary {
+  cursor: pointer;
+}
+
+.interaction-input pre {
+  max-height: 180px;
+  overflow: auto;
+  padding: 9px;
+  border-radius: 7px;
+  background: light-dark(#f2f1ec, #30322c);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+  white-space: pre-wrap;
+}
+
+.interaction-message {
+  display: block;
+  width: calc(100% - 24px);
+  min-height: 46px;
+  margin: 9px 12px;
+  resize: none;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: 0;
+  background: light-dark(white, #2c2d29);
+  font-size: 10.5px;
+}
+
+.interaction-card > footer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.interaction-card > footer > span {
+  flex: 1;
+}
+
+.interaction-card > footer label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.interaction-card > footer button,
+.question-options button {
+  border: 0;
+  cursor: pointer;
+}
+
+.interaction-card > footer button {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.interaction-secondary {
+  background: light-dark(#efeee9, #292b25);
+  color: var(--muted);
+}
+
+.interaction-primary {
+  background: var(--accent);
+  color: light-dark(white, #20211f);
+}
+
+.interaction-card.resolved {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-color: var(--line-soft);
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
+.interaction-card.resolved.denied,
+.interaction-card.resolved.cancelled {
+  color: var(--danger);
+}
+
+.question-field {
+  margin: 10px 12px;
+  padding: 0;
+  border: 0;
+}
+
+.question-field legend {
+  margin-bottom: 7px;
+  color: var(--ink);
+  font-size: 10.5px;
+}
+
+.question-field legend span {
+  margin-right: 6px;
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.question-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.question-options button {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 42px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: light-dark(white, #2c2d29);
+  text-align: left;
+}
+
+.question-options button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.question-options strong {
+  font-size: 9.5px;
+}
+
+.question-options small {
+  color: var(--muted);
+  font-size: 8.5px;
+}
+
+.question-custom {
+  width: 100%;
+  height: 29px;
+  margin-top: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: 0;
+  background: light-dark(white, #2c2d29);
+  font-size: 9.5px;
+}
+
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.message-attachments span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: light-dark(rgba(255, 255, 255, 0.52), rgba(44, 47, 51, 0.52));
+  color: var(--muted);
+  font-size: 8.5px;
+}
+
+.steering-message > div {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+}
+
+.steering-label {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* 卡片的叙事是"1×1 长出来的"：identity 永远是那张原始卡，扩展是从它铺开的纸。
+   底色因此不是均匀的——以 identity 那一格为源点向外做一次极缓的提亮衰减，衰减半径
+   按一格的绝对尺寸给，所以不论卡长到几格，"原始卡"这块亮区都是同样大小。
+   这不是边框也不是分隔：它没有边界，只给整张纸一个来源。 */
+
+.thread-card-composed {
+  display: block;
+  padding: 0;
+  background-image: radial-gradient(
+    520px 300px at 0 0,
+    color-mix(in srgb, var(--surface) 72%, transparent) 0%,
+    transparent 70%
+  );
+}
+
+.thread-card-layout {
+  position: absolute;
+  z-index: 2;
+  inset: -1px;
+  transition: opacity 170ms ease;
+  display: grid;
+  grid-template-columns: repeat(var(--thread-card-cols, 1), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--thread-card-rows, 1), minmax(0, 1fr));
+  gap: var(--thread-card-gap, 16px);
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* The complete 1×1 identity remains a real cell at the top-left. */
+
+.thread-card-identity {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-auto-rows: min-content;
+  align-content: start;
+  padding: 18px;
+  overflow: hidden;
+}
+
+/* Extensions share the one outer surface; spacing and type create hierarchy. */
+
+.thread-card-extension {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: 16px 18px;
+  overflow: hidden;
+  pointer-events: none;
+  /* 落位：从 identity 那一侧淡入并滑回自己的格位。 */
+  transition: opacity 170ms ease, transform 220ms var(--ease-out);
+}
+
+.thread-card-extension :is(button, input, textarea, select) {
+  pointer-events: auto;
+}
+
+/* 三个能力扩展的 head 曾经同字号同颜色，于是四块等权，读成 2×2 表格而不是一页
+   排版——「没有视觉中心」和「割裂」是同一个病。次级块的 head 退成标签，只有主扩展
+   （PRD：待处理介入始终是主扩展）保留真标题的重量。 */
+
+.thread-card-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: color-mix(in srgb, var(--ink) 44%, transparent);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+
+.thread-card-section-head small {
+  color: color-mix(in srgb, var(--ink) 34%, transparent);
+  font-size: 10.5px;
+  font-weight: 560;
+}
+
+/* 每个 section 撑满自己的 cell：行高在此之上才有可分配的余量，否则内容全部顶在
+   格子上沿，格子下半部塌成空洞。 */
+
+.thread-card-plan,
+.thread-card-derived,
+.thread-card-intervention,
+.thread-card-workflow-phases,
+.thread-card-workflow-agents {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.thread-card-plan-steps,
+.thread-card-derived-rows {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+/* 当前 checkpoint 的 3px halo 需要一小段轨道内边距，否则会被上层窗口裁掉。
+   step 的 gap 同量回收，图标与连线获得呼吸，正文仍落在原来的竖线。 */
+
+.thread-card-plan-steps {
+  padding-inline-start: 3px;
+}
+
+/* 阶梯把 cell 的余量按行分掉，单行封顶后不再拉伸——步骤少时留白收敛到一档行高，
+   而不是全部堆在格子顶部。 */
+
+.thread-card-plan-step {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 26px;
+  max-height: 38px;
+  align-items: center;
+  /* 轨道已有 3px 左内边距，gap 用 9px 抵消它，让步骤文字的左缘继续落在与派生
+     工作命令文字同一条竖线上。 */
+  gap: 9px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* ---------------------------------------------------------------------------
+   计划阶梯（todo extension）
+
+   三条读法必须在一眼之内成立：
+   ① 这是一条串行链——节点之间有实体连线，不是三行并列的清单；
+   ② 走到哪了——provider 色是整条链上唯一的饱和色，只标"当前"这一个节点，
+      已完成退成中性灰勾，待执行退成虚线空心；
+   ③ 往哪走——当前节点向下的那一段连线上有向下行进的虚线流，指向下一步。
+
+   连线由每个步骤自己的 ::after 画到下一个步骤：起点在徽标圆心下 11px
+   （半径 8 + 3px 呼吸），终点在下一个徽标上沿上 3px。行高 H 时
+   起点 = 50% + 11px、终点 = 1.5H - 5，故 height = 100% - 16px，
+   与 flex 分配出来的实际行高无关。
+   --------------------------------------------------------------------------- */
+
+.thread-card-plan-step i {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid light-dark(rgba(16, 17, 15, .22), rgba(224, 229, 218, 0.22));
+  background: var(--surface);
+  font-size: 9px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 620;
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+/* 串行连线。最后一个可见步骤没有 ::after；若其后跟着断口块，
+   连线只画到行底 + 3px 交给虚线断口接续。 */
+
+.thread-card-plan-step:not(:last-child)::after {
+  position: absolute;
+  left: 7px;
+  top: calc(50% + 11px);
+  width: 2px;
+  height: max(0px, calc(100% - 16px));
+  border-radius: 1px;
+  /* 一格 = 一个虚线周期，平铺无缝，background-position 才能循环着走。 */
+  background: var(--thread-card-plan-link, color-mix(in srgb, var(--ink) 16%, transparent));
+  background-size: 2px 6px;
+  content: '';
+}
+
+.thread-card-plan-step:has(+ .thread-card-plan-gap)::after {
+  height: max(0px, calc(50% - 8px));
+}
+
+/* 断口在窗口上方时，第一个可见步骤要有一段向上接住断口的连线。断口两端各留
+   3px 呼吸（与节点两端同一口径），因此读作"上面还有被折叠的步骤"，
+   而不是"链条从这里开始"。 */
+
+.thread-card-plan-gap + .thread-card-plan-step::before {
+  position: absolute;
+  left: 7px;
+  top: -3px;
+  width: 2px;
+  height: max(0px, calc(50% - 8px));
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--ink) 20%, transparent);
+  content: '';
+}
+
+/* 已走过的段：中性实线。未走的段：向下的虚线。 */
+
+.thread-card-plan-step.completed {
+  --thread-card-plan-link: color-mix(in srgb, var(--ink) 20%, transparent);
+}
+
+.thread-card-plan-step:is(.inProgress, .pending) {
+  --thread-card-plan-link: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ink) 26%, transparent) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+/* 唯一的动效：当前节点之后的整段虚线一起向下漂移，指出链条方向。只有一段在动
+   读起来是闪烁，整段同相位才读得出"往下游走"。所有 ::after 同时创建，天然同相。
+   动的元素宽 2px，慢速漂移（1.2s / 一个虚线周期），不与「待介入」的脉冲抢注意力。 */
+
+.thread-card-plan-step:is(.inProgress, .pending)::after,
+.thread-card-plan-gap.ahead::before {
+  animation: thread-card-plan-flow 1200ms linear infinite;
+}
+
+/* 被窗口裁掉的步骤：序号列上一段竖直虚线，接住阶梯的断口。 */
+
+.thread-card-plan-gap {
+  height: 9px;
+  width: 16px;
+  display: grid;
+  flex: none;
+  place-items: center;
+}
+
+.thread-card-plan-gap::before {
+  width: 2px;
+  height: 9px;
+  border-radius: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ink) 26%, transparent) 0 3px,
+    transparent 3px 6px
+  );
+  background-size: 2px 6px;
+  content: '';
+}
+
+/* 窗口上方被裁掉的都是已完成，断口沿用已走过的实心色。 */
+
+.thread-card-plan-gap.walked::before {
+  background: color-mix(in srgb, var(--ink) 20%, transparent);
+}
+
+.thread-card-plan-step b {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 已完成：中性灰勾，不占 provider 色。 */
+
+.thread-card-plan-step.completed {
+  color: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+.thread-card-plan-step.completed i {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  color: color-mix(in srgb, var(--ink) 58%, transparent);
+}
+
+.thread-card-plan-step.completed i > svg {
+  display: block;
+}
+
+/* 执行中：整条链上唯一的饱和填充 + 一圈晕，序号反白。 */
+
+.thread-card-plan-step.inProgress b {
+  font-weight: 680;
+}
+
+.thread-card-plan-step.inProgress i {
+  border-color: transparent;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--surface);
+}
+
+/* 待执行：虚线空心 + 退一档的正文，明确"还没轮到"。 */
+
+.thread-card-plan-step.pending {
+  color: color-mix(in srgb, var(--ink) 58%, transparent);
+}
+
+.thread-card-plan-step.pending i {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--ink) 26%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--ink) 42%, transparent);
+}
+
+.thread-card-plan-step.pending b {
+  font-weight: 540;
+}
+
+/* Dynamic Workflow：阶段路线优先，执行 Agent 作为次级账本。阶段没有当前态
+   数据，因此节点等权展示，不用颜色臆测进度。 */
+
+.thread-card-workflow-phases {
+  gap: 10px;
+}
+
+.thread-card-workflow-phase-cell,
+.thread-card-workflow-agent-cell {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 18px;
+  overflow: hidden;
+}
+
+.thread-card-workflow-phase-cell {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.thread-card-workflow-agent-cell {
+  grid-column: 1 / span 2;
+  grid-row: 2;
+}
+
+.thread-card-workflow-head {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.thread-card-workflow-title {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.thread-card-workflow-title small {
+  color: color-mix(in srgb, var(--thread-provider-color) 78%, var(--ink));
+  font-size: 8.5px;
+  font-weight: 720;
+  letter-spacing: .14em;
+}
+
+.thread-card-workflow-title strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 690;
+  letter-spacing: -.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-card-workflow-summary {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  color: var(--thread-provider-color);
+}
+
+.thread-card-workflow-summary > b {
+  font-size: 22px;
+  font-weight: 660;
+  letter-spacing: -.06em;
+  line-height: .9;
+}
+
+.thread-card-workflow-summary > span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+
+.thread-card-workflow-summary strong {
+  color: color-mix(in srgb, var(--ink) 72%, transparent);
+  font-size: 9.5px;
+  font-weight: 680;
+}
+
+.thread-card-workflow-summary small {
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--ink) 42%, transparent);
+  font-size: 8.5px;
+  font-weight: 560;
+}
+
+.thread-card-workflow-route {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  padding: 1px 2px 0;
+  overflow: hidden;
+}
+
+.thread-card-workflow-phase {
+  position: relative;
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  justify-items: center;
+  gap: 4px;
+}
+
+.thread-card-workflow-phase:not(:last-child)::after {
+  position: absolute;
+  top: 10px;
+  right: calc(-50% + 13px);
+  left: calc(50% + 13px);
+  height: 1px;
+  background: color-mix(in srgb, var(--thread-provider-color) 28%, transparent);
+  content: '';
+}
+
+.thread-card-workflow-phase > i {
+  position: relative;
+  z-index: 1;
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--thread-provider-color) 34%, transparent);
+  border-radius: 50%;
+  background: light-dark(#f8f6ef, #292b26);
+  color: var(--thread-provider-color);
+  font-size: 8px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+}
+
+.thread-card-workflow-phase > b {
+  max-width: 100%;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--ink) 68%, transparent);
+  font-size: 9.5px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-card-workflow-agents {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.thread-card-workflow-agents-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.thread-card-workflow-agents-head small {
+  color: color-mix(in srgb, var(--ink) 43%, transparent);
+  font-size: 8.5px;
+  font-weight: 680;
+  letter-spacing: .08em;
+}
+
+.thread-card-workflow-agents-head small:last-child {
+  font-weight: 560;
+  letter-spacing: 0;
+}
+
+.thread-card-workflow-rows {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 18px;
+  overflow: hidden;
+}
+
+.thread-card-workflow-row {
+  display: grid;
+  min-width: 0;
+  min-height: 27px;
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.thread-card-workflow-row > i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 24%, transparent);
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.thread-card-workflow-row > b {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 590;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-card-workflow-row > small {
+  flex: none;
+  color: color-mix(in srgb, var(--ink) 44%, transparent);
+  font-size: 8.5px;
+  font-weight: 620;
+}
+
+.thread-card-workflow-row.running > i {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+.thread-card-workflow-row.running > small {
+  color: var(--accent);
+}
+
+.thread-card-workflow-row.failed > i {
+  background: var(--danger);
+}
+
+.thread-card-workflow-row.failed > small {
+  color: var(--danger);
+}
+
+.thread-card-workflow-row.completed,
+.thread-card-workflow-row.cancelled {
+  color: color-mix(in srgb, var(--ink) 46%, transparent);
+}
+
+.thread-card-workflow-overflow {
+  color: color-mix(in srgb, var(--ink) 44%, transparent);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+/* 派生工作按内容收紧，用一层托盘与卡片主线分开。 */
+
+.thread-card-derived .thread-card-derived-rows {
+  position: relative;
+  flex: 0 1 auto;
+  gap: 0;
+  padding: 5px 9px 6px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ink) 4.5%, transparent);
+}
+
+.thread-card-derived-row {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 21px;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.thread-card-derived-row > i {
+  width: 12px;
+  height: 12px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: color-mix(in srgb, var(--ink) 34%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.thread-card-derived-row b {
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--ink) 78%, transparent);
+  font-size: 11px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 只有明确标记为命令行的 label 才使用等宽排版。 */
+
+.thread-card-derived-row.command b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -.012em;
+}
+
+/* 命令行内容只走中性 ink 层级；provider 色留在身份笔触与工具种类图标上。 */
+
+.thread-card-command-program {
+  color: var(--ink);
+  font-weight: 640;
+}
+
+.thread-card-command-flag {
+  color: color-mix(in srgb, var(--ink) 46%, transparent);
+}
+
+.thread-card-command-operator {
+  color: color-mix(in srgb, var(--ink) 38%, transparent);
+  font-weight: 700;
+}
+
+.thread-card-command-string {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: color-mix(in srgb, var(--ink) 72%, transparent);
+}
+
+.thread-card-command-arg {
+  color: color-mix(in srgb, var(--ink) 64%, transparent);
+}
+
+.thread-card-derived-row em {
+  flex: none;
+  margin-left: auto;
+  color: color-mix(in srgb, var(--ink) 46%, transparent);
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 640;
+}
+
+/* 已经收尾的行退到背景里：托盘上留着它，但不再和在跑的行争视线。 */
+
+.thread-card-derived-row:is(.completed, .cancelled) {
+  color: color-mix(in srgb, var(--ink) 44%, transparent);
+}
+
+.thread-card-derived-row:is(.completed, .cancelled) :is(b, > i, em),
+.thread-card-derived-row:is(.completed, .cancelled) [class^='thread-card-command-'] {
+  color: color-mix(in srgb, var(--ink) 38%, transparent);
+  background: transparent;
+}
+
+.thread-card-derived-row.failed > i,
+.thread-card-derived-row.failed em {
+  color: var(--danger);
+}
+
+/* 不确定态扫描线：只要还有一条命令在跑就贴着托盘底来回扫，宽度固定，
+   不表示任何进度百分比。整块一条，不逐行画——逐行会变成七条虫子在爬。 */
+
+.thread-card-derived-rows:has(.thread-card-derived-row.running)::after {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 34%;
+  height: 1.5px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--ink) 30%, transparent),
+    transparent
+  );
+  animation: thread-card-derived-scan 3.4s linear infinite;
+  content: '';
+}
+
+.thread-card-derived.variant-wide .thread-card-derived-rows {
+  display: grid;
+  grid-auto-rows: minmax(21px, max-content);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  row-gap: 0;
+  column-gap: 18px;
+}
+
+.thread-card-overflow {
+  color: color-mix(in srgb, var(--ink) 44%, transparent);
+  font-size: 9.5px;
+  font-weight: 650;
+}
+
+.thread-card-intervention-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 660;
+  letter-spacing: -.012em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-card-intervention-detail {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--ink) 56%, transparent);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.thread-card-intervention-details {
+  min-height: 0;
+  flex: 0 1 auto;
+  overflow: auto;
+  color: var(--muted);
+  font-size: 10px;
+  pointer-events: auto;
+}
+
+.thread-card-intervention-details > summary {
+  cursor: pointer;
+}
+
+/* 提问型介入的共享控件：俯瞰卡片与 thread surface 共用。指示器形状区分两者：圆点=单选，方角=多选，
+   不靠额外文案说明。 */
+
+.interaction-question {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 题干：有 header 时 header 作主标题、prompt 降为副行；否则只有 prompt。 */
+
+.interaction-question-prompt {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  color: color-mix(in srgb, var(--ink) 62%, transparent);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.interaction-question-prompt strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 660;
+}
+
+.interaction-question-prompt small {
+  color: color-mix(in srgb, var(--ink) 52%, transparent);
+  font-size: 10.5px;
+}
+
+/* --thread-provider-color 只定义在俯瞰卡片上；thread surface 不在卡片里，
+   不给它定义会让所有用到该变量的声明变成 invalid-at-computed-value-time，
+   连 focus 环都会消失（outline: none 仍生效）。这里按 surface 的 provider 补齐。 */
+
+.interaction-card {
+  --thread-provider-color: var(--accent);
+}
+
+/* 说明行让药丸变成两列：指示器仍在左侧（单选/多选的形状区分不能丢），
+   标签与说明在右侧堆叠。 */
+
+.interaction-card .interaction-question-options button {
+  align-items: flex-start;
+  padding: 6px 12px 7px 9px;
+  border-radius: 12px;
+  text-align: left;
+}
+
+/* thread surface 里空间充裕：题干与选项都比卡片上大一档，选项说明行内展示。 */
+
+.interaction-card .interaction-question-options button::before {
+  margin-top: 2px;
+}
+
+.interaction-question-option-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.interaction-question-option-text b {
+  font-weight: inherit;
+}
+
+.interaction-card .interaction-question-options button small {
+  color: color-mix(in srgb, var(--ink) 48%, transparent);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.interaction-card .interaction-question {
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.interaction-card .interaction-question-prompt {
+  font-size: 12px;
+}
+
+.interaction-card .interaction-question-options button,
+.interaction-card .interaction-question-input {
+  font-size: 12px;
+}
+
+.interaction-card .interaction-question-input {
+  width: 100%;
+  min-height: 31px;
+}
+
+.interaction-question-options {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 6px;
+  row-gap: 6px;
+}
+
+/* 提问型介入的选项竖排，一行一个。横向药丸在三四个选项时必换行，末尾那枚孤零零
+   挂在第二行；竖排既没有换行的残片，又腾出整行宽度把选项说明放出来
+   （原先隐藏说明是因为横向药丸装不下，前提已经变了）。 */
+
+.thread-card-intervention .interaction-question-options {
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 4px;
+}
+
+.thread-card-intervention .interaction-question-options button {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 7px 12px 7px 9px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.thread-card-intervention .interaction-question-options button::before {
+  margin-top: 2px;
+}
+
+/* 竖排的行是两行高（标签 + 说明），勾必须跟着指示器走：按钮垂直中心已经比
+   指示器低了半个说明行，沿用 top:50% 会把勾掉到方块外面。
+   16px = padding-top 7 + margin-top 2 + 指示器半高 6.5。 */
+
+.thread-card-intervention
+  .interaction-question-options[data-select='multiple']
+  button.active::after {
+  top: 16px;
+}
+
+.thread-card-intervention .interaction-question-options button small {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--ink) 48%, transparent);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+/* 卡片上的题干层级：真正要读的是问题本身，header 只是它的分类名。
+   两者都存在时把 prompt 提为主行、header 退成一行 eyebrow；没有 header 时
+   strong 里装的就是 prompt，保持原样不动。 */
+
+.thread-card-intervention .interaction-question-prompt:has(small) strong {
+  color: color-mix(in srgb, var(--ink) 42%, transparent);
+  font-size: 9.5px;
+  font-weight: 720;
+  letter-spacing: .1em;
+}
+
+.thread-card-intervention .interaction-question-prompt small {
+  margin-top: 3px;
+  color: color-mix(in srgb, var(--ink) 92%, transparent);
+  font-size: 12.5px;
+  font-weight: 620;
+  line-height: 1.35;
+}
+
+/* 「其它…」是第四个可选项，不是脚注：竖排里它和其它行同宽同形同缩进，只用虚线边
+   与虚线指示器说明"这一项要你自己写"。之前把它做成一枚下划线小字，夹在三行整齐的
+   选项后面像块残片。 */
+
+.thread-card-intervention .interaction-question-options button.interaction-question-other {
+  align-self: stretch;
+  padding: 7px 12px 7px 9px;
+  border: 1px dashed color-mix(in srgb, var(--ink) 26%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  color: color-mix(in srgb, var(--ink) 58%, transparent);
+  font-size: 11.5px;
+  font-weight: 580;
+  text-decoration: none;
+}
+
+.thread-card-intervention .interaction-question-options button.interaction-question-other::before {
+  display: block;
+  border-style: dashed;
+}
+
+.thread-card-intervention
+  .interaction-question-options
+  button.interaction-question-other:hover:not(.active) {
+  border-color: color-mix(in srgb, var(--ink) 40%, transparent);
+  color: var(--ink);
+}
+
+/* 展开后与输入框连体：这一行去掉下圆角与下边框，输入框顶上来接住，读作
+   "同一枚控件的上下两半"，而不是一枚按钮加一个凭空出现的框。
+
+   展开本身只是"我要自己写"，还不是一个答案，所以这一步全程走中性 ink：
+   卡片上唯一的饱和填充是动作点（提交），一个展开的输入框把整块刷成主色，
+   色块比提交按钮还大，注意力就被夺走了。真正写进字之后才升到主色（见下）。 */
+
+.thread-card-intervention
+  .interaction-question-options
+  button.interaction-question-other.active {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--ink) 30%, transparent);
+  border-bottom-color: transparent;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  color: var(--ink);
+}
+
+.thread-card-intervention
+  .interaction-question-options
+  button.interaction-question-other.active::before {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--ink) 46%, transparent);
+  background: color-mix(in srgb, var(--ink) 46%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, light-dark(#fff, #2c2d29) 88%, transparent);
+}
+
+/* 输入框接在「其它…」行下方：同宽、同缩进、同边框粗细，只有圆角换到下半。 */
+
+.thread-card-intervention .interaction-question-input {
+  margin-top: -5px;
+  padding: 7px 12px 8px 30px;
+  border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  border-top-color: color-mix(in srgb, var(--ink) 12%, transparent);
+  border-radius: 0 0 10px 10px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  font-size: 11.5px;
+  /* 只淡入，不位移：一枚 30px 高的输入框再滑一下，动作就比它承载的意义大了。 */
+  animation: interaction-question-input-in 140ms ease both;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+/* 焦点不再叠 inset 描边——那让边框看上去粗了一倍；只把边缘收深一档。 */
+
+.thread-card-intervention .interaction-question-input:focus,
+.thread-card-intervention .interaction-question-input:focus-visible {
+  border-color: color-mix(in srgb, var(--ink) 48%, transparent);
+  box-shadow: none;
+  outline: none;
+}
+
+/* 写进字了，这一项才真的成为一个答案：整枚控件升到主色，与选中的选项同一档。 */
+
+.thread-card-intervention
+  .interaction-question:has(.interaction-question-input:not(:placeholder-shown))
+  .interaction-question-other.active {
+  border-color: var(--thread-action-accent);
+  border-bottom-color: transparent;
+  background: color-mix(in srgb, var(--thread-action-accent) 10%, light-dark(#fff, #2c2d29));
+}
+
+.thread-card-intervention
+  .interaction-question:has(.interaction-question-input:not(:placeholder-shown))
+  .interaction-question-other.active::before {
+  border-color: var(--thread-action-accent);
+  background: var(--thread-action-accent);
+}
+
+.thread-card-intervention .interaction-question-input:not(:placeholder-shown) {
+  border-color: var(--thread-action-accent);
+  border-top-color: color-mix(in srgb, var(--thread-action-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--thread-action-accent) 10%, light-dark(#fff, #2c2d29));
+}
+
+/* 多问的位置指示贴块内右上角，与 eyebrow 同一行；它是这一题的坐标，
+   浮到卡片角上就成了没有主人的角标。 */
+
+.thread-card-intervention {
+  position: relative;
+}
+
+/* Question 固定占 1×2：题干、选项和动作作为一个整体居中，不贴在扩展格上沿。
+   Permission 仍沿用紧凑的顶部排布。 */
+
+.thread-card-intervention.variant-tall:has(.interaction-question) {
+  justify-content: center;
+}
+
+.thread-card-intervention > .thread-card-section-head.tally {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.interaction-question-options button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  padding: 5px 12px 5px 9px;
+  border: 1px solid light-dark(rgba(16, 17, 15, .2), rgba(224, 229, 218, 0.2));
+  border-radius: 999px;
+  background: light-dark(#fff, #2c2d29);
+  color: color-mix(in srgb, var(--ink) 82%, transparent);
+  font-size: 11.5px;
+  font-weight: 580;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease,
+    transform 90ms var(--ease-out);
+}
+
+.interaction-question-options button::before {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  box-sizing: border-box;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 40%, transparent);
+  border-radius: 50%;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  content: '';
+}
+
+.interaction-question-options[data-select='multiple'] button::before {
+  border-radius: 4px;
+}
+
+/* 多选选中画真正的勾：形状（圆/方）区分单选多选，勾号再把"已勾上"讲清楚。 */
+
+.interaction-question-options[data-select='multiple'] button.active::before {
+  box-shadow: none;
+}
+
+.interaction-question-options[data-select='multiple'] button.active::after {
+  position: absolute;
+  top: 50%;
+  left: 11px;
+  width: 6px;
+  height: 3px;
+  border: 1.6px solid light-dark(#fff, #2c2d29);
+  border-top: 0;
+  border-right: 0;
+  transform: translateY(-78%) rotate(-45deg);
+  content: '';
+}
+
+.interaction-question-options button:hover {
+  border-color: light-dark(rgba(16, 17, 15, .34), rgba(224, 229, 218, 0.34));
+  color: var(--ink);
+}
+
+/* 点下去要有回应：整行轻微下压，松手弹回。90ms 是"手感"而不是"动画"。 */
+
+.interaction-question-options button:active:not(:disabled) {
+  transform: scale(.985);
+}
+
+/* 勾不是凭空出现，是画上去的。 */
+
+.interaction-question-options[data-select='multiple'] button.active::after {
+  animation: interaction-question-check-in 170ms var(--ease-out) both;
+}
+
+.interaction-question-options button.active {
+  border-color: var(--thread-action-accent);
+  box-shadow: inset 0 0 0 1px var(--thread-action-accent);
+  background: color-mix(in srgb, var(--thread-action-accent) 12%, light-dark(#fff, #2c2d29));
+  color: var(--ink);
+  font-weight: 640;
+}
+
+.interaction-question-options button.active::before {
+  border-color: var(--thread-action-accent);
+  background: var(--thread-action-accent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, light-dark(#fff, #2c2d29) 88%, transparent);
+}
+
+/* 「其它…」是就地展开输入框的开关：虚线边 + 无指示器，与真正的选项区分开。 */
+
+.interaction-question-options button.interaction-question-other {
+  padding: 5px 11px;
+  border-style: dashed;
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+.interaction-question-options button.interaction-question-other::before {
+  display: none;
+}
+
+.interaction-question-options button.interaction-question-other.active {
+  border-style: solid;
+}
+
+.interaction-question-input {
+  min-width: 0;
+  margin-top: 2px;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--thread-action-accent) 38%, var(--line));
+  border-radius: 9px;
+  background: light-dark(#fff, #2c2d29);
+  color: var(--ink);
+  font-size: 11.5px;
+  pointer-events: auto;
+  transition: border-color 140ms ease;
+}
+
+.interaction-question-input::placeholder {
+  color: color-mix(in srgb, var(--ink) 38%, transparent);
+}
+
+/* 焦点环画在框内：卡片扩展区是 overflow:hidden，任何外扩的 outline 都会在
+   卡片边缘被切掉。内描边同时也更克制。 */
+
+.interaction-question-input:focus,
+.interaction-question-input:focus-visible {
+  border-color: var(--thread-action-accent);
+  box-shadow: inset 0 0 0 1px var(--thread-action-accent);
+  outline: none;
+}
+
+.interaction-question-options button:focus-visible {
+  outline: 2px solid var(--thread-action-accent);
+  outline-offset: -2px;
+}
+
+/* wide 变体拿到整行宽度：正文留在左列、动作条移到右列并纵向居中，避免右半格全空、
+   下半格再空一截。正文列按内容宽度收口——动作条要紧跟着问题，被 1fr 推到整行最右端
+   就成了"问题在这、按钮在那"，动作点又被拆散。 */
+
+.thread-card-intervention.variant-wide {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  justify-content: start;
+  column-gap: 28px;
+}
+
+.thread-card-intervention.variant-wide > * {
+  grid-column: 1;
+}
+
+.thread-card-intervention.variant-wide > .thread-card-intervention-actions {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  margin-top: 0;
+  align-self: center;
+}
+
+/* 动作条跟着问题走，不吸到 cell 底：简单审批只有标题加一行位置时，auto 会在中间
+   撑出一段比内容还高的空档。 */
+
+.thread-card-intervention-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  /* 选项之间是 6px，动作条要明显更远，"选什么"和"确认"才读成两组。 */
+  margin-top: 14px;
+  padding-top: 2px;
+}
+
+.thread-card-intervention-actions button {
+  padding: 6px 16px;
+  border: 1px solid light-dark(rgba(16, 17, 15, .2), rgba(224, 229, 218, 0.2));
+  border-radius: 999px;
+  background: light-dark(#fff, #2c2d29);
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 620;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.thread-card-intervention-actions button:hover:not(:disabled) {
+  border-color: light-dark(rgba(16, 17, 15, .34), rgba(224, 229, 218, 0.34));
+}
+
+/* 次要动作降成无边框文字按钮。主动作在选项没选满时按既有裁决退回中性描边，
+   这时若次要动作还顶着白底实边，整块里最显眼的反而是「取消」。 */
+
+.thread-card-intervention-actions button:not(:first-child) {
+  border-color: transparent;
+  background: transparent;
+  color: color-mix(in srgb, var(--ink) 58%, transparent);
+  font-weight: 600;
+}
+
+.thread-card-intervention-actions button:not(:first-child):hover:not(:disabled) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+}
+
+/* 主动作是整张卡唯一的饱和填充：其它内容全中性时，这一颗就是 action point。 */
+
+.thread-card-intervention-actions button:first-child {
+  min-height: 30px;
+  padding: 6px 17px;
+  border-color: transparent;
+  background: var(--thread-action-accent);
+  color: light-dark(#fff, #2c2d29);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.thread-card-intervention-actions button:first-child:hover:not(:disabled) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--thread-action-accent) 86%, #000);
+}
+
+/* 选项没选满时提交不可用：主动作退回中性描边，而不是把品牌填充冲淡成半透明——
+   冲淡的填充看着像渲染没完成，中性描边才读得出"还不能点"。也不换成红/警示色，
+   避免和 failed 语义撞车。 */
+
+.thread-card-intervention-actions button:disabled {
+  cursor: not-allowed;
+}
+
+.thread-card-intervention-actions button:first-child:disabled {
+  border-color: light-dark(rgba(16, 17, 15, .16), rgba(224, 229, 218, 0.16));
+  background: transparent;
+  color: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+
+.thread-card-intervention-actions button:not(:first-child):disabled {
+  opacity: .42;
+}
+
+.thread-card-intervention-actions button:focus-visible {
+  outline: 2px solid var(--thread-action-accent);
+  outline-offset: -2px;
+}
+
+.thread-card-intervention-actions button:first-child:not(:disabled) {
+  animation: thread-card-attention-cta 2.4s ease-in-out infinite;
+}
+
+.thread-card-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: auto;
+  color: color-mix(in srgb, var(--ink) 50%, transparent);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.thread-overview-item-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 46px;
+}
+
+.thread-overview-item-head strong {
+  min-width: 0;
+  max-width: calc(100% - 46px);
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 620;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Transitions.dev 文本状态切换：类名由 useTextSwap 驱动，时长以这张表为准。 */
+.thread-title-swap {
+  --text-swap-dur: 150ms;
+  --text-swap-translate-y: 4px;
+  --text-swap-blur: 2px;
+  --text-swap-ease: ease-in-out;
+  transition:
+    transform var(--text-swap-dur) var(--text-swap-ease),
+    filter var(--text-swap-dur) var(--text-swap-ease),
+    opacity var(--text-swap-dur) var(--text-swap-ease);
+  will-change: transform, filter, opacity;
+}
+
+.thread-title-swap.is-exit {
+  transform: translateY(calc(var(--text-swap-translate-y) * -1));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+}
+
+.thread-title-swap.is-enter-start {
+  transform: translateY(var(--text-swap-translate-y));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-title-swap {
+    transition: none;
+  }
+}
+
+/* 右上角只保留 Provider Logo；固定占位避免与标题重叠。 */
+
+.thread-provider-status {
+  position: absolute;
+  top: 27.75px;
+  right: 17px;
+  width: 29px;
+  display: grid;
+  place-items: center;
+  color: var(--thread-provider-color);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.thread-provider-status .thread-provider-logo {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  transform-origin: center;
+  animation: provider-logo-tap 2.55s cubic-bezier(.2, .8, .2, 1) infinite;
+}
+
+.thread-provider-status .provider-logo {
+  width: 22px;
+  height: 22px;
+}
+
+.thread-provider-status:not(.running) .thread-provider-logo {
+  animation: none;
+}
+
+.thread-card-identity > small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  margin-top: 5px;
+  padding: 0;
+  color: var(--faint);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 第三行依次展示工作目录、cache hit 与 context window。usage 保持完整，
+   空间不足时先截断 cwd。worktree 用树图标标明隔离目录。 */
+
+.thread-overview-context {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  overflow: hidden;
+  font-size: 9.5px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.thread-overview-cwd {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  color: light-dark(rgba(16, 17, 15, .34), rgba(224, 229, 218, 0.55));
+  font-size: inherit;
+  line-height: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-overview-cwd svg {
+  flex: none;
+  color: light-dark(rgba(16, 17, 15, .4), rgba(224, 229, 218, 0.55));
+  display: block;
+}
+
+.thread-overview-cwd-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-overview-context-divider {
+  flex: none;
+  color: light-dark(rgba(16, 17, 15, .22), rgba(224, 229, 218, 0.55));
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* effort 与 fast mode 合成同一枚算力 token：平时是纯文字，开了 fast
+   就在同一 token 里长出一道实心闪电并染成 provider 色。 */
+
+.thread-overview-meta-effort {
+  color: light-dark(rgba(16, 17, 15, .36), rgba(224, 229, 218, 0.55));
+}
+
+.thread-overview-meta-effort.fast {
+  color: var(--thread-provider-color);
+  font-weight: 600;
+}
+
+.thread-overview-meta-effort.fast svg {
+  margin-right: 1px;
+  fill: currentColor;
+  vertical-align: -1.5px;
+}
+
+.thread-overview-meta-model {
+  color: light-dark(rgba(16, 17, 15, .58), rgba(224, 229, 218, 0.58));
+  font-weight: 580;
+}
+
+.thread-overview-meta-detail {
+  color: light-dark(rgba(16, 17, 15, .36), rgba(224, 229, 218, 0.55));
+}
+
+/* 当前 run 里用户追加的补充：卡片上单独一行，缩进箭头表明它插在 run 中间。 */
+
+.thread-overview-steer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  overflow: hidden;
+  color: light-dark(rgba(16, 17, 15, .52), rgba(224, 229, 218, 0.55));
+  font-size: 10px;
+}
+
+.thread-overview-steer svg {
+  flex: none;
+  color: var(--thread-provider-color);
+}
+
+.thread-overview-steer > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-overview-excerpt {
+  align-self: start;
+  display: block;
+  max-height: calc(4 * 1.55em);
+  overflow: hidden;
+  margin-top: 10px;
+  color: light-dark(rgba(16, 17, 15, .56), rgba(224, 229, 218, 0.56));
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.thread-overview-excerpt .markdown-body {
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* 主消息绝大多数是单段 Markdown。让浏览器按实际行盒做四行裁剪，避免 inline
+   token、字形 ascent 等因素让理论 max-height 切到最后一行字身。 */
+
+.thread-overview-excerpt:has(> .markdown-body > p:only-child) {
+  max-height: none;
+}
+
+.thread-overview-excerpt .markdown-body > p:only-child {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+/* Identity 的第二行空间归 Renderer 所有：Composer 只选择 footprint，不理解正文、
+   工具或 usage。1×1 保持原来的四行裁剪，1×2 才把主消息扩到八行。 */
+
+.thread-card-identity[data-identity-size='1x2'] .thread-overview-excerpt {
+  max-height: calc(8 * 1.55em);
+}
+
+.thread-card-identity[data-identity-size='1x2']
+  .thread-overview-excerpt:has(> .markdown-body > p:only-child) {
+  max-height: none;
+}
+
+.thread-card-identity[data-identity-size='1x2']
+  .thread-overview-excerpt .markdown-body > p:only-child {
+  -webkit-line-clamp: 8;
+}
+
+.thread-card-identity-tool {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  color: light-dark(rgba(16, 17, 15, .5), rgba(224, 229, 218, 0.55));
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.thread-card-identity-tool-kind {
+  color: var(--thread-provider-color);
+}
+
+.thread-card-identity-tool strong {
+  color: light-dark(rgba(16, 17, 15, .66), rgba(224, 229, 218, 0.66));
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.thread-card-identity-tool > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-card-identity-tool-status {
+  color: light-dark(rgba(16, 17, 15, .32), rgba(224, 229, 218, 0.55));
+}
+
+.thread-card-identity-tool[data-tool-status='running'] .thread-card-identity-tool-status {
+  color: var(--accent);
+  animation: spin 800ms linear infinite;
+}
+
+.thread-card-identity-tool[data-tool-status='failed'] .thread-card-identity-tool-status {
+  color: var(--danger);
+}
+
+.thread-card-identity-usage {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: baseline;
+  column-gap: 5px;
+  overflow: hidden;
+  color: light-dark(rgba(16, 17, 15, .36), rgba(224, 229, 218, 0.55));
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: inherit;
+  white-space: nowrap;
+}
+
+.thread-card-identity-usage-divider {
+  color: light-dark(rgba(16, 17, 15, .22), rgba(224, 229, 218, 0.55));
+}
+
+.thread-card-context-usage,
+.thread-card-rolling-number,
+.thread-card-rolling-number > span {
+  display: inline-flex;
+  align-items: baseline;
+  line-height: inherit;
+}
+
+/* flex item 会吞掉 JSX 文本两端的普通空格；用真实布局间距给 Context 的
+   数值、上界和占比断句，避免它们视觉上粘成一串。 */
+
+.thread-card-context-usage {
+  column-gap: 3px;
+}
+
+.thread-card-rolling-character {
+  display: inline-block;
+}
+
+.thread-card-rolling-digit {
+  position: relative;
+  display: inline-grid;
+  height: 1em;
+  overflow: hidden;
+  line-height: 1;
+  vertical-align: -.06em;
+}
+
+.thread-card-rolling-digit-old,
+.thread-card-rolling-digit-new {
+  grid-area: 1 / 1;
+  display: inline-block;
+  will-change: transform;
+}
+
+.thread-card-rolling-digit[data-roll-direction='up'] .thread-card-rolling-digit-old {
+  animation: thread-card-digit-out-up 480ms cubic-bezier(.4, 0, .2, 1) both;
+}
+
+.thread-card-rolling-digit[data-roll-direction='up'] .thread-card-rolling-digit-new {
+  animation: thread-card-digit-in-up 480ms cubic-bezier(.4, 0, .2, 1) both;
+}
+
+.thread-card-rolling-digit[data-roll-direction='down'] .thread-card-rolling-digit-old {
+  animation: thread-card-digit-out-down 480ms cubic-bezier(.4, 0, .2, 1) both;
+}
+
+.thread-card-rolling-digit[data-roll-direction='down'] .thread-card-rolling-digit-new {
+  animation: thread-card-digit-in-down 480ms cubic-bezier(.4, 0, .2, 1) both;
+}
+
+.thread-overview-excerpt .markdown-body :is(p, ul, ol, blockquote, pre, table) {
+  margin: 0 0 6px;
+}
+
+.thread-overview-excerpt .markdown-body :is(h1, h2, h3, h4) {
+  margin: 0 0 6px;
+  color: light-dark(rgba(16, 17, 15, .72), rgba(224, 229, 218, 0.72));
+  font-size: 1em;
+  line-height: inherit;
+}
+
+.thread-overview-excerpt .markdown-body :is(ul, ol) {
+  padding-left: 17px;
+}
+
+.thread-overview-excerpt .markdown-body li + li {
+  margin-top: 1px;
+}
+
+/* 卡片摘要里的 code 是排版强调，不是可点击 token：取消正文 renderer 的胶囊外观，
+   只靠等宽字形、轻微字重和颜色区分，并允许长路径随摘要自然折行。 */
+
+.thread-overview-excerpt .markdown-body :not(pre) > code {
+  display: inline;
+  max-width: none;
+  padding: 0 .04em;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: light-dark(rgba(16, 17, 15, .68), rgba(224, 229, 218, 0.68));
+  font-size: .94em;
+  font-weight: 560;
+  line-height: inherit;
+  overflow-wrap: anywhere;
+  vertical-align: baseline;
+  white-space: break-spaces;
+}
+
+.thread-overview-excerpt .markdown-body blockquote {
+  padding-left: 8px;
+}
+
+.thread-overview-excerpt .markdown-body pre {
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: .86em;
+}
+
+.cli-settings {
+  display: grid;
+  gap: 8px;
+}
+
+.cli-setting {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 30px minmax(0, 145px) minmax(0, 1fr) 26px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: light-dark(white, #2c2d29);
+}
+
+.cli-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: light-dark(#f3f1eb, #30322b);
+  font-size: 11px;
+}
+
+.cli-mark .provider-logo {
+  width: 16px;
+  height: 16px;
+}
+
+.cli-setting-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cli-setting-copy strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cli-setting-copy small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 9.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cli-setting-copy small.available {
+  color: var(--accent);
+}
+
+.cli-setting-copy small.missing {
+  color: var(--danger);
+}
+
+.cli-setting-refresh {
+  width: 26px;
+  height: 26px;
+}
+
+.cli-setting-group > .settings-error {
+  margin: 6px 0 0;
+}
+
+.cli-setting input {
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: 0;
+  background: light-dark(white, #2c2d29);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  transition: border-color var(--dur-instant) var(--ease-out), box-shadow var(--dur-instant) var(--ease-out);
+}
+
+.cli-setting input:hover {
+  border-color: light-dark(#cbc9c1, #56594f);
+}
+
+.cli-setting input:focus {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.cli-setting input::placeholder {
+  color: light-dark(#b4b3ac, #999c90);
+}
+
+.settings-error {
+  margin-top: 14px;
+  padding: 9px 11px;
+  border-left: 2px solid var(--danger);
+  border-radius: 0 7px 7px 0;
+  background: color-mix(in srgb, var(--danger) 6%, light-dark(white, #2c2d29));
+  color: var(--danger);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.message-attachments span {
+  display: flex;
+  max-width: 240px;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: light-dark(rgba(255, 255, 255, 0.72), rgba(44, 47, 51, 0.72));
+  color: var(--muted);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-artifact {
+  margin: 0 0 11px;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: light-dark(rgba(255, 255, 255, 0.42), rgba(44, 47, 51, 0.42));
+}
+
+.artifact-summary {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.artifact-summary strong {
+  flex: 1;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.artifact-body {
+  padding: 2px 11px 11px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.artifact-note {
+  margin: 9px 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.artifact-pre {
+  max-height: 300px;
+  margin: 9px 0 0;
+  overflow: auto;
+  color: light-dark(#5e6059, #b1b4a8);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.diff-pre {
+  color: light-dark(#373934, #dadcd2);
+  white-space: pre;
+}
+
+.plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 9px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.plan-list li.completed span {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.plan-list li.inProgress {
+  color: var(--ink);
+}
+
+.plan-list .status-spinner {
+  width: 13px;
+  height: 13px;
+}
+
+.message-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: light-dark(#f0eee8, #30322b);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.interaction-card {
+  margin: 9px 0 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-soft) 35%, light-dark(white, #2c2d29));
+  box-shadow: 0 4px 16px rgba(31, 88, 72, 0.05);
+}
+
+.interaction-card.resolved {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-color: var(--line-soft);
+  background: #f1f0eb;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.interaction-card > strong {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 11.5px;
+}
+
+.interaction-card > pre {
+  max-height: 190px;
+  margin: 6px 0 9px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 6px;
+  background: light-dark(rgba(255, 255, 255, 0.66), rgba(44, 47, 51, 0.66));
+  color: var(--muted);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 9.5px;
+  white-space: pre-wrap;
+}
+
+.interaction-card textarea {
+  width: 100%;
+  min-height: 31px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: 0;
+  background: light-dark(white, #2c2d29);
+  color: var(--ink);
+  font-size: 10.5px;
+}
+
+.interaction-card textarea {
+  resize: vertical;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+}
+
+.interaction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.interaction-actions button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+  border-radius: 7px;
+  background: var(--accent);
+  color: light-dark(white, #20211f);
+  cursor: pointer;
+  font-size: 9.5px;
+  font-weight: 580;
+}
+
+.interaction-actions button.subtle {
+  background: light-dark(white, #2c2d29);
+  color: var(--muted);
+}
+
+.interaction-actions button.danger {
+  border-color: color-mix(in srgb, var(--danger) 25%, var(--line));
+  background: light-dark(white, #2c2d29);
+  color: var(--danger);
+}
+
+.interaction-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.interaction-error {
+  margin-top: 7px;
+  color: var(--danger);
+  font-size: 9.5px;
+}
+
+.spin {
+  animation: spin 800ms linear infinite;
+}
+
+@media (max-width: 920px) {
+  .message-column {
+    width: calc(100% - 44px);
+  }
+
+  .cli-setting {
+    grid-template-columns: 30px minmax(0, 110px) minmax(0, 1fr);
+  }
+
+}
+
+@media (max-width: 620px) {
+
+  .cli-setting {
+    grid-template-columns: 34px minmax(0, 1fr) 26px;
+  }
+
+  .cli-setting-refresh {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .cli-setting input {
+    grid-column: 1 / -1;
+  }
+
+  .thread-state > span {
+    display: none;
+  }
+}
+
+@keyframes thread-card-plan-flow {
+  from { background-position-y: 0; }
+  to { background-position-y: 6px; }
+}
+
+@keyframes thread-card-derived-scan {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(294%); }
+}
+
+@keyframes interaction-question-input-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes interaction-question-check-in {
+  from { opacity: 0; transform: translateY(-78%) rotate(-45deg) scale(.5); }
+  to { opacity: 1; transform: translateY(-78%) rotate(-45deg) scale(1); }
+}
+
+@keyframes thread-card-attention-cta {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--thread-action-accent) 55%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--thread-action-accent) 0%, transparent); }
+}
+
+@keyframes provider-logo-tap {
+  0%, 38%, 100% { transform: translateY(0) scale(1); }
+  47%, 67% { transform: translateY(3px) scale(1.08, .82); }
+  55%, 75% { transform: translateY(-1.5px) scale(.96, 1.08); }
+  84% { transform: translateY(0) scale(1); }
+}
+
+@keyframes thread-card-digit-out-up {
+  to { transform: translateY(-100%); }
+}
+
+@keyframes thread-card-digit-in-up {
+  from { transform: translateY(100%); }
+}
+
+@keyframes thread-card-digit-out-down {
+  to { transform: translateY(100%); }
+}
+
+@keyframes thread-card-digit-in-down {
+  from { transform: translateY(-100%); }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes thread-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.icon-button {
+  -webkit-app-region: no-drag;
+  border: 0;
+  cursor: pointer;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  transition: background-color var(--dur-instant) var(--ease-out), color var(--dur-instant) var(--ease-out);
+}
+
+.icon-button:hover {
+  background: light-dark(rgba(32, 33, 30, 0.07), rgba(224, 229, 218, 0.07));
+  color: var(--ink);
+}
+
+.icon-button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+
+/* Answer controls: quiet document-style rows and restrained interaction states. */
+.thread-card-layout .harness-overview-content .thread-card-intervention:has(.interaction-question) {
+  gap: 12px;
+}
+.thread-card-layout .harness-overview-content .interaction-question { gap: 8px; }
+.thread-card-layout .harness-overview-content .interaction-question-prompt { margin-bottom: 2px; }
+.thread-card-layout .harness-overview-content .interaction-question-prompt strong {
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+.thread-card-layout .harness-overview-content .interaction-question-options { gap: 2px; }
+.thread-card-layout .harness-overview-content .interaction-question-options button {
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.thread-card-layout .harness-overview-content .interaction-question-option-text { gap: 2px; }
+.thread-card-layout .harness-overview-content .interaction-question-option-text b { font-weight: 500; }
+.thread-card-layout .harness-overview-content .interaction-question-options button small {
+  -webkit-line-clamp: 2;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+.thread-card-layout .harness-overview-content .interaction-question-options button::before {
+  margin-top: 2px;
+  width: 14px;
+  height: 14px;
+  border-color: var(--faint);
+}
+.thread-card-layout .harness-overview-content .interaction-question-options button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border-color: transparent;
+}
+.thread-card-layout .harness-overview-content .interaction-question-options button.active {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border-color: transparent;
+  box-shadow: none;
+}
+.thread-card-layout .harness-overview-content .interaction-question-options button.active::before {
+  background: var(--ink);
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 3px var(--surface-strong);
+}
+.thread-card-layout .harness-overview-content .interaction-question-options[data-select='multiple'] button.active::before {
+  box-shadow: none;
+}
+.thread-card-layout .harness-overview-content .interaction-question-options[data-select='multiple'] button.active::after {
+  top: 17px;
+  left: 18px;
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention .interaction-question-options button.interaction-question-other {
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  font-size: 12px;
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention .interaction-question-options button.interaction-question-other.active {
+  border-color: var(--line);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention .interaction-question-options button.interaction-question-other::before {
+  border-style: solid;
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention .interaction-question-input {
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: none;
+  border-color: var(--line);
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention .interaction-question-input::placeholder { color: var(--faint); }
+.thread-card-layout .harness-overview-content .thread-card-intervention .interaction-question-input:focus-visible {
+  border-color: var(--ink);
+  outline: 2px solid color-mix(in srgb, var(--ink) 12%, transparent);
+  outline-offset: 1px;
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention:has(.interaction-question) .thread-card-intervention-actions button {
+  min-height: 30px;
+  padding: 5px 12px;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--surface-strong);
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention:has(.interaction-question) .thread-card-intervention-actions button:disabled {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border-color: var(--line);
+  color: var(--faint);
+  opacity: 1;
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention .interaction-question:has(.interaction-question-input) .interaction-question-other.active::before {
+  border-color: var(--ink);
+  background: var(--ink);
+  box-shadow: inset 0 0 0 3px var(--surface-strong);
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention:has(.interaction-question) .thread-card-intervention-actions button::before,
+.thread-card-layout .harness-overview-content .thread-card-intervention:has(.interaction-question) .thread-card-intervention-actions button::after { content: none; }
+.thread-card-layout .harness-overview-content .thread-card-intervention:has(.interaction-question) .thread-card-intervention-actions button { animation: none; }
+
+
+.thread-card-layout .harness-overview-content .interaction-question-prompt:has(small) strong {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.thread-card-layout .harness-overview-content .interaction-question-prompt small {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention:has(.interaction-question) .thread-card-intervention-actions {
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 0;
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention:has(.interaction-question) .thread-card-intervention-actions button:not(:first-child) {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+
+.thread-card-context-usage[data-usage-suffix] > .thread-card-rolling-number { color: color-mix(in srgb, var(--ink) 78%, transparent); font-weight: 550; }
+.thread-card-context-usage[data-usage-suffix] > .thread-card-usage-suffix { color: var(--muted); }
+
+/* Keep the custom answer editor in the same row as its trigger. */
+.thread-card-layout .harness-overview-content .interaction-question-other-slot {
+  display: grid;
+  height: 36px;
+  min-width: 0;
+}
+.thread-card-layout .harness-overview-content .thread-card-intervention .interaction-question-other-slot > :is(button, input) {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  margin: 0;
+}
+
+.thread-card-identity-tool + .thread-card-identity-tool {
+  margin-top: 8px;
+}

@@ -1,0 +1,49 @@
+/* Live pages always keep their original dimensions and transforms. Only the
+   bounded Canvas paints camera motion; an atomic state update hands it back. */
+.pg-stage .app-shell { isolation: isolate; }
+
+.pg-overview-layer,
+.pg-session-layer,
+.pg-dock-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.pg-overview-layer {
+  z-index: 1;
+  background: var(--paper, #faf9f6);
+}
+
+.pg-dock-layer { z-index: 2; pointer-events: none; }
+
+.pg-session-layer {
+  z-index: 3;
+  background: var(--paper, #faf9f6);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pg-session-layer > .workspace { height: 100%; }
+
+.pg-stage .workspace,
+.pg-stage .thread-overview-item.transition-target { view-transition-name: none; }
+
+.pg-stage[data-camera-inside] .pg-session-layer { opacity: 1; pointer-events: auto; }
+.pg-stage[data-camera-inside] .pg-overview-layer,
+.pg-stage[data-camera-inside] .pg-dock-layer,
+.pg-stage[data-camera-active] .pg-overview-layer,
+.pg-stage[data-camera-active] .pg-dock-layer,
+.pg-stage[data-camera-active] .pg-session-layer { opacity: 0; pointer-events: none; }
+
+.pg-camera-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 30;
+  contain: strict;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pg-stage[data-camera-active] .pg-camera-canvas { opacity: 1; }

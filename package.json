@@ -1,0 +1,71 @@
+{
+  "name": "openagent-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenAgent desktop workspace.",
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron-winstaller",
+      "esbuild"
+    ],
+    "patchedDependencies": {
+      "llm-mock-server@1.1.0": "patches/llm-mock-server@1.1.0.patch"
+    }
+  },
+  "scripts": {
+    "postinstall": "node apps/desktop/node_modules/electron/install.js",
+    "prepare": "husky",
+    "build:packages": "node scripts/build-packages.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:electron": "node scripts/dev.mjs --electron",
+    "dev:main": "node scripts/dev-main.mjs",
+    "dev:app:install": "node scripts/install-dev-app.mjs",
+    "dev:app:open": "node scripts/open-dev-app.mjs",
+    "dev:desktop": "pnpm --dir apps/desktop dev",
+    "playground:thread": "pnpm --dir apps/desktop playground:thread",
+    "playground:thread:build": "pnpm --dir apps/desktop playground:thread:build",
+    "playground:thread:check": "pnpm --dir apps/desktop playground:thread:check",
+    "lab:bart": "pnpm --dir apps/desktop lab:bart",
+    "lab:bart:build": "pnpm --dir apps/desktop lab:bart:build",
+    "build": "pnpm --dir apps/desktop build",
+    "build:desktop": "pnpm run build",
+    "typecheck": "pnpm build:packages && pnpm -r typecheck",
+    "lint": "oxlint --deny-warnings --report-unused-disable-directives",
+    "verify": "node scripts/verify.mjs",
+    "test": "pnpm test:dev-scripts && pnpm test:build-cache && pnpm --dir apps/desktop generate:registry && node scripts/run-recursive-tests.mjs",
+    "test:dev-scripts": "node --test scripts/tests/*.test.mjs && python3 -B -m unittest discover -s scripts/tests -p \"test_*.py\"",
+    "test:desktop": "pnpm --dir apps/desktop test",
+    "test:bart-headless": "pnpm --dir apps/desktop test:bart-headless",
+    "test:bart-headless:pbt": "pnpm --dir apps/desktop test:bart-headless:pbt",
+    "test:bart-headless:pbt:explore": "pnpm --dir apps/desktop test:bart-headless:pbt:explore",
+    "test:bart-headless:pbt:replay": "pnpm --dir apps/desktop test:bart-headless:pbt:replay",
+    "test:harness-health": "pnpm --dir apps/desktop test:harness-health",
+    "perf:bench": "pnpm --dir apps/desktop perf:bench",
+    "pack": "pnpm --dir apps/desktop pack",
+    "dist": "pnpm --dir apps/desktop dist",
+    "lab:thread": "pnpm --dir apps/desktop lab:thread",
+    "lab:thread:check": "pnpm --dir apps/desktop lab:thread:check",
+    "lab:thread:build": "pnpm --dir apps/desktop lab:thread:build",
+    "test:properties": "node scripts/test-properties.mjs",
+    "test:properties:explore": "node scripts/test-properties.mjs --explore",
+    "test:properties:replay": "node scripts/test-properties.mjs --replay",
+    "test:layout": "pnpm --dir apps/desktop test:layout",
+    "playground:overview": "pnpm --dir apps/desktop playground:overview",
+    "playground:overview:build": "pnpm --dir apps/desktop playground:overview:build",
+    "playground:overview:check": "pnpm --dir apps/desktop playground:overview:check",
+    "playground:bart-transition": "pnpm --dir apps/desktop playground:bart-transition",
+    "playground:bart-transition:build": "pnpm --dir apps/desktop playground:bart-transition:build",
+    "playground:bart-transition:check": "pnpm --dir apps/desktop playground:bart-transition:check",
+    "test:build-cache": "node --test scripts/tests/cached-build.integration.mjs"
+  },
+  "devDependencies": {
+    "husky": "9.1.7",
+    "oxlint": "1.82.0",
+    "turbo": "2.10.12",
+    "yaml": "2.9.0"
+  }
+}

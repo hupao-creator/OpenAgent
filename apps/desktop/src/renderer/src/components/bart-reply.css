@@ -1,0 +1,50 @@
+/* Static unread badge, scaled with the shared 400x310 Bart stage. */
+.bart-reply-stage {
+  z-index: 4;
+}
+
+.bart-reply-target {
+  position: absolute;
+  right: calc(139 * var(--bart-role-unit));
+  top: calc(105 * var(--bart-role-unit));
+  width: calc(26 * var(--bart-role-unit));
+  height: calc(26 * var(--bart-role-unit));
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #ff3b30;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.bart-reply-excerpt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.bart-reply-count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  font-size: calc(17 * var(--bart-role-unit));
+  font-weight: 400;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  opacity: 1;
+}
+
+/* Optically centre the numeral's ink accounting for side bearing and baseline. */
+.bart-reply-count > span {
+  display: block;
+  transform: translate(-.5px, -1px);
+}

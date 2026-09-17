@@ -1,0 +1,173 @@
+/* Playground 自己的外壳与控制台；pg- 前缀，不与生产样式冲突。 */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+.pg-stage {
+  position: fixed;
+  inset: 0;
+}
+
+.pg-panel {
+  position: fixed;
+  z-index: 9999;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  width: 292px;
+  max-height: calc(100% - 28px);
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid light-dark(rgba(16, 17, 15, 0.14), rgba(224, 229, 218, 0.16));
+  border-radius: 16px;
+  background: light-dark(rgba(250, 249, 244, 0.94), rgba(30, 31, 27, 0.94));
+  box-shadow: 0 18px 44px light-dark(rgba(16, 17, 15, 0.18), rgba(0, 0, 0, 0.4));
+  backdrop-filter: blur(18px);
+  color: light-dark(#3c3d37, #e4e6df);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pg-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pg-panel-head strong {
+  display: block;
+  font-size: 17px;
+  letter-spacing: 0.01em;
+}
+
+.pg-flight {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: light-dark(#71736b, #9a9c93);
+  font-size: 10.5px;
+}
+
+.pg-flight::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentcolor;
+  content: '';
+}
+
+.pg-flight[data-on] {
+  color: light-dark(#b06f16, #e2a54c);
+}
+
+.pg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pg-field > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.pg-field output {
+  color: light-dark(#71736b, #9a9c93);
+  font-variant-numeric: tabular-nums;
+}
+
+.pg-field input[type='range'],
+.pg-field select {
+  width: 100%;
+  margin: 0;
+  font: inherit;
+}
+
+.pg-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.pg-actions button {
+  padding: 7px 0;
+  border: 1px solid light-dark(rgba(16, 17, 15, 0.18), rgba(224, 229, 218, 0.2));
+  border-radius: 9px;
+  background: light-dark(#fff, rgba(224, 229, 218, 0.08));
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.pg-actions button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.pg-actions button:not(:disabled):active {
+  transform: translateY(0.5px);
+}
+
+.pg-loop {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: light-dark(#55564f, #b9bbaf);
+  cursor: pointer;
+  user-select: none;
+}
+
+.pg-notice {
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: light-dark(rgba(16, 17, 15, 0.05), rgba(224, 229, 218, 0.07));
+  color: light-dark(#55564f, #b9bbaf);
+  font-size: 10.5px;
+  overflow-wrap: anywhere;
+}
+
+.pg-hint {
+  color: light-dark(#8b8d84, #85877e);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.pg-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: light-dark(#7c8078, #a2a69b);
+}
+
+.pg-locked { margin-left: 7px; font-size: 10px; font-weight: 450; color: #3f8170; }
+.pg-reaction { margin: 0; font-weight: 600; }
+.pg-passage { margin: 0; min-height: 36px; color: light-dark(#6d7167, #b1b7a9); font-size: 11px; }
+.pg-timeline { padding-top: 12px; border-top: 1px solid light-dark(#dddfd5, #484c40); }
+.pg-field .pg-beats { font-weight: 400; color: light-dark(#959b8c, #919b84); }
+.pg-beats small { font-size: 9px; }
+.pg-transport { display: flex; justify-content: space-between; }
+.pg-transport button { border: 0; padding: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.pg-transport button:disabled { opacity: 0.35; cursor: default; }
+.pg-options { display: flex; justify-content: space-between; }
+.pg-panel input { accent-color: #3f8170; }
+
+.pg-collapse { border: 0; padding: 5px 0 5px 10px; background: none; color: inherit; opacity: 0.6; font: inherit; font-size: 10px; cursor: pointer; }
+.pg-panel[data-collapsed] { width: 178px; gap: 8px; }
+.pg-panel[data-collapsed] .pg-panel-head strong { font-size: 13px; }
+.pg-panel[data-collapsed] > :not(.pg-panel-head, .pg-flight) { display: none; }

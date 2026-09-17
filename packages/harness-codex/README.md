@@ -1,0 +1,17 @@
+# Codex Harness
+
+Main owns native Codex configuration, app-server I/O and each Thread Handle's transports. Shared code owns the settings DTOs and pure `sessionState` projection; Renderer reads that projection and presents the native settings catalog. Core never interprets Codex session identities, configuration fingerprints or history seeds.
+
+`settings.describe` uses the same live model catalog and option constants as the GUI. `threadSettings` supplies generic defaults for ordinary Threads and Core compositions, including Bart. Explicit requests pass through `resolveThreadSettings`; model changes clear inherited effort and service tier, and native capability validation is independent of evaluation advice. The executable can be selected at creation and is pinned with the native session.
+
+Ordinary `openThread` accepts instructions, Thread context, transcript seeds and custom tools. `send.contextEntries` also applies to follow-up input. `extend` registers dynamic tools alongside native tools. `exclusive`, including an empty tool set, uses an isolated native home, a live catalog with native tools disabled, and native configuration overrides that disable built-in tools, MCP servers, skills and plugins. The isolated home carries the source model/provider and Thread preferences; explicit Thread settings still apply normally. The Handle releases its app-server, pending tool calls and copied authentication/configuration on disposal, retaining native rollouts for recovery.
+
+Tool isolation does not change native permission or question handling. Ordinary Threads publish native interactions and continue through `respond`. Auxiliary metadata prompts and reads have no interactive caller and report an error if native execution requires user input.
+
+Codex 0.153.4 accepts `dynamicTools` only on `thread/start`; neither `thread/resume` nor `thread/fork` accepts replacement tool definitions. Matching tool configurations therefore resume the same native session. When an idle Thread's tool definitions or mode change, the owning plugin reads all pages of `thread/turns/list` with `itemsView: full` in ascending order, then starts a new native session with the new tools. The public Thread and its execution history remain unchanged. The plugin switches its primary native identity only after the new session has been created.
+
+This is **full-history context replay**, not native role or tool-event replay. Complete available native Thread items are encoded as untrusted JSON context. The plugin retains the earlier replay seed across future resumes and repeated rotations because native turn history omits developer instructions. Active executions or background work block rotation. Unavailable/incomplete history or a replay exceeding 8 MiB fails explicitly before replacing the existing session; history is never truncated to satisfy that limit. If native model context limits reject the full replay, the execution reports the native failure.
+
+Evaluation and usage telemetry are independent `bartContextEntries` contributors. Plugin Kit owns evaluation acquisition, caching and matching; evaluation results never restrict native configuration choices.
+
+Behavior coverage lives in this package's `tests/` directory (`codex-thread-injection.test.ts`, `codex-app-server-transport.test.ts`, `codex-main-regressions.test.ts` and the settings/lifecycle suites); the interactions, managed-worktree and settings-resolution suites remain under `apps/desktop/tests` because they also exercise Desktop-owned code.

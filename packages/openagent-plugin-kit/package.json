@@ -1,0 +1,103 @@
+{
+  "name": "@openagent/plugin-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Provider-neutral core facilities shared by OpenAgent Harness plugins and the desktop host.",
+  "type": "module",
+  "exports": {
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "default": "./dist/shared/index.js"
+    },
+    "./main": {
+      "types": "./dist/main/index.d.ts",
+      "default": "./dist/main/index.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer/index.d.ts",
+      "default": "./dist/renderer/index.js"
+    },
+    "./package.json": "./package.json",
+    "./renderer/styles.css": "./dist/renderer/components.css",
+    "./bart": {
+      "types": "./dist/bart/index.d.ts",
+      "default": "./dist/bart/index.js"
+    },
+    "./bart/main": {
+      "types": "./dist/bart/main.d.ts",
+      "default": "./dist/bart/main.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node -e \"fs.cpSync('src/renderer/components.css', 'dist/renderer/components.css'); fs.cpSync('src/renderer/components/settings-form/settings-form.css', 'dist/renderer/components/settings-form/settings-form.css'); fs.cpSync('src/renderer/harness-card/thread-detail.css', 'dist/renderer/harness-card/thread-detail.css')\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.3.0",
+    "@openagent/contracts": "workspace:*",
+    "mermaid": "11.17.2"
+  },
+  "peerDependencies": {
+    "html-url-attributes": "^3.0.1",
+    "lucide-react": "^0.544.0",
+    "property-information": "^7.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "unified": "^11.0.5"
+  },
+  "peerDependenciesMeta": {
+    "html-url-attributes": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "property-information": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "remark-gfm": {
+      "optional": true
+    },
+    "remark-parse": {
+      "optional": true
+    },
+    "remark-rehype": {
+      "optional": true
+    },
+    "unified": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/hast": "^3.0.4",
+    "@types/mdast": "^4.0.4",
+    "@types/node": "^24.3.1",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "html-url-attributes": "^3.0.1",
+    "lucide-react": "^0.544.0",
+    "property-information": "^7.1.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "typescript": "^7.0.2",
+    "unified": "^11.0.5"
+  }
+}

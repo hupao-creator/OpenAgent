@@ -1,0 +1,514 @@
+{
+  "faults": [
+    {
+      "family": "terminal",
+      "file": "apps/desktop/src/main/services/thread-state-store.ts",
+      "replace": "return status !== 'completed' && status !== 'failed' && status !== 'interrupted'",
+      "with": "return true",
+      "detection": {
+        "property": "storage scoped commands",
+        "seed": 97,
+        "path": "0:0:0:0:0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 5,
+        "counterexample": [
+          [
+            {
+              "threadId": "bart",
+              "value": 0,
+              "status": "running",
+              "action": "update"
+            }
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "storage scoped commands",
+        "seed": 97,
+        "path": "0:0:0:0:0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          [
+            {
+              "threadId": "bart",
+              "value": 0,
+              "status": "running",
+              "action": "update"
+            }
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "logs": {
+        "fault-terminal.log": "5967abf474676401b56f8160451f7848beb23bcb1476f7e885e113f372a6d84f",
+        "replay-terminal.log": "99a051342791d4d1f0449b4511ee30149b0f8673d090d6e6c2085ae9be9a3e73"
+      }
+    },
+    {
+      "family": "fence",
+      "file": "apps/desktop/src/main/services/sqlite-state-persistence.ts",
+      "replace": "const accepted = parts.filter(part => (this.versions.get(part.key) ?? 0) < version)",
+      "with": "const accepted = parts",
+      "detection": {
+        "property": "storage preparation order",
+        "seed": 97,
+        "path": "0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 1,
+        "counterexample": [
+          0,
+          [
+            1,
+            2,
+            0,
+            3
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "storage preparation order",
+        "seed": 97,
+        "path": "0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          0,
+          [
+            1,
+            2,
+            0,
+            3
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "logs": {
+        "fault-fence.log": "1acee5e6b145bb9fc2f920122d023b42b0c4b5385ef49fa8222d6683e53429bb",
+        "replay-fence.log": "2e4837f168ef81eedbd2ca8d00e1dce93ac20a47c88b7d6906894010a4510d4f"
+      }
+    },
+    {
+      "family": "aba",
+      "file": "apps/desktop/src/main/services/sqlite-state-persistence.ts",
+      "replace": "(samePart(key, this.values.get(key), value) && !this.pendingScopes.has(key))",
+      "with": "samePart(key, this.values.get(key), value)",
+      "detection": {
+        "property": "storage preparation order",
+        "seed": 97,
+        "path": "0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 1,
+        "counterexample": [
+          0,
+          [
+            1,
+            2,
+            0,
+            3
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "storage preparation order",
+        "seed": 97,
+        "path": "0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          0,
+          [
+            1,
+            2,
+            0,
+            3
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "logs": {
+        "fault-aba.log": "ce9b6596208d4a4758e89b2aab4a0ea5a8a02e6dc432a12e1c8e39663ec1ff0a",
+        "replay-aba.log": "6c7101ad09d88c844b2b935b76ded36db0602711c37d622d68068f88ee6d497e"
+      }
+    },
+    {
+      "family": "scope",
+      "file": "apps/desktop/src/main/services/thread-state-store.ts",
+      "replace": "const next = reduceOpenAgentState(current, snapshot)\n        this.persistence.adoptPublishedState",
+      "with": "const next = prepared.next\n        this.persistence.adoptPublishedState",
+      "detection": {
+        "property": "storage unrelated scopes",
+        "seed": 97,
+        "path": "0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 1,
+        "counterexample": [
+          0,
+          "running"
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "storage unrelated scopes",
+        "seed": 97,
+        "path": "0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          0,
+          "running"
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "logs": {
+        "fault-scope.log": "e4e2957002518ac893b2fe30b1e6194d2cf0bcd77142733abc39e8d72739cf63",
+        "replay-scope.log": "0f8eb505c78ab567da4f3e055fa2699f06641d6e2630a63a0f748121d8b6143f"
+      }
+    },
+    {
+      "family": "preparation-exit",
+      "file": "apps/desktop/src/main/services/sqlite-state-persistence.ts",
+      "replace": "this.onFailure?.(this.failed)",
+      "with": "/* temporary fault: fail to poison owner */",
+      "detection": {
+        "property": "storage recovery at preparation-exit",
+        "seed": 97,
+        "path": "0:0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 2,
+        "counterexample": [
+          0,
+          []
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "storage recovery at preparation-exit",
+        "seed": 97,
+        "path": "0:0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          0,
+          []
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "logs": {
+        "fault-preparation-exit.log": "0c3dc288183c5be2e67f9d473cb48ec29485944ac2dc0846ab5f4fcf43fa0403",
+        "replay-preparation-exit.log": "2c48e283f08e5da12d602b76d06a076656151e7065af9ef90a54c12cb0954b86"
+      }
+    },
+    {
+      "family": "rollback",
+      "file": "apps/desktop/src/main/services/sqlite-state-worker.cjs",
+      "replace": "} catch (error) { connection.exec('ROLLBACK'); throw error }\n  if (fault === 'after-commit')",
+      "with": "} catch (error) { connection.exec('COMMIT'); throw error }\n  if (fault === 'after-commit')",
+      "detection": {
+        "property": "storage recovery at statement",
+        "seed": 97,
+        "path": "0:0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 2,
+        "counterexample": [
+          0,
+          []
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "replay": {
+        "property": "storage recovery at statement",
+        "seed": 97,
+        "path": "0:0:0",
+        "numRuns": 10,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          0,
+          []
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "generated command/release order in counterexample; see storage-property-testing.md",
+        "replayPath": null
+      },
+      "logs": {
+        "fault-rollback.log": "7186985a1ee45492e66c223ce4d17baf2739a5ccf2cccefbc5350fd67bda3122",
+        "replay-rollback.log": "0bdcbd4c55d779b3a81b6a4874e421ce4224278096a1373e03c1c557cc92ea40"
+      }
+    }
+  ],
+  "cost": {
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "node": "v22.22.2",
+    "runs": [
+      {
+        "seed": 97,
+        "candidate": false,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/thread-state-store.test.ts",
+          "tests/sqlite-state-persistence.test.ts",
+          "--maxWorkers=1"
+        ],
+        "seconds": 10.958,
+        "log": "cost-baseline-97.log",
+        "sha256": "4d99f23d974eb12187f60de0fb90420dc2fd3fa5e8ec89ef571841a46b55ed78"
+      },
+      {
+        "seed": 97,
+        "candidate": true,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/thread-state-store.test.ts",
+          "tests/sqlite-state-persistence.test.ts",
+          "--maxWorkers=1",
+          "tests/property/storage.property.test.ts"
+        ],
+        "seconds": 20.103,
+        "log": "cost-candidate-97.log",
+        "sha256": "0762a5e05b78d53ae7690ece1f6b917cab1c027e7e00f9a482defca6e44e04ef"
+      },
+      {
+        "seed": 98,
+        "candidate": false,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/thread-state-store.test.ts",
+          "tests/sqlite-state-persistence.test.ts",
+          "--maxWorkers=1"
+        ],
+        "seconds": 7.188,
+        "log": "cost-baseline-98.log",
+        "sha256": "4a082ead3003e1ac79378b9f7c8a14dc8bb57086fc115ff1026adcb75f1fe700"
+      },
+      {
+        "seed": 98,
+        "candidate": true,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/thread-state-store.test.ts",
+          "tests/sqlite-state-persistence.test.ts",
+          "--maxWorkers=1",
+          "tests/property/storage.property.test.ts"
+        ],
+        "seconds": 20.59,
+        "log": "cost-candidate-98.log",
+        "sha256": "0691097e7e739bfdbe938e0f9fc2e7bee29563fea9ccb7e6cc1850dac6fa3de9"
+      },
+      {
+        "seed": 99,
+        "candidate": false,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/thread-state-store.test.ts",
+          "tests/sqlite-state-persistence.test.ts",
+          "--maxWorkers=1"
+        ],
+        "seconds": 6.75,
+        "log": "cost-baseline-99.log",
+        "sha256": "8dd60649478d308415b7f16751c04c9a38172abd7a16fafac9feb63bdfccbb34"
+      },
+      {
+        "seed": 99,
+        "candidate": true,
+        "command": [
+          "pnpm",
+          "--dir",
+          "apps/desktop",
+          "exec",
+          "vitest",
+          "run",
+          "tests/thread-state-store.test.ts",
+          "tests/sqlite-state-persistence.test.ts",
+          "--maxWorkers=1",
+          "tests/property/storage.property.test.ts"
+        ],
+        "seconds": 17.415,
+        "log": "cost-candidate-99.log",
+        "sha256": "2b5f24a661933adeae379316612a860611068460acbe994f074c43cc44c7d2e0"
+      }
+    ],
+    "medianAddedSeconds": 12.915,
+    "limits": "Paired sequential runs after package generation, one Vitest worker, same production code. Other independent desktop tasks were active; these are local wall-time observations, not isolated CPU benchmarks or full-verifier costs.",
+    "note": "Measured before the final ABA fixture correction to reuse the loaded object; final frozen-candidate verification is published separately on the PR."
+  },
+  "baseSha": "1cde0b1d10fce517ed34f565640bbc63c10e03d8",
+  "sourceHashes": {
+    "pnpm-lock.yaml": "586a82485666acb5e6c1a598bfc2b3549309f692ac5a02379c3cade0da53d037",
+    "apps/desktop/tests/property/storage.property.test.ts": "e152d2cf1fc8297792b217a781cd10e2c21d46380540b86ba38b5059817704f5",
+    "apps/desktop/tests/property/check.ts": "f05725bf994725b8f5e8bdc02dd76a7ee59659cc17f291aa72257b0585ff0285",
+    "apps/desktop/src/main/services/thread-state-store.ts": "3aac6f9d0ff0fac9aa9925bf517687bbbaf06541c36c586c9734fda81e232bc6",
+    "apps/desktop/src/main/services/sqlite-state-persistence.ts": "d6295c3b1f54ff47d654ffe72da56b448edafa8374dfdd54dfa7bb85ecac6c5f",
+    "apps/desktop/src/main/services/sqlite-state-worker.cjs": "79e874b8cbf12f9c02fcebbc1ac86f03f9be1086aff7d97938700c92f65bb903"
+  },
+  "exploration": {
+    "command": "NODE_NO_WARNINGS=1 pnpm test:properties:explore -- -t storage",
+    "samples": 540,
+    "seed": "unfixed",
+    "seconds": 145.88,
+    "logSha256": "75bf2c417c7e023d4fc28f7e3ac2dcfb9e88687e2a7979046aefac82495e88d4",
+    "note": "Ran before adding the mandatory old-revision prefix and closing the first writer before the ABA subscenario. Final stronger properties passed three default seeded cost runs; frozen candidate full verification follows."
+  },
+  "native": {
+    "command": "pnpm --dir apps/desktop run pack:local:mac; OPENAGENT_SQLITE_EVIDENCE_ROOT=$PWD/.agents/local/sqlite-native-inflight node apps/desktop/tests/sqlite-state-runtime.electron.mjs",
+    "manifest": {
+      "startedAt": "2026-09-09T03:43:03.948Z",
+      "main": "/Users/felixwang/.codex/worktrees/7a5d/OpenAgent/apps/desktop/out/main/index.js",
+      "mainSha256": "40cba0eab29251b23b89f3c6e950849e240ec1b125147a475a46abb2968a764f",
+      "packaged": "/Users/felixwang/.codex/worktrees/7a5d/OpenAgent/apps/desktop/dist/mac-arm64/Agent Workspace.app/Contents/MacOS/Agent Workspace",
+      "packagedExecutableSha256": "34465676648bf5e5892e8f7791929be7ee01973a5317260f4f741ab7110cfef6",
+      "asar": "/Users/felixwang/.codex/worktrees/7a5d/OpenAgent/apps/desktop/dist/mac-arm64/Agent Workspace.app/Contents/Resources/app.asar",
+      "asarSha256": "8b6769511dda2b8c79f89c8730b17b53709136db50853982148f152f32936002",
+      "runnerSha256": "3334ce8e5c3721610b6b204af2e0ef833bd17cdda05164a632cca3c2842b0966",
+      "bootstrapSha256": "447172642c11829bce9d79584b9cb9ebd56a33a2be88405c21ebcf1f1bfe1c54",
+      "inspectorSha256": "502a5f414fca63c05fe61c58a8084367805f3a4eb264dd991497eb4ff05cc4e6",
+      "initializationCrashSha256": "1b6759cd83d65685d72b393e569de0ae599b52644bd886325578f09eac10bb25",
+      "cases": [
+        {
+          "mode": "initial-schema-interrupted",
+          "pass": true,
+          "result": "/Users/felixwang/.codex/worktrees/7a5d/OpenAgent/.agents/local/sqlite-native-inflight/initial-schema-interrupted/result.json"
+        },
+        {
+          "mode": "prepare-exit",
+          "pass": true,
+          "result": "/Users/felixwang/.codex/worktrees/7a5d/OpenAgent/.agents/local/sqlite-native-inflight/prepare-exit/result.json"
+        },
+        {
+          "mode": "statement",
+          "pass": true,
+          "result": "/Users/felixwang/.codex/worktrees/7a5d/OpenAgent/.agents/local/sqlite-native-inflight/statement/result.json"
+        },
+        {
+          "mode": "before-commit",
+          "pass": true,
+          "result": "/Users/felixwang/.codex/worktrees/7a5d/OpenAgent/.agents/local/sqlite-native-inflight/before-commit/result.json"
+        },
+        {
+          "mode": "after-commit",
+          "pass": true,
+          "result": "/Users/felixwang/.codex/worktrees/7a5d/OpenAgent/.agents/local/sqlite-native-inflight/after-commit/result.json"
+        },
+        {
+          "mode": "packaged-ack-kill",
+          "pass": true,
+          "result": "/Users/felixwang/.codex/worktrees/7a5d/OpenAgent/.agents/local/sqlite-native-inflight/packaged-ack-kill/result.json"
+        }
+      ]
+    },
+    "note": "Rerun with M4/Pi integrated and the test-only admitted-preparation-exit seam. All six cases passed. Full frozen-candidate verification is published separately. Subsequent M2 integration changes tests/docs only; the Main/worker/native runner inputs are unchanged and the final verifier compares the actual Main hash."
+  },
+  "faultSourceHashes": {
+    "apps/desktop/tests/property/storage.property.test.ts": "e152d2cf1fc8297792b217a781cd10e2c21d46380540b86ba38b5059817704f5",
+    "apps/desktop/tests/property/check.ts": "f05725bf994725b8f5e8bdc02dd76a7ee59659cc17f291aa72257b0585ff0285",
+    "apps/desktop/src/main/services/thread-state-store.ts": "3aac6f9d0ff0fac9aa9925bf517687bbbaf06541c36c586c9734fda81e232bc6",
+    "apps/desktop/src/main/services/sqlite-state-persistence.ts": "d6295c3b1f54ff47d654ffe72da56b448edafa8374dfdd54dfa7bb85ecac6c5f",
+    "apps/desktop/src/main/services/sqlite-state-worker.cjs": "79e874b8cbf12f9c02fcebbc1ac86f03f9be1086aff7d97938700c92f65bb903"
+  },
+  "reviewCorrection": {
+    "finding": "ABA fixture used a separate reader object, bypassing reference-equality skip optimization.",
+    "fix": "Reuse the exact state object returned by the writable owner load.",
+    "evidence": "New aba fault removes the pending-scope equality exception; seed 97 path 0:0 detects and identically replays the regression.",
+    "healthyRun": {
+      "command": "NODE_NO_WARNINGS=1 FC_SEED=97 pnpm test:properties -- -t storage",
+      "passed": 9,
+      "samples": 66,
+      "seconds": 23.02,
+      "logSha256": "3b0677cafb24eb3e080eaefd5ac577894b26fbd29abfd64cff06ecb114511a0b"
+    }
+  },
+  "measurementSourceHashes": {
+    "pnpm-lock.yaml": "06f90d9ed11d1ce07879bcd8ae54724fcbcb699f2d73ffcc3d34ee49432d4b22",
+    "apps/desktop/tests/property/storage.property.test.ts": "5cda6f763e05539f02b15eb6949d26b623cc5118b2bc16c59a9fe2b3f7bb2bb0",
+    "apps/desktop/tests/property/check.ts": "c9136fc79076e49ba7dd9e4e5535afbccba8e501feb226c5d287f8ea8e66a080",
+    "apps/desktop/src/main/services/thread-state-store.ts": "3aac6f9d0ff0fac9aa9925bf517687bbbaf06541c36c586c9734fda81e232bc6",
+    "apps/desktop/src/main/services/sqlite-state-persistence.ts": "fe58a90b33f0ce76fff6a22bbc2b5644a85bb0f041cc53aba8b2f2ef7006cfc1",
+    "apps/desktop/src/main/services/sqlite-state-worker.cjs": "33ede8923394649e76be68232f7fe2f2d3f00cad086a4b0c5991852828de97b5"
+  },
+  "sourceHashScope": "sourceHashes authenticate the current property/helper/production/lockfile inputs after M2/M3b/M4/Pi integration. M2 event-order and time-budget arguments are preserved; storage sample budgets use the optional fifth argument. measurementSourceHashes retain historical cost/exploration inputs. faultSourceHashes authenticate all six fault/replay pairs rerun on this merged helper.",
+  "preparationExitCorrection": {
+    "finding": "Terminating an idle worker before persist only exercises admission rejection.",
+    "fix": "The optional preparationFault exit is handled inside the real worker after receipt of an admitted preparation request; the property asserts exit 93 and preparationRequests > 0.",
+    "fault": "Suppress owner invalidation callback; storage recovery at preparation-exit detects and replays at seed 97 path 0:0:0.",
+    "healthyRegression": {
+      "command": "NODE_NO_WARNINGS=1 FC_SEED=97 pnpm --dir apps/desktop exec vitest run tests/thread-state-store.test.ts tests/sqlite-state-persistence.test.ts tests/property/storage.property.test.ts --maxWorkers=1 --testTimeout=15000",
+      "testsPassed": 51,
+      "wallSeconds": 14.07,
+      "logSha256": "c975ab50da981046211621696f648b2cabbbe1f0eeffb4ec86764480a75aef1f"
+    }
+  }
+}

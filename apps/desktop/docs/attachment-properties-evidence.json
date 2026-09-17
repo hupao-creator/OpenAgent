@@ -1,0 +1,277 @@
+{
+  "scope": "Issue #98 M3b only; temporary production mutations restored; no production defect discovered",
+  "baseSha": "43eea352798f73be02cc059760ae31614fa91733",
+  "propertySha256": "4063e785a8abc3ed369df4f22f7c44ef090893ba5495082646a7a06274d952f4",
+  "lockfileSha256": "fe2017963384b251777f0735d40866c960d937e1483f75e90eeaac1d9cbf54af",
+  "environment": {
+    "node": "v22.22.2",
+    "pnpm": "10.17.1",
+    "fastCheck": "4.9.0",
+    "vitest": "4.1.10",
+    "platform": "ProductName:\t\tmacOS\nProductVersion:\t\t26.5.1\nBuildVersion:\t\t25F80",
+    "arch": "arm64"
+  },
+  "faults": [
+    {
+      "fault": "gc-ignores-owners",
+      "selector": "attachment owner sets",
+      "before": "liveEntries.has(entry.name)) return",
+      "after": "false) return",
+      "detection": {
+        "property": "attachment owner sets",
+        "seed": 98,
+        "path": "4:1:0:1:1:1:1",
+        "numRuns": 100,
+        "completedRuns": 5,
+        "numShrinks": 6,
+        "counterexample": [
+          [
+            {
+              "kind": "retain",
+              "owner": "agent",
+              "slot": 0
+            }
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "setup \u2192 await counterexample operations in array order \u2192 final GC or invalid-index probe \u2192 finally remove sample directory",
+        "maxCommands": null,
+        "explore": true,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "attachment owner sets",
+        "seed": 98,
+        "path": "4:1:0:1:1:1:1",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          [
+            {
+              "kind": "retain",
+              "owner": "agent",
+              "slot": 0
+            }
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "setup \u2192 await counterexample operations in array order \u2192 final GC or invalid-index probe \u2192 finally remove sample directory",
+        "maxCommands": null,
+        "explore": true,
+        "replayPath": null
+      },
+      "command": "pnpm --dir apps/desktop exec vitest run tests/property/attachments.property.test.ts --maxWorkers=1 -t 'attachment owner sets'",
+      "logs": {
+        "gc-ignores-owners-detection.log": "fd7b3abcd98536d178b770ec380b866f73ec5485253235ee9316a6c815cb0aca",
+        "gc-ignores-owners-replay.log": "eb3cf5ce3bdb30d394434f5df3d45d9f82b4115ccdc7f9505bd40f9653c29534",
+        "gc-ignores-owners-restored.log": "934d6827d0104111f5bb70fd722ff6d11ddc18db154fdb6be6686550b9bced12"
+      },
+      "file": "apps/desktop/src/main/services/attachment-repository.ts",
+      "sourceSha256": "582f323413da7f4c8478293401b281d0d5291a1087afe2d244a005dafd848967",
+      "restored": "Exact source bytes restored, SHA-256 verified, and the same seed/path replay passed"
+    },
+    {
+      "fault": "fork-drops-owners",
+      "selector": "attachment owner sets",
+      "before": "if (!Object.hasOwn(owners, sourceThreadId) || !owners[sourceThreadId].length) return",
+      "after": "if (true) return",
+      "detection": {
+        "property": "attachment owner sets",
+        "seed": 98,
+        "path": "54:5:9:9:14:14",
+        "numRuns": 100,
+        "completedRuns": 55,
+        "numShrinks": 5,
+        "counterexample": [
+          [
+            {
+              "kind": "retain",
+              "owner": "bart",
+              "slot": 0
+            },
+            {
+              "kind": "fork",
+              "source": "bart",
+              "target": "agent"
+            },
+            {
+              "kind": "release",
+              "owner": "bart"
+            }
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "setup \u2192 await counterexample operations in array order \u2192 final GC or invalid-index probe \u2192 finally remove sample directory",
+        "maxCommands": null,
+        "explore": true,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "attachment owner sets",
+        "seed": 98,
+        "path": "54:5:9:9:14:14",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          [
+            {
+              "kind": "retain",
+              "owner": "bart",
+              "slot": 0
+            },
+            {
+              "kind": "fork",
+              "source": "bart",
+              "target": "agent"
+            },
+            {
+              "kind": "release",
+              "owner": "bart"
+            }
+          ]
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "setup \u2192 await counterexample operations in array order \u2192 final GC or invalid-index probe \u2192 finally remove sample directory",
+        "maxCommands": null,
+        "explore": true,
+        "replayPath": null
+      },
+      "command": "pnpm --dir apps/desktop exec vitest run tests/property/attachments.property.test.ts --maxWorkers=1 -t 'attachment owner sets'",
+      "logs": {
+        "fork-drops-owners-detection.log": "45ef2e8d1071954ed58a83e6387185daa042a2d33eee5093a7f4485ea6ca1305",
+        "fork-drops-owners-replay.log": "51bb8e5bf53da06279d747601a0b8fd77179baaf34de8e8a35ac56a355c4bf4b",
+        "fork-drops-owners-restored.log": "ccaa036b915d12a22e2fcaa26b1fde1125e5f2dd2285af40dd5d686511534193"
+      },
+      "file": "apps/desktop/src/main/services/attachment-repository.ts",
+      "sourceSha256": "582f323413da7f4c8478293401b281d0d5291a1087afe2d244a005dafd848967",
+      "restored": "Exact source bytes restored, SHA-256 verified, and the same seed/path replay passed"
+    },
+    {
+      "fault": "missing-index-allows-gc",
+      "selector": "attachment invalid index",
+      "before": "throw new Error('Attachment owner index \u7f3a\u5931\uff1b\u505c\u6b62\u56de\u6536\u4ee5\u4fdd\u7559\u9644\u4ef6')",
+      "after": "return this.owners = {}",
+      "detection": {
+        "property": "attachment invalid index",
+        "seed": 98,
+        "path": "1:0",
+        "numRuns": 100,
+        "completedRuns": 2,
+        "numShrinks": 1,
+        "counterexample": [
+          [],
+          "missing"
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "setup \u2192 await counterexample operations in array order \u2192 final GC or invalid-index probe \u2192 finally remove sample directory",
+        "maxCommands": null,
+        "explore": true,
+        "replayPath": null
+      },
+      "replay": {
+        "property": "attachment invalid index",
+        "seed": 98,
+        "path": "1:0",
+        "numRuns": 100,
+        "completedRuns": 1,
+        "numShrinks": 0,
+        "counterexample": [
+          [],
+          "missing"
+        ],
+        "fastCheck": "4.9.0",
+        "node": "v22.22.2",
+        "eventOrder": "setup \u2192 await counterexample operations in array order \u2192 final GC or invalid-index probe \u2192 finally remove sample directory",
+        "maxCommands": null,
+        "explore": true,
+        "replayPath": null
+      },
+      "command": "pnpm --dir apps/desktop exec vitest run tests/property/attachments.property.test.ts --maxWorkers=1 -t 'attachment invalid index'",
+      "logs": {
+        "missing-index-allows-gc-detection.log": "6bf3dd734041dafd84e64102d4730f6cfeadb4a21820512e07d15ed5a9374757",
+        "missing-index-allows-gc-replay.log": "93e90112cd56ff16fc2611c94bdc7fc9b5d4e59a3097cfc11b2929907fac5e5d",
+        "missing-index-allows-gc-restored.log": "13218beae598d8326fc000a0c92a7fdbc3e2949f394b61f5808ebf79f7b37499"
+      },
+      "file": "apps/desktop/src/main/services/attachment-repository.ts",
+      "sourceSha256": "582f323413da7f4c8478293401b281d0d5291a1087afe2d244a005dafd848967",
+      "restored": "Exact source bytes restored, SHA-256 verified, and the same seed/path replay passed"
+    }
+  ],
+  "commands": {
+    "default": "pnpm test:properties -- -t 'attachment'",
+    "exploration": "FC_RUNS=1000 FC_SEED=98 pnpm test:properties:explore -- -t 'attachment'",
+    "faultDetection": "FC_EXPLORE=1 FC_RUNS=100 FC_SEED=98 pnpm --dir apps/desktop exec vitest run tests/property/attachments.property.test.ts --maxWorkers=1 -t '<selector>'",
+    "faultReplay": "FC_EXPLORE=1 FC_RUNS=100 FC_SEED=98 FC_PATH='<detection.path>' pnpm test:properties:replay -- -t '<selector>'"
+  },
+  "localLogs": ".agents/local/attachment-faults/pr-238",
+  "cost": {
+    "method": "After package generation and exploration completion, alternate adjacent AttachmentRepository suite alone / same suite plus M3b properties for seeds 98,99,100; one Vitest worker; external desktop load uncontrolled; excludes rebuild/install. Second measured batch retained.",
+    "runs": [
+      {
+        "seed": 98,
+        "candidate": false,
+        "wallSeconds": 2.287,
+        "command": "pnpm --dir apps/desktop exec vitest run tests/attachment-repository.test.ts --maxWorkers=1",
+        "log": ".agents/local/cost-98-False.log"
+      },
+      {
+        "seed": 98,
+        "candidate": true,
+        "wallSeconds": 8.476,
+        "command": "pnpm --dir apps/desktop exec vitest run tests/attachment-repository.test.ts tests/property/attachments.property.test.ts --maxWorkers=1",
+        "log": ".agents/local/cost-98-True.log"
+      },
+      {
+        "seed": 99,
+        "candidate": false,
+        "wallSeconds": 1.294,
+        "command": "pnpm --dir apps/desktop exec vitest run tests/attachment-repository.test.ts --maxWorkers=1",
+        "log": ".agents/local/cost-99-False.log"
+      },
+      {
+        "seed": 99,
+        "candidate": true,
+        "wallSeconds": 6.245,
+        "command": "pnpm --dir apps/desktop exec vitest run tests/attachment-repository.test.ts tests/property/attachments.property.test.ts --maxWorkers=1",
+        "log": ".agents/local/cost-99-True.log"
+      },
+      {
+        "seed": 100,
+        "candidate": false,
+        "wallSeconds": 1.766,
+        "command": "pnpm --dir apps/desktop exec vitest run tests/attachment-repository.test.ts --maxWorkers=1",
+        "log": ".agents/local/cost-100-False.log"
+      },
+      {
+        "seed": 100,
+        "candidate": true,
+        "wallSeconds": 9.634,
+        "command": "pnpm --dir apps/desktop exec vitest run tests/attachment-repository.test.ts tests/property/attachments.property.test.ts --maxWorkers=1",
+        "log": ".agents/local/cost-100-True.log"
+      }
+    ],
+    "medianPairedAddedSeconds": 6.189
+  },
+  "exploration": {
+    "seed": 98,
+    "numRunsPerProperty": 1000,
+    "passed": true,
+    "vitestSeconds": 107.25,
+    "predicateSeconds": 105.76,
+    "logSha256": "9ac5fbb4173c865489c243a3d20ca8ca5f99fb57104fdd87c3267b85c9acae63"
+  },
+  "readCheckRecapture": {
+    "capturedAt": "2026-09-14T01:34:28.320167+00:00",
+    "source": "apps/desktop/src/main/services/attachment-repository.ts",
+    "sourceSha256": "582f323413da7f4c8478293401b281d0d5291a1087afe2d244a005dafd848967",
+    "property": "apps/desktop/tests/property/attachments.property.test.ts",
+    "note": "Independent file assertions run concurrently after each completed repository operation. Promise.allSettled drains all reads before the next operation or failure cleanup. All generated operations, assertions, samples and wall budgets are unchanged. All three mutations were detected, replayed, and passed the same replay after byte-exact restoration. The cost/exploration sections are historical measurements from 2026-09-09, not new measurements of this revision."
+  }
+}

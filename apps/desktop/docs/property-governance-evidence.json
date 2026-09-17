@@ -1,0 +1,127 @@
+{
+  "date": "2026-09-09",
+  "scope": "M9 governance targeted evidence; full frozen-candidate verification and reviews are separately published on PR #111",
+  "sourceSha": "87f44a7f7da6ea5a65f060eaee995c7be144c9e6",
+  "environment": {
+    "os": "macOS 26.5.1 (25F80)",
+    "arch": "arm64",
+    "node": "22.22.2",
+    "pnpm": "10.17.1",
+    "fastCheck": "4.9.0",
+    "vitest": "4.1.10"
+  },
+  "lockfileSha256": "586a82485666acb5e6c1a598bfc2b3549309f692ac5a02379c3cade0da53d037",
+  "runs": [
+    {
+      "command": "FC_SEED=106 pnpm test:properties",
+      "exitCode": 0,
+      "log": "/Users/felixwang/.codex/worktrees/f3bc/OpenAgent/local/m9/default-106.log",
+      "sha256": "b907f28c20af628a40c2698d9f94b97351e6b104e0488861f2a46368f6298457",
+      "summary": " Test Files  9 passed (9)\n      Tests  28 passed (28)\n   Duration  35.80s (transform 633ms, setup 0ms, import 1.32s, tests 33.35s, environment 0ms)"
+    },
+    {
+      "command": "FC_RUNS=30 FC_MAX_COMMANDS=60 FC_SEED=107 pnpm test:properties:explore",
+      "exitCode": 0,
+      "log": "/Users/felixwang/.codex/worktrees/f3bc/OpenAgent/local/m9/explore-107.log",
+      "sha256": "0324c36c43dc7bc4be5fd5c3fc2d0e2da1d48d9a74e195abfc88c02af379f087",
+      "summary": " Test Files  9 passed (9)\n      Tests  28 passed (28)\n   Duration  69.63s (transform 665ms, setup 0ms, import 1.39s, tests 67.07s, environment 0ms)"
+    },
+    {
+      "command": "FC_RUNS=30 FC_MAX_COMMANDS=60 FC_SEED=108 pnpm test:properties:explore",
+      "exitCode": 0,
+      "log": "/Users/felixwang/.codex/worktrees/f3bc/OpenAgent/local/m9/explore-108.log",
+      "sha256": "5e74c3660e6602aad927cd1d127aa05e8a9c4f81f38356ba151b1f6118742d62",
+      "summary": " Test Files  9 passed (9)\n      Tests  28 passed (28)\n   Duration  70.87s (transform 771ms, setup 0ms, import 1.65s, tests 67.93s, environment 1ms)"
+    },
+    {
+      "command": "FC_RUNS=30 FC_SEED=96 FC_PATH='0:0:0' pnpm test:properties:replay -- -t 'lifecycle stale Stop'",
+      "exitCode": 0,
+      "log": "/Users/felixwang/.codex/worktrees/f3bc/OpenAgent/local/m9/replay.log",
+      "sha256": "93d896cc70799d9da68a6f60b98573aa888352aa3f30d32a7125ce6f42c9447f",
+      "summary": " Test Files  1 passed | 8 skipped (9)\n      Tests  1 passed | 27 skipped (28)\n   Duration  2.49s (transform 621ms, setup 0ms, import 1.30s, tests 60ms, environment 0ms)"
+    },
+    {
+      "command": "pnpm codex:check",
+      "exitCode": 0,
+      "log": "/Users/felixwang/.codex/worktrees/f3bc/OpenAgent/local/m9/codex-check.log",
+      "sha256": "24428bd5175efa56194462a8856c3da872d7694573b59a977679c3e5aad24b45",
+      "summary": " Test Files  3 passed (3)\n      Tests  36 passed (36)\n   Duration  1.06s (transform 825ms, setup 0ms, import 1.23s, tests 812ms, environment 0ms)"
+    }
+  ],
+  "prerequisites": [
+    {
+      "pr": 94,
+      "state": "MERGED",
+      "mergeSha": "1cde0b1d10fce517ed34f565640bbc63c10e03d8",
+      "verification": "https://github.com/xinyuan0801/OpenAgent/pull/94#issuecomment-5594893549",
+      "testedSha": "ddff64e3b7615a2d71dc8fda72ea0e783d01a0e5"
+    },
+    {
+      "pr": 109,
+      "state": "MERGED",
+      "mergeSha": "e35c4baa74b357b13132cbbf03401d90d7c7d588",
+      "verification": "https://github.com/xinyuan0801/OpenAgent/pull/109#issuecomment-5595431406",
+      "testedSha": "7f179fbe11ab293603223a7fa2363b48de26d88f"
+    },
+    {
+      "pr": 107,
+      "state": "MERGED",
+      "mergeSha": "7e4846fb3fa8799c94424082fa51c9ae45ae0d99",
+      "verification": "https://github.com/xinyuan0801/OpenAgent/pull/107#issuecomment-5595580787",
+      "testedSha": "5bbe948c2b2b1b575820a66b0fc78cb548c7e62d"
+    },
+    {
+      "pr": 108,
+      "state": "MERGED",
+      "mergeSha": "20b5b83df6c426cf12339aa9ee54fc7e1fc1884b",
+      "verification": "https://github.com/xinyuan0801/OpenAgent/pull/108#issuecomment-5595168925",
+      "testedSha": "9122216ccd6c8c7557a96ff5f0465312fb555696"
+    },
+    {
+      "pr": 110,
+      "state": "MERGED",
+      "mergeSha": "55e32c5201c909b1aa4481fa108d02c7baf86759",
+      "verification": "https://github.com/xinyuan0801/OpenAgent/pull/110#issuecomment-5595267027",
+      "testedSha": "95b032ce7331ffe23f90cf7e056a9cefe7b6950b"
+    }
+  ],
+  "cancelled": [
+    {
+      "number": 100,
+      "state": "CLOSED",
+      "stateReason": "NOT_PLANNED"
+    },
+    {
+      "number": 101,
+      "state": "CLOSED",
+      "stateReason": "NOT_PLANNED"
+    },
+    {
+      "number": 102,
+      "state": "CLOSED",
+      "stateReason": "NOT_PLANNED"
+    },
+    {
+      "number": 103,
+      "state": "CLOSED",
+      "stateReason": "NOT_PLANNED"
+    },
+    {
+      "number": 104,
+      "state": "CLOSED",
+      "stateReason": "NOT_PLANNED"
+    },
+    {
+      "number": 105,
+      "state": "CLOSED",
+      "stateReason": "NOT_PLANNED"
+    }
+  ],
+  "limits": [
+    "These aggregate timings are absolute Vitest wall observations, not a paired baseline/candidate or whole-verifier cost comparison.",
+    "Concurrent desktop activity was not isolated. Historical family measurements retain their original fixture/version limitations.",
+    "Healthy stale-Stop replay passed; historical mutation evidence was audited, not newly reproduced as a production bug.",
+    "All 28 default/exploration tests include 26 behavioral properties and two governance helper regressions.",
+    "M5\u2013M8 are unimplemented; no Effect rewrite cost or equivalence measurements exist."
+  ]
+}

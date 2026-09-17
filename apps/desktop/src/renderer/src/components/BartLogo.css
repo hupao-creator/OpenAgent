@@ -1,0 +1,144 @@
+.bart-logo {
+  display: block;
+  overflow: visible;
+  flex: 0 0 auto;
+  shape-rendering: geometricPrecision;
+}
+
+.bart-worker-character { opacity: 0; }
+.bart-logo[data-worker-ready='true'] .bart-worker-character { opacity: 1; }
+.bart-logo[data-worker-ready='true'] .bart-bot > path,
+.bart-logo[data-worker-ready='true'] .bart-bot .bart-face,
+.bart-logo[data-worker-ready='true'] .bart-bot > circle,
+.bart-logo[data-worker-ready='true'] > .bart-orbits { visibility: hidden; }
+.bart-logo[data-worker-ready='true'] .bart-intervention-transit { visibility: hidden; }
+.bart-logo[data-worker-ready='true'] .bart-body-motion { animation: none !important; }
+
+.bart-logo[data-expanded='true'] .bart-bot {
+  filter: none;
+}
+
+.bart-orbits {
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: 320px 314px;
+}
+
+.bart-orbits ellipse {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-dasharray: 190 1000;
+  transform-origin: 320px 314px;
+}
+
+.bart-orbits ellipse:nth-child(1) {
+  stroke: #ee787e;
+  transform: rotate(8deg);
+}
+
+.bart-orbits ellipse:nth-child(2) {
+  stroke: #69cdb6;
+  transform: rotate(54deg);
+}
+
+.bart-orbits ellipse:nth-child(3) {
+  stroke: #74aef5;
+  transform: rotate(102deg);
+}
+
+.bart-orbits ellipse:nth-child(4) {
+  stroke: #bd7ce4;
+  transform: rotate(146deg);
+}
+
+.bart-orbits ellipse:nth-child(5) {
+  stroke: #d9c957;
+  transform: rotate(194deg);
+}
+
+.bart-message {
+  pointer-events: none;
+}
+
+.bart-intervention-transit,
+.bart-intervention-request-token,
+.bart-intervention-answer-token {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bart-intervention-request-token {
+  transform-origin: 142px 302px;
+}
+
+.bart-intervention-request-token rect {
+  fill: #fbfaf6;
+  stroke: #747770;
+  stroke-width: 5;
+}
+
+.bart-intervention-request-token path {
+  fill: none;
+  stroke: #30322e;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bart-intervention-answer-token {
+  transform-origin: 499px 311px;
+}
+
+.bart-intervention-answer-token path:first-child {
+  fill: #6f5bdd;
+  stroke: #4d3bb8;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.bart-intervention-answer-token path:last-child {
+  fill: none;
+  stroke: #f7f5ee;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.bart-logo[data-layout='mark'][data-intervention-state] .bart-intervention-transit {
+  opacity: 1;
+}
+
+/* Graphics-unavailable fallback: a stable pending token, never a Host animation. */
+.bart-logo:not([data-worker-ready='true'])[data-layout='mark'][data-intervention-state='processing'] .bart-intervention-request-token { opacity: .72; transform: scale(.9); }
+
+.bart-message-text {
+  color: #f7f5ee;
+  line-height: 29px;
+  white-space: pre;
+  font-family: inherit;
+  font-size: 23px;
+  font-weight: 480;
+  text-align: left;
+}
+
+.bart-logo[data-worker-ready='true'][data-message-pulse='a'] .bart-message {
+  animation: bart-svg-message-a 460ms 150ms cubic-bezier(0.2, 0.78, 0.2, 1) both;
+}
+
+.bart-logo[data-worker-ready='true'][data-message-pulse='b'] .bart-message {
+  animation: bart-svg-message-b 460ms 150ms cubic-bezier(0.2, 0.78, 0.2, 1) both;
+}
+
+@keyframes bart-svg-message-a {
+  0% { opacity: 0; transform: translateY(-12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bart-svg-message-b {
+  0% { opacity: 0; transform: translateY(-12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bart-logo .bart-message { animation: none !important; }
+}

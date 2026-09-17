@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // 门槛由 CLI 的 --deny-warnings 承担，不要在 rules 里按 category 升级 severity：
+  // 那样只能覆盖被枚举的 category，默认集里其他 category 的 warning 会漏过门禁。
+  "rules": {
+    // 本仓的通知循环普遍是「先快照再遍历」：for (const l of [...this.listeners]) l()。
+    // 快照是语义的一部分——回调会在迭代中自注销（如 stage.ts 的 abortListeners），
+    // 或循环体本身在删除（如 headless-control.ts 的 removeSubscriber）。去掉展开
+    // 会静默漏掉回调。规则在此与代码库的刻意写法冲突，全局关闭。
+    "unicorn/no-useless-spread": "off",
+    // 控制字符区间在本仓是匹配目标而非误输入：附件名清洗（attachment-repository）、
+    // 字符宽度判定（BartThreadGeneration）、各 harness 的文本归一化正则。
+    // 逐处行内豁免会有 8 处同义注释，故在此关闭。
+    "eslint/no-control-regex": "off"
+  }
+}

@@ -1,0 +1,1044 @@
+/* The field's height has to be both measured (`auto`, so a shrinking draft is
+   read correctly) and animated, and `auto` cannot be interpolated. Registering
+   the height as its own animatable property keeps the two apart: the Dock
+   measures with `auto`, then animates this.
+
+   It is measured onto the Dock rather than the field, and it inherits, because
+   Bart reads the same number: how much of the capsule stands under him decides
+   how high he sits, and he is the capsule's sibling, not one of its children. */
+@property --bart-dock-capsule-height {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+/* How much of the capsule exists yet, as a factor: 1 is the whole thing, 0 is
+   nothing. Every part that gives the capsule its height — the row's floor, the
+   field's padding and the field itself — is scaled by this one number, so
+   collapsing it is a single animatable value rather than three. It has to
+   inherit, because the animation runs on the capsule and the parts that read it
+   are its children. */
+@property --bart-dock-capsule-open {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+
+/* The attachments row, which the field's measurement cannot see. It is
+   registered for the same reason the other two are: Bart's offset is built from
+   it, and an unregistered custom property would not interpolate. */
+@property --bart-dock-capsule-attachment-height {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+.bart-dock {
+  --bart-dock-logo-height: 210px;
+  --bart-dock-home-right: 18px;
+  --bart-dock-home-bottom: 14px;
+  /* Bart's ink ends this far above the logo box's bottom edge, so this is the
+     slack the input capsule is allowed to climb into. */
+  --bart-dock-logo-ink-drop: calc(var(--bart-dock-logo-height) * 0.2667);
+  /* The visible clearance between Bart's chin and the capsule's top edge. */
+  --bart-dock-capsule-gap: 20px;
+  /* How far the capsule can rise before it reaches Bart: the room under his ink
+     minus the clearance it owes him. The capsule fills this first, and only what
+     it has left over lifts him. */
+  --bart-dock-capsule-slack: calc(var(--bart-dock-logo-ink-drop) - var(--bart-dock-capsule-gap));
+  /* All three are republished from bart-composer-geometry.ts at render time;
+     these only keep the stylesheet readable on its own. */
+  --bart-dock-capsule-line-height: 20px;
+  --bart-dock-capsule-inset: 13px;
+  --bart-dock-capsule-attachment-height: 0px;
+  /* The transition between the ordinary Dock and the one with a capsule under
+     Bart. Coming in, the capsule springs up out of the Dock's bottom edge — it
+     passes its own height and settles back into it, and Bart is carried through
+     the same bounce — so the easing overshoots 1. Leaving is that run back, and
+     deliberately without the bounce: taking the capsule away reads best when it
+     is quick and final. Both halves of a run (the growth the Dock animates and
+     the fade the capsule does itself) take these numbers, so one motion never
+     reads as two. */
+  --bart-dock-capsule-enter-duration: 340ms;
+  --bart-dock-capsule-enter-ease: cubic-bezier(0.2, 1.5, 0.3, 1);
+  --bart-dock-capsule-exit-duration: 240ms;
+  --bart-dock-capsule-exit-ease: cubic-bezier(0.6, 0, 0.2, 1);
+  position: absolute;
+  z-index: 28;
+  right: var(--bart-dock-home-right);
+  bottom: var(--bart-dock-home-bottom);
+  width: min(400px, calc(100vw - 24px));
+  height: var(--bart-dock-logo-height);
+  min-width: 0;
+  pointer-events: none;
+  isolation: isolate;
+  filter: drop-shadow(0 13px 19px rgba(16, 17, 15, 0.18));
+  transition: filter 220ms ease;
+}
+
+.bart-dock[data-dock-motion='auto'] {
+  transition:
+    filter 220ms ease,
+    translate var(--bart-dock-auto-duration, 320ms) cubic-bezier(0.2, 1.08, 0.3, 1);
+}
+
+.bart-dock[data-dock-motion='drag'],
+.bart-dock[data-dock-motion='none'] {
+  transition: filter 220ms ease;
+}
+
+.bart-dock-logo-motion {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--bart-dock-logo-height);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  transform-origin: 48% 31%;
+  transition: transform 220ms var(--ease-emphasized), opacity 180ms ease;
+}
+
+.bart-dock.concealed {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.bart-dock-logo-motion .bart-logo {
+  width: 100%;
+  height: 100%;
+}
+
+.bart-dock-drag-surface {
+  position: absolute;
+  z-index: 2;
+  background: transparent;
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* The capsule band is off limits for dragging: selecting text in the field and
+   hitting the two round buttons must never carry the Dock away. */
+.bart-dock[data-layout='input'] .bart-dock-drag-surface {
+  left: 0;
+  top: 18%;
+  right: 0;
+  bottom: calc(var(--bart-dock-logo-ink-drop) - var(--bart-dock-capsule-gap));
+  border-radius: 999px;
+}
+
+/* The box stays 400x210 so the stored position, the avoidance maths and the
+   drag origin all keep meaning what they meant; the capsule and Bart simply
+   overflow it upward. */
+.bart-dock[data-layout='input'] {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+/* Bart is a flex item here, so the capsule's height is what carries him — but
+   only once the capsule has filled the slack under his ink. Standing him on the
+   capsule's full height instead would drop him by that slack on the first frame
+   of every transition, before lifting him again.
+
+   The offset is therefore the smaller of the capsule's current height and the
+   slack, and the current height is the whole capsule — the measured field plus
+   the attachments row above it — scaled by the same factor the capsule is built
+   from. The Dock animates that factor, so this number moves with the capsule
+   frame by frame. At rest it is the clearance between chin and capsule exactly;
+   at the start of a transition it is 0, which is where Bart already is. */
+.bart-dock[data-layout='input'] .bart-dock-logo-motion {
+  position: relative;
+  inset: auto;
+  flex: 0 0 auto;
+  margin-bottom: calc(-1 * min(
+    calc((
+      var(--bart-dock-capsule-height) + var(--bart-dock-capsule-attachment-height)
+    ) * var(--bart-dock-capsule-open)),
+    var(--bart-dock-capsule-slack)
+  ));
+}
+
+.bart-dock.empty .bart-dock-drag-surface {
+  left: 50%;
+  top: 36px;
+  width: 128px;
+  height: 128px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+}
+
+.bart-dock.dragging .bart-dock-drag-surface {
+  cursor: grabbing;
+}
+
+.bart-dock-action-menu {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  left: 50%;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(16, 17, 15, 0.12);
+  border-radius: 999px;
+  background: light-dark(rgba(247, 245, 238, 0.96), rgba(48, 50, 44, 0.96));
+  box-shadow: 0 7px 18px rgba(16, 17, 15, 0.16);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.bart-dock:hover .bart-dock-action-menu,
+.bart-dock:has(.bart-dock-action:focus-visible) .bart-dock-action-menu {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bart-dock.dragging .bart-dock-action-menu {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bart-dock-action {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: light-dark(#10110f, #eeeee9);
+  cursor: pointer;
+}
+
+.bart-dock-action[data-active='true'] {
+  background: #10110f;
+  color: #f7f5ee;
+}
+
+.bart-dock-action:hover:not([data-active='true']) {
+  background: rgba(16, 17, 15, 0.08);
+}
+
+.bart-dock.dragging {
+  filter: drop-shadow(0 8px 12px rgba(16, 17, 15, 0.13));
+}
+
+.bart-dock.dragging .bart-dock-logo-motion {
+  animation: none;
+  opacity: 0.86;
+  transform: scale(0.988);
+}
+
+/* The capsule is the Dock's own surface now, not a shape Bart has to become:
+   it carries the ink, the corner radius and the shadow his body used to. */
+.bart-dock[data-layout='input'] .bart-dock-inline-composer,
+.bart-dock[data-layout='input'] .bart-dock-thread-follow-up {
+  position: relative;
+  z-index: 4;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  margin: 0 5%;
+  border-radius: 26px;
+  background: #10110f;
+  box-shadow: 0 8px 20px rgba(16, 17, 15, 0.22);
+  pointer-events: auto;
+}
+
+.bart-dock-inline-composer {
+  display: flex;
+  flex-direction: column;
+  /* The capsule's own corners clip what is inside it, so the parts that shrink
+     with the factor — the field, the discs, a chip — disappear under its edge
+     rather than spilling past it. */
+  overflow: hidden;
+  animation: bart-dock-capsule-fade-in var(--bart-dock-capsule-enter-duration) var(--bart-dock-capsule-enter-ease) both;
+}
+
+/* The capsule springs out of the Dock's bottom edge: the box itself grows from
+   nothing, and Bart rides up on top of it. The Dock runs that growth rather than
+   the capsule, because the factor that grows the capsule is also what decides
+   how high Bart sits — and Bart stands outside the capsule, where an animation
+   on a sibling would never reach him. The overshoot in the easing carries the
+   factor past 1, which is the whole of the bounce: the capsule stands taller
+   than its final height for a moment and Bart goes up with it. */
+.bart-dock[data-layout='input'] {
+  animation: bart-dock-capsule-grow var(--bart-dock-capsule-enter-duration) var(--bart-dock-capsule-enter-ease) both;
+}
+
+@keyframes bart-dock-capsule-grow {
+  from { --bart-dock-capsule-open: 0 }
+}
+
+/* Leaving is that same run backwards, without the bounce. Everything here is a
+   plain box in a column, so giving the height back is all it takes to put Bart
+   down again.
+   There is deliberately no `from`: closing while the entry is still running
+   starts the collapse from the factor that entry has reached, and pinning it to
+   1 would snap the capsule back up to full height on the way out. The before-
+   change style carries the running animation's value. */
+.bart-dock[data-capsule-leaving] {
+  animation: bart-dock-capsule-collapse var(--bart-dock-capsule-exit-duration) var(--bart-dock-capsule-exit-ease) both;
+}
+
+@keyframes bart-dock-capsule-collapse {
+  to { --bart-dock-capsule-open: 0 }
+}
+
+/* The fade only softens the first and last frame; the motion is the height. */
+.bart-dock[data-capsule-leaving] .bart-dock-inline-composer,
+.bart-dock[data-capsule-leaving] .bart-dock-thread-follow-up {
+  pointer-events: none;
+  animation: bart-dock-capsule-fade-out var(--bart-dock-capsule-exit-duration) var(--bart-dock-capsule-exit-ease) both;
+}
+
+@keyframes bart-dock-capsule-fade-in {
+  from { opacity: 0 }
+}
+
+@keyframes bart-dock-capsule-fade-out {
+  to { opacity: 0 }
+}
+
+/* The capsule's arrival is what carries Bart, so it cannot be removed without
+   putting him back to a jump; it is shortened to a single frame instead. */
+@media (prefers-reduced-motion: reduce) {
+  .bart-dock[data-layout='input'],
+  .bart-dock[data-capsule-leaving],
+  .bart-dock-inline-composer,
+  .bart-dock-thread-follow-up,
+  .bart-dock[data-capsule-leaving] .bart-dock-inline-composer,
+  .bart-dock[data-capsule-leaving] .bart-dock-thread-follow-up {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+}
+
+.bart-dock-inline-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  min-height: calc(46px * var(--bart-dock-capsule-open));
+  padding: 0 6px;
+}
+
+/* Attachments ride inside the capsule, above the field. A chip is as tall as
+   its own contents — a line of text and a 17px remove button — and the row
+   around them will not shrink past that, so the row is given its own height
+   instead. It is the one part of the capsule whose composition is fixed rather
+   than measured, and the Dock publishes the number to both this rule and Bart. */
+.bart-dock-attachment-strip {
+  box-sizing: border-box;
+  max-width: 100%;
+  height: calc(var(--bart-dock-capsule-attachment-height) * var(--bart-dock-capsule-open));
+  padding: calc(10px * var(--bart-dock-capsule-open)) 14px 0;
+}
+
+.bart-dock-attachment-strip .attachment-chip {
+  max-width: min(210px, calc(100% - 2px));
+  border-color: rgba(16, 17, 15, 0.14);
+  background: light-dark(rgba(247, 245, 238, 0.96), rgba(48, 50, 44, 0.96));
+  box-shadow: 0 5px 14px rgba(16, 17, 15, 0.12);
+}
+
+.bart-dock-inline-composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: calc(var(--bart-dock-capsule-inset) * var(--bart-dock-capsule-open)) 6px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f7f5ee;
+  caret-color: #f7f5ee;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 480;
+  letter-spacing: -0.01em;
+  /* The rows the draft is allowed to show, then it scrolls. The height itself
+     is written by the Dock from bart-composer-geometry.ts. */
+  line-height: var(--bart-dock-capsule-line-height);
+  height: calc(var(--bart-dock-capsule-height) * var(--bart-dock-capsule-open));
+  resize: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+  /* One row added is one row of growth, and the capsule and Bart above it
+     follow from this single number. */
+  transition: --bart-dock-capsule-height 160ms var(--ease-emphasized);
+}
+
+.bart-dock-inline-composer textarea::placeholder {
+  color: rgba(247, 245, 238, 0.56);
+}
+
+.bart-dock-inline-composer textarea:focus,
+.bart-dock-inline-composer textarea:focus-visible {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.bart-dock-inline-composer textarea:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.bart-dock-thread-follow-up {
+  height: calc(46px * var(--bart-dock-capsule-open));
+  animation: bart-dock-thread-follow-up-in 180ms 75ms ease both;
+}
+
+/* The row clips, not the capsule: the route label is drawn above the capsule's
+   top edge, so a clip on the capsule itself would take it with it. */
+.bart-dock-thread-follow-up-row {
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr) 28px 34px;
+  align-items: center;
+  height: 100%;
+  padding: 0 6px;
+  overflow: hidden;
+}
+
+.bart-dock-thread-follow-up-provider {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(247, 245, 238, 0.18);
+  border-radius: 6px;
+  background: rgba(247, 245, 238, 0.1);
+}
+
+.bart-dock-thread-follow-up-provider .provider-logo,
+.bart-dock-thread-follow-up-provider .provider-logo-fallback {
+  width: 12px;
+  height: 12px;
+  filter: saturate(0.9) brightness(1.14);
+}
+
+.bart-dock-thread-follow-up-route {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 35px;
+  max-width: calc(100% - 64px);
+  overflow: hidden;
+  color: rgba(247, 245, 238, 0.72);
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: -0.015em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bart-dock-thread-follow-up input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 7px 0 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f7f5ee;
+  caret-color: #f7f5ee;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 480;
+  letter-spacing: -0.01em;
+}
+
+.bart-dock-thread-follow-up input::placeholder {
+  color: rgba(247, 245, 238, 0.46);
+}
+
+.bart-dock-thread-follow-up input:focus,
+.bart-dock-thread-follow-up input:focus-visible {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.bart-dock-thread-follow-up button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(247, 245, 238, 0.62);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.bart-dock-thread-follow-up button:hover:not(:disabled),
+.bart-dock-thread-follow-up button:focus-visible {
+  background: rgba(247, 245, 238, 0.09);
+  color: #fff;
+}
+
+.bart-dock-thread-follow-up button:focus-visible {
+  outline: 1px solid rgba(247, 245, 238, 0.62);
+  outline-offset: 1px;
+}
+
+.bart-dock-thread-follow-up button:disabled {
+  cursor: default;
+  opacity: 0.23;
+}
+
+.bart-dock-thread-follow-up-exit {
+  width: 28px;
+  height: 28px;
+}
+
+.bart-dock-thread-follow-up-submit {
+  width: 32px;
+  height: 32px;
+}
+
+/* The two round controls are the tallest thing in the row, so they set its
+   floor: scaled by the same factor, the row is free to follow the field down to
+   nothing, and Bart follows the row. */
+.bart-dock-attach,
+.bart-dock-send {
+  display: grid;
+  width: calc(34px * var(--bart-dock-capsule-open));
+  height: calc(34px * var(--bart-dock-capsule-open));
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #f7f5ee;
+  cursor: pointer;
+  transition: opacity 160ms ease, background 160ms ease;
+}
+
+.bart-dock-attach {
+  color: rgba(247, 245, 238, 0.72);
+}
+
+.bart-dock-attach:hover:not(:disabled) {
+  background: rgba(247, 245, 238, 0.1);
+  color: #fff;
+}
+
+/* Sending is the filled one: a solid disc reads as the primary action next to
+   the outline-only plus. */
+.bart-dock-send {
+  background: #f7f5ee;
+  color: #10110f;
+}
+
+.bart-dock-send:hover:not(:disabled) {
+  background: #fff;
+}
+
+.bart-dock-attach:disabled,
+.bart-dock-send:disabled {
+  cursor: default;
+  opacity: 0.28;
+}
+
+.bart-dock-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The follow-up capsule is a flex item in the Dock's column now, so it enters
+   where it already sits; the old -50% was the absolute-position centering. */
+@keyframes bart-dock-thread-follow-up-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 720px) {
+  .bart-dock {
+    --bart-dock-logo-height: min(179px, calc((100vw - 20px) / 1.9));
+    --bart-dock-home-right: 10px;
+    --bart-dock-home-bottom: 9px;
+    right: var(--bart-dock-home-right);
+    bottom: var(--bart-dock-home-bottom);
+    width: min(340px, calc(100vw - 20px));
+    height: var(--bart-dock-logo-height);
+  }
+
+  .bart-dock.empty .bart-dock-drag-surface {
+    top: calc(50% - 57px);
+    width: 114px;
+    height: 114px;
+  }
+
+  .bart-dock-inline-composer textarea { font-size: 13px; }
+}
+
+@media (hover: none) {
+  .bart-dock-action-menu {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Selected Logo Lab shapes: Permission C (compact decision) and Question A (option grid). */
+.bart-dock[data-layout='permission'],
+.bart-dock[data-layout='question'] {
+  width: var(--bart-interaction-width);
+  height: var(--bart-interaction-height);
+  --bart-dock-logo-height: var(--bart-interaction-height);
+  filter: drop-shadow(0 20px 30px rgba(16, 17, 15, 0.22));
+}
+
+.bart-dock[data-layout='permission'] {
+  --bart-interaction-width: min(
+    480px,
+    calc(100vw - 24px),
+    calc((100vh - 24px) * 2)
+  );
+  --bart-interaction-height: min(
+    240px,
+    calc(100vh - 24px),
+    calc((100vw - 24px) * 0.5)
+  );
+}
+
+.bart-dock[data-layout='question'] {
+  --bart-interaction-width: min(
+    760px,
+    calc(100vw - 24px),
+    calc((100vh - 24px) * 1.52)
+  );
+  --bart-interaction-height: min(
+    500px,
+    calc(100vh - 24px),
+    calc((100vw - 24px) * 0.6579)
+  );
+}
+
+.bart-dock.has-interaction {
+  pointer-events: auto;
+}
+
+.bart-dock[data-layout='permission'] .bart-dock-drag-surface,
+.bart-dock[data-layout='question'] .bart-dock-drag-surface {
+  left: 2.5%;
+  top: 14%;
+  width: 22%;
+  height: 68%;
+  border-radius: 42%;
+}
+
+.bart-dock-interaction {
+  position: absolute;
+  z-index: 4;
+  left: 27%;
+  right: 5.5%;
+  top: 14%;
+  bottom: 13%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  color: #f7f5ee;
+  pointer-events: auto;
+  animation: bart-dock-interaction-enter 260ms 80ms cubic-bezier(0.2, 0.78, 0.2, 1) both;
+}
+
+.bart-dock-interaction--question {
+  top: 9.5%;
+  bottom: 9.5%;
+}
+
+.bart-dock-interaction--permission {
+  right: 8%;
+  top: 11%;
+  bottom: 13%;
+}
+
+.bart-dock-interaction--permission .bart-dock-interaction-kicker {
+  gap: 5px;
+  margin-bottom: 4px;
+  font-size: 8px;
+}
+
+.bart-dock-interaction--permission .bart-dock-interaction-kicker > i {
+  width: 6px;
+  height: 6px;
+}
+
+.bart-dock-interaction-kicker {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+  color: rgba(247, 245, 238, 0.56);
+  font: 700 10px/1.2 'SFMono-Regular', Consolas, monospace;
+  letter-spacing: 0.11em;
+}
+
+.bart-dock-interaction-kicker > i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #f2bf59;
+  box-shadow: 0 0 0 4px rgba(242, 191, 89, 0.1);
+}
+
+.bart-dock-interaction-kicker > span {
+  flex: 0 0 auto;
+}
+
+.bart-dock-interaction-kicker > small {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(247, 245, 238, 0.38);
+  font: inherit;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bart-dock-interaction-kicker > b {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: rgba(247, 245, 238, 0.42);
+  font-weight: 650;
+}
+
+.bart-dock-permission-copy {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.bart-dock-interaction h2 {
+  max-width: 560px;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(20px, 2.35vw, 31px);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+.bart-dock-interaction-detail {
+  display: -webkit-box;
+  max-width: 500px;
+  margin: 10px 0 0;
+  overflow: hidden;
+  color: rgba(247, 245, 238, 0.68);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.bart-dock-interaction-actions {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 7px;
+  width: 100%;
+  margin-top: 18px;
+}
+
+.bart-dock-interaction--permission .bart-dock-interaction-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: row;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.bart-dock-interaction--permission h2 {
+  font-size: clamp(16px, 1.8vw, 20px);
+}
+
+.bart-dock-interaction--permission .bart-dock-interaction-detail {
+  margin-top: 5px;
+  font-size: 10px;
+  line-height: 1.35;
+  -webkit-line-clamp: 2;
+}
+
+.bart-dock-interaction--permission .bart-dock-interaction-button {
+  min-height: 36px;
+  padding-inline: 10px;
+  border-radius: 11px;
+  font-size: 10px;
+}
+
+.bart-dock-interaction-button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 1px solid rgba(247, 245, 238, 0.18);
+  border-radius: 13px;
+  color: #f7f5ee;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    transform 160ms ease,
+    color 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
+}
+
+.bart-dock-interaction-button:hover:not(:disabled) {
+  border-color: rgba(247, 245, 238, 0.5);
+  transform: translateY(-1px);
+}
+
+.bart-dock-interaction-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.bart-dock-interaction-button.primary {
+  border-color: #f7f5ee;
+  color: #10110f;
+  background: #f7f5ee;
+}
+
+.bart-dock-interaction-button:disabled {
+  cursor: default;
+  opacity: 0.34;
+}
+
+.bart-dock-interaction button:focus-visible,
+.bart-dock-interaction input:focus-visible {
+  outline: 2px solid #f7f5ee;
+  outline-offset: 2px;
+}
+
+.bart-dock-question {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.bart-dock-question::-webkit-scrollbar {
+  display: none;
+}
+
+.bart-dock-question-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.bart-dock-question-options > button {
+  min-width: 0;
+  min-height: 48px;
+  padding: 7px 9px;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(247, 245, 238, 0.12);
+  border-radius: 11px;
+  color: rgba(247, 245, 238, 0.65);
+  background: rgba(247, 245, 238, 0.045);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
+}
+
+.bart-dock-question-options > button:hover:not(:disabled),
+.bart-dock-question-options > button.active {
+  border-color: rgba(247, 245, 238, 0.42);
+  color: #fff;
+  background: rgba(247, 245, 238, 0.1);
+}
+
+.bart-dock-question-options > button:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.bart-dock-question-indicator {
+  width: 13px;
+  height: 13px;
+  box-sizing: border-box;
+  border: 1px solid rgba(247, 245, 238, 0.48);
+  border-radius: 50%;
+}
+
+.bart-dock-question-options > button[role='checkbox'] .bart-dock-question-indicator {
+  border-radius: 4px;
+}
+
+.bart-dock-question-options > button.active .bart-dock-question-indicator {
+  border: 4px solid #f7f5ee;
+  background: #10110f;
+}
+
+.bart-dock-question-options > button > span,
+.bart-dock-question-options b,
+.bart-dock-question-options small {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bart-dock-question-options b {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bart-dock-question-options small {
+  margin-top: 2px;
+  color: rgba(247, 245, 238, 0.42);
+  font-size: 9px;
+}
+
+.bart-dock-question-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  margin-top: 7px;
+  padding: 0 12px;
+  border: 1px solid rgba(247, 245, 238, 0.18);
+  border-radius: 10px;
+  outline: 0;
+  color: #f7f5ee;
+  background: rgba(247, 245, 238, 0.07);
+  caret-color: #f7f5ee;
+  font: inherit;
+  font-size: 11px;
+}
+
+.bart-dock-question-input::placeholder {
+  color: rgba(247, 245, 238, 0.42);
+}
+
+.bart-dock-interaction--question .bart-dock-interaction-actions {
+  margin-top: 9px;
+}
+
+@keyframes bart-dock-interaction-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 540px) {
+  .bart-dock-interaction {
+    left: 26%;
+    right: 5%;
+  }
+
+  .bart-dock-interaction-kicker {
+    gap: 5px;
+    margin-bottom: 5px;
+    font-size: 7px;
+  }
+
+  .bart-dock-interaction-kicker > small,
+  .bart-dock-question-options small {
+    display: none;
+  }
+
+  .bart-dock-interaction h2 {
+    font-size: clamp(14px, 4.2vw, 18px);
+    line-height: 1.08;
+  }
+
+  .bart-dock-interaction-detail {
+    margin-top: 5px;
+    font-size: 9px;
+    line-height: 1.3;
+    -webkit-line-clamp: 2;
+  }
+
+  .bart-dock-question-options {
+    gap: 4px;
+    margin-top: 7px;
+  }
+
+  .bart-dock-question-options > button {
+    min-height: 34px;
+    padding: 4px 6px;
+    grid-template-columns: 11px minmax(0, 1fr);
+    gap: 5px;
+    border-radius: 8px;
+  }
+
+  .bart-dock-question-indicator {
+    width: 10px;
+    height: 10px;
+  }
+
+  .bart-dock-question-options > button.active .bart-dock-question-indicator {
+    border-width: 3px;
+  }
+
+  .bart-dock-question-options b {
+    font-size: 9px;
+  }
+
+  .bart-dock-question-input {
+    height: 28px;
+    margin-top: 4px;
+    font-size: 9px;
+  }
+
+  .bart-dock-interaction-actions,
+  .bart-dock-interaction--question .bart-dock-interaction-actions {
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .bart-dock-interaction-button {
+    min-height: 31px;
+    padding-inline: 7px;
+    border-radius: 9px;
+    font-size: 9px;
+  }
+}
+
+/* Keep the inverse Bart silhouette visible on the dark desktop. */
+@media (prefers-color-scheme: dark) {
+  .bart-dock-logo-motion .bart-logo { filter: drop-shadow(0 0 1px #c6c8bf) drop-shadow(0 4px 12px #0008); }
+
+  /* The capsule is the same ink as the character, so it needs the same rim. */
+  .bart-dock[data-layout='input'] .bart-dock-inline-composer,
+  .bart-dock[data-layout='input'] .bart-dock-thread-follow-up {
+    box-shadow:
+      inset 0 0 0 1px rgba(198, 200, 191, 0.34),
+      0 8px 20px rgba(0, 0, 0, 0.5);
+  }
+}

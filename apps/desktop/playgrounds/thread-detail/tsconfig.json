@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.web.json",
+  "compilerOptions": {
+    "composite": false,
+    "types": [
+      "vite/client",
+      "node"
+    ]
+  },
+  "include": [
+    "../../src/preload/index.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts"
+  ]
+}

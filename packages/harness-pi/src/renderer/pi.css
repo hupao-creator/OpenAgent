@@ -1,0 +1,13 @@
+/* Pi owns its brand; surrounding surfaces keep the shared light/dark tokens. */
+:root { --provider-pi-accent: light-dark(#6c5ce7, #b5a7ff); }
+.provider-theme-pi { --thread-provider-color: var(--provider-pi-accent); }
+.pi-thread.provider-theme-pi > .thread-detail { --thread-provider-color: var(--provider-pi-accent); }
+.provider-theme-pi .thread-provider-logo { color: var(--thread-provider-color); }
+.pi-thread { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; color: var(--ink); }
+.pi-thread > .thread-detail { flex: 1; min-height: 0; }
+.pi-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 16px; }
+.pi-actions button, .pi-settings button { color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.pi-thread button:disabled, .pi-settings button:disabled { opacity: .5; cursor: default; }
+.pi-thread [role="alert"], .pi-settings [role="alert"] { color: var(--danger); }
+.pi-tool-output { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-family: monospace; }
+.pi-settings { display: grid; gap: 16px; min-width: 0; }

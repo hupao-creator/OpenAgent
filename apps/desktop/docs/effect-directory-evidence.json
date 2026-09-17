@@ -1,0 +1,182 @@
+{
+  "date": "2026-09-09",
+  "platform": {
+    "cpu": "Apple M1 Pro",
+    "arch": "arm64",
+    "os": "macOS 26.5.1",
+    "node": "22.22.2",
+    "pnpm": "10.17.1",
+    "vitest": "4.1.10",
+    "fastCheck": "4.9.0",
+    "effect": "3.22.1"
+  },
+  "baselineCommit": "147b028a",
+  "protocolCommit": "744f41a0",
+  "productionBaseline": "1cde0b1d10fce517ed34f565640bbc63c10e03d8",
+  "candidatePatchSha256": "ba67c20811c85360676a9b1b8a98177a84af8c048f8d478ab889e0c1824d51e9",
+  "decision": "pause",
+  "benchmarkCommand": "node --expose-gc scripts/benchmarks/directory-preparation.mjs",
+  "testCommand": "FC_SEED=99 pnpm --dir apps/desktop exec vitest run tests/opencode-directory-preparation.test.ts tests/property/directory.property.test.ts --maxWorkers=1",
+  "buildCommand": "pnpm build",
+  "variants": {
+    "baseline": {
+      "benchmark": [
+        {
+          "node": "v22.22.2",
+          "importMs": 83.456,
+          "uniqueMs": 0.020152124999999996,
+          "cachedMs": 0.0003111250000000041,
+          "sharedCancelMs": 0.025361083000000006,
+          "rss": 74465280,
+          "heapTotal": 31916032,
+          "heapUsed": 9775424,
+          "external": 2206212,
+          "arrayBuffers": 24815
+        },
+        {
+          "node": "v22.22.2",
+          "importMs": 63.044709000000005,
+          "uniqueMs": 0.020561750000000004,
+          "cachedMs": 0.00030045899999998937,
+          "sharedCancelMs": 0.02752716699999999,
+          "rss": 75202560,
+          "heapTotal": 49217536,
+          "heapUsed": 9772760,
+          "external": 2206212,
+          "arrayBuffers": 24815
+        },
+        {
+          "node": "v22.22.2",
+          "importMs": 69.37941699999999,
+          "uniqueMs": 0.021633167000000002,
+          "cachedMs": 0.00029933299999999007,
+          "sharedCancelMs": 0.027929292000000005,
+          "rss": 74481664,
+          "heapTotal": 31129600,
+          "heapUsed": 9776040,
+          "external": 2206212,
+          "arrayBuffers": 24815
+        }
+      ],
+      "tests": [
+        {
+          "wallMs": 1250.0,
+          "testMs": 392,
+          "filesPassed": 2,
+          "testsPassed": 12
+        },
+        {
+          "wallMs": 974.0,
+          "testMs": 300,
+          "filesPassed": 2,
+          "testsPassed": 12
+        },
+        {
+          "wallMs": 1450.0,
+          "testMs": 516,
+          "filesPassed": 2,
+          "testsPassed": 12
+        }
+      ],
+      "mainBytes": 1447094,
+      "sourceLines": 83
+    },
+    "candidate": {
+      "benchmark": [
+        {
+          "node": "v22.22.2",
+          "importMs": 131.165584,
+          "uniqueMs": 0.12305541700000003,
+          "cachedMs": 0.003951583000000028,
+          "sharedCancelMs": 0.101713167,
+          "rss": 142278656,
+          "heapTotal": 52264960,
+          "heapUsed": 15834448,
+          "external": 2207721,
+          "arrayBuffers": 25239
+        },
+        {
+          "node": "v22.22.2",
+          "importMs": 130.19491599999998,
+          "uniqueMs": 0.129460125,
+          "cachedMs": 0.003886833000000024,
+          "sharedCancelMs": 0.10295925,
+          "rss": 142475264,
+          "heapTotal": 52264960,
+          "heapUsed": 15837608,
+          "external": 2207721,
+          "arrayBuffers": 25239
+        },
+        {
+          "node": "v22.22.2",
+          "importMs": 129.01829199999997,
+          "uniqueMs": 0.12817962500000002,
+          "cachedMs": 0.004911833999999999,
+          "sharedCancelMs": 0.11143770799999998,
+          "rss": 142655488,
+          "heapTotal": 52527104,
+          "heapUsed": 15834680,
+          "external": 2207721,
+          "arrayBuffers": 25239
+        }
+      ],
+      "tests": [
+        {
+          "wallMs": 1270.0,
+          "testMs": 372,
+          "filesPassed": 2,
+          "testsPassed": 12
+        },
+        {
+          "wallMs": 1160.0,
+          "testMs": 371,
+          "filesPassed": 2,
+          "testsPassed": 12
+        },
+        {
+          "wallMs": 1240.0,
+          "testMs": 389,
+          "filesPassed": 2,
+          "testsPassed": 12
+        }
+      ],
+      "mainBytes": 1733972,
+      "sourceLines": 96
+    }
+  },
+  "fault": {
+    "property": "directory waiter ownership and generation fencing",
+    "seed": 99,
+    "path": "1:0:0:1",
+    "numRuns": 30,
+    "completedRuns": 2,
+    "numShrinks": 3,
+    "counterexample": [
+      {
+        "callers": 2,
+        "cancel": 0,
+        "abandon": false,
+        "invalidate": true,
+        "staleFirst": false
+      }
+    ],
+    "fastCheck": "4.9.0",
+    "node": "v22.22.2",
+    "eventOrder": "join callers \u2192 cancel prefix \u2192 optional invalidate \u2192 optional stale completion \u2192 retry \u2192 stale completion \u2192 join retry \u2192 fresh completion \u2192 cached read \u2192 cleanup",
+    "replayPath": null,
+    "fault": "forkDaemon(self.run(cwd)) inherits uninterruptible acquisition; invalidate does not abort native signal",
+    "correction": "forkDaemon(Effect.interruptible(self.run(cwd)))",
+    "replayMatched": true,
+    "healthyCandidateReplayPassed": true,
+    "candidateExploration": {
+      "seed": 99,
+      "runs": 1000,
+      "passed": true
+    },
+    "retainedPromiseExploration": {
+      "seed": 99,
+      "runs": 1000,
+      "passed": true
+    }
+  }
+}
