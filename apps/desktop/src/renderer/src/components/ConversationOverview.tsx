@@ -241,6 +241,13 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
   const onLiquidSubtreeMounted = useCallback((): void => {
     setLiquidSubtreeKey(key => key + 1)
   }, [])
+  /* 画布起不来时只撤绘制：舞台留着，撤掉 `.overview-liquid` 那套「浮条背景透明」
+     （否则浮条会变成没有背板的字压在卡片上），但不卸载舞台 —— 舞台一卸，主体就整块
+     从画布挪回 section 底下，滚动容器和卡片节点全部重建。
+     降级会换掉衬底子树，挂在滚动容器上的那几个效果得跟着重绑一次，所以这个状态在
+     这里就声明，像 `liquidSubtreeKey` 一样进那几处的依赖。 */
+  const [liquidDegraded, setLiquidDegraded] = useState(false)
+  const handleLiquidFailure = useCallback((): void => setLiquidDegraded(true), [])
   const cameraCockpit = getOverviewCameraCockpit()
   useLayoutEffect(() => {
     cameraCockpit.setScaleFloor(props.canvasScaleFloor)
@@ -476,6 +483,10 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
   }, [cameraCockpit])
 
   // Bart 空间注册使用同一固定视口，内容位置由摄像机维护。
+  // 重跑这一趟会先注销再注册，注册表那一瞬间没有滚动容器 —— 正在准备的空间转场
+  // 会因此中止。所以依赖只有「衬底真的换过」这一个信号，`liquidDegraded` 不在里面：
+  // 降级同样会换掉衬底，但那是一条绘制失败的路，不该把已经在跑的 Bart 拽下来，
+  // 代价是降级态下注册表留着旧节点（Bart 本来就停在普通视图，用不到它）。
   useLayoutEffect(() => {
     const registry = getBartSpatialRegistry()
     registry.registerScrollContainer(scrollRef.current)
@@ -530,7 +541,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
     if (gridRef.current) observer.observe(gridRef.current)
     if (headerRef.current) observer.observe(headerRef.current)
     return () => observer.disconnect()
-  }, [measureOverviewBoxes, presentedLayout.signature, liquidSubtreeKey])
+  }, [measureOverviewBoxes, presentedLayout.signature, liquidSubtreeKey, liquidDegraded])
 
   /**
    * 处理当前 reveal 请求（canvas 态）：pan 完整落地才标记 handled；被取消或
@@ -1139,7 +1150,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       scroll.removeEventListener('pointerup', handlePointerEnd)
       scroll.removeEventListener('pointercancel', handlePointerCancel)
     }
-  }, [cameraCockpit, canvasInteractive, props.canvasScaleFloor, returnCanvasToAuto, liquidSubtreeKey])
+  }, [cameraCockpit, canvasInteractive, props.canvasScaleFloor, returnCanvasToAuto, liquidSubtreeKey, liquidDegraded])
 
   // Preserve the historical canvas overflow cue using only the public
   // waiting-for-user fact; the overview never interprets Harness-private status.
@@ -1222,13 +1233,8 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
      退回普通 DOM —— 俯瞰视图是主视图，不能因为一个实验特性拿不到就白屏。 */
   const liquidCapable = useMemo(() => canvasDrawElementGap() === null, [])
   /* 光有开关还不够：适配器拿不到、画布上下文建不出来同样得退，那要等画布真去初始化
-     才知道，所以舞台还会在运行期报一次失败。这一路**只撤绘制，不卸载舞台** ——
-     `.overview-liquid` 那套「浮条背景透明」得跟着撤（否则浮条会变成没有背板的字压在
-     卡片上），但舞台一卸载，主体就整块从画布挪回 section 底下，滚动容器和全部卡片节点
-     重建，已经量好几何的空间转场（Bart 那趟）会因为元素断开而作废。那条样式只清背景、
-     模糊和描边，不碰布局，降级落在绘制上就够。 */
-  const [liquidDegraded, setLiquidDegraded] = useState(false)
-  const handleLiquidFailure = useCallback((): void => setLiquidDegraded(true), [])
+     才知道，所以舞台还会在运行期报一次失败。两处一起撤，撤的是样式那一层（`liquidGlass`），
+     不是舞台本身。 */
   const liquidGlass = liquidCapable && !liquidDegraded
 
   /* 俯瞰视图主体。开玻璃时它整块进画布当衬底（只作为捕获来源，不再直接参与页面绘制），

@@ -158,16 +158,19 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
   const handleFailure = (): void => setFailed(true)
 
   /* 衬底节点本身当信号源，而不是「画布量出尺寸了」这个代理条件：换肤会按外观重挂
-     场景图（`<Frame key={theme}>` 下面整棵子树换新），降级也会把衬底换成画布外那份，
-     两种情况下 `ready` 一直是 true，只认它就不会再通知一次 —— 而调用方挂在滚动容器
-     上的尺寸观察器和手势监听还指着已经被摘掉的旧节点，换肤之后拖不动也缩不动。 */
+     场景图（`<Frame key={theme}>` 下面整棵子树换新），而 `ready` 一直是 true，只认它
+     就不会再通知一次 —— 而调用方挂在滚动容器上的尺寸观察器和手势监听还指着已经被摘
+     掉的旧节点，换肤之后拖不动也缩不动。
+     降级也换衬底节点，但那一趟**不通知**：调用方拿这个信号去重注册 Bart 的空间容器，
+     而注册会先注销一次，正在准备的空间转场会因此中止。降级是绘制层面的事，不该把
+     已经在跑的转场拽下来；调用方自己按 `liquidDegraded` 重绑观察器和手势就够了。 */
   const [substrate, setSubstrate] = useState<HTMLDivElement | null>(null)
   const bindSubstrate = useCallback((node: HTMLDivElement | null): void => {
     setSubstrate(node)
   }, [])
   useEffect(() => {
-    if (substrate) onSubtreeMounted?.()
-  }, [substrate, onSubtreeMounted])
+    if (substrate && !failed) onSubtreeMounted?.()
+  }, [substrate, failed, onSubtreeMounted])
 
   /* 画布画的是捕获到的那一帧，`frameloop="demand"` 下只有被叫到才重画。相机和滚动
      各有一条失效路径，但它们都不是「内容变了」—— 流式文本、状态点、注意力标记这些
