@@ -206,9 +206,9 @@ def snapshot(repo, number, *, api=gh, deadline=math.inf, include_threads=False, 
     if include_checks:
         sha = after["head"]["sha"]
         merge_sha = after.get("merge_commit_sha")
-        # The verify workflow attaches its check run to the merge commit, which is
-        # what GitHub invalidates when the base moves; head-attached runs still
-        # count, and neither set can hide a failure.
+        # The verify workflow attaches its check run to the verified head, but the
+        # job's own check run and anything else GitHub records can land on either
+        # commit, so read both; neither set can hide a failure.
         shas = [sha] + ([merge_sha] if merge_sha and merge_sha != sha else [])
         collected = _parallel(
             lambda: listing("{}/commits/{}/statuses".format(root, sha)),
