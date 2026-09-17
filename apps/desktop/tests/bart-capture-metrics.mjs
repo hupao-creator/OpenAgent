@@ -2,9 +2,23 @@
 // Count independent compositor updates in those SAME images as opportunities
 // for product progress. Missing callbacks must never become a product stall.
 export const ENVIRONMENT_EXIT = 75
-export class CaptureUnavailable extends Error {
+/** A machine can lack the display, the input device or the speed a case needs. Such
+ *  a case reports the machine's limit and exits inconclusive; it never reports a
+ *  pass, so a case that can run still fails loudly. */
+export class EnvironmentLimit extends Error {
+  constructor(message) { super(message); this.name = 'EnvironmentLimit' }
+}
+export class CaptureUnavailable extends EnvironmentLimit {
   constructor(message) { super(message); this.name = 'CaptureUnavailable' }
 }
+export const environmentInconclusive = error => error instanceof EnvironmentLimit
+/** Production declines a flight it cannot prepare inside its own budget, and a
+ *  machine too slow to prepare one declines every flight. A case built on landing a
+ *  flight reads this limit instead of the regression it would otherwise assert. */
+const DECLINED = /Bart preparation exceeded its budget|Bart cross-page admission expired|Bart scene sealing exceeded its budget/
+export const admissionDeclined = value => DECLINED.test(value?.errors?.reason ?? '')
+/** The same budget reported as a rejected promise rather than a status field. */
+export const admissionRefusal = error => DECLINED.test(error?.message ?? '')
 
 export function progress(frames, name) {
   const selected = []

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { calibrateClock, CaptureUnavailable, ENVIRONMENT_EXIT, progress, requireCapture, requireCoverage, requireProgress } from './bart-capture-metrics.mjs'
+import { admissionDeclined, admissionRefusal, calibrateClock, CaptureUnavailable, ENVIRONMENT_EXIT, EnvironmentLimit, environmentInconclusive, progress, requireCapture, requireCoverage, requireProgress } from './bart-capture-metrics.mjs'
 
 const desktop = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 if (!process.versions.electron) {
@@ -386,7 +386,10 @@ async function verifyInterruption(contents, output, camera) {
 
 async function verifySettingsScene(contents, output) {
   await deadline((async () => { while (!(await contents.executeJavaScript('Boolean(window.bartSettings)'))) await delay(20) })(), 10000, 'Settings mount')
-  const read = () => contents.executeJavaScript('window.bartSettings.status()')
+  const read = () => contents.executeJavaScript('window.bartSettings.status()').then(value => {
+    if (admissionDeclined(value)) declined = value.errors.reason
+    return value
+  })
   const settled = action => deadline((async () => {
     let status
     for (;;) { status = await read(); if (!status.active && !status.sealed && (action === 'close' ? !status.phase : status.phase === 'open')) return status; await delay(20) }
@@ -497,6 +500,7 @@ async function verifySettingsScene(contents, output) {
 app.whenReady().then(async () => {
 let window
 let tracing = false
+let declined
 try {
   const launchedAt = performance.now()
   window = new BrowserWindow({ width: 1180, height: 780, useContentSize: true, show: true,
@@ -589,6 +593,7 @@ try {
     return document.activeElement === button;
   })()`)
   const prepared = await deadline(contents.executeJavaScript('window.bartIsolation.prepare()'), 30000, 'Resource preparation')
+    .catch(error => { throw admissionRefusal(error) ? new EnvironmentLimit(error.message) : error })
   const loadedResources = await contents.executeJavaScript('window.bartIsolation.inspect()')
   console.log('BART_PREPARED', JSON.stringify(prepared))
   const regions = {
@@ -642,6 +647,7 @@ try {
   tracing = true
   const startedAt = performance.now() - start
   await contents.executeJavaScript('window.bartIsolation.play()')
+    .catch(error => { throw admissionRefusal(error) ? new EnvironmentLimit(error.message) : error })
   const beforeBlock = await contents.executeJavaScript(`(() => {
     const card = document.querySelector('.thread-overview-item'); card.querySelector('button').focus();
     return { status: window.bartIsolation.status(), cardCanFocus: card.contains(document.activeElement),
@@ -660,9 +666,12 @@ try {
   const scrolling = contents.debugger.sendCommand('Input.synthesizeScrollGesture', {
     x: 1040, y: 185, yDistance: -190, speed: 100, gestureSourceType: 'mouse', preventFling: true
   })
+  // Chromium's synthetic wheel needs a Host that latches the gesture. A shared
+  // runner may never move the scroller at all, which reports the machine's limit
+  // rather than a regression in the product under test.
   await deadline((async () => {
     while ((await contents.executeJavaScript('document.querySelector("[data-scroll]").scrollTop')) < 1) await delay(20)
-  })(), 3000, 'Native scroll gesture start')
+  })(), 3000, 'Native scroll gesture start').catch(error => { throw new EnvironmentLimit(error.message) })
   await contents.executeJavaScript('window.bartIsolation.reply(true)')
   const blockStart = performance.now() - start
   const blocked = await contents.executeJavaScript(`window.bartIsolation.block(${blockMs})`)
@@ -694,7 +703,9 @@ try {
   await delay(200)
   const resumed = await contents.executeJavaScript('window.bartIsolation.inspect()')
   const warm = await contents.executeJavaScript('window.bartIsolation.prepare()')
+    .catch(error => { throw admissionRefusal(error) ? new EnvironmentLimit(error.message) : error })
   await contents.executeJavaScript('window.bartIsolation.play()')
+    .catch(error => { throw admissionRefusal(error) ? new EnvironmentLimit(error.message) : error })
   const staleHandoff = await contents.executeJavaScript(`(() => {
     const released = window.bartIsolation.staleRelease();
     return { released, status: window.bartIsolation.status() };
@@ -770,11 +781,12 @@ try {
   window.destroy()
   app.exit(0)
 } catch (error) {
-  console.error(error instanceof CaptureUnavailable ? 'BART_ENVIRONMENT_INCONCLUSIVE' : 'BART_ISOLATION_FAILED', output, error)
-  await writeFile(path.join(output, 'outcome.json'), JSON.stringify({ status: error instanceof CaptureUnavailable ? 'environment-inconclusive' : 'failed', error: String(error) }, null, 2))
+  const inconclusive = environmentInconclusive(error) || declined
+  console.error(inconclusive ? 'BART_ENVIRONMENT_INCONCLUSIVE' : 'BART_ISOLATION_FAILED', output, declined || error)
+  await writeFile(path.join(output, 'outcome.json'), JSON.stringify({ status: inconclusive ? 'environment-inconclusive' : 'failed', error: String(declined || error) }, null, 2))
   if (tracing) await contentTracing.stopRecording(path.join(output, 'failed-trace.json'))
   window?.destroy()
-  app.exit(error instanceof CaptureUnavailable ? ENVIRONMENT_EXIT : 1)
+  app.exit(inconclusive ? ENVIRONMENT_EXIT : 1)
 }
 
 })

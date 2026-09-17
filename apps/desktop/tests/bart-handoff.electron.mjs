@@ -4,7 +4,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CaptureUnavailable, ENVIRONMENT_EXIT } from './bart-capture-metrics.mjs'
+import { admissionDeclined, CaptureUnavailable, ENVIRONMENT_EXIT, environmentInconclusive } from './bart-capture-metrics.mjs'
 
 const desktop = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 if (!process.versions.electron) {
@@ -56,7 +56,11 @@ app.whenReady().then(async () => {
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   const contents = window.webContents
   const entry = path.join(desktop, 'out/bart-lab/isolation.html')
-  const read = api => contents.executeJavaScript(`window.${api}.status()`)
+  let declined
+  const read = api => contents.executeJavaScript(`window.${api}.status()`).then(value => {
+    if (admissionDeclined(value)) declined = value.errors.reason
+    return value
+  })
   const rectOfBart = () => contents.executeJavaScript(`(() => {
     const r = document.querySelector('.bart-dock .bart-bot > path').getBoundingClientRect();
     return { x: Math.floor(r.x - 44), y: Math.floor(r.y - 44), width: Math.ceil(r.width + 88), height: Math.ceil(r.height + 88) }
@@ -206,10 +210,11 @@ app.whenReady().then(async () => {
     window.destroy(); app.exit(0)
   } catch (error) {
     contents.endFrameSubscription()
-    console.error(error instanceof CaptureUnavailable ? 'BART_ENVIRONMENT_INCONCLUSIVE' : 'BART_HANDOFF_FAILED', output, error)
-    await writeFile(path.join(output, 'outcome.json'), JSON.stringify({ status: error instanceof CaptureUnavailable ? 'environment-inconclusive' : 'failed', error: String(error) }))
+    const inconclusive = environmentInconclusive(error) || declined
+    console.error(inconclusive ? 'BART_ENVIRONMENT_INCONCLUSIVE' : 'BART_HANDOFF_FAILED', output, declined || error)
+    await writeFile(path.join(output, 'outcome.json'), JSON.stringify({ status: inconclusive ? 'environment-inconclusive' : 'failed', error: String(declined || error) }))
     await writeFile(path.join(output, 'results.json'), JSON.stringify(reports, null, 2))
     await writeFile(path.join(output, 'failed.png'), (await contents.capturePage()).toPNG()).catch(() => {})
-    window.destroy(); app.exit(error instanceof CaptureUnavailable ? ENVIRONMENT_EXIT : 1)
+    window.destroy(); app.exit(inconclusive ? ENVIRONMENT_EXIT : 1)
   }
 })

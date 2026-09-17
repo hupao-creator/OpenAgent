@@ -5,6 +5,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { admissionDeclined, ENVIRONMENT_EXIT, environmentInconclusive } from './bart-capture-metrics.mjs'
 
 const desktop = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 if (!process.versions.electron) {
@@ -48,7 +49,11 @@ const window = new BrowserWindow({ width: 1180, height: 780, useContentSize: tru
   webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true, webSecurity: true } })
 window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 const contents = window.webContents
-const read = api => contents.executeJavaScript(`window.${api}.status()`)
+let declined
+const read = api => contents.executeJavaScript(`window.${api}.status()`).then(value => {
+  if (admissionDeclined(value)) declined = value.errors.reason
+  return value
+})
 const entry = path.join(desktop, 'out/bart-lab/isolation.html')
 let tracing = false
 try {
@@ -187,14 +192,15 @@ try {
   console.log('BART_OVERVIEW_REGRESSIONS', JSON.stringify({ output, cases: overview.length }))
   window.destroy(); app.exit(0)
 } catch (error) {
-  console.error('BART_REGRESSIONS_FAILED', output, error)
+  const inconclusive = environmentInconclusive(error) || declined
+  console.error(inconclusive ? 'BART_ENVIRONMENT_INCONCLUSIVE' : 'BART_REGRESSIONS_FAILED', output, declined || error)
   try {
     console.error('BART_NATIVE_WINDOW', { visible: window.isVisible(), minimized: window.isMinimized(), focused: window.isFocused(),
       alwaysOnTop: window.isAlwaysOnTop(), page: await contents.executeJavaScript('({ visibility: document.visibilityState, focused: document.hasFocus() })') })
     if (tracing) await contentTracing.stopRecording(path.join(output, 'failed-trace.json'))
     await writeFile(path.join(output, 'failed.png'), (await contents.capturePage()).toPNG())
   } catch (captureError) { console.error('Failure capture unavailable:', captureError) }
-  finally { window.destroy(); app.exit(1) }
+  finally { window.destroy(); app.exit(inconclusive ? ENVIRONMENT_EXIT : 1) }
 }
 
 })
