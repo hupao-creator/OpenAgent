@@ -44,6 +44,7 @@ import {
   type OverviewStageLease
 } from '../overview-motion'
 import { getBartSpatialRegistry } from '../bart-motion/registry'
+import { diag } from '../bart-motion/verify-diag'
 import type { BartVisualOperation } from '../bart-visual-operation'
 import { ThreadCardAnchorProvider, useI18n, type ThreadCardAnchorRegistrar } from '@openagent/plugin-kit/renderer'
 import { BartLogo } from './BartLogo'
@@ -545,6 +546,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
 
   const flushGenerationBatch = useCallback((): void => {
     generationBatchTimerRef.current = 0
+    diag('flush', { pending: pendingLayoutWorkRef.current.size, targets: pendingGenerationTargetsRef.current.length })
     // 已经登记的结构 revision 必须先全部落定，确保串联中的每张目标卡都存在；
     // 这里只延后批次入队，不另建动画消费队列。
     if (pendingLayoutWorkRef.current.size > 0) {
@@ -578,6 +580,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
 
   const stageGenerationTargets = useCallback(
     (targets: readonly BartGenerationTarget[]): void => {
+      diag('stage', { targets: targets.length, queued: Boolean(onGenerationMotionQueuedRef.current) })
       if (!targets.length || !onGenerationMotionQueuedRef.current) return
       // 到这里这批目标才真正进入投递管线：失败快照的暂存记录交付完毕，可以作废。
       failedLayoutRef.current = null
@@ -616,7 +619,8 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       signal: AbortSignal,
       frozenGenerationTargets: readonly BartGenerationTarget[]
     ): Promise<void> => {
-      if (signal.aborted) { planningLease.release(); throw abortError() }
+      if (signal.aborted) { diag('play-aborted'); planningLease.release(); throw abortError() }
+      diag('play-enter')
       const previous = presentedLayoutRef.current
       let target: PlannedOverviewLayout
       try {
@@ -631,6 +635,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
             frozenGenerationTargets
           )
         }
+        diag('plan-failed', error instanceof Error ? error.message : String(error))
         setLayoutError(true)
         onLayoutPlanningStateRef.current?.({ error: error instanceof Error ? error.message : String(error) })
         planningLease.release()
@@ -667,8 +672,10 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
         if (!animations.length) return
         const cancel = (): void => animations.forEach((animation) => animation.cancel())
         signal.addEventListener('abort', cancel, { once: true })
+        diag('animations-start', animations.length)
         try {
           await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)))
+          diag('animations-done', animations.length)
         } finally {
           signal.removeEventListener('abort', cancel)
           if (layoutAnimationsRef.current === animations) layoutAnimationsRef.current = []
@@ -824,7 +831,8 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
 
   const enqueueLayoutRevision = useCallback(
     (target: OverviewLayoutSnapshot, generationTargets: readonly BartGenerationTarget[] = []): boolean => {
-      if (lastQueuedLayoutSignatureRef.current === target.signature) return false
+      diag('enqueue', target.signature)
+      if (lastQueuedLayoutSignatureRef.current === target.signature) { diag('enqueue-skipped', target.signature); return false }
       lastQueuedLayoutSignatureRef.current = target.signature
       cameraCockpit.deferRefit()
       const sceneSignal = layoutSceneAbortRef.current.signal
@@ -843,8 +851,11 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       void (async () => {
         let lease: OverviewStageLease | null = null
         try {
+          diag('lease-acquired')
           lease = await planningLease
+          diag('lease-resolved')
           await playLayoutRevision(target, lease, controller.signal, generationTargets)
+          diag('play-returned')
           lease = null
           if (!controller.signal.aborted) {
             cameraCockpit.reconcileBounds(
