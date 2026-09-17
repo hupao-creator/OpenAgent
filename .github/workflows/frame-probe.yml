@@ -9,7 +9,7 @@ jobs:
   probe:
     name: Frame production probe
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 40
     env:
       HUSKY: '0'
     steps:
@@ -23,23 +23,27 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
-      - name: Probe
-        run: node apps/desktop/tests/frame-probe.mjs
       - name: Generate registry
         working-directory: apps/desktop
         run: pnpm generate:registry
       - name: Build the Bart lab
         working-directory: apps/desktop
         run: pnpm exec vite build --config labs/bart/vite.config.ts
-      - name: Generation visuals with the motion pinned
-        working-directory: apps/desktop
-        run: node tests/bart-generation-visuals.electron.mjs
-      - name: Bart isolation suite with the motion pinned
-        working-directory: apps/desktop
-        run: pnpm test:bart-isolation
-      - name: Morph width curve on this runner
+      # Each case runs even when an earlier one fails, so one run reports every
+      # case the hosted runner can and cannot support.
+      - name: Bart generation visuals
         if: always()
         working-directory: apps/desktop
-        env:
-          BART_MORPH_CURVE: '1'
         run: node tests/bart-generation-visuals.electron.mjs
+      - name: Bart regressions
+        if: always()
+        working-directory: apps/desktop
+        run: node tests/bart-regressions.electron.mjs
+      - name: Bart handoff
+        if: always()
+        working-directory: apps/desktop
+        run: node tests/bart-handoff.electron.mjs
+      - name: Bart worker isolation
+        if: always()
+        working-directory: apps/desktop
+        run: node tests/bart-worker-isolation.electron.mjs 2000 2600
