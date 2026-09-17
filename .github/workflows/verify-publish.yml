@@ -1,0 +1,44 @@
+name: verify-publish
+
+# The one place a workflow gets `checks: write`. A `workflow_run` workflow is always
+# read from the default branch, so this file — and the script it runs — stays out of
+# reach of the pull request being verified. `verify` uploads the payload; this publishes
+# it. That split is why the job that runs pull-request code never holds the token.
+on:
+  workflow_run:
+    workflows: [verify]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish verify check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      # A run cancelled by `cancel-in-progress` uploads nothing; the replacement run
+      # publishes instead, so a missing artifact is not an error here.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: verification-evidence
+          path: ${{ runner.temp }}/verification-evidence
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERIFY_EVIDENCE: ${{ runner.temp }}/verification-evidence
+          VERIFY_EVENT: ${{ github.event.workflow_run.event }}
+          VERIFY_HEAD: ${{ github.event.workflow_run.head_sha }}
+          VERIFY_BASE: ${{ github.event.workflow_run.pull_requests[0].base.sha }}
+          VERIFY_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          VERIFY_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: node scripts/verify-publish.mjs

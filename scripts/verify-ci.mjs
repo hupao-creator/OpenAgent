@@ -279,9 +279,13 @@ async function verify() {
           return { evidence: `build-cache/${name}`, tasks: run.tasks.map(task => ({ task: task.taskId, hash: task.hash, cache: task.cache.status })) }
         })
         : []
+      // The publisher that creates the check run reads this file from the artifact. It
+      // runs from the default branch, so the code that wrote this payload never holds
+      // the credential that publishes it. A run that cannot write it must not look green.
+      writeFileSync(join(directory, 'check-run.json'), JSON.stringify(checkPayload(result), null, 2) + '\n')
     } catch (error) {
       result.status = 'failed'
-      result.error = `Cannot read build cache evidence: ${error.message}`
+      result.error = `Cannot record verification evidence: ${error.message}`
       process.exitCode = 1
     }
     result.finishedAt = new Date().toISOString()
@@ -315,6 +319,17 @@ function checkOutput(result) {
       '',
       summary(result)
     ].join('\n')
+  }
+}
+
+// Everything the `verify` check run says, in the shape the publisher posts it. The
+// publisher adds the transcript it is bound to; this file only describes the run.
+function checkPayload(result) {
+  return {
+    name: context,
+    head_sha: result.sha,
+    conclusion: result.status === 'passed' ? 'success' : 'failure',
+    output: checkOutput(result)
   }
 }
 
@@ -352,13 +367,14 @@ async function finishCheck(check, result) {
     return `failed: ${check.error}`
   }
   try {
+    const { conclusion, output } = checkPayload(result)
     command('gh', ['api', '--method', 'PATCH', `repos/${check.repository}/check-runs/${check.id}`, '--input', '-'], {
       input: JSON.stringify({
         status: 'completed',
-        conclusion: result.status === 'passed' ? 'success' : 'failure',
+        conclusion,
         completed_at: new Date().toISOString(),
         details_url: runUrl(check.repository),
-        output: checkOutput(result)
+        output
       })
     })
     return 'published'
