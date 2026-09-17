@@ -25,8 +25,9 @@ severity**：那样只能覆盖你枚举过的 category，默认集里其他 war
 husky 的 pre-commit 钩子跑 `pnpm lint`，`pnpm install` 时由根 `prepare` 装好。
 它**不带** `--fix`：提交中途改写工作区会污染已经暂存的内容。
 
-`scripts/verify.mjs` 在 typecheck 和回归测试之间跑同一个 `pnpm lint`，所以 PR 门禁和本地
-一致。验证的一次性 checkout 用 `HUSKY=0` 安装，不去动开发者的共享 `core.hooksPath`。
+CI 的 `verify` workflow 在类型检查和回归测试之间跑同一个 `pnpm lint`，所以门禁与本地一致。
+CI 安装依赖时带 `HUSKY=0`：husky 9 没有自己的 CI 检测，cache-miss 安装时 `prepare` 会把
+`core.hooksPath` 写进 checkout 的 git config，而这个 checkout 是一次性的。
 
 ## 怎么豁免
 
@@ -57,11 +58,11 @@ husky 的 pre-commit 钩子跑 `pnpm lint`，`pnpm install` 时由根 `prepare` 
 
 **没跑过 `pnpm install` 的 worktree 会静默跳过 lint。** git 对缺失的钩子是静默忽略
 （`ENOENT` 直接返回 NULL，只有权限不足才提示），没有选项能让它硬失败。所以新建 worktree
-后先装依赖；`pnpm verify` 不受影响，它用脚本里显式的 lint 步骤。
+后先装依赖；CI 验证不受影响，它用脚本里显式的 lint 步骤。
 
 **钩子检查的是工作区，不是 Git 索引。** `oxlint` 从磁盘读文件，没有 stdin 模式，所以
 部分暂存（`git add -p`、暂存后又改了同一文件但没重新暂存）时，钩子看到的是修正后的工作区、
 通过，而提交进去的是索引里的旧内容。这是本地快信号的边界，不是门禁的漏洞：真正把关的是
-`pnpm verify`，它在目标 SHA 的全新 checkout 上跑同一条 `pnpm lint`，索引里那份违例在那里
+CI 验证，它在 PR head 的干净 checkout 上跑同一条 `pnpm lint`，索引里那份违例在那里
 必然失败、合不进 main。要消掉这个差异就得让钩子先 `git stash` 再 lint，代价是中断提交会
 把工作区留在 stash 里，而本仓的 stash 栈在多 worktree / 多 agent 会话间是共享的——不值当。

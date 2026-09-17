@@ -12,7 +12,7 @@ python3 scripts/pr-gate.py gate 123 [--only a,b] [--skip a,b]
 python3 scripts/pr-gate.py merge 123 [--check] [--merge|--rebase]
 ```
 
-每个命令只做一件事；`snapshot` 是其他命令的读模型原子。收集 threads 与 statuses/check-runs 时绑定最终读取的 HEAD，期间 HEAD 变化则整体标记 `unknown` 要求重试。`comments` 和 `poll` 额外查询讨论线程的解决和过期状态；行内评论保留路径、行号、commit、链接及同线程回复；所有列表分页读取。
+每个命令只做一件事；`snapshot` 是其他命令的读模型原子。收集 threads 与 statuses/check-runs 时绑定最终读取的 HEAD，check-runs 同时读取 HEAD 和 PR merge commit（CI 把 `verify` 挂在后者），期间 HEAD 或 base 变化则整体标记 `unknown` 要求重试。`comments` 和 `poll` 额外查询讨论线程的解决和过期状态；行内评论保留路径、行号、commit、链接及同线程回复；所有列表分页读取。
 
 `poll` 在状态或完成证据变化时即时向 stderr 输出简短 JSON 进展，最终完整结果仍写 stdout，便于重定向保存而不混入进展记录。若当前 HEAD 的完成摘要已到、但结果格式未识别，会明确输出 `unrecognized-result`；超时结果也保留 diagnostic，避免把识别失败误当成审查仍在运行。
 
@@ -27,7 +27,7 @@ python3 scripts/pr-gate.py merge 123 [--check] [--merge|--rebase]
 | checkReviewInitiated | 至少发起过 1 轮 | — | 从未发起 review，先 `request` |
 | checkReviewFlow | HEAD review 完成且完成摘要匹配；in-flight/stale 但总轮数或计费轮数耗尽（本地 review 兜底）；请求被 Codex 以额度用尽拒绝（refused，本地 review 兜底） | in-flight 或 stale 且仍有额度；submitted 但摘要未确认 | — |
 | checkThreadsResolved | 全部线程 resolved | — | 任何作者（含 bot、含 outdated）的未解决线程，逐条列链接 |
-| checkVerification | verification status 成功、范围证据匹配当前 base 且 head 上每个 check-run 均无失败 | verification 或其他 status/check 运行中 | verification 缺失/失败/范围证据过期，或其他 status/check-run 失败 |
+| checkVerification | `verify` check run 成功，其 `scope-v2` 证据的受检 SHA 与 base 匹配当前快照，且不存在失败的其他 status/check-run | 尚无 `verify` check run（CI 可能刚启动）、该 check run 仍在运行，或其他 status/check 运行中 | `verify` check run 结论非 success，或范围证据与当前 HEAD/base 不符，或其他 status/check-run 失败 |
 
 轮次预算：完成的 review 只有无 P0/P1 findings 才消耗预算（`chargeableRounds`），产生 P0/P1 的轮次免计费；`requestCount` 是历史请求总数，同时用于判定至少发起过一轮和最多发起 5 轮（包括 P0/P1 和额度拒绝）。`requestsRemaining` 取剩余总轮数与剩余计费轮数的较小值。请求评论只信任仓库 Owner/Member/Collaborator——公开仓库里路人的 `@codex review` 不计入轮次也不进入请求状态。总请求达到 5 轮或计费轮耗尽（3 轮）后 `request` 拒绝发布（退出码 3，`rejected: true`）并提示改用本地 review；此时 `checkReviewFlow` 对 in-flight/stale 放行，未解决线程依然拦截。上一轮仍在飞行中时 `request` 同样拒绝（请求↔review 的关联依赖时间顺序，禁止叠加轮次）；发布前会重读一次评论以缩小并发窗口，但客户端无法完全消除竞态，挂起的轮次只能等待审查完成或人工介入。
 
@@ -45,10 +45,10 @@ python3 scripts/pr-gate.py merge 123 [--check] [--merge|--rebase]
 
 - 这是程序性门禁，不是 GitHub 保护规则：直接 `gh pr merge` 仍可绕过，由 AGENTS.md 明文禁止。
 - 只有 PR 上的 review threads 计入拦截；仅存在于本地或 review 正文中的意见不在门禁内。
-- verification 条件依赖先运行 `pnpm verify --pr N --publish` 发布 `local/desktop-verification` status。
-- 分级规则见 [按改动范围验证](verification-scope.md)。旧版无范围证据的成功状态需要重跑；base 改变后同样需要重跑。
+- verification 条件依赖 CI 的 `verify` workflow 发布 `verify` check run；推送分支后自动触发，也可在 Actions 页面重跑。
+- 分级规则见 [按改动范围验证](verification-scope.md)，CI 细节见 [CI 验证](ci-verification.md)。缺少范围证据的成功需要重跑；base 改变后同样需要重跑。
 - `settled`、退出码 0、空列表均不代表无问题；阅读 review 正文与行内意见是人工职责。脚本不解决线程、不改写 review。
 
 ## 测试
 
-`python3 -B -m unittest discover -s scripts/tests -p 'test_pr_gate.py'` 使用模拟 GitHub 响应和时钟验证门禁，不访问远端。该测试集也纳入 `pnpm test:dev-scripts`。
+`python3 -B -m unittest discover -s scripts/tests -p 'test_pr_gate.py'` 使用模拟 GitHub 响应和时钟验证门禁，不访问远端；覆盖 `verify` 证据缺失、受检 SHA 或 base 不符、过期运行和新旧 check run 的选取。该测试集也纳入 `pnpm test:dev-scripts`。

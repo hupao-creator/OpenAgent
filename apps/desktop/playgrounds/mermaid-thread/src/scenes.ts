@@ -21,7 +21,7 @@ const ORDINARY = [
   '| --- | --- |',
   '| 编号 | 订单主键 |',
   '',
-  '见 [仓库文档](https://example.invalid/docs)，或运行 `pnpm verify`。',
+  '见 [仓库文档](https://example.invalid/docs)，或运行 `pnpm lint`。',
   '',
   '```ts',
   'const order = await submit()',

@@ -10,9 +10,9 @@ accepted as completed rewrites. A new bounded proposal is required to reconsider
 
 ## Daily runs, exploration and replay
 
-`pnpm test` discovers every `tests/property/*.test.ts` suite; `pnpm verify --pr N
---publish` runs that normal suite in a clean Mac checkout along with typechecking,
-build, browser development and real Electron checks. There is no scheduled job.
+`pnpm test` discovers every `tests/property/*.test.ts` suite; the CI `verify`
+workflow runs that normal suite on the PR head along with typechecking, build,
+browser development and real Electron checks. There is no scheduled job.
 Ordinary runs choose random seeds. Fixed seeds reproduce regressions or compare
 costs; they must not become the only long-term input set.
 

@@ -1,0 +1,56 @@
+name: verify
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    # Distinct from the `verify` check run the script publishes, so the gate can
+    # tell the evidence-bearing run from this job's own status.
+    name: Desktop verification
+    # Native reports, lifecycle and Bart checks launch Electron, so this needs macOS.
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - name: Verify
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERIFY_HEAD: ${{ github.event.pull_request.head.sha }}
+          VERIFY_BASE: ${{ github.event.pull_request.base.sha }}
+          VERIFY_PR: ${{ github.event.pull_request.number }}
+          # Attached to the merge commit so GitHub invalidates it when the base moves.
+          # A PR whose test merge cannot be computed (conflicts) still verifies, and
+          # the gate's scope evidence binds the tested head and base either way.
+          VERIFY_CHECK_SHA: ${{ github.event.pull_request.merge_commit_sha || github.event.pull_request.head.sha }}
+        run: node scripts/verify-ci.mjs
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-evidence
+          path: ${{ runner.temp }}/verification-evidence
+          if-no-files-found: ignore
+          retention-days: 14

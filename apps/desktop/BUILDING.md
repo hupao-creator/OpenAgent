@@ -1,12 +1,12 @@
 # Building Agent Workspace
 
-## Local verification before review
+## Verification before review
 
-Run `pnpm verify` from a clean, committed checkout on macOS to execute the full
-desktop verification pipeline in a disposable worktree. Use
-`pnpm verify --pr <number> --publish` to verify a PR head and attach its result to
-that commit on GitHub. See [local verification](docs/local-verification.md) for
-requirements, evidence locations and failure handling.
+Push the branch and open the PR: the `verify` GitHub Actions workflow runs the
+scope-aware desktop pipeline on a macOS runner and reports a `verify` check run.
+There is no local verification entry point. See
+[CI verification](../../docs/agents/ci-verification.md) for triggers, evidence
+locations and failure handling.
 
 ## Local Windows trial build
 

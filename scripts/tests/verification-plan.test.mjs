@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -63,7 +63,8 @@ test('Bart and its geometry dependencies require the native isolation gate', () 
 })
 
 test('unknown, global configuration, verifier, fixtures and no baseline require full verification', () => {
-  for (const path of ['pnpm-lock.yaml', 'packages/harness-a/package.json', 'scripts/verify.mjs',
+  for (const path of ['pnpm-lock.yaml', 'packages/harness-a/package.json', 'scripts/verify-ci.mjs',
+    '.github/workflows/verify.yml',
     'scripts/verification-plan.mjs', 'scripts/tests/verification-plan.test.mjs', 'unknown.txt',
     'apps/desktop/tests/fixtures/data.json', 'apps/desktop/electron.vite.config.ts']) {
     assert.deepEqual(plan([path]).requiredSteps, fullSteps, path)
@@ -124,126 +125,69 @@ test('real Git planning uses merge-base, catches both rename paths and preserves
   assert.throws(() => planVerification({ cwd: f.cwd, sha, base: 'missing' }), /Cannot determine/)
 })
 
-test('real runner executes lightweight scope, preserves hooks and cleans checkout without installation', context => {
+test('CI runner executes a light scope, publishes scope evidence and never turns a failed step green', context => {
   const f = fixture(context)
-  for (const name of ['verify.mjs', 'verification-plan.mjs', 'verify-development.mjs', 'verification-workspace.mjs']) {
-    mkdirSync(join(f.cwd, 'scripts'), { recursive: true })
+  mkdirSync(join(f.cwd, 'scripts'), { recursive: true })
+  for (const name of ['verify-ci.mjs', 'verification-plan.mjs', 'verify-development.mjs', 'verification-workspace.mjs']) {
     copyFileSync(join(scripts, name), join(f.cwd, 'scripts', name))
   }
   f.write('package.json', JSON.stringify({ packageManager: 'pnpm@10.17.1' }))
   f.write('docs/example.md', 'before\n')
   const base = f.commit()
   f.write('docs/example.md', 'after\n')
-  f.commit()
+  const sha = f.commit()
+
+  const bin = join(f.root, 'bin')
+  mkdirSync(bin)
+  const calls = join(f.root, 'gh-calls.txt')
+  writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> ${calls}\ncase "$*" in *"--input -"*) cat >> ${calls};; esac\necho '{"id": 42}'\n`)
+  chmodSync(join(bin, 'gh'), 0o755)
   const fakePnpm = join(f.root, 'pnpm.cjs')
-  writeFileSync(fakePnpm, "if(process.argv[2] === '--version') console.log('10.17.1'); else process.exit(99)\n")
-  const home = join(f.root, 'home')
-  mkdirSync(home)
-  const env = { ...process.env, HOME: home, npm_execpath: fakePnpm }
-  f.run(process.execPath, ['scripts/verify.mjs', '--base', base], { env })
-  const evidenceRoot = join(home, 'Developer', '.openagent-verification')
-  const evidence = JSON.parse(readFileSync(join(evidenceRoot, readdirSync(evidenceRoot)[0], 'result.json'), 'utf8'))
-  assert.equal(evidence.status, 'passed')
-  assert.equal(evidence.checkoutRemoved, true)
-  assert.deepEqual(evidence.steps.map(step => step.name), ['tracked-diff'])
-  assert.equal(evidence.plan.baseSha, base)
-  assert.equal(f.git('config', 'core.hooksPath'), '/dev/null')
-  assert.equal(f.git('status', '--porcelain'), '')
+  writeFileSync(fakePnpm, "if (process.argv[2] === '--version') console.log('10.17.1'); else process.exit(99)\n")
+  const evidence = join(f.root, 'evidence')
+  const env = {
+    ...process.env, PATH: `${bin}:${process.env.PATH}`, npm_execpath: fakePnpm,
+    VERIFY_HEAD: sha, VERIFY_BASE: base, VERIFY_PR: '1', VERIFY_CHECK_SHA: sha,
+    GITHUB_REPOSITORY: 'owner/repo', GITHUB_TOKEN: 'token'
+  }
+  f.run(process.execPath, ['scripts/verify-ci.mjs', '--evidence', evidence], { env })
+  const result = JSON.parse(readFileSync(join(evidence, 'result.json'), 'utf8'))
+  assert.equal(result.status, 'passed')
+  assert.equal(result.plan.profile, 'scoped')
+  assert.deepEqual(result.steps.map(step => step.name), ['tracked-diff'])
+  assert.equal(result.publication, 'published')
+  const published = readFileSync(calls, 'utf8')
+  assert.match(published, new RegExp(`scope-v2:scoped:${sha}:${base}`))
+  assert.match(published, /check-runs\/42/)
+  assert.match(readFileSync(join(evidence, 'summary.md'), 'utf8'), /Desktop verification/)
+
   f.write('scripts/open-dev-app.mjs', 'invalid syntax (\n')
-  f.commit()
-  const broken = spawnSync(process.execPath, ['scripts/verify.mjs', '--base', base], { cwd: f.cwd, env, encoding: 'utf8' })
-  assert.equal(broken.status, 1)
-  const failed = JSON.parse(readFileSync(join(evidenceRoot, readdirSync(evidenceRoot).sort().at(-1), 'result.json'), 'utf8'))
+  const brokenSha = f.commit()
+  const broken = spawnSync(process.execPath, ['scripts/verify-ci.mjs', '--evidence', evidence], {
+    cwd: f.cwd, env: { ...env, VERIFY_HEAD: brokenSha, VERIFY_CHECK_SHA: brokenSha }, encoding: 'utf8'
+  })
+  assert.equal(broken.status, 1, broken.stderr + broken.stdout)
+  const failed = JSON.parse(readFileSync(join(evidence, 'result.json'), 'utf8'))
   assert.equal(failed.status, 'failed')
   assert.deepEqual(failed.steps.map(step => [step.name, step.status]), [['script-syntax', 'failed']])
-  assert.equal(failed.checkoutRemoved, true)
 })
 
-test('runner preserves an inconclusive Bart environment separately from product failure', context => {
+test('CI runner refuses to verify a commit the checkout is not on', context => {
   const f = fixture(context)
-  for (const name of ['verify.mjs', 'verification-plan.mjs', 'verify-development.mjs', 'verification-workspace.mjs']) {
-    mkdirSync(join(f.cwd, 'scripts'), { recursive: true })
-    copyFileSync(join(scripts, name), join(f.cwd, 'scripts', name))
-  }
-  f.write('.gitignore', 'node_modules/\n')
+  mkdirSync(join(f.cwd, 'scripts'), { recursive: true })
+  copyFileSync(join(scripts, 'verify-ci.mjs'), join(f.cwd, 'scripts', 'verify-ci.mjs'))
+  copyFileSync(join(scripts, 'verification-plan.mjs'), join(f.cwd, 'scripts', 'verification-plan.mjs'))
   f.write('package.json', JSON.stringify({ packageManager: 'pnpm@10.17.1' }))
-  f.write('apps/desktop/package.json', JSON.stringify({ name: 'desktop' }))
-  f.write('apps/desktop/tests/bart-worker-suite.mjs', '// before\n')
+  f.write('docs/example.md', 'before\n')
   const base = f.commit()
-  f.write('apps/desktop/tests/bart-worker-suite.mjs', '// after\n')
+  f.write('docs/example.md', 'after\n')
   f.commit()
-  const fakePnpm = join(f.root, 'pnpm.cjs'), home = join(f.root, 'home')
-  mkdirSync(home)
-  for (const code of [75, 1]) {
-    writeFileSync(fakePnpm, `
-      const fs = require('node:fs'), args = process.argv.slice(2);
-      if (args[0] === '--version') console.log('10.17.1');
-      if (args[0] === 'install') {
-        fs.mkdirSync('apps/desktop/node_modules/typescript', { recursive: true });
-        fs.writeFileSync('apps/desktop/node_modules/typescript/package.json', '{"version":"test"}');
-      }
-      if (args.includes('test:bart-isolation')) process.exit(${code});
-    `)
-    const run = spawnSync(process.execPath, ['scripts/verify.mjs', '--base', base], {
-      cwd: f.cwd, env: { ...process.env, HOME: home, npm_execpath: fakePnpm }, encoding: 'utf8'
-    })
-    assert.equal(run.status, code, run.stderr + run.stdout)
-    const directory = join(home, 'Developer', '.openagent-verification')
-    const evidence = JSON.parse(readFileSync(join(directory, readdirSync(directory).sort().at(-1), 'result.json'), 'utf8'))
-    const expected = code === 75 ? 'environment-inconclusive' : 'failed'
-    assert.equal(evidence.status, expected)
-    assert.equal(evidence.steps.find(step => step.name === 'bart-isolation').status, expected)
-    assert.equal(evidence.checkoutRemoved, true)
-    assert.ok(!evidence.steps.some(step => step.name === 'tracked-diff'))
-  }
+  const run = spawnSync(process.execPath, ['scripts/verify-ci.mjs'], {
+    cwd: f.cwd, env: { ...process.env, VERIFY_HEAD: base, VERIFY_BASE: base }, encoding: 'utf8'
+  })
+  assert.equal(run.status, 1)
+  assert.match(run.stdout + run.stderr, /not the verified commit/)
 })
-
-test('runner dispatches filtered workspace checks and never turns a failed selected test green', context => {
-  const f = fixture(context)
-  for (const name of ['verify.mjs', 'verification-plan.mjs', 'verify-development.mjs', 'verification-workspace.mjs']) {
-    mkdirSync(join(f.cwd, 'scripts'), { recursive: true })
-    copyFileSync(join(scripts, name), join(f.cwd, 'scripts', name))
-  }
-  f.write('.gitignore', 'node_modules/\n')
-  f.write('package.json', JSON.stringify({ packageManager: 'pnpm@10.17.1' }))
-  f.write('apps/desktop/package.json', JSON.stringify({ name: 'desktop', scripts: { test: 'vitest run' } }))
-  f.write('apps/desktop/src/renderer/view.css', 'body {}\n')
-  const base = f.commit()
-  f.write('apps/desktop/src/renderer/view.css', 'body { color: red; }\n')
-  f.commit()
-  const fakePnpm = join(f.root, 'pnpm.cjs')
-  const home = join(f.root, 'home')
-  mkdirSync(home)
-  const env = { ...process.env, HOME: home, npm_execpath: fakePnpm }
-  for (const outcome of ['pass', 'test-failure', 'empty']) {
-    const fail = outcome !== 'pass'
-    writeFileSync(fakePnpm, `
-      const fs = require('node:fs');
-      const args = process.argv.slice(2);
-      if (args[0] === '--version') console.log('10.17.1');
-      if (args[0] === 'install') {
-        fs.mkdirSync('apps/desktop/node_modules/typescript', { recursive: true });
-        fs.writeFileSync('apps/desktop/node_modules/typescript/package.json', '{"version":"test"}');
-      }
-      if (${outcome === 'test-failure'} && args.includes('vitest')) process.exit(7);
-      const report = args.find(arg => arg.startsWith('--outputFile.json='));
-      if (report) fs.writeFileSync(report.split('=')[1], JSON.stringify({ success: true, numTotalTests: 1, numPassedTests: ${outcome === 'empty' ? 0 : 1}, testResults: [{name:'fixture.test.ts'}] }));
-    `)
-    const run = spawnSync(process.execPath, ['scripts/verify.mjs', '--base', base], { cwd: f.cwd, env, encoding: 'utf8' })
-    assert.equal(run.status, fail ? 1 : 0, run.stderr + run.stdout)
-    const evidenceRoot = join(home, 'Developer', '.openagent-verification')
-    const evidence = JSON.parse(readFileSync(join(evidenceRoot, readdirSync(evidenceRoot).sort().at(-1), 'result.json'), 'utf8'))
-    assert.equal(evidence.status, fail ? 'failed' : 'passed')
-    assert.equal(evidence.checkoutRemoved, true)
-    const regressions = evidence.steps.find(step => step.name === 'regressions')
-    assert.equal(regressions.command[2], 'regressions')
-    if (!fail) assert.equal(evidence.testSelection[0].tests, 1)
-    assert.equal(regressions.status, fail ? 'failed' : 'passed')
-    assert.ok(!evidence.steps.some(step => ['development', 'report-runtime', 'lifecycle-runtime'].includes(step.name)))
-    if (fail) assert.ok(!evidence.steps.some(step => step.name === 'build'))
-  }
-})
-
 
 test('test-file selection unions changed tests, maps CSS, and falls back across package boundaries', () => {
   const spaces = workspaces.map(item => ({ ...item, hasTests: true }))

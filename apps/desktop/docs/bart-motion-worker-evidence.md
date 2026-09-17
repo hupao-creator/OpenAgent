@@ -85,7 +85,7 @@ node apps/desktop/tests/bart-worker-isolation.electron.mjs --settings 5000
 node apps/desktop/tests/bart-worker-isolation.electron.mjs --message 2000
 ```
 
-脚本输出原始目录，包含区域统计、实际内容帧、资源计数及 trace。可用 `BART_ISOLATION_OUTPUT` 指定目录，`BART_TRACE_ONLY=1` 跑 M0 无捕获对照，`BART_ISOLATION_ENTRY` 指向 ASAR 内入口。完整套件自动校验 ASAR 加载，使用生产 sandbox/contextIsolation/webSecurity；项目 `pnpm verify` 已纳入这一原生步骤。
+脚本输出原始目录，包含区域统计、实际内容帧、资源计数及 trace。可用 `BART_ISOLATION_OUTPUT` 指定目录，`BART_TRACE_ONLY=1` 跑 M0 无捕获对照，`BART_ISOLATION_ENTRY` 指向 ASAR 内入口。完整套件自动校验 ASAR 加载，使用生产 sandbox/contextIsolation/webSecurity；CI 验证的 `bart-isolation` 步骤已纳入这一原生检查。
 
 本轮目录：基线 `KOoAA9`，M0 2s `2cKcKg`、5s `E9Ahy4`，ASAR `UfsO13`；干预 `Ld3N6i`；生成 `N7cZQc` / `baYbL3`；跨页 `GcOfcK` / `vl5tMd`；镜头 `v4Bih5` / `9HFtg9`；设置页 `1Vf0B0` / `4fVQxn`。目录名均带 `bart-isolation-` 前缀，位于运行机器临时目录。可提交的数值摘要在本文，完整产物由上述命令重新生成。
 

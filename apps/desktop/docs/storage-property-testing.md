@@ -94,8 +94,10 @@ Electron process recovery and packaged-app acceptance must still run separately:
 ```sh
 pnpm --dir apps/desktop run pack:local:mac
 OPENAGENT_SQLITE_EVIDENCE_ROOT=/absolute/new/local/run node apps/desktop/tests/sqlite-state-runtime.electron.mjs
-pnpm verify --pr 107 --publish
 ```
+
+打包与恢复验收之外，PR head 仍要跑 CI 的 `verify` workflow（真实 Electron 检查在 macOS
+runner 上执行）。
 
 Measured exploration, cost and native evidence are recorded with the delivery PR.
 

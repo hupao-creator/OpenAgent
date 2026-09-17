@@ -35,7 +35,6 @@
     "build:desktop": "pnpm run build",
     "typecheck": "pnpm build:packages && pnpm -r typecheck",
     "lint": "oxlint --deny-warnings --report-unused-disable-directives",
-    "verify": "node scripts/verify.mjs",
     "test": "pnpm test:dev-scripts && pnpm test:build-cache && pnpm --dir apps/desktop generate:registry && node scripts/run-recursive-tests.mjs",
     "test:dev-scripts": "node --test scripts/tests/*.test.mjs && python3 -B -m unittest discover -s scripts/tests -p \"test_*.py\"",
     "test:desktop": "pnpm --dir apps/desktop test",
