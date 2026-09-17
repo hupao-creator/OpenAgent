@@ -45,6 +45,10 @@ interface BarBox {
     不会在这些帧上回调，所以要主动跟一段时间。 */
 const ENTRANCE_FOLLOW_MS = 600
 
+/** 悬停/焦点状态的过渡时长（styles.css 里最长的是 180ms 的 `transform`）加一点余量。
+    这几帧里画布得连续重画，否则按钮的位移会停在半路。 */
+const STATE_FOLLOW_MS = 220
+
 export interface OverviewLiquidStageProps {
   /** 要进画布当衬底的俯瞰视图主体（滚动容器及其卡片）。 */
   readonly children: React.ReactNode
@@ -55,8 +59,6 @@ export interface OverviewLiquidStageProps {
    * 本身不通知任何人。
    */
   readonly backdropRefs: readonly React.RefObject<HTMLElement | null>[]
-  /** 主体里的滚动容器；它滚动时偏移只在合成器上变，画布不会自己知道。 */
-  readonly scrollRef: React.RefObject<HTMLElement | null>
   /**
    * 画布挂载、衬底子树已经进 DOM 时回调一次。调用方在画布挂载前拿不到衬底里的
    * 元素（画布要等舞台量出尺寸才渲染），而对象 ref 的回填不会通知任何人 ——
@@ -84,7 +86,7 @@ export interface OverviewLiquidStageProps {
  * `Glass` 不是可绘制场景节点（`flattenSceneLayers` 只收 Container / Html）。所以
  * 「Html 在前、GlassContainer 在后」= 玻璃画在捕获到的衬底之上。
  */
-export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtreeMounted, onFailure }: OverviewLiquidStageProps): React.JSX.Element {
+export function OverviewLiquidStage({ children, backdropRefs, onSubtreeMounted, onFailure }: OverviewLiquidStageProps): React.JSX.Element {
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<LiquidCanvasRef>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
@@ -175,23 +177,52 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
   /* 画布画的是捕获到的那一帧，`frameloop="demand"` 下只有被叫到才重画。相机和滚动
      各有一条失效路径，但它们都不是「内容变了」—— 流式文本、状态点、注意力标记这些
      只改衬底的 DOM，布局盒和偏移都不动。没有这一路，画布会一直停在旧帧，直到用户
-     碰一下相机或滚一下才更新。按整棵子树观察，同一帧里的多次改动合并成一次失效。 */
+     碰一下相机或滚一下才更新。按整棵子树观察，同一帧里的多次改动合并成一次失效。
+     这一路还管另外两类衬底不会自己报的变化：
+     - 指针悬停和键盘焦点只改伪类，连 DOM 都不动，而归档按钮就是靠
+       `:hover`/`:focus-within` 从 `opacity: 0; pointer-events: none` 变成可点的控件
+       （styles.css 3172-3185）—— 不跟这几帧，真实 DOM 已经点得到，画布上那个按钮
+       却还没出现。切过去还带 140-180ms 的过渡，所以要跟着重画一小段时间。
+     - 滚动：偏移只在合成器上变，而展开的关系列表是**独立的滚动区**
+       （`data-overview-native-scroll`），它的 scroll 不冒泡到外层滚动容器 —— 只能在
+       捕获阶段听。 */
   useEffect(() => {
     if (!substrate || failed) return
     let handle = 0
-    const invalidate = (): void => {
-      if (handle) return
-      handle = requestAnimationFrame(() => {
+    let until = 0
+    const step = (): void => {
+      canvasRef.current?.invalidateFrame()
+      if (performance.now() >= until) {
         handle = 0
-        canvasRef.current?.invalidateFrame()
-      })
+        return
+      }
+      handle = requestAnimationFrame(step)
     }
-    const observer = new MutationObserver(invalidate)
+    /* 同一帧里的多次触发合并成一次重画；带过渡的（悬停、焦点）再跟一段时间，
+       期间连续重画。 */
+    const invalidate = (window: number): void => {
+      until = Math.max(until, performance.now() + window)
+      if (handle) return
+      handle = requestAnimationFrame(step)
+    }
+    const observer = new MutationObserver(() => invalidate(0))
     observer.observe(substrate, {
       subtree: true, childList: true, characterData: true, attributes: true
     })
+    const onState = (): void => invalidate(STATE_FOLLOW_MS)
+    const onScroll = (): void => invalidate(0)
+    substrate.addEventListener('pointerover', onState, { passive: true })
+    substrate.addEventListener('pointerout', onState, { passive: true })
+    substrate.addEventListener('focusin', onState)
+    substrate.addEventListener('focusout', onState)
+    substrate.addEventListener('scroll', onScroll, { capture: true, passive: true })
     return () => {
       observer.disconnect()
+      substrate.removeEventListener('pointerover', onState)
+      substrate.removeEventListener('pointerout', onState)
+      substrate.removeEventListener('focusin', onState)
+      substrate.removeEventListener('focusout', onState)
+      substrate.removeEventListener('scroll', onScroll, { capture: true })
       if (handle) cancelAnimationFrame(handle)
     }
   }, [substrate, failed])
@@ -222,28 +253,6 @@ export function OverviewLiquidStage({ children, backdropRefs, scrollRef, onSubtr
       if (handle) cancelAnimationFrame(handle)
     }
   }, [])
-
-  /* 滚动同理：偏移量变了，子树的布局盒没变，paint 不会为它触发。
-     依赖 `substrate`：画布挂载前 `scrollRef.current` 还是 null，只按 scrollRef 挂一次会
-     静默返回，之后再也补不上；换肤换掉节点之后也得挂到新节点上。 */
-  useEffect(() => {
-    const scroll = scrollRef.current
-    if (!scroll) return
-    let handle = 0
-    const invalidate = (): void => {
-      if (handle) return
-      handle = requestAnimationFrame(() => {
-        handle = 0
-        canvasRef.current?.invalidateFrame()
-      })
-    }
-    scroll.addEventListener('scroll', invalidate, { passive: true })
-    return () => {
-      scroll.removeEventListener('scroll', invalidate)
-      if (handle) cancelAnimationFrame(handle)
-    }
-  }, [scrollRef, substrate])
-
 
   return <div className="overview-liquid-stage" ref={stageRef}>
     {ready && (failed

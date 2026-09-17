@@ -1478,7 +1478,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       </div>
 
       {liquidCapable
-        ? <OverviewLiquidStage backdropRefs={liquidBackdrops} scrollRef={scrollRef}
+        ? <OverviewLiquidStage backdropRefs={liquidBackdrops}
             onSubtreeMounted={onLiquidSubtreeMounted}
             onFailure={handleLiquidFailure}>{body}</OverviewLiquidStage>
         : body}
