@@ -24,6 +24,7 @@ function deferred<T>() {
 const offscreen = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'transferControlToOffscreen')
 const nativeAnimations = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations')
 const nativeAnimate = Object.getOwnPropertyDescriptor(Element.prototype, 'animate')
+const nativeTimeline = Object.getOwnPropertyDescriptor(document, 'timeline')
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
   const startedAt = Date.now()
@@ -34,6 +35,9 @@ beforeEach(() => {
   Object.defineProperty(HTMLCanvasElement.prototype, 'transferControlToOffscreen', { configurable: true, value: vi.fn() })
   Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] })
   Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: () => ({ startTime: 0, cancel: vi.fn() }) })
+  // jsdom supplies neither a compositor nor its timeline. Keep both clocks
+  // on the same fake epoch when exercising the real redirect compiler.
+  Object.defineProperty(document, 'timeline', { configurable: true, value: { get currentTime() { return performance.now() } } })
   performance.clearMarks()
 })
 afterEach(async () => {
@@ -43,7 +47,8 @@ afterEach(async () => {
   for (const [prototype, key, descriptor] of [
     [HTMLCanvasElement.prototype, 'transferControlToOffscreen', offscreen],
     [Element.prototype, 'getAnimations', nativeAnimations],
-    [Element.prototype, 'animate', nativeAnimate]
+    [Element.prototype, 'animate', nativeAnimate],
+    [document, 'timeline', nativeTimeline]
   ] as const) {
     if (descriptor) Object.defineProperty(prototype, key, descriptor)
     else Reflect.deleteProperty(prototype, key)

@@ -43,7 +43,7 @@ describe('scene lifetime handoff contract', () => {
     const waiting = scene.wait(done.promise)
     scene.abort()
     await assert.rejects(waiting, { name: 'AbortError', message: 'cancelled' })
-    assert.deepEqual(events, [])
+    assert.equal(events.length, 0)
     scene.handoff(() => { events.push('latest DOM') })
     done.resolve()
     await Promise.resolve()
