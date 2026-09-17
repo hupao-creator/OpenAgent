@@ -22,23 +22,19 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/liquid-probe/evidence"
-          git archive HEAD -o "$RUNNER_TEMP/liquid-probe/evidence/repository.tar"
           cd "$RUNNER_TEMP/liquid-probe"
           npm init -y
           npm install --save-exact @liquid-dom/react@0.1.1 react@19.2.8 react-dom@19.2.8 electron@43.3.0 esbuild@0.25.12
-          cp node_modules/@liquid-dom/react/README.md evidence/react-README.md
-          cp node_modules/@liquid-dom/react/package.json evidence/react-package.json
-          cp node_modules/@liquid-dom/core/package.json evidence/core-package.json
-          tar -czf evidence/liquid-packages.tgz node_modules/@liquid-dom
           cat > index.jsx <<'JS'
           import React from 'react';
           import { createRoot } from 'react-dom/client';
           import { Frame, Glass, GlassContainer, Html, LiquidCanvas } from '@liquid-dom/react';
           window.probeErrors = [];
-          window.addEventListener('error', e => window.probeErrors.push(String(e.error || e.message)));
-          window.addEventListener('unhandledrejection', e => window.probeErrors.push(String(e.reason)));
+          const record = e => { const m = String(e); if (!window.probeErrors.includes(m)) window.probeErrors.push(m); };
+          window.addEventListener('error', e => record(e.error || e.message));
+          window.addEventListener('unhandledrejection', e => record(e.reason));
           function App() {
-            return <LiquidCanvas frameloop="demand" maxDpr={1} style={{width: '900px', height: '560px'}} onError={e => window.probeErrors.push(String(e))}>
+            return <LiquidCanvas ref={r => { window.liquid = r; }} frameloop={new URLSearchParams(location.search).get('loop')} maxDpr={1} style={{width: '900px', height: '540px'}} canvasStyle={{width: '100%', height: '100%'}} onError={record}>
               <GlassContainer blur={12} spacing={28}>
                 <Frame width={280} height={160}>
                   <Glass cornerRadius={44} pointerEvents>
@@ -59,34 +55,48 @@ jobs:
           const { writeFileSync } = require('node:fs');
           const path = require('node:path');
           app.commandLine.appendSwitch('enable-blink-features', 'CanvasDrawElement');
-          app.commandLine.appendSwitch('enable-unsafe-webgpu');
-          app.commandLine.appendSwitch('use-angle', 'swiftshader');
+          if (process.env.BACKEND === 'swiftshader') {
+            app.commandLine.appendSwitch('enable-unsafe-webgpu');
+            app.commandLine.appendSwitch('use-angle', 'swiftshader');
+          }
           const delay = ms => new Promise(r => setTimeout(r, ms));
           const watchdog = setTimeout(() => { console.error('Probe timed out'); app.exit(2); }, 60000);
+          const label = process.env.BACKEND + '-' + process.env.LOOP;
           app.whenReady().then(async () => {
+            const messages = [];
             const win = new BrowserWindow({show: true, width: 900, height: 600, webPreferences: {backgroundThrottling: false}});
-            win.webContents.on('console-message', (_e, details) => console.log('renderer:', details));
-            await win.loadFile(path.join(__dirname, 'index.html'));
+            win.webContents.on('console-message', (event, level, message) => {
+              const text = event.message || message || String(level);
+              if (!messages.includes(text) && messages.length < 25) messages.push(text);
+            });
+            await win.loadFile(path.join(__dirname, 'index.html'), {query: {loop: process.env.LOOP}});
             await delay(5000);
-            const result = await win.webContents.executeJavaScript(`(async () => ({
-              ua: navigator.userAgent, secure: isSecureContext, gpu: !!navigator.gpu,
-              drawElementImage: typeof CanvasRenderingContext2D.prototype.drawElementImage,
-              canvasCount: document.querySelectorAll('canvas').length,
-              text: document.querySelector('#native-content')?.textContent,
-              errors: window.probeErrors,
-              adapter: navigator.gpu ? !!(await navigator.gpu.requestAdapter()) : false,
-            }))()`);
+            const result = await win.webContents.executeJavaScript(`(async () => {
+              const r = window.liquid?.renderer;
+              const canvas = document.querySelector('canvas');
+              const adapter = navigator.gpu ? await navigator.gpu.requestAdapter() : null;
+              return {
+                ua: navigator.userAgent, secure: isSecureContext, gpu: !!navigator.gpu,
+                drawElementImage: typeof CanvasRenderingContext2D.prototype.drawElementImage,
+                canvas: canvas ? {width: canvas.width, height: canvas.height, bounds: canvas.getBoundingClientRect().toJSON()} : null,
+                text: document.querySelector('#native-content')?.textContent,
+                contentBounds: document.querySelector('#native-content')?.getBoundingClientRect().toJSON(),
+                errors: window.probeErrors, initialized: r?.initialized, initError: String(r?.initError),
+                adapter: !!adapter, adapterInfo: adapter ? {vendor: adapter.info.vendor, architecture: adapter.info.architecture, device: adapter.info.device, description: adapter.info.description} : null,
+              };
+            })()`);
             const image = await win.webContents.capturePage();
-            writeFileSync(path.join(__dirname, 'evidence/minimal-demo.png'), image.toPNG());
+            writeFileSync(path.join(__dirname, 'evidence', label + '.png'), image.toPNG());
             const data = image.toBitmap();
             let greenPixels = 0;
             for (let i = 0; i < data.length; i += 4) {
               if (data[i+1] > data[i+2] + 15 && data[i+1] > data[i] + 15) greenPixels++;
             }
             result.greenPixels = greenPixels;
+            result.messages = messages;
             result.versions = process.versions;
-            writeFileSync(path.join(__dirname, 'evidence/result.json'), JSON.stringify(result, null, 2));
-            console.log(JSON.stringify(result, null, 2));
+            writeFileSync(path.join(__dirname, 'evidence', label + '.json'), JSON.stringify(result, null, 2));
+            console.log(label, JSON.stringify(result, null, 2));
             clearTimeout(watchdog);
             app.exit(result.errors.length === 0 && greenPixels > 1000 ? 0 : 1);
           }).catch(e => { console.error(e); clearTimeout(watchdog); app.exit(1); });
@@ -95,7 +105,13 @@ jobs:
         shell: bash
         run: |
           cd "$RUNNER_TEMP/liquid-probe"
-          ./node_modules/.bin/electron host.cjs
+          passed=0
+          for backend in native swiftshader; do
+            for loop in demand always; do
+              BACKEND="$backend" LOOP="$loop" ./node_modules/.bin/electron host.cjs && passed=1
+            done
+          done
+          test "$passed" = 1
       - name: Preserve probe evidence
         if: always()
         uses: actions/upload-artifact@v4
