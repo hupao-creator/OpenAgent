@@ -138,11 +138,18 @@ test('CI runner executes a light scope, publishes scope evidence and never turns
   const base = f.commit()
   f.write('docs/example.md', 'after\n')
   const sha = f.commit()
+  // A base branch that advanced after this run was queued: the PR's live base is
+  // this commit, while the event payload still carries the older one.
+  const feature = f.git('rev-parse', '--abbrev-ref', 'HEAD')
+  f.git('checkout', '-q', '-b', 'advanced', base)
+  f.write('base-only.txt', 'advanced\n')
+  const liveBase = f.commit()
+  f.git('checkout', '-q', feature)
 
   const bin = join(f.root, 'bin')
   mkdirSync(bin)
   const calls = join(f.root, 'gh-calls.txt')
-  writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> ${calls}\ncase "$*" in *"--input -"*) cat >> ${calls};; esac\necho '{"id": 42}'\n`)
+  writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> ${calls}\ncase "$*" in *"--input -"*) cat >> ${calls};; esac\ncase "$*" in *"/pulls/1") echo '{"base":{"sha":"${liveBase}"}}';; *) echo '{"id": 42}';; esac\n`)
   chmodSync(join(bin, 'gh'), 0o755)
   const fakePnpm = join(f.root, 'pnpm.cjs')
   writeFileSync(fakePnpm, "if (process.argv[2] === '--version') console.log('10.17.1'); else process.exit(99)\n")
@@ -159,7 +166,9 @@ test('CI runner executes a light scope, publishes scope evidence and never turns
   assert.deepEqual(result.steps.map(step => step.name), ['tracked-diff'])
   assert.equal(result.publication, 'published')
   const published = readFileSync(calls, 'utf8')
-  assert.match(published, new RegExp(`scope-v2:scoped:${sha}:${base}`))
+  // The proof has to name the base the gate will compare against, which is the one
+  // the PR has now — not the one the event payload captured when the run was queued.
+  assert.match(published, new RegExp(`scope-v2:scoped:${sha}:${liveBase}`))
   assert.match(published, /check-runs\/42/)
   // The gate reads check runs off the head, and the event payload's merge commit
   // lags one head behind on a push, so the run has to name the verified commit.

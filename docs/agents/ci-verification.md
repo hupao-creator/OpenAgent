@@ -15,6 +15,11 @@ workflow 检出 PR head（`fetch-depth: 0`，以便计算 merge-base），以 PR
 比较基线，按[分级规则](verification-scope.md)在同一次检出内执行必跑步骤。与旧版本一致，
 验证的是 PR head，不构造与 base 的临时合并提交。
 
+base SHA 在执行时通过 `VERIFY_PR` 读 PR 的当前 base，事件负载里的 `VERIFY_BASE` 只是取不到
+时的兜底。base 分支前进不会触发任何 `pull_request` 事件，若沿用入队时捕获的值，重跑那次
+workflow 只会再验证一次旧 base，PR 会一直卡在过期证据上；读实时 base 后，Actions 页面上的
+re-run 就是可用的恢复路径。
+
 check run 挂在 PR head 上，也就是这次真正验证的那个提交。曾经挂 merge commit，但事件负载里的
 `pull_request.merge_commit_sha` 在 `synchronize` 时仍指向上一个 head，check run 会落到门禁不读的
 SHA 上；head 是唯一稳定的落点。base 前进后 check run 仍在，但证据行里记录的 base 已经过期，

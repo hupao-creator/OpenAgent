@@ -65,13 +65,36 @@ function annotate(level, message) {
   console.log(`::${level}::${message.replace(/\r?\n/g, ' ')}`)
 }
 
+// The gate binds the proof to the PR's current base, but a base branch that
+// advances leaves the head untouched: no pull_request event fires, so the SHA
+// captured when the run was queued goes stale and re-running that run re-verifies
+// the old base forever. Read the live base instead, which also makes the re-run
+// path a real recovery. Without a token (local rehearsal) the stored value stands.
+function resolveBase() {
+  const stored = process.env.VERIFY_BASE || null
+  const repository = process.env.GITHUB_REPOSITORY
+  const number = process.env.VERIFY_PR
+  if (!repository || !number || !process.env.GITHUB_TOKEN) return stored
+  try {
+    const pull = JSON.parse(command('gh', ['api', `repos/${repository}/pulls/${number}`]))
+    const current = pull.base?.sha || null
+    if (current && stored && current !== stored) {
+      console.log(`Base advanced from ${stored} to ${current} since this run was queued`)
+    }
+    return current || stored
+  } catch (error) {
+    annotate('warning', `verify: cannot read the PR's current base (${error.message})`)
+    return stored
+  }
+}
+
 async function verify() {
   const [major, minor] = process.versions.node.split('.').map(Number)
   if (major < 22 || major === 22 && minor < 19) throw new Error('Node >=22.19 is required')
   const sha = git('rev-parse', '--verify', '--end-of-options', `${process.env.VERIFY_HEAD || 'HEAD'}^{commit}`)
   const checkoutHead = git('rev-parse', 'HEAD')
   if (checkoutHead !== sha) throw new Error(`Checkout is at ${checkoutHead}, not the verified commit ${sha}`)
-  const base = process.env.VERIFY_BASE || null
+  const base = resolveBase()
   const plan = planVerification({ cwd: sourceRoot, sha, base, full: options.full })
   if (process.platform !== 'darwin' && plan.requiredSteps.some(name => ['development', 'report-runtime', 'lifecycle-runtime', 'dev-scripts'].includes(name))) {
     throw new Error('Selected native/development checks require macOS')

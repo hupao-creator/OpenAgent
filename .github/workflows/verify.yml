@@ -39,6 +39,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERIFY_HEAD: ${{ github.event.pull_request.head.sha }}
+          # Fallback only. The runner reads the PR's live base through VERIFY_PR,
+          # because a base branch that advances fires no pull_request event and the
+          # SHA captured here would keep re-verifying a base the gate has moved past.
           VERIFY_BASE: ${{ github.event.pull_request.base.sha }}
           VERIFY_PR: ${{ github.event.pull_request.number }}
         run: node scripts/verify-ci.mjs

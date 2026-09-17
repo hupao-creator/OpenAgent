@@ -9,7 +9,7 @@
 
 ## 使用
 
-分级在 CI 中执行：[verify workflow](ci-verification.md) 由 PR 事件触发，从 `VERIFY_BASE`
+分级在 CI 中执行：[verify workflow](ci-verification.md) 由 PR 事件触发，从 PR 当前的 base
 到 `VERIFY_HEAD` 的完整差异计算计划，在同一次检出内运行必跑步骤并发布 `verify` check run。
 本地没有便捷入口；入口 `scripts/verify-ci.mjs` 接受 `--full`、`--serial`、`--force-build`
 和 `--evidence <dir>` 用于本地演练，其输出仅为证据，不写 GitHub（除非设置 `GITHUB_TOKEN`
