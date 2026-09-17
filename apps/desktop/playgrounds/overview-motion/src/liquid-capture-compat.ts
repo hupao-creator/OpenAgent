@@ -35,3 +35,23 @@ export function installLiquidCaptureCompat(): void {
   }
   proto.__liquidCaptureCompat = true
 }
+
+/**
+ * CanvasDrawElement 是未发布的实验特性，只有宿主进程开了 Blink 开关才有。开发流程里
+ * 的 `pnpm playground:overview` 只起 Vite 并把页面开到外部浏览器，那里没有这个 API：
+ * 库每次捕获都抛 TypeError，画布是一片空白加一屏报错。所以两个 liquid 场景挂载前先问
+ * 一次，缺了就直接说明缺什么，别让看的人对着空舞台猜。
+ *
+ * 返回缺什么；有就返回 null。
+ */
+export function canvasDrawElementGap(): string | null {
+  if (typeof HTMLCanvasElement === 'undefined') return '当前环境没有 DOM。'
+  // 这两个成员都不在 TS 的 DOM 类型里 —— 特性还没发布，只能按运行时实际有没有来判。
+  const prototype = HTMLCanvasElement.prototype as unknown as Record<string, unknown>
+  if (typeof prototype.captureElementImage !== 'function' || !('layoutSubtree' in prototype)) {
+    return '这个浏览器没有 CanvasDrawElement —— 它是未发布的实验特性，需要宿主进程在启动前'
+      + '打开 Blink 开关（apps/desktop/src/main/index.ts 的 enable-blink-features=CanvasDrawElement）。'
+      + '浏览器里直接开本页看不到玻璃，请用桌面端 Electron 运行。'
+  }
+  return null
+}

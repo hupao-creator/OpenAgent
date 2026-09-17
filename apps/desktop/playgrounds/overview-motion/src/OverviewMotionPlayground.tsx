@@ -119,7 +119,7 @@ export function OverviewMotionPlayground(): React.JSX.Element {
       <header className="motion-header">
         <div className="motion-brand"><span>OPENAGENT / PLAYGROUNDS</span><h1>Overview Motion</h1></div>
         <div className="motion-environment">
-          <nav className="layout-nav" aria-label="Playground"><a href="?scene=lifecycle" aria-current="page">动画</a><a href="?scene=layout">Layout</a><a href="?scene=liquid">Liquid</a></nav>
+          <nav className="layout-nav" aria-label="Playground"><a href="?scene=lifecycle" aria-current="page">动画</a><a href="?scene=layout">Layout</a><a href="?scene=liquid">Liquid</a><a href="?scene=liquid-live">Liquid Live</a></nav>
           <label>视口<select value={width} onChange={event => setWidth(event.target.value)}><option value="fluid">自适应</option><option value="1100">1100 px</option><option value="760">760 px</option><option value="560">560 px</option></select></label>
           <label>外观<select value={theme} onChange={event => setTheme(event.target.value)}><option value="light">浅色</option><option value="dark">深色</option></select></label>
         </div>

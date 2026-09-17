@@ -15,6 +15,37 @@
   background: light-dark(#f0f1ec, #191c18);
 }
 
+/* 窄屏下 playground.css 把 .motion-playground 从 grid 改成 block，上面那条
+   grid-template-rows 就失效了。舞台这时只剩一个绝对定位的量尺寸副本，高度塌成 0，
+   LiquidCanvas 又被 size.height > 0 挡着，永远挂不上去 —— 给个显式高度兜住。 */
+@media (max-width: 680px) {
+  .liquid-stage { height: 65dvh; min-height: 440px; }
+}
+
+/* 缺 CanvasDrawElement 时占住舞台的那块说明。见 LiquidUnsupported.tsx。 */
+.liquid-unsupported {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  background: light-dark(#f0f1ec, #191c18);
+  color: light-dark(#3a4038, #c9cec4);
+  font-family: 'Inter Variable', sans-serif;
+  font-size: 12px;
+  line-height: 1.9;
+}
+
+.liquid-unsupported strong {
+  color: light-dark(#20211e, #eeeee9);
+  font-size: 14px;
+  font-weight: 620;
+}
+
+.liquid-unsupported p { max-width: 62ch; margin: 0; }
+
 /* 量尺寸用的隐藏副本。用 visibility 而不是 display:none —— 前者仍然参与排版，
    getBoundingClientRect 量得到生产样式排出来的真实宽高；后者量出来是 0。
    绝对定位让它不进文档流，不影响舞台自己的尺寸。 */
@@ -63,9 +94,10 @@
 }
 
 /* 两条栏在场景里是独立节点，不再有 .thread-overview-header 那个定位父级，
-   绝对居中那套（position/inset/margin-inline/max-width）全部让给库的布局。 */
-.liquid-stage .thread-tag-filter-bar,
-.liquid-stage .thread-overview-actions {
+   绝对居中那套（position/inset/margin-inline/max-width）全部让给库的布局。
+   只针对进画布的那一份：.liquid-measure 里的副本要按生产样式排，量出来的盒子
+   才和生产一致（含边框），交给 Frame 的尺寸才是对的。 */
+.liquid-stage canvas [data-liquid-bar] {
   position: static;
   width: max-content;
   max-width: none;
@@ -76,26 +108,40 @@
   backdrop-filter: none;
 }
 
-:root[data-theme='light'] .liquid-stage .thread-tag-filter-bar,
-:root[data-theme='light'] .liquid-stage .thread-overview-actions,
-:root[data-theme='dark'] .liquid-stage .thread-tag-filter-bar,
-:root[data-theme='dark'] .liquid-stage .thread-overview-actions {
+:root[data-theme='light'] .liquid-stage canvas [data-liquid-bar],
+:root[data-theme='dark'] .liquid-stage canvas [data-liquid-bar] {
   border-color: transparent;
   box-shadow: none;
 }
 
 /* 库的指针事件只到 Glass，命中测试换成手动加类，取值照抄生产 :hover。 */
-:root[data-theme='light'] .liquid-stage .thread-tag-filter-option.hovered,
-:root[data-theme='light'] .liquid-stage .thread-overview-actions .icon-button.hovered {
+:root[data-theme='light'] .liquid-stage canvas [data-liquid-bar] .thread-tag-filter-option.hovered,
+:root[data-theme='light'] .liquid-stage canvas [data-liquid-bar] .icon-button.hovered {
   background: rgba(255, 255, 255, 0.34);
   color: var(--ink);
 }
 
-:root[data-theme='dark'] .liquid-stage .thread-tag-filter-option.hovered,
-:root[data-theme='dark'] .liquid-stage .thread-overview-actions .icon-button.hovered {
+:root[data-theme='dark'] .liquid-stage canvas [data-liquid-bar] .thread-tag-filter-option.hovered,
+:root[data-theme='dark'] .liquid-stage canvas [data-liquid-bar] .icon-button.hovered {
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.96);
 }
+
+/* `?scene=liquid-live` 的衬底是真实的 ConversationOverview。它自带的边框和外阴影是给
+   独立窗口用的，在画布里会多出一圈；捕获层只要内容。 */
+.liquid-live-substrate {
+  width: 100%;
+  height: 100%;
+}
+
+.liquid-live-substrate .thread-overview {
+  border: 0;
+  box-shadow: none;
+}
+
+/* 衬底里的 overview 自己不画那两条栏 —— 它只在拿到 tagFilters 或选中标签时才渲染
+   筛选栏，而动作栏那几个按钮也只在传了对应回调时才有内容。场景不传这些，所以栏只有
+   玻璃那一份。要是以后想让 overview 自己画，记得和玻璃那份留一处，别叠成两层。 */
 
 .liquid-playground .motion-stage-footer output {
   color: light-dark(#48624b, #b6d5ad);

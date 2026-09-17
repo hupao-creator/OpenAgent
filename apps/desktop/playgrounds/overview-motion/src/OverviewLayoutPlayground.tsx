@@ -87,7 +87,7 @@ export function OverviewLayoutPlayground(): React.JSX.Element {
   return <main className="motion-playground layout-playground">
     <header className="motion-header">
       <div className="motion-brand"><span>OPENAGENT / PLAYGROUNDS</span><h1>Overview Layout</h1></div>
-      <nav className="layout-nav" aria-label="Playground"><a href="?scene=lifecycle">动画</a><a href="?scene=layout" aria-current="page">Layout</a><a href="?scene=liquid">Liquid</a></nav>
+      <nav className="layout-nav" aria-label="Playground"><a href="?scene=lifecycle">动画</a><a href="?scene=layout" aria-current="page">Layout</a><a href="?scene=liquid">Liquid</a><a href="?scene=liquid-live">Liquid Live</a></nav>
     </header>
     <div className="layout-workspace">
       <section className="layout-view" aria-label="布局实验">
