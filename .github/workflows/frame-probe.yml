@@ -24,6 +24,13 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Probe
-        run: |
-          node apps/desktop/tests/frame-probe.mjs
-          FRAME_PROBE_DISABLE_OCCLUSION=1 node apps/desktop/tests/frame-probe.mjs
+        run: node apps/desktop/tests/frame-probe.mjs
+      - name: Generate registry
+        working-directory: apps/desktop
+        run: pnpm generate:registry
+      - name: Build the Bart lab
+        working-directory: apps/desktop
+        run: pnpm exec vite build --config labs/bart/vite.config.ts
+      - name: Diagnose the generation test
+        working-directory: apps/desktop
+        run: node tests/bart-generation-diag.mjs
