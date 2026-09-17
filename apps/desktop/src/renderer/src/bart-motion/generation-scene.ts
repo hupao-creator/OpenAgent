@@ -119,7 +119,6 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       const toolbar = scroll?.parentElement?.querySelector<HTMLElement>('.thread-overview-header')
       const revision = (): string => elements.map(motionCardRevision).join('\0')
       const valid = sealGeometry([root, dockContainer, ...elements, ...(scroll ? [scroll] : []), ...(toolbar ? [toolbar] : [])], revision)
-      const initialRevision = revision()
       const initialCamera = getOverviewCameraCockpit().live?.transform
       // The resident SVG reserves room for orbits and a caption. Its stable body
       // outline supplies geometry; the Worker owns the live pose, never this DOM.
@@ -153,7 +152,7 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       run = surface!.play(program)
       const origin = await run.started
       sealSignal.throwIfAborted()
-      return { valid, revision, initialRevision, initialCamera, rootRect, viewport, program, origin }
+      return { valid, initialCamera, rootRect, viewport, program, origin }
     }
     let playback: Awaited<ReturnType<typeof preparePlayback>>
     while (true) {
@@ -168,7 +167,7 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       await beforeDeadline(preparationPause)
     }
     signal.throwIfAborted()
-    const { revision, initialRevision, initialCamera, rootRect, viewport, program, origin } = playback
+    const { initialCamera, rootRect, viewport, program, origin } = playback
     if (plane && initialCamera && program.camera) {
       camera = getOverviewCameraCockpit().playPrepared(program.camera.map(frame => ({
         at: frame.at, x: initialCamera.x + frame.x, y: initialCamera.y + frame.y, scale: initialCamera.scale
@@ -180,12 +179,9 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     performance.mark('bart-generation-ready', { detail: { origin, duration: program.duration,
       phases: program.phases, camera: program.camera, viewport, cards: cards.map(card => card.rect),
       preparedMs: performance.now() - preparedAt, sealedMs: performance.now() - seal.sealedAt } })
-    // New business facts end the old snapshot promptly. None of these observers
-    // supplies animation frames; while Host is blocked the sealed scene runs.
-    const observer = new MutationObserver(() => { if (revision() !== initialRevision) abort() })
-    elements.forEach(element => observer.observe(element, { subtree: true, characterData: true, childList: true, attributes: true }))
-    observer.observe(document.documentElement, { attributes: true })
-    cleanups.push(() => observer.disconnect())
+    // Once visible, finish this prepared reveal and return before handing off
+    // to the live cards. Streamed text and metadata keep updating beneath the
+    // cover; they must not truncate playback or restart the batch.
     const onResize = (): void => {
       const current = root.getBoundingClientRect()
       if (Math.abs(current.width - rootRect.width) > .5 || Math.abs(current.height - rootRect.height) > .5) abort()
