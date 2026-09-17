@@ -474,8 +474,8 @@ Bart Host，也不应通过虚报能力使测试通过。宿主策略断言已�
 `src/test-support/` 原生测试 Adapter（契约见 `@openagent/test-kit`），否则依赖它的
 通用 runner 会以具名错误拒绝运行。
 这些既有回归不替代新 native adapter 的行为测试；应在自己的 native seam 加取消、错误、
-重连、重复事件、资源释放的可观察测试。完整交付还要求 clean candidate 的
-`pnpm verify -- --pr <number> --publish`，按[仓库流程](../.agents/README.md)评审和交付。
+重连、重复事件、资源释放的可观察测试。完整交付还要求 PR head 通过 CI 的 `verify`
+workflow，按[仓库流程](../.agents/README.md)评审和交付。
 
 在 Desktop 中先配置一个已有且可用的 Bart host（如 Codex），在 Bart 设置的 target
 范围启用 Demo。向 Bart 发送“用 demo Harness 创建普通任务，首条输入为 hello”，由

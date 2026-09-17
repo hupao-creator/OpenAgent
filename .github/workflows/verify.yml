@@ -1,0 +1,67 @@
+name: verify
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    # Distinct from the `verify` check run the script publishes, so the gate can
+    # tell the evidence-bearing run from this job's own status.
+    name: Desktop verification
+    # Native reports, lifecycle and Bart checks launch Electron, so this needs macOS.
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - name: Verify
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERIFY_HEAD: ${{ github.event.pull_request.head.sha }}
+          # Fallback only. The runner reads the PR's live base through VERIFY_PR,
+          # because a base branch that advances fires no pull_request event and the
+          # SHA captured here would keep re-verifying a base the gate has moved past.
+          VERIFY_BASE: ${{ github.event.pull_request.base.sha }}
+          VERIFY_PR: ${{ github.event.pull_request.number }}
+        run: node scripts/verify-ci.mjs
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-evidence
+          path: |
+            ${{ runner.temp }}/verification-evidence
+            !${{ runner.temp }}/verification-evidence/tmp
+          if-no-files-found: ignore
+          retention-days: 14
+      # Native probes write screenshots and packaged bundles under TMPDIR; keep those
+      # out of the passing artifact but available once a run has failed.
+      - name: Upload scratch evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-scratch
+          path: ${{ runner.temp }}/verification-evidence/tmp
+          if-no-files-found: ignore
+          retention-days: 7

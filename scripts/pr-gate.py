@@ -12,7 +12,8 @@ from pr_gate_lib import (
 )
 
 
-VERIFICATION_CONTEXT = "local/desktop-verification"
+VERIFICATION_CHECK = "verify"
+VERIFICATION_PROOF = re.compile(r"scope-v2:(full|scoped):([a-f0-9]{40}):([a-f0-9]{40})")
 REVIEW_SETTLE_MS = 5000
 
 
@@ -90,6 +91,18 @@ def check_threads_resolved(value):
     return passed("{} review thread(s), all resolved.".format(len(threads)))
 
 
+def latest_check_runs(check_runs):
+    # A check run's id increases with every run GitHub records for it, so the
+    # highest id per name and app is the one GitHub itself would report.
+    latest = {}
+    for check in check_runs:
+        key = (((check.get("app") or {}).get("slug") or (check.get("app") or {}).get("id")), check.get("name"))
+        current = latest.get(key)
+        if current is None or (check.get("id") or 0) > (current.get("id") or 0):
+            latest[key] = check
+    return latest
+
+
 def check_verification(value):
     if not isinstance(value.get("statuses"), list) or not isinstance(value.get("checkRuns"), list):
         return blocked("Commit statuses were not collected; use a snapshot with checks.")
@@ -99,34 +112,46 @@ def check_verification(value):
         if context not in latest or latest[context]["id"] < status["id"]:
             latest[context] = status
     signals = []
-    verification = latest.get(VERIFICATION_CONTEXT)
-    if verification is None:
-        signals.append(blocked("No {} status on HEAD; run pnpm verify --pr <N> --publish first.".format(VERIFICATION_CONTEXT)))
-    elif verification["state"] == "pending":
-        signals.append(pending("Local verification is running."))
-    elif verification["state"] != "success":
-        signals.append(blocked("Local verification status is {}.".format(verification["state"])))
-    else:
-        proof = re.fullmatch(r"scope-v1:(full|scoped):([a-f0-9]{40})", verification.get("description") or "")
-        if not proof or proof[2] != value.get("baseSha") or value.get("verificationSnapshotStable") is not True:
-            signals.append(blocked("Verification scope evidence is missing or stale for the PR base; rerun pnpm verify --pr <N> --publish."))
     for status in latest.values():
         if status["state"] == "pending":
             signals.append(pending("Commit status is pending: {}.".format(status["context"])))
         elif status["state"] != "success":
             signals.append(blocked("Commit status failed: {}.".format(status["context"])))
-    # Evaluate every run, including same-named jobs: a newer success must not
-    # hide another run's failure. Failures take precedence over pending signals.
-    for check in value["checkRuns"]:
+    # GitHub keys each check by name and app, and reads only the newest run for it:
+    # a re-run supersedes the run it replaced, including a `cancelled` one the
+    # workflow's `cancel-in-progress` left behind. Reading every run instead would
+    # leave a superseded conclusion blocking a commit the replacement run proved.
+    # Failures take precedence over pending signals.
+    for check in latest_check_runs(value["checkRuns"]).values():
         if check["status"] != "completed":
             signals.append(pending("Check is running: {}.".format(check["name"])))
         elif check.get("conclusion") not in {"success", "neutral", "skipped"}:
             signals.append(blocked("Check failed: {}.".format(check["name"])))
+    # The workflow attaches its check run to the verified head, so it survives a
+    # base advance; the recorded scope evidence is what binds the tested base and
+    # turns a stale run into a rerun request rather than a pass.
+    runs = [check for check in value["checkRuns"] if check.get("name") == VERIFICATION_CHECK]
+    if not runs:
+        # A run whose publication fails takes the job's own check run down with it,
+        # which the loop above reports as a failure; a run that never started is
+        # still in flight, so wait for it rather than calling it blocked.
+        signals.append(pending("No {} check run for this commit yet; wait for CI, or push the branch if none is scheduled.".format(VERIFICATION_CHECK)))
+    else:
+        run = max(runs, key=lambda check: check.get("id") or 0)
+        if run["status"] != "completed":
+            signals.append(pending("CI verification is {}.".format(run["status"])))
+        elif run.get("conclusion") != "success":
+            signals.append(blocked("CI verification concluded {}.".format(run.get("conclusion"))))
+        else:
+            proof = VERIFICATION_PROOF.search(((run.get("output") or {}).get("summary") or ""))
+            if not proof or proof[2] != value.get("head") or proof[3] != value.get("baseSha") \
+                    or value.get("verificationSnapshotStable") is not True:
+                signals.append(blocked("CI verification evidence is missing or stale for the current HEAD and base; rerun the verify workflow."))
     for status in ("blocked", "pending"):
         for signal in signals:
             if signal["status"] == status:
                 return signal
-    return passed("Local verification succeeded; no failing statuses or checks.")
+    return passed("CI verification succeeded; no failing statuses or checks.")
 
 
 # Stable public check IDs preserve --only/--skip and JSON consumers. Each

@@ -13,6 +13,9 @@
 
 # PR 审查
 
+验证由 PR 上的 GitHub Actions `verify` workflow 执行，推送分支后自动触发；
+门禁要求匹配当前 HEAD 与 base 的 `verify` check run 通过。见 [CI 验证](docs/agents/ci-verification.md)。
+
 使用 `python3 scripts/pr-gate.py` 发起审查和合并，不绕过门禁。
 读取并处理审查意见，自行推进 review → fix → review，直至可合并。
 命令与异常处理见 [PR 门禁](docs/agents/pr-gate.md)。

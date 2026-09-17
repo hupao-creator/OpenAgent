@@ -9,17 +9,14 @@
 
 ## 使用
 
-```sh
-pnpm verify --pr 123 --plan          # 只输出计划，不执行检查或发布状态
-pnpm verify --pr 123 --publish       # 自动按 PR merge-base 到 head 的完整差异分级
-pnpm verify --base origin/main      # 本地已提交 HEAD，相对本地 origin/main 的 merge-base
-pnpm verify --ref <sha> --base <ref> # 指定受检提交和比较基线
-pnpm verify --pr 123 --full --publish
-```
+分级在 CI 中执行：[verify workflow](ci-verification.md) 由 PR 事件触发，从 PR 当前的 base
+到 `VERIFY_HEAD` 的完整差异计算计划，在同一次检出内运行必跑步骤并发布 `verify` check run。
+本地没有便捷入口；入口 `scripts/verify-ci.mjs` 接受 `--full`、`--serial`、`--force-build`
+和 `--evidence <dir>` 用于本地演练，其输出仅为证据，不写 GitHub（除非设置 `GITHUB_TOKEN`
+和 `GITHUB_REPOSITORY`，此时把 check run 挂到本次验证的 SHA 上）。
 
-`--pr` 获取 PR 的 head 和 base，不能用 `--base` 覆盖 PR 基线。缺少本地比较基线时
-继续全量，避免把「最后一个提交」误当成整个分支的改动。`--plan` 可在有未提交改动时运行，
-但只分析已提交目标；实际执行仍要求干净 checkout。无法解析基线或 merge-base 时失败。
+没有比较基线时全量，避免把「最后一个提交」误当成整个分支的改动。无法解析基线或
+merge-base 时失败，不发布成功。
 
 ## 选择规则
 
@@ -34,36 +31,40 @@ pnpm verify --pr 123 --full --publish
 | 包源码 | 该包及依赖它的工作区的类型检查和测试；影响桌面时追加构建，非 renderer 源码再追加原生回归 |
 | 工作区内 `.test.*` / `.spec.*` | 所属工作区类型检查和测试，跳过生产构建、热更新和原生回归 |
 | 独立报告/生命周期 Electron 测试入口 | 构建及对应原生回归 |
-| Bart、Overview 相机、协调者设置页 renderer 源码，或隔离验收入口 | 追加 `bart-isolation`：独立构建 Lab，串行运行真实 Electron 的 2 秒/5 秒阻塞与交接检查 |
+| Bart、Overview 相机、协调者设置页 renderer 源码 | 与其余 renderer 源码相同，无额外原生步骤 |
 | manifests、锁文件、构建配置、验证器及其测试、共享测试 fixture/helper、其他未分类路径 | 全量 |
 
 产品验证会安装锁定依赖、构建全部包并生成/核对 registry、执行全仓 lint。
-完整验证包含 `bart-isolation`。所有原生运行时检查在构建、单测完成后串行运行，避免测量受到并行重负载干扰；该步骤需要 macOS 原生窗口环境。
+完整验证不含 `bart-isolation`：Bart 原生 Electron 验收需要 1180×780 的原生窗口，
+托管的 GitHub runner 给不出这个尺寸，因此该套件不在 CI 中运行，只在真机上
+`pnpm --dir apps/desktop test:bart-isolation` 手动执行；改动这些测试入口按未分类路径走全量。
+其余原生运行时检查在构建、单测完成后串行运行，避免测量受到并行重负载干扰。
 这些准备步骤仍共享，缩小的是类型检查及回归测试的工作区集合和昂贵运行时步骤。
 包依赖图来自受检提交，包含 dependencies、devDependencies、peerDependencies、optionalDependencies，
 按反向依赖传递闭包选择消费者，因此修改 contracts/test-kit 会扩大范围。
 
 纯测试修改不会向消费者传播；共享测试支撑源码（例如 test-kit/src）按产品源码传播。
 重命名关闭相似度识别，新旧路径均参与；删除路径仍参与分类。未知路径及空 diff 全量。
-规则是显式路径策略，不是完整程序依赖分析：若出现新的跨层行为，需要调整映射，或用 `--full`。
+规则是显式路径策略，不是完整程序依赖分析：若出现新的跨层行为，需要调整映射，或改用全量。
 
 ## 证据与门禁
 
-`result.json` 保存策略版本、base SHA、merge-base、完整变更路径、影响区域、工作区、必跑/跳过步骤及理由。
-摘要展示同一计划和实际执行结果。只有全部必跑步骤通过并清理检查成功，才可发布成功。
+`result.json` 保存策略版本、受检 SHA、base SHA、merge-base、完整变更路径、影响区域、工作区、必跑/跳过步骤及理由。
+摘要展示同一计划和实际执行结果。只有全部必跑步骤通过并清理检查成功，check run 才以 `success` 结束。
 跳过的步骤显示为不需要执行，不伪装为已通过。
 
-保留 `local/desktop-verification` context，成功描述为 `scope-v1:<full|scoped>:<base SHA>`。
-门禁仍信任本地验证器发布的状态，不下载并重跑本地日志；它要求新版范围证据匹配当前 PR base，
-且读取期间 head/base 一致。旧版无范围证据的成功状态不再放行，需要重新验证。
+`verify` check run 的 `output.summary` 以 `scope-v2:<full|scoped>:<受检 SHA>:<base SHA>` 开头。
+门禁读取这条证据而不下载日志；它要求证据中的受检 SHA 与 base SHA 匹配当前快照，
+且读取期间 head/base 一致。缺少证据或证据过期的成功不再放行，需要重新验证。
 base 前进或 PR 改换基线后，即使 head 不变也需要重新验证；这仍是 head 验证，并非合成 merge 验证。
 
 ## 测试
 
 使用真实临时 Git 仓库覆盖 merge-base、改名、删除、特殊文件名、无效基线。
 纯函数测试覆盖分级并集、传递依赖、全量回退和步骤完成要求。
-从 CLI 启动临时 checkout，使用替代包管理器验证轻量路径无安装、过滤工作区的命令、
-步骤失败不会变绿以及 worktree 清理。Python 门禁测试覆盖成功证据缺失、过期和采集竞争。
+在临时仓库中启动 `scripts/verify-ci.mjs`，用替代 `gh` 和包管理器验证轻量路径无安装、
+分级证据写入 check run、步骤失败不会变绿，以及检出提交与受检提交不一致时拒绝执行。
+Python 门禁测试覆盖成功证据缺失、过期和采集竞争。
 
 ```sh
 pnpm test:dev-scripts
@@ -79,7 +80,7 @@ pnpm test:dev-scripts
   这些测试覆盖 DOM/交互行为，不提供像素级视觉保证；证据中明确记录该限制。
 - 跨工作区消费者、删除、声明文件、未映射资源：回退所属工作区完整测试集。
 - 关联测试为空、没有实际通过的测试或执行失败：验证失败，不通过 `passWithNoTests` 放行。
-  此时需查看覆盖缺口，或显式运行 `--full`。
+  此时需查看覆盖缺口，或显式以全量重新验证。
 
 工作区依赖从已准备好的包输出读取；消费者不依赖 Vitest 穿透 node_modules 追溯源码。
 测试输出 JSON 和 `test-selection.json` 保留实际执行文件、测试数及选择理由。
@@ -94,9 +95,9 @@ pnpm test:dev-scripts
 | 报告、生命周期原生回归 | 保持串行，避免桌面应用测试相互影响 |
 | checkout 完整性检查和清理 | 所有已启动任务结束后执行 |
 
-中断信号会发送给所有活动进程组；某项失败后，等待同组其他任务退出再清理 worktree。
+中断信号会发送给所有活动进程组；某项失败后，等待同组其他任务退出再收尾。
 子进程读取不可变 `plan.json`，不读取并行期间持续更新的结果文件。
-可添加 `--serial` 关闭上述并行，用于同一计划的耗时比较。
+`--serial` 可关闭上述并行，用于同一计划的耗时比较。
 
 ## 构建缓存
 
@@ -104,8 +105,10 @@ pnpm test:dev-scripts
 拆成独立任务。原有 `pnpm build` 仍包含应用类型检查；verification 已完成类型检查，
 因此构建阶段调用 `build:bundles`，避免重复执行。
 
-缓存位于 `git rev-parse --git-common-dir` 下的 `openagent-build-cache`，同仓库的临时
-worktree 自动共用，移除 worktree 不删除缓存。只启用本地缓存，不上传远端。
+缓存位于 `git rev-parse --git-common-dir` 下的 `openagent-build-cache`，同仓库的
+worktree 自动共用，移除 worktree 不删除缓存；因为它落在 `.git` 内，不进入
+`git status`，也不会污染 checkout。只启用本地缓存，不上传远端，CI 运行在一次性
+runner 上，因此每次运行通常从冷缓存开始，缓存主要服务本机开发与集成测试。
 输入包含包源码、依赖任务哈希、锁文件、构建配置、环境文件，以及 Node/pnpm 版本、
 操作系统、CPU 架构和配置中声明的构建环境变量。
 
@@ -118,11 +121,11 @@ main/preload 的输入排除 renderer CSS；目标构建器同时拒绝 native b
 首次修改气泡 CSS，包和 native 任务可命中，renderer 重建；再次验证相同输入时 renderer 也可命中。
 
 `--force-build` 禁止读取构建缓存（仍写入成功产物），用于冷构建对照或复核。
-`--full` 决定验证范围，缓存读取由 `--force-build` 单独控制。
+验证范围由分级决定，`--full` 强制全量；缓存读取由 `--force-build` 单独控制。
 `result.json` 中的 `buildCache` 和 `build-cache/*.json` 保存任务哈希、命中状态及 Turbo 原始摘要。
 
 ```sh
-pnpm verify --pr 123 --force-build
+node scripts/verify-ci.mjs --force-build   # 冷构建演练，不写 GitHub
 pnpm test:build-cache
 ```
 

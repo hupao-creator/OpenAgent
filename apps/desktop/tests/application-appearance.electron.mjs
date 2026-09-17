@@ -11,7 +11,9 @@ const require = createRequire(import.meta.url)
 const { _electron } = require('playwright')
 const tests = dirname(fileURLToPath(import.meta.url))
 const main = resolve(tests, '../out/main/index.js')
-const root = await mkdtemp(join(process.env.OPENAGENT_APPEARANCE_EVIDENCE_ROOT || tmpdir(), 'oa-appearance-'))
+const configuredRoot = process.env.OPENAGENT_APPEARANCE_EVIDENCE_ROOT
+if (configuredRoot) await mkdir(configuredRoot) // Refuse to reuse a consumed evidence root.
+const root = await mkdtemp(join(configuredRoot || tmpdir(), 'oa-appearance-'))
 for (const name of ['home', 'user-data', 'bin']) await mkdir(join(root, name))
 const quote = value => "'" + value.replaceAll("'", "'\\''") + "'"
 const shell = join(root, 'bin/shell')

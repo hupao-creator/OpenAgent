@@ -21,9 +21,9 @@ cli = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cli)
 
 USER = {"login": lib.BOT}
-HEAD = "abcdef0123456789"
+HEAD = "abcdef0123456789" + "0" * 24
 BASE = "b" * 40
-PROOF = "scope-v1:scoped:" + BASE
+PROOF = "scope-v2:scoped:" + HEAD + ":" + BASE
 REVIEW = {"id": 1, "user": USER, "state": "COMMENTED", "commit_id": "head", "submitted_at": "2026-09-11T10:00:00Z"}
 REQUEST = {"id": 2, "user": {"login": "human"}, "body": "@codex review", "created_at": "2026-09-11T11:00:00Z", "author_association": "COLLABORATOR"}
 ANSWERED = {**REVIEW, "commit_id": HEAD, "submitted_at": "2026-09-11T12:00:00Z"}
@@ -95,12 +95,21 @@ def review_api(*, comments=None, reviews=None, head=HEAD, pr_state="open", poste
     return api
 
 
+def verification_run(conclusion="success", **changes):
+    run = {"id": 5, "name": cli.VERIFICATION_CHECK, "status": "completed", "conclusion": conclusion,
+           "output": {"summary": PROOF}, "app": {"id": 1}, "check_suite": {"id": 10}, **changes}
+    if conclusion == "in_progress":
+        run.update(status="in_progress")
+        run.pop("conclusion")
+    return run
+
+
 def gate_base(**changes):
     return {"prState": "open", "draft": False, "mergeable": True, "mergeableState": "clean", "state": "submitted",
             "canRequest": True, "requestCount": 1, "head": HEAD, "currentReview": REVIEW, "comments": [SUMMARY],
             "inlineComments": [], "threads": [thread()],
             "baseSha": BASE, "verificationSnapshotStable": True,
-            "statuses": [{"context": cli.VERIFICATION_CONTEXT, "state": "success", "id": 1, "description": PROOF}], "checkRuns": [], **changes}
+            "statuses": [], "checkRuns": [verification_run()], **changes}
 
 
 def gate_api(*, threads=None, verification="success"):
@@ -113,9 +122,9 @@ def gate_api(*, threads=None, verification="success"):
         if path.endswith("/pulls/1"):
             return {"head": {"sha": HEAD}, "base": {"sha": BASE}, "state": "open", "draft": False, "mergeable": True, "mergeable_state": "clean"}
         if "/statuses?" in path:
-            return [[{"context": cli.VERIFICATION_CONTEXT, "state": verification, "id": 1, "description": PROOF}]]
+            return [[]]
         if "/check-runs?" in path:
-            return [{"check_runs": []}]
+            return [{"check_runs": [verification_run(verification)]}]
         return base(args, deadline)
     return api
 
@@ -533,38 +542,59 @@ class GateTests(unittest.TestCase):
             (cli.check_review_flow, {"state": "unknown"}, "pending"),
             (cli.check_threads_resolved, {"threads": [thread(False, isOutdated=True)]}, "blocked"),
             (cli.check_threads_resolved, {"threads": None}, "blocked"),
-            (cli.check_verification, {"statuses": []}, "blocked"), (cli.check_verification, {"statuses": None}, "blocked"),
-            (cli.check_verification, {"statuses": [{"context": cli.VERIFICATION_CONTEXT, "state": "pending", "id": 1}]}, "pending"),
+            (cli.check_verification, {"statuses": None}, "blocked"), (cli.check_verification, {"checkRuns": None}, "blocked"),
+            # Nothing published yet: the run may still be starting, so wait for it.
+            (cli.check_verification, {"checkRuns": []}, "pending"),
+            (cli.check_verification, {"statuses": [{"context": "other", "state": "pending", "id": 1}]}, "pending"),
+            (cli.check_verification, {"checkRuns": [verification_run("in_progress")]}, "pending"),
+            (cli.check_verification, {"checkRuns": [verification_run("action_required")]}, "blocked"),
+            (cli.check_verification, {"checkRuns": [{"id": 6, "name": "ci", "status": "completed", "conclusion": "success"}]}, "pending"),
         ]
         for check, changes, expected in cases:
             with self.subTest(check=check.__name__, changes=changes):
                 self.assertEqual(check(gate_base(**changes))["status"], expected)
 
-    def test_failures_beat_pending_and_same_named_checks_cannot_hide_failures(self):
-        statuses = [{"context": cli.VERIFICATION_CONTEXT, "state": "pending", "id": 1}, {"context": "other", "state": "failure", "id": 2}]
+    def test_failures_beat_pending_and_a_newer_run_supersedes_the_one_it_replaced(self):
+        statuses = [{"context": "other", "state": "pending", "id": 1}, {"context": "another", "state": "failure", "id": 2}]
         self.assertEqual(cli.check_verification(gate_base(statuses=statuses))["status"], "blocked")
-        for suite in (10, 11):
-            runs = [{"id": 2, "name": "ci", "status": "completed", "conclusion": "failure", "app": {"id": 1}, "check_suite": {"id": 10}},
-                    {"id": 3, "name": "ci", "status": "completed", "conclusion": "success", "app": {"id": 1}, "check_suite": {"id": suite}}]
-            self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "blocked")
+        ci = lambda identifier, conclusion: {"id": identifier, "name": "ci", "status": "completed",
+                                             "conclusion": conclusion, "app": {"id": 1}, "check_suite": {"id": identifier}}
+        # `cancel-in-progress` cancels the run a newer one replaces: the replacement decides.
+        runs = [verification_run(), ci(2, "cancelled"), ci(3, "success")]
+        self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "pass")
+        # The newest run still decides, so a newer failure is never masked by an older success.
+        runs = [verification_run(), ci(3, "success"), ci(4, "failure")]
+        self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "blocked")
+        # Different apps publish checks under the same name and are evaluated apart.
+        runs = [verification_run(), ci(3, "failure"),
+                {"id": 4, "name": "ci", "status": "completed", "conclusion": "success", "app": {"id": 2}}]
+        self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "blocked")
         for conclusion in ("neutral", "skipped", "success"):
-            self.assertEqual(cli.check_verification(gate_base(checkRuns=[{"name": "ci", "status": "completed", "conclusion": conclusion}]))["status"], "pass")
+            runs = [verification_run(), {"id": 7, "name": "ci", "status": "completed", "conclusion": conclusion, "app": {"id": 1}}]
+            self.assertEqual(cli.check_verification(gate_base(checkRuns=runs))["status"], "pass")
 
-    def test_verification_requires_current_base_and_complete_scope_evidence(self):
-        for description in (None, "Full desktop verification passed", "scope-v1:docs:" + BASE,
-                            "scope-v1:scoped:" + "a" * 40):
-            statuses = [{"context": cli.VERIFICATION_CONTEXT, "state": "success", "id": 1, "description": description}]
-            self.assertEqual(cli.check_verification(gate_base(statuses=statuses))["status"], "blocked")
+    def test_verification_requires_evidence_for_the_current_head_and_base(self):
+        for summary in (None, "Desktop verification passed", "scope-v2:docs:" + HEAD + ":" + BASE,
+                        "scope-v2:scoped:" + "a" * 40 + ":" + BASE, "scope-v2:scoped:" + HEAD + ":" + "c" * 40,
+                        "scope-v1:scoped:" + BASE):
+            run = verification_run(output={"summary": summary})
+            self.assertEqual(cli.check_verification(gate_base(checkRuns=[run]))["status"], "blocked")
         self.assertEqual(cli.check_verification(gate_base(verificationSnapshotStable=False))["status"], "blocked")
         self.assertEqual(cli.check_verification(gate_base(baseSha=None))["status"], "blocked")
         for profile in ("full", "scoped"):
-            statuses = [{"context": cli.VERIFICATION_CONTEXT, "state": "success", "id": 1,
-                         "description": "scope-v1:" + profile + ":" + BASE}]
-            self.assertEqual(cli.check_verification(gate_base(statuses=statuses))["status"], "pass")
+            run = verification_run(output={"summary": "scope-v2:" + profile + ":" + HEAD + ":" + BASE})
+            self.assertEqual(cli.check_verification(gate_base(checkRuns=[run]))["status"], "pass")
+
+    def test_newest_verification_run_decides(self):
+        stale = verification_run(id=1, output={"summary": "scope-v2:scoped:" + HEAD + ":" + "c" * 40})
+        current = verification_run(id=2)
+        self.assertEqual(cli.check_verification(gate_base(checkRuns=[stale, current]))["status"], "pass")
+        # A newer stale run must not be masked by an older success.
+        masked = verification_run(id=3, output={"summary": "scope-v2:scoped:" + HEAD + ":" + "c" * 40})
+        self.assertEqual(cli.check_verification(gate_base(checkRuns=[stale, current, masked]))["status"], "blocked")
 
     def test_latest_commit_status_per_context_wins(self):
-        statuses = [{"context": cli.VERIFICATION_CONTEXT, "state": "success", "id": 2, "description": PROOF},
-                    {"context": cli.VERIFICATION_CONTEXT, "state": "failure", "id": 1}]
+        statuses = [{"context": "other", "state": "success", "id": 2}, {"context": "other", "state": "failure", "id": 1}]
         self.assertEqual(cli.check_verification(gate_base(statuses=statuses))["status"], "pass")
 
     def test_aggregation_and_check_selection(self):
@@ -600,7 +630,7 @@ class GateTests(unittest.TestCase):
         self.assertIn("Unresolved", next(check for check in unresolved["checks"] if check["check"] == "checkThreadsResolved")["detail"])
         skipped = cli.gate("owner/repo", 1, api=gate_api(), skip="checkThreadsResolved")
         self.assertNotIn("checkThreadsResolved", [check["check"] for check in skipped["checks"]])
-        self.assertEqual(cli.gate("owner/repo", 1, api=gate_api(verification="pending"))["status"], "pending")
+        self.assertEqual(cli.gate("owner/repo", 1, api=gate_api(verification="in_progress"))["status"], "pending")
 
 
 class MergeTests(unittest.TestCase):
@@ -693,7 +723,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual("threads" in result, command != "status")
             self.assertEqual("statuses" in result, command == "snapshot")
         for args, api, expected in ((["gate", "1"], gate_api(), 0), (["gate", "1"], gate_api(threads=[thread(False)]), 1),
-                                    (["gate", "1"], gate_api(verification="pending"), 2), (["request", "1"], review_api(comments=[REQUEST]), 3)):
+                                    (["gate", "1"], gate_api(verification="in_progress"), 2), (["request", "1"], review_api(comments=[REQUEST]), 3)):
             with contextlib.redirect_stdout(io.StringIO()) as output:
                 code = cli.main(args + ["--repo", "owner/repo"], api=api)
             self.assertEqual(code, expected)

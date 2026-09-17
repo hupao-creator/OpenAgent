@@ -186,8 +186,9 @@ Behavior coverage lives in this package's `tests/pi-rpc`, `tests/pi-settings`,
 acceptance/completion, retry, steering, cancellation, dialog responses, abnormal
 cleanup, preparation ordering, state projection, restart and independent clone.
 Existing plugin isolation tests inspect Main/Renderer/shared dependencies and
-generated registration. Full delivery additionally requires `pnpm verify` and
-independent standards/specification reviews; focused tests do not replace them.
+generated registration. Full delivery additionally requires the CI `verify` workflow
+on the PR head and independent standards/specification reviews; focused tests do not
+replace them.
 
 Real Pi 0.83.0 evidence for this delivery is linked from
 [PR #95](https://github.com/xinyuan0801/OpenAgent/pull/95): native tool output,

@@ -202,14 +202,20 @@ def snapshot(repo, number, *, api=gh, deadline=math.inf, include_threads=False, 
     discussions = [comment for comment in inline if (comment.get("in_reply_to_id") or comment["id"]) in root_ids]
     after = one("{}/pulls/{}".format(root, number))
     latest = after
-    statuses, check_runs = [], []
+    statuses, check_runs, merge_sha = [], [], None
     if include_checks:
         sha = after["head"]["sha"]
-        statuses, check_pages = _parallel(
+        merge_sha = after.get("merge_commit_sha")
+        # The verify workflow attaches its check run to the verified head, but the
+        # job's own check run and anything else GitHub records can land on either
+        # commit, so read both; neither set can hide a failure.
+        shas = [sha] + ([merge_sha] if merge_sha and merge_sha != sha else [])
+        collected = _parallel(
             lambda: listing("{}/commits/{}/statuses".format(root, sha)),
-            lambda: listing("{}/commits/{}/check-runs?filter=all".format(root, sha)),
+            *[lambda target=target: listing("{}/commits/{}/check-runs?filter=all".format(root, target)) for target in shas],
         )
-        check_runs = [check for page in check_pages for check in page.get("check_runs", [])]
+        statuses = collected[0]
+        check_runs = [check for pages in collected[1:] for page in pages for check in page.get("check_runs", [])]
         latest = one("{}/pulls/{}".format(root, number))
     head = latest["head"]["sha"]
     status = classify(head=head, reviews=reviews, comments=comments, reactions=reactions, inline=inline)
@@ -232,10 +238,13 @@ def snapshot(repo, number, *, api=gh, deadline=math.inf, include_threads=False, 
     if include_threads:
         result["threads"] = threads
     if include_checks:
+        # The final read decides which base the merge commit belongs to, so a base
+        # that moves while the checks are collected leaves the evidence stale.
         result.update(statuses=statuses, checkRuns=check_runs, baseSha=(latest.get("base") or {}).get("sha"),
+                      mergeCommitSha=merge_sha,
                       verificationSnapshotStable=all((item.get("head") or {}).get("sha") == head
                                                          and (item.get("base") or {}).get("sha") == (latest.get("base") or {}).get("sha")
-                                                     for item in (pr, after)))
+                                                     for item in (pr, after, latest)))
     return result
 
 

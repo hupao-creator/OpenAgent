@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 export const fullSteps = [
   'install', 'toolchain', 'registry', 'registry-diff', 'typecheck', 'lint',
   'regressions', 'browser-install', 'development', 'build', 'report-runtime',
-  'lifecycle-runtime', 'bart-isolation', 'tracked-diff'
+  'lifecycle-runtime', 'tracked-diff'
 ]
 const stepOrder = ['pr-gate-tests', 'script-syntax', 'dev-scripts', ...fullSteps]
 const gateFiles = new Set(['scripts/pr-gate.py', 'scripts/pr_gate_lib.py', 'scripts/tests/test_pr_gate.py'])
@@ -112,7 +112,6 @@ export function selectPlan(files, { full = false, baseSha = null, mergeBase = nu
       product(affected, { build: affected.includes(desktop.name), native: !renderer && affected.includes(desktop.name) })
       // Appearance is exercised through the native window/OS theme boundary.
       if (renderer && /(?:appearance|theme|window)/i.test(relative)) add('build', 'lifecycle-runtime')
-      if (renderer && /(?:bart|overview-motion|ConversationOverview|HarnessSettingsPage|settings-page)/i.test(relative)) add('bart-isolation')
       continue
     }
     if (relative.startsWith('tests/')) {
@@ -123,8 +122,6 @@ export function selectPlan(files, { full = false, baseSha = null, mergeBase = nu
         scopes.add('report-runtime'); add('install', 'toolchain', 'registry', 'registry-diff', 'lint', 'build', 'report-runtime')
       } else if (workspace === desktop && ['tests/app-lifecycle.electron.mjs', 'tests/application-appearance.electron.mjs'].includes(relative)) {
         scopes.add('lifecycle-runtime'); add('install', 'toolchain', 'registry', 'registry-diff', 'lint', 'build', 'lifecycle-runtime')
-      } else if (workspace === desktop && ['tests/bart-worker-isolation.electron.mjs', 'tests/bart-worker-suite.mjs'].includes(relative)) {
-        scopes.add('bart-isolation'); add('install', 'toolchain', 'registry', 'registry-diff', 'lint', 'bart-isolation')
       } else {
         // Fixtures/helpers can be shared by native tests; do not guess their import graph.
         reasons.push(`Shared or standalone test support: ${path}`)
