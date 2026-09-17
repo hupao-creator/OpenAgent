@@ -1,0 +1,103 @@
+/* `?scene=liquid` 专用样式。两条栏的类名和内容照抄 ConversationOverview，玻璃外观
+   换成 @liquid-dom/react 渲染的那一层，所以这里要做的只有两件事：
+   1. 把生产样式里「半透明表面 + backdrop-filter」那套配方摘掉，别和库的玻璃叠加；
+   2. 给库渲染不到的 DOM 悬停态补一个类名（库只把指针事件派发到 Glass 上，
+      内部的 <button> 收不到原生 hover，见 OverviewLiquidPlayground 的命中测试）。 */
+
+.liquid-playground {
+  grid-template-rows: 88px minmax(0, 1fr) 44px;
+}
+
+.liquid-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: light-dark(#f0f1ec, #191c18);
+}
+
+/* 量尺寸用的隐藏副本。用 visibility 而不是 display:none —— 前者仍然参与排版，
+   getBoundingClientRect 量得到生产样式排出来的真实宽高；后者量出来是 0。
+   绝对定位让它不进文档流，不影响舞台自己的尺寸。 */
+.liquid-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 衬底：模拟卡片正文，让玻璃条的边缘有东西可弯折。字号与卡片正文一致（11px），
+   否则「背后文字被弯折」这件事没法跟生产对比。 */
+.liquid-substrate {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-content: start;
+  background: light-dark(#f0f1ec, #191c18);
+  color: light-dark(#3a4038, #c9cec4);
+  font-family: 'Inter Variable', sans-serif;
+  font-size: 11px;
+  line-height: 1.85;
+}
+
+.liquid-substrate article {
+  padding: 10px 12px;
+  border: 1px solid light-dark(#e2e4dc, #2c302a);
+  border-radius: 10px;
+  background: light-dark(#fffefa, #262724);
+}
+
+.liquid-substrate h3 {
+  margin: 0 0 6px;
+  color: light-dark(#20211e, #eeeee9);
+  font-size: 11.5px;
+  font-weight: 620;
+}
+
+.liquid-substrate p {
+  margin: 0;
+}
+
+/* 两条栏在场景里是独立节点，不再有 .thread-overview-header 那个定位父级，
+   绝对居中那套（position/inset/margin-inline/max-width）全部让给库的布局。 */
+.liquid-stage .thread-tag-filter-bar,
+.liquid-stage .thread-overview-actions {
+  position: static;
+  width: max-content;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  animation: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+:root[data-theme='light'] .liquid-stage .thread-tag-filter-bar,
+:root[data-theme='light'] .liquid-stage .thread-overview-actions,
+:root[data-theme='dark'] .liquid-stage .thread-tag-filter-bar,
+:root[data-theme='dark'] .liquid-stage .thread-overview-actions {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* 库的指针事件只到 Glass，命中测试换成手动加类，取值照抄生产 :hover。 */
+:root[data-theme='light'] .liquid-stage .thread-tag-filter-option.hovered,
+:root[data-theme='light'] .liquid-stage .thread-overview-actions .icon-button.hovered {
+  background: rgba(255, 255, 255, 0.34);
+  color: var(--ink);
+}
+
+:root[data-theme='dark'] .liquid-stage .thread-tag-filter-option.hovered,
+:root[data-theme='dark'] .liquid-stage .thread-overview-actions .icon-button.hovered {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.liquid-playground .motion-stage-footer output {
+  color: light-dark(#48624b, #b6d5ad);
+  font-size: 10px;
+}

@@ -5,9 +5,14 @@ import '@fontsource-variable/inter'
 import '../../../src/renderer/src/styles.css'
 import { OverviewMotionPlayground } from './OverviewMotionPlayground'
 import { OverviewLayoutPlayground } from './OverviewLayoutPlayground'
+import { OverviewLiquidPlayground } from './OverviewLiquidPlayground'
 import './playground.css'
+import './liquid.css'
+
+const scene = new URLSearchParams(location.search).get('scene')
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><AppI18nProvider locale="zh-CN">{new URLSearchParams(location.search).get('scene') === 'layout'
-    ? <OverviewLayoutPlayground /> : <OverviewMotionPlayground />}</AppI18nProvider></StrictMode>
+  <StrictMode><AppI18nProvider locale="zh-CN">{scene === 'liquid'
+    ? <OverviewLiquidPlayground /> : scene === 'layout'
+      ? <OverviewLayoutPlayground /> : <OverviewMotionPlayground />}</AppI18nProvider></StrictMode>
 )
