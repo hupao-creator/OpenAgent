@@ -2259,12 +2259,6 @@
   transition: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .thread-title-swap {
-    transition: none;
-  }
-}
-
 /* 右上角只保留 Provider Logo；固定占位避免与标题重叠。 */
 
 .thread-provider-status {

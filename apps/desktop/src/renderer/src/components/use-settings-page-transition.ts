@@ -125,7 +125,7 @@ export function useSettingsPageTransition({ open, origin, onClose }: {
       }
     }
     finishRef.current = finish
-    if (typeof root.animate !== 'function' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finish(); return }
+    if (typeof root.animate !== 'function') { finish(); return }
 
     const duration = anchored
       ? (closing ? CLOSE_DURATION : OPEN_DURATION) * (reversing ? Math.max(.25, progress) : 1)
@@ -210,13 +210,9 @@ export function useSettingsPageTransition({ open, origin, onClose }: {
     }
     window.addEventListener('keydown', reopen)
     window.addEventListener('resize', resize)
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
-    const motionChanged = (): void => { if (reduced?.matches) finishRef.current?.() }
-    reduced?.addEventListener?.('change', motionChanged)
     return () => {
       window.removeEventListener('keydown', reopen)
       window.removeEventListener('resize', resize)
-      reduced?.removeEventListener?.('change', motionChanged)
       finishRef.current = null
       root.style.visibility = 'hidden'
       for (const animation of animationsRef.current) animation.cancel()

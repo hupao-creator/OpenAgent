@@ -110,13 +110,6 @@ try {
   assert.equal(evidence.reasoning.decorationCount, 1, 'reasoning segments keep one decoration')
   await page.screenshot({ path: path.join(output, 'reasoning-controls.png') })
 
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await restartWith('连续工具')
-  evidence.reducedMotion = await sample(1500)
-  assertCadence(evidence.reducedMotion, 400, 'reduced motion retains state pacing')
-  assert.ok(evidence.reducedMotion.entries.length >= 2)
-  assert.equal(await preview.locator('.bart-role-arrival').evaluate((node) => getComputedStyle(node).animationName), 'none')
-
   await slider('最短展示时间', 2000)
   await restartWith('快速完成')
   const started = Date.now()

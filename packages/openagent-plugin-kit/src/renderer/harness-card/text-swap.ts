@@ -12,8 +12,8 @@ const SWAP_CLASS = 'thread-title-swap'
 
 /**
  * Duration the swap stylesheet gives the element, in milliseconds. The
- * stylesheet stays authoritative: a zero duration (no stylesheet, or the
- * reduced-motion rule) means the text is replaced without a sequence.
+ * stylesheet stays authoritative: a zero duration (no stylesheet) means the
+ * text is replaced without a sequence.
  */
 function swapDurationMs(node: HTMLElement | null): number {
   if (!node) return 0

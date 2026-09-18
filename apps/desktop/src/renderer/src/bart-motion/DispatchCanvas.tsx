@@ -14,25 +14,22 @@ export function DispatchCanvas({ description }: { description: DispatchDescripti
     container.append(canvas)
     let alive = true, signature = '', surface: ReturnType<typeof createMotionSurface> | undefined
     const failed = (): void => { if (alive) map.removeAttribute('data-dispatch-worker') }
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
     const refresh = (): void => {
       if (!container.clientWidth || !container.clientHeight) return
-      const next = { ...latest.current, animate: !media.matches }
-      const nextSignature = JSON.stringify([next, container.clientWidth, container.clientHeight])
+      const nextSignature = JSON.stringify([latest.current, container.clientWidth, container.clientHeight])
       if (signature === nextSignature) return
       signature = nextSignature
       try {
         surface ??= createMotionSurface(canvas, container.clientWidth, container.clientHeight, 'character', failed)
         surface.resize(container.clientWidth, container.clientHeight)
-        void surface.dispatch(next).then(() => { if (alive) map.setAttribute('data-dispatch-worker', 'true') }, failed)
+        void surface.dispatch(latest.current).then(() => { if (alive) map.setAttribute('data-dispatch-worker', 'true') }, failed)
       } catch { failed() }
     }
     update.current = refresh
     const resize = new ResizeObserver(refresh)
     resize.observe(container)
-    media.addEventListener('change', refresh)
     refresh()
-    return () => { alive = false; resize.disconnect(); media.removeEventListener('change', refresh); update.current = null
+    return () => { alive = false; resize.disconnect(); update.current = null
       surface?.dispose(); canvas.remove(); map.removeAttribute('data-dispatch-worker') }
   }, [])
   useLayoutEffect(() => update.current?.(), [description])

@@ -320,24 +320,24 @@ describe('generation preparation separates sampled content from live geometry', 
     f.captures.forEach(capture => expect(capture.bitmap.close).toHaveBeenCalledTimes(1))
   })
 
-  it.each(['(prefers-color-scheme: dark)', '(prefers-reduced-motion: reduce)'])(
-    'interrupts preparation when %s changes', async query => {
-      const media = new Map<string, EventTarget>()
-      vi.stubGlobal('matchMedia', (value: string) => {
-        if (!media.has(value)) media.set(value, new EventTarget())
-        return media.get(value)
-      })
-      const f = fixture(), gate = deferred<void>()
-      f.hooks.capture = () => gate.promise
-      f.start(); await advance()
-      await act(async () => { media.get(query)!.dispatchEvent(new Event('change')) })
-      await advance()
-      expect(f.samples.every(sample => sample.disposed)).toBe(true)
-      expect(f.store.getState()).toMatchObject({ works: [], hiddenIds: [] })
-      await act(async () => gate.resolve())
-      expect(f.captures[0].bitmap.close).toHaveBeenCalledTimes(1)
-      expect(f.surface.load).not.toHaveBeenCalled()
+  it('interrupts preparation when the color scheme changes', async () => {
+    const query = '(prefers-color-scheme: dark)'
+    const media = new Map<string, EventTarget>()
+    vi.stubGlobal('matchMedia', (value: string) => {
+      if (!media.has(value)) media.set(value, new EventTarget())
+      return media.get(value)
     })
+    const f = fixture(), gate = deferred<void>()
+    f.hooks.capture = () => gate.promise
+    f.start(); await advance()
+    await act(async () => { media.get(query)!.dispatchEvent(new Event('change')) })
+    await advance()
+    expect(f.samples.every(sample => sample.disposed)).toBe(true)
+    expect(f.store.getState()).toMatchObject({ works: [], hiddenIds: [] })
+    await act(async () => gate.resolve())
+    expect(f.captures[0].bitmap.close).toHaveBeenCalledTimes(1)
+    expect(f.surface.load).not.toHaveBeenCalled()
+  })
 
   it('keeps capture errors terminal instead of repeatedly retrying a broken resource', async () => {
     const f = fixture()
@@ -390,7 +390,7 @@ describe('generation playback survives live card updates', () => {
     expect(getOverviewMotionCoordinator().stageBusy).toBe(false)
   })
 
-  it.each(['cancel', 'delete', 'scene-cut', 'resize', 'theme', 'reduced-motion'] as const)(
+  it.each(['cancel', 'delete', 'scene-cut', 'resize', 'theme'] as const)(
     'still interrupts visible playback on %s', async reason => {
       const media = new Map<string, EventTarget>()
       vi.stubGlobal('matchMedia', (query: string) => {
@@ -411,7 +411,6 @@ describe('generation playback survives live card updates', () => {
         if (reason === 'scene-cut') getOverviewMotionCoordinator().cutScene()
         if (reason === 'resize') { f.rootRect.mockReturnValue(new DOMRect(0, 0, 1100, 800)); resize() }
         if (reason === 'theme') media.get('(prefers-color-scheme: dark)')!.dispatchEvent(new Event('change'))
-        if (reason === 'reduced-motion') media.get('(prefers-reduced-motion: reduce)')!.dispatchEvent(new Event('change'))
       })
       await advance()
       expect(f.store.getState()).toMatchObject({ works: [], hiddenIds: [] })

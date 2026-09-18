@@ -59,10 +59,7 @@ export function runThemeTransition(
   const query = window.matchMedia('(prefers-color-scheme: dark)')
   const wasDark = query.matches
   const predicted = predictsDark(appearance)
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-    (predicted !== null && predicted === wasDark)) {
-    return apply()
-  }
+  if (predicted !== null && predicted === wasDark) return apply()
 
   const root = document.documentElement
   const cleanup = (): void => { root.classList.remove(THEME_TRANSITION_CLASS) }

@@ -188,10 +188,6 @@ type CapsuleKind = 'draft' | 'follow-up'
  * inherits it.
  */
 function capsuleExitDuration(dock: HTMLElement | null): number {
-  // The stylesheet cuts the animation down to a single millisecond when the
-  // reader asked for less motion, and the capsule would then sit mounted and
-  // invisible for the rest of the run.
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return 0
   const declared = Number.parseFloat(
     dock ? getComputedStyle(dock).getPropertyValue('--bart-dock-capsule-exit-duration') : ''
   )

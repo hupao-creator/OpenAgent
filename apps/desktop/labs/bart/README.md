@@ -38,7 +38,7 @@ pnpm lab:bart
 
 调整即时生效，仅影响 Lab；「恢复默认参数」重置三个控件，「重放」从头运行当前输入序列。生产先使用 800/150ms，不新增设置项。终态立即打断展示等待；输入、专属动画、飞行或隐藏窗口结束后直接跟上最新活动。
 
-运行 `BART_LAB_URL=http://127.0.0.1:4177/ pnpm --dir apps/desktop exec node tests/bart-cadence.browser.mjs` 可在真实 Chromium 中检查可调节奏、连续装饰的稳定性、角色尺寸、减少动态效果和最终答复交接；证据保存在 `apps/desktop/output/playwright/bart-cadence/`。
+运行 `BART_LAB_URL=http://127.0.0.1:4177/ pnpm --dir apps/desktop exec node tests/bart-cadence.browser.mjs` 可在真实 Chromium 中检查可调节奏、连续装饰的稳定性、角色尺寸和最终答复交接；证据保存在 `apps/desktop/output/playwright/bart-cadence/`。
 
 运行 `BART_LAB_URL=http://127.0.0.1:4177/ pnpm --dir apps/desktop exec node tests/bart-input.browser.mjs` 可检查输入形态：角色始终保持常驻布局、胶囊逐行长高并在五行封顶、Dock 底边固定、附件在胶囊内部、Dock 变窄时同一草稿重新折行、Thread 续写胶囊与草稿胶囊位置一致、Esc 与点击外部收起且草稿保留；证据保存在 `apps/desktop/output/playwright/bart-input/`。
 

@@ -93,7 +93,7 @@ describe('Worker character clocks and geometry', () => {
     expect(fork.description().key).toBe('new-seat')
   })
 
-  it('settles reduced motion without a perpetual frame loop', () => {
+  it('settles a character with animation disabled without a perpetual frame loop', () => {
     const { actor, advance } = character({ activity: 'thinking', phase: 'running' })
     advance(1600)
     actor.update({ activity: 'thinking', phase: 'running', animate: false })

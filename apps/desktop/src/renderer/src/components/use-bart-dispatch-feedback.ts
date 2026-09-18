@@ -46,8 +46,7 @@ export function useBartDispatchFeedback(
     const character = rootRef.current?.querySelector<HTMLElement>('.bart-host-character')
     const face = rootRef.current?.querySelector<SVGElement>('.bart-face')
     if (!character || !face || !character.getClientRects().length ||
-      typeof character.animate !== 'function' || typeof window.matchMedia !== 'function' ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      typeof character.animate !== 'function') {
       setSettled(armed.sequence)
       return
     }
@@ -103,11 +102,7 @@ export function useBartDispatchFeedback(
     performance.clearMarks('bart-dispatch-ready')
     performance.mark('bart-dispatch-ready', { detail: { origin: performance.timeOrigin + performance.now(), duration, enabled: armed.enabled } })
     movement.onfinish = () => setSettled(armed.sequence)
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const stop = (): void => { movement.cancel(); eyes.cancel(); response?.cancel(); confirmation?.cancel() }
-    const reduce = (): void => { if (media.matches) { stop(); setSettled(armed.sequence) } }
-    media.addEventListener?.('change', reduce)
-    return () => { media.removeEventListener?.('change', reduce); stop() }
+    return (): void => { movement.cancel(); eyes.cancel(); response?.cancel(); confirmation?.cancel() }
   }, [rootRef, armed, ready, settled])
 
   return pending

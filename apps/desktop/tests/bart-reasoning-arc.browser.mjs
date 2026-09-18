@@ -15,7 +15,6 @@ page.on('pageerror', (error) => errors.push(error.message))
 const samples = []
 
 try {
-  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto(url)
   const preview = page.frameLocator('iframe')
   await preview.locator('.bart-logo').waitFor()

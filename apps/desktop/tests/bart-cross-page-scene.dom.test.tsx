@@ -31,7 +31,6 @@ beforeEach(() => {
   vi.spyOn(performance, 'now').mockImplementation(() => Date.now() - startedAt)
   vi.stubGlobal('Worker', class {})
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
-  vi.stubGlobal('matchMedia', () => Object.assign(new EventTarget(), { matches: false }))
   Object.defineProperty(HTMLCanvasElement.prototype, 'transferControlToOffscreen', { configurable: true, value: vi.fn() })
   Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] })
   Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: () => ({ startTime: 0, cancel: vi.fn() }) })

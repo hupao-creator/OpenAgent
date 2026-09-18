@@ -41,8 +41,9 @@ export interface CrossPageScene {
 }
 
 export function prewarmCrossPageScene(root: HTMLElement | null | undefined): void {
-  if (root && typeof Worker !== 'undefined' && typeof HTMLCanvasElement.prototype.transferControlToOffscreen === 'function' &&
-    !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) generationSurface(root, 'raster-scene').prewarm()
+  if (root && typeof Worker !== 'undefined' && typeof HTMLCanvasElement.prototype.transferControlToOffscreen === 'function') {
+    generationSurface(root, 'raster-scene').prewarm()
+  }
 }
 
 /** Own one flight, including preparation, repeated redirects and final handoff. */
@@ -107,7 +108,6 @@ export function createCrossPageScene(root: HTMLElement | null | undefined, direc
   void (async () => {
     if (!root || !pool || typeof Worker === 'undefined' ||
       !HTMLCanvasElement.prototype.transferControlToOffscreen ||
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ||
       document.querySelector<HTMLElement>('.bart-dock')?.dataset.layout !== 'mark') { queueMicrotask(finish); return }
     const requestedAt = performance.now()
     const admit = <T,>(prepare: (warmSignal: AbortSignal) => Promise<T>): Promise<T> =>
@@ -236,10 +236,8 @@ export function createCrossPageScene(root: HTMLElement | null | undefined, direc
     performance.clearMarks('bart-cross-page-ready')
     performance.mark('bart-cross-page-ready', { detail: { origin: epoch, direction, duration: program.duration,
       preparationMs: performance.now() - requestedAt, sealingMs: performance.now() - sealingStarted } })
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    media.addEventListener('change', abort)
     window.addEventListener('resize', abort)
-    lifetime.observe(() => media.removeEventListener('change', abort), () => window.removeEventListener('resize', abort))
+    lifetime.observe(() => window.removeEventListener('resize', abort))
     const identity = (): string => [source, destination].map(svg => ['data-motion-key', 'data-role', 'data-layout']
       .map(attribute => svg.getAttribute(attribute)).join(':')).join('|')
     const version = identity()
