@@ -1,5 +1,4 @@
 import type { MotionTimeline } from './motion-timeline'
-import type { BartBodyMaterial } from './appearance'
 import type { DispatchDescription } from './dispatch-canvas'
 import type { BartWebGLPose } from './webgl-renderer'
 import type { BartLogoActivity, BartLogoPhase, BartLogoLayout, BartInterventionVisualState } from './character-model'
@@ -14,10 +13,6 @@ export interface CharacterDescription {
   intervention?: BartInterventionVisualState
   role?: string
   animate?: boolean
-  bodyColor?: string
-  eyeColor?: string
-  /** Acknowledged resident surface, not merely the user's request for glass. */
-  bodyMaterial?: BartBodyMaterial
   eyeMotion?: { key: number; duration: number; points: readonly { at: number; x: number; y: number }[] }
 }
 

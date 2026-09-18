@@ -263,17 +263,14 @@ scope.onmessage = ({ data }: MessageEvent<MotionWorkerRequest>): void => {
       if (totalPixels() + 512 * 512 > MOTION_LIMITS.surfacePixels) throw new Error('Bart character raster budget exceeded')
       const raster = new OffscreenCanvas(512, 512), context = raster.getContext('2d')
       if (!context) throw new Error('Bart character raster unavailable')
-      // The flown actor is `fork()`: it inherits the resident's pose and clocks
-      // but not its glass, because this scene has no glass stage behind it. The
-      // resident keeps its own character, so a borrow never strips its material.
-      const flown = source.character.fork()
       context.setTransform(.8, 0, 0, .8, 0, 0)
-      flown.paint(context, performance.now(), 640, 640)
+      source.character.paint(context, performance.now(), 640, 640)
       if (surface.renderer) {
         surface.renderer.upload('bart-live-character', raster)
         surface.assets.set('bart-live-character', bytes)
       } else context.getImageData(0, 0, 1, 1) // Flush cold blur work before starting the flight clock.
-      surface.borrowed = { character: flown, raster, context, aimed: false }
+      surface.borrowed = { character: source.character, raster, context, aimed: false }
+      source.character = source.character.fork()
       source.heldBy = surface
       send({ type: 'loaded', surface: data.surface, request: data.request })
     } else if (data.type === 'land-character') {
