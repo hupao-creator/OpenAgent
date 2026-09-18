@@ -11,15 +11,8 @@ export type { BartLogoActivity, BartLogoPhase, BartLogoLayout, BartInterventionV
   BartLogoPose, BartLogoEye, BartLogoExpression, BartLogoShape } from '../bart-motion/character-model'
 import './BartLogo.css'
 import { CharacterCanvas } from '../bart-motion/CharacterCanvas'
-import { bartColor, supportsBartGlass, type BartBodyMaterial } from '../bart-motion/appearance'
-import { useBartLiquidBody } from '../liquid/bart-liquid-context'
-export type { BartBodyMaterial } from '../bart-motion/appearance'
 
-export interface BartLogoProps {
-  /** Opt-in. Requires a BartLiquidStage with a real, separately captured backdrop. */
-  bodyMaterial?: BartBodyMaterial
-  bodyColor?: string
-  eyeColor?: string
+interface BartLogoProps {
   size?: number
   width?: number
   height?: number
@@ -49,9 +42,6 @@ export interface BartLogoProps {
 /** Bart's character. Bart Lab mounts this production implementation directly. */
 export const BartLogo = memo(function BartLogo({
   size = 14,
-  bodyMaterial = 'solid',
-  bodyColor: requestedBodyColor,
-  eyeColor: requestedEyeColor,
   width,
   height,
   className = '',
@@ -99,10 +89,6 @@ export const BartLogo = memo(function BartLogo({
   const descriptor = layout === 'permission' || layout === 'question'
     ? interactionDescriptor(layout)
     : seatDescriptor(activity, phase, interventionState)
-  const bodyColor = bartColor(requestedBodyColor, BODY_COLOR)
-  const eyeColor = bartColor(requestedEyeColor, EYE_COLOR)
-  const glassBody = useBartLiquidBody(svgRef, bodyMaterial === 'liquidGlass'
-    && supportsBartGlass(layout, descriptor.shape, interventionState), bodyColor)
   const motionRef = useRef<BartMotionState | null>(null)
   motionRef.current ||= createMotionState(motionKey, descriptor, layout)
   const motion = motionRef.current
@@ -170,8 +156,6 @@ export const BartLogo = memo(function BartLogo({
       data-intervention-state={interventionState}
       data-motion-key={motionKey}
       data-role={roleKind}
-      data-body-material={glassBody ? 'liquidGlass' : 'solid'}
-      style={{ mixBlendMode: 'normal' }}
       aria-hidden="true"
       focusable="false"
     >
@@ -227,8 +211,7 @@ export const BartLogo = memo(function BartLogo({
 
       <g className="bart-body-motion">
         <CharacterCanvas width={renderWidth} height={renderHeight} description={{
-          activity, phase, key: motionKey, layout, intervention: interventionState, role: roleKind, animate: shouldAnimate,
-          bodyColor, eyeColor, bodyMaterial: glassBody ? 'liquidGlass' : 'solid'
+          activity, phase, key: motionKey, layout, intervention: interventionState, role: roleKind, animate: shouldAnimate
         }} />
         <g
           ref={botRef}
@@ -238,12 +221,12 @@ export const BartLogo = memo(function BartLogo({
           <path
             ref={bodyRef}
             d={pointsToPath(motion.bodyPoints, layout === 'permission' ? 0 : expanded ? 1 : 0.82)}
-            fill={glassBody ? 'none' : bodyColor}
+            fill={BODY_COLOR}
           />
           <path
             ref={satelliteRef}
             d={pointsToPath(motion.satellitePoints, 0.72)}
-            fill={glassBody ? 'none' : bodyColor}
+            fill={BODY_COLOR}
             opacity={opening.satelliteOpacity.toFixed(3)}
           />
           {layout === 'message' ? (
@@ -263,12 +246,12 @@ export const BartLogo = memo(function BartLogo({
               <rect
                 ref={leftEyeRef}
                 {...eyeAttributes(opening.eyes.left)}
-                fill={eyeColor}
+                fill={EYE_COLOR}
               />
               <rect
                 ref={rightEyeRef}
                 {...eyeAttributes(opening.eyes.right)}
-                fill={eyeColor}
+                fill={EYE_COLOR}
               />
             </g>
           </g>
@@ -279,7 +262,7 @@ export const BartLogo = memo(function BartLogo({
             cy="178"
             r={opening.thoughtRadius.toFixed(2)}
             fill="#249cff"
-            stroke={eyeColor}
+            stroke={EYE_COLOR}
             strokeWidth="8"
           />
         </g>

@@ -9,23 +9,15 @@ let now = 0, sequence = 0
 let frames: Map<number, FrameRequestCallback>, messages: MotionWorkerResponse[]
 let runtime: { onmessage?: (message: { data: MotionWorkerRequest }) => void }
 class Canvas {
-  static created: Canvas[] = []
   width: number; height: number
   paints = 0
   scales: number[][] = []
   images: unknown[] = []
-  /** Every `fill()`'s colour, in order, so a test can tell a drawn body from a
-   * suppressed one without reaching into the character. */
-  fills: string[] = []
   listeners = new Map<string, () => void>()
-  constructor(width = 1, height = 1) { this.width = width; this.height = height; Canvas.created.push(this) }
+  constructor(width = 1, height = 1) { this.width = width; this.height = height }
   getContext() {
-    const target = { fillStyle: '', getTransform: () => ({ a: 1, b: 0 }),
-      clearRect: () => { this.paints++; this.scales = [] },
-      scale: (x: number, y: number) => this.scales.push([x, y]),
-      drawImage: (image: unknown) => this.images.push(image),
-      fill: () => { this.fills.push(String(target.fillStyle)) } }
-    return new Proxy(target, {
+    return new Proxy({ getTransform: () => ({ a: 1, b: 0 }), clearRect: () => { this.paints++; this.scales = [] },
+      scale: (x: number, y: number) => this.scales.push([x, y]), drawImage: (image: unknown) => this.images.push(image) }, {
       get: (target, key) => Reflect.get(target, key) ?? (() => undefined), set: (target, key, value) => Reflect.set(target, key, value)
     })
   }
@@ -45,7 +37,6 @@ const program = { duration: 1000, poses: [], textures: [], phases: [], character
 
 beforeEach(async () => {
   vi.resetModules(); vi.useFakeTimers(); now = 0; sequence = 0; frames = new Map(); messages = []
-  Canvas.created.length = 0
   vi.spyOn(performance, 'now').mockImplementation(() => now)
   vi.stubGlobal('Path2D', class { addPath() {} })
   vi.stubGlobal('OffscreenCanvas', Canvas)
@@ -96,32 +87,6 @@ describe('Worker surface and run ownership', () => {
     expect(source.paints).toBeGreaterThan(held[0])
     expect(inspect().stats).toMatchObject({ surfaces: 3, textures: 0, textureBytes: 0 })
     expect(messages.filter(message => message.type === 'failed')).toEqual([])
-  })
-  it('flights a glass resident as a solid body and leaves the resident its glass', () => {
-    const source = attach('source', 'character')
-    attach('destination', 'character')
-    attach('scene', 'raster-scene')
-    // `animate: false` snaps the silhouette to its target, so the body decision
-    // here turns on material alone rather than on a spring still settling.
-    const glass = { ...description, animate: false, bodyMaterial: 'liquidGlass' as const, bodyColor: '#123456' }
-    send({ type: 'character', surface: 'source', request: 1, description: glass })
-    send({ type: 'character', surface: 'destination', request: 2, description: glass })
-    send({ type: 'borrow-character', surface: 'scene', source: 'source', request: 3 })
-    send({ type: 'play', surface: 'scene', run: 10, program })
-    tick(100)
-    // The flight scene has no glass stage behind it, so the actor it draws must
-    // already carry its own body. `aimAt` is 400 of this 1000ms program, so the
-    // borrowed copy is the only thing on screen here.
-    const raster = Canvas.created.find(canvas => canvas.width === 512 && canvas.height === 512)!
-    expect(raster.fills).toContain('#123456')
-    // Handing the flight a copy must not downgrade the resident: it is still the
-    // glass-acknowledged actor, so its own body stays suppressed.
-    send({ type: 'release', surface: 'scene', run: 10 })
-    return Promise.resolve().then(() => {
-      tick(500)
-      expect(source.fills).not.toContain('#123456')
-      expect(messages.filter(message => message.type === 'failed')).toEqual([])
-    })
   })
   it('retains the same borrowed actor through a reversal and rejects old completion ownership', () => {
     const source = attach('source', 'character'), destination = attach('destination', 'character')

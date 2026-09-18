@@ -1,14 +1,36 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Frame, Glass, GlassContainer, Html, LiquidCanvas, Padding, ZStack, type LiquidCanvasRef } from '@liquid-dom/react'
 import { getOverviewCameraCockpit } from '../overview-motion'
 import { installLiquidCaptureCompat } from './capture-compat'
 import { BAR_CORNER, glassFor, useLiquidTheme } from './glass-recipe'
-import { createLiquidFollow } from './liquid-follow'
-import { LiquidStageBoundary } from './liquid-stage-boundary'
 
 /* 捕获垫片必须在任何 LiquidCanvas 挂载前装好。渲染进程里只有这一个入口会建画布，
    模块求值时装一次即可。 */
 installLiquidCaptureCompat()
+
+/**
+ * 画布初始化失败就退回普通 DOM。库在拿不到 WebGPU 适配器、拿不到画布上下文、
+ * 或者纹理超过设备上限时是直接 `throw`（core 的 `WebGpuDomContentSource`），这些
+ * 都发生在挂载期，没有边界就会冒到整棵树上把俯瞰视图一起带走。捕获特性缺失只是
+ * 其中一种 —— 有特性、但设备画不出来，同样得退。
+ */
+class LiquidStageBoundary extends Component<{ readonly onFail: () => void; readonly children: ReactNode },
+  { readonly failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError(): { readonly failed: true } {
+    return { failed: true }
+  }
+
+  componentDidCatch(error: unknown): void {
+    console.error('[overview-liquid] 画布初始化失败，退回普通 DOM', error)
+    this.props.onFail()
+  }
+
+  render(): ReactNode {
+    return this.state.failed ? null : this.props.children
+  }
+}
 
 /** 浮条在舞台里的盒子，相对舞台左上角，取整数像素。 */
 interface BarBox {
@@ -166,29 +188,42 @@ export function OverviewLiquidStage({ children, backdropRefs, onSubtreeMounted, 
        捕获阶段听。 */
   useEffect(() => {
     if (!substrate || failed) return
+    let handle = 0
+    let until = 0
+    const step = (): void => {
+      /* 先放手再重画：`invalidateFrame` 抛了也不会留下已经消费掉的 rAF id，
+         否则 `invalidate` 的 `if (handle) return` 会一直把后续失效挡在门外。 */
+      handle = 0
+      canvasRef.current?.invalidateFrame()
+      if (performance.now() >= until) return
+      handle = requestAnimationFrame(step)
+    }
     /* 同一帧里的多次触发合并成一次重画；带过渡的（悬停、焦点）再跟一段时间，
-       期间连续重画。窗口本身与 Bart 舞台共用 `createLiquidFollow`，两处不会再各
-       自漂移。 */
-    const follow = createLiquidFollow(() => canvasRef.current?.invalidateFrame())
-    const observer = new MutationObserver(() => follow.invalidate(0))
+       期间连续重画。 */
+    const invalidate = (window: number): void => {
+      until = Math.max(until, performance.now() + window)
+      if (handle) return
+      handle = requestAnimationFrame(step)
+    }
+    const observer = new MutationObserver(() => invalidate(0))
     observer.observe(substrate, {
       subtree: true, childList: true, characterData: true, attributes: true
     })
-    const onState = (): void => follow.invalidate(STATE_FOLLOW_MS)
-    const onScroll = (): void => follow.invalidate(0)
+    const onState = (): void => invalidate(STATE_FOLLOW_MS)
+    const onScroll = (): void => invalidate(0)
     substrate.addEventListener('pointerover', onState, { passive: true })
     substrate.addEventListener('pointerout', onState, { passive: true })
     substrate.addEventListener('focusin', onState)
     substrate.addEventListener('focusout', onState)
     substrate.addEventListener('scroll', onScroll, { capture: true, passive: true })
     return () => {
-      follow.dispose()
       observer.disconnect()
       substrate.removeEventListener('pointerover', onState)
       substrate.removeEventListener('pointerout', onState)
       substrate.removeEventListener('focusin', onState)
       substrate.removeEventListener('focusout', onState)
       substrate.removeEventListener('scroll', onScroll, { capture: true })
+      if (handle) cancelAnimationFrame(handle)
     }
   }, [substrate, failed])
 
@@ -222,7 +257,7 @@ export function OverviewLiquidStage({ children, backdropRefs, onSubtreeMounted, 
   return <div className="overview-liquid-stage" ref={stageRef}>
     {ready && (failed
       ? <div className="overview-liquid-substrate" ref={bindSubstrate}>{children}</div>
-      : <LiquidStageBoundary label="overview-liquid" onFail={handleFailure}>
+      : <LiquidStageBoundary onFail={handleFailure}>
           <LiquidCanvas ref={canvasRef} frameloop="demand"
             style={{ width: '100%', height: '100%' }}
             canvasStyle={{ display: 'block', width: '100%', height: '100%' }}
