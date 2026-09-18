@@ -155,13 +155,19 @@ export function createPiSettings(host: HarnessPluginHostContext): {
       // Validate the public request before reading the Core-composed defaults/request.
       const requested = normalizeUpdate(input.requested ?? {})
       assertRecord(input.merged)
+      const hasContent = hasThreadContent(input.sessionState)
       const { executablePath, ...options } = input.merged
-      const path = identifier(executablePath, 'executablePath')
+      // Harness-level settings cannot pin the binary, so a Core-composed request
+      // never names one. A Thread with history is stuck with the binary its
+      // native session came from: inherit that path rather than read the absent
+      // request path as a change it never made.
+      const path = identifier(executablePath, 'executablePath') ??
+        (hasContent ? identifier(input.existing?.executablePath, 'executablePath') : undefined)
       const merged = apply(path ? { executablePath: path } : {}, normalizeUpdate(options))
       const next = apply(merged, requested)
-      if (hasThreadContent(input.sessionState)) assertExecutable(input.existing, next)
+      if (hasContent) assertExecutable(input.existing, next)
       const result = await resolve(next, input.cwd, input.signal)
-      if (hasThreadContent(input.sessionState)) assertExecutable(input.existing, result)
+      if (hasContent) assertExecutable(input.existing, result)
       return result
     },
     hasThreadContent,
