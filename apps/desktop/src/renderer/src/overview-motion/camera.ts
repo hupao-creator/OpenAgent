@@ -321,7 +321,6 @@ export class OverviewCameraCockpit {
           controller.signal.removeEventListener('abort', onAbort)
         }
         const onAbort = (): void => {
-          cleanup()
           if (this.track?.token === token) this.settleTrack()
           reject(abortError())
         }

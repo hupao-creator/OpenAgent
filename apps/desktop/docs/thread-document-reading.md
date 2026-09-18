@@ -8,7 +8,7 @@ Implements #63 for Codex and Claude Code in Agent and Bart. Report is unchanged.
 - A2: Links have underlined prompt titles, one-line plain-text answer summaries, actual completion times, no emoji or card border, and a divider before the latest turn.
 - A3: Subpages retain complete Markdown, attachments and plugin content; back restores scroll and opener focus, Escape returns.
 - A4: One shared breadcrumb navigates to the existing Host destination or parent document; each segment is capped at 216px and shrinks on narrow screens.
-- A5: Each entry animates 28px/360ms with cubic-bezier(.22,1,.36,1); animations play normally regardless of the system reduced-motion preference.
+- A5: Each entry animates 28px/360ms with cubic-bezier(.22,1,.36,1).
 - A6: Streaming, new turns, waiting interactions and Thread switches retain Harness semantics; historical interactions cannot submit stale responses.
 - A7: Local timestamps and documented token scope use monospace numerals; absent values are never fabricated.
 - A8: All three Harnesses and Agent/Bart shells support light/dark and narrow layouts.

@@ -21,8 +21,8 @@ import { captureCameraAssets, createCameraScene, type CameraAssets } from '../sr
 // captured frame. Suites that drive the camera replace both mocks themselves.
 beforeEach(() => {
   vi.stubGlobal('matchMedia', () => ({ matches: true }))
-  vi.mocked(captureCameraAssets).mockResolvedValue({} as CameraAssets)
-  vi.mocked(createCameraScene).mockReturnValue({ ready: Promise.resolve(), dispose: vi.fn(),
+  vi.mocked(captureCameraAssets).mockReset().mockResolvedValue({} as CameraAssets)
+  vi.mocked(createCameraScene).mockReset().mockReturnValue({ ready: Promise.resolve(), dispose: vi.fn(),
     play: () => ({ started: Promise.resolve(performance.timeOrigin + performance.now()),
       performed: Promise.resolve() }) })
 })

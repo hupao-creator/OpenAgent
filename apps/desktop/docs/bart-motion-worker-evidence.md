@@ -93,7 +93,7 @@ CI 也没有 `bart-isolation` 步骤。它只在真机上手动执行，入口�
 
 本轮目录：基线 `KOoAA9`，M0 2s `2cKcKg`、5s `E9Ahy4`，ASAR `UfsO13`；干预 `Ld3N6i`；生成 `N7cZQc` / `baYbL3`；跨页 `GcOfcK` / `vl5tMd`；镜头 `v4Bih5` / `9HFtg9`；设置页 `1Vf0B0` / `4fVQxn`。目录名均带 `bart-isolation-` 前缀，位于运行机器临时目录。可提交的数值摘要在本文，完整产物由上述命令重新生成。
 
-基础正确性另由真实 Worker 模块及 DOM 测试验证：旧 play/release/landing、资源所有权、隐藏恢复、Canvas2D context 丢失、DPR 变化、准备超时、StrictMode、配置合并、内容 revision、焦点及减少动态效果。它们不替代真实窗口的连续性证据。
+基础正确性另由真实 Worker 模块及 DOM 测试验证：旧 play/release/landing、资源所有权、隐藏恢复、Canvas2D context 丢失、DPR 变化、准备超时、StrictMode、配置合并、内容 revision 及焦点。它们不替代真实窗口的连续性证据。
 
 ## 打断后的终态交接（#272）
 

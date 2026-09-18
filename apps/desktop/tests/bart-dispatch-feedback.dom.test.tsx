@@ -36,7 +36,8 @@ beforeEach(() => {
   Element.prototype.getClientRects = function (this: Element) {
     return [{ x: 0, y: 0, width: 1, height: 1, top: 0, left: 0, right: 1, bottom: 1 }] as unknown as DOMRectList
   }
-  // jsdom ships no matchMedia at all; the page reads the resolved color scheme.
+  // jsdom supplies no matchMedia at all; stub it so the settings page's
+  // max-width query has an answer. No preference is read on this path.
   window.matchMedia = ((query: string) => ({
     matches: false, media: query, onchange: null,
     addEventListener: () => undefined, removeEventListener: () => undefined,

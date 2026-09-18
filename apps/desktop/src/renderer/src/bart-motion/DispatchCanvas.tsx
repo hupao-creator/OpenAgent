@@ -16,14 +16,13 @@ export function DispatchCanvas({ description }: { description: DispatchDescripti
     const failed = (): void => { if (alive) map.removeAttribute('data-dispatch-worker') }
     const refresh = (): void => {
       if (!container.clientWidth || !container.clientHeight) return
-      const next = latest.current
-      const nextSignature = JSON.stringify([next, container.clientWidth, container.clientHeight])
+      const nextSignature = JSON.stringify([latest.current, container.clientWidth, container.clientHeight])
       if (signature === nextSignature) return
       signature = nextSignature
       try {
         surface ??= createMotionSurface(canvas, container.clientWidth, container.clientHeight, 'character', failed)
         surface.resize(container.clientWidth, container.clientHeight)
-        void surface.dispatch(next).then(() => { if (alive) map.setAttribute('data-dispatch-worker', 'true') }, failed)
+        void surface.dispatch(latest.current).then(() => { if (alive) map.setAttribute('data-dispatch-worker', 'true') }, failed)
       } catch { failed() }
     }
     update.current = refresh
