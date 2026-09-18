@@ -29,6 +29,7 @@ import { threadDirectoryTag } from '@openagent/contracts'
 import { bartVisualOperations, overviewTransitionChanged } from './bart-visual-state'
 import { AppShell, SubscribedAgentThreadWorkspace, SubscribedBartThreadView, SubscribedBartDock, SubscribedConversationOverview, SubscribedBartThreadGenerations } from './components/RendererSurfaces'
 import type { BartDockReply, BartDockThreadFollowUpTarget } from './components/BartDock'
+import { BartLiquidStage } from './liquid/BartLiquidStage'
 import {
   bartGenerationReportTarget,
   bartGenerationThreadTarget,
@@ -618,112 +619,119 @@ function AppContent(): React.JSX.Element {
           ].filter(Boolean).join(' ')}
           data-session-transition={sessionTransitionDirection || undefined}
         >
-          <main className="app-workspace">
-            {bartThreadOpen || camera.busy ? (
-              <div data-bart-camera-session className="bart-camera-surface"
-                tabIndex={-1} inert={!bartThreadOpen || camera.active} aria-hidden={!bartThreadOpen || camera.active}
-                data-camera-hidden={!bartThreadOpen || camera.active || undefined}>
-              <SubscribedBartThreadView
-                composer={composer}
-                error={localizedOperationError}
-                execution={bartExecution}
-                key={bartThreadId}
-                onBack={backToOverview}
-                onCancel={cancelBart}
-                onChooseFiles={chooseBartFiles}
-                onClear={clearBart}
-                onPasteFiles={pasteBartFiles}
-                onRemoveAttachment={composer.removeAttachment}
-                onSettings={openSettings}
-                onSubmit={() => void sendBartMessage().catch(() => undefined)}
-                readingTarget={bartReading?.threadId === bartThreadId ? bartReading.target : undefined}
-                respond={window.openAgent.respondToThreadInteraction}
-                threadId={bartThreadId}
-              />
-              </div>
-            ) : null}
-            {!bartThreadOpen || camera.busy ? openReport ? (
-              <ReportThreadView
-                onBack={closeReportThread}
-                onSettings={openSettings}
-                report={openReport}
-                suppressed={settingsOpen}
-              />
-            ) : selectedAgentId ? (
-              <SubscribedAgentThreadWorkspace
-                interrupt={window.openAgent.interruptThread}
-                key={selectedAgentId}
-                readingTarget={readingTarget}
-                onBack={backToOverview}
-                onFollowUp={openThreadFollowUp}
-                respond={window.openAgent.respondToThreadInteraction}
-                threadId={selectedAgentId}
-              />
-            ) : (
-              <div data-bart-camera-overview className="bart-camera-surface"
-                tabIndex={-1} inert={bartThreadOpen || camera.active} aria-hidden={bartThreadOpen || camera.active}
-                data-camera-hidden={bartThreadOpen || camera.active || undefined}>
-              <SubscribedConversationOverview
-                orchestration={orchestration}
-                cameraMemory={overviewCameraMemory}
-                cameraVisible={overviewRendered && !settingsOpen}
-                embedded={false}
-                focusFilterRequestKey={overviewRendered ? overviewFilterFocusRequestKey : 0}
-                onFocusFilterRequestConsumed={consumeOverviewFilterFocusRequest}
-                followUpThreadId={threadFollowUpId}
-                initialLayoutContext={orchestration.getState().layoutContext}
-                interrupt={window.openAgent.interruptThread}
-                motionSceneKey={overviewSceneKey}
-                onGenerationMotionQueued={orchestration.enqueue}
-                onLayoutContextChange={orchestration.setLayoutContext}
-                onLayoutRevisionsConsumed={orchestration.consumeRevisions}
-                onDeletePlaceholdersConsumed={orchestration.clearDeletedIndexes}
-                onFollowUpClose={closeThreadFollowUp}
-                onFollowUpOpen={openThreadFollowUp}
-                onOpenReport={openReportThread}
-                onRestartDevelopment={undefined}
-                onSelect={openThread}
-                onSetReportArchived={setReportArchived}
-                onSettings={openSettings}
-                view={overviewTaskView}
-                onViewChange={setOverviewTaskView}
-                onOpenRelatedExecution={openThread}
-                onSetThreadArchived={setThreadArchived}
-                onTagChange={setSelectedTag}
-                reportRelationThreads={allOverviewInputs}
-                reports={filteredReports}
-                respond={window.openAgent.respondToThreadInteraction}
-                selectedTag={selectedTag}
-                tagFilters={tagFilters}
-                threads={filteredThreadInputs}
-                transitionId={transitionSessionId}
-              />
-              </div>
-            ) : null}
-          </main>
-
-          <div data-bart-camera-dock inert={bartThreadOpen || camera.active} aria-hidden={bartThreadOpen || camera.active} style={{ opacity: bartThreadOpen || camera.active ? 0 : undefined }}>
-          <SubscribedBartDock
-            composer={composer}
-            inputDisabled={false}
-            inputOpen={bartInputOpen}
-            onChooseFiles={chooseBartFiles}
-            onInputOpenChange={setBartInputOpen}
-            onInteractionResponse={respondToDockInteraction}
-            onReplyOpen={openBartReply}
-            onPasteFiles={pasteBartFiles}
-            onRemoveBartAttachment={composer.removeAttachment}
-            onSubmit={sendBartMessage}
-            onThreadFollowUpClose={closeThreadFollowUp}
-            onThreadFollowUpSubmit={followUpThread}
-            onThreadOpenChange={setBartThreadOpen}
-            passiveVisible={(overviewRendered || camera.busy) && !settingsOpen}
-            presentationCovered={bartThreadOpen || camera.active}
-            running={Boolean(bartExecution)}
-            threadFollowUp={threadFollowUpTarget}
-            threadOpen={bartThreadOpen && !camera.busy}
-          />
-          </div>
+          <BartLiquidStage
+            /* The whole workspace is the substrate the glass samples; the Dock stays
+               in `children`, so the actor itself is never part of the captured tree. */
+            backdrop={
+              <main className="app-workspace">
+                {bartThreadOpen || camera.busy ? (
+                  <div data-bart-camera-session className="bart-camera-surface"
+                    tabIndex={-1} inert={!bartThreadOpen || camera.active} aria-hidden={!bartThreadOpen || camera.active}
+                    data-camera-hidden={!bartThreadOpen || camera.active || undefined}>
+                  <SubscribedBartThreadView
+                    composer={composer}
+                    error={localizedOperationError}
+                    execution={bartExecution}
+                    key={bartThreadId}
+                    onBack={backToOverview}
+                    onCancel={cancelBart}
+                    onChooseFiles={chooseBartFiles}
+                    onClear={clearBart}
+                    onPasteFiles={pasteBartFiles}
+                    onRemoveAttachment={composer.removeAttachment}
+                    onSettings={openSettings}
+                    onSubmit={() => void sendBartMessage().catch(() => undefined)}
+                    readingTarget={bartReading?.threadId === bartThreadId ? bartReading.target : undefined}
+                    respond={window.openAgent.respondToThreadInteraction}
+                    threadId={bartThreadId}
+                  />
+                  </div>
+                ) : null}
+                {!bartThreadOpen || camera.busy ? openReport ? (
+                  <ReportThreadView
+                    onBack={closeReportThread}
+                    onSettings={openSettings}
+                    report={openReport}
+                    suppressed={settingsOpen}
+                  />
+                ) : selectedAgentId ? (
+                  <SubscribedAgentThreadWorkspace
+                    interrupt={window.openAgent.interruptThread}
+                    key={selectedAgentId}
+                    readingTarget={readingTarget}
+                    onBack={backToOverview}
+                    onFollowUp={openThreadFollowUp}
+                    respond={window.openAgent.respondToThreadInteraction}
+                    threadId={selectedAgentId}
+                  />
+                ) : (
+                  <div data-bart-camera-overview className="bart-camera-surface"
+                    tabIndex={-1} inert={bartThreadOpen || camera.active} aria-hidden={bartThreadOpen || camera.active}
+                    data-camera-hidden={bartThreadOpen || camera.active || undefined}>
+                  <SubscribedConversationOverview
+                    orchestration={orchestration}
+                    cameraMemory={overviewCameraMemory}
+                    cameraVisible={overviewRendered && !settingsOpen}
+                    embedded={false}
+                    focusFilterRequestKey={overviewRendered ? overviewFilterFocusRequestKey : 0}
+                    onFocusFilterRequestConsumed={consumeOverviewFilterFocusRequest}
+                    followUpThreadId={threadFollowUpId}
+                    initialLayoutContext={orchestration.getState().layoutContext}
+                    interrupt={window.openAgent.interruptThread}
+                    motionSceneKey={overviewSceneKey}
+                    onGenerationMotionQueued={orchestration.enqueue}
+                    onLayoutContextChange={orchestration.setLayoutContext}
+                    onLayoutRevisionsConsumed={orchestration.consumeRevisions}
+                    onDeletePlaceholdersConsumed={orchestration.clearDeletedIndexes}
+                    onFollowUpClose={closeThreadFollowUp}
+                    onFollowUpOpen={openThreadFollowUp}
+                    onOpenReport={openReportThread}
+                    onRestartDevelopment={undefined}
+                    onSelect={openThread}
+                    onSetReportArchived={setReportArchived}
+                    onSettings={openSettings}
+                    view={overviewTaskView}
+                    onViewChange={setOverviewTaskView}
+                    onOpenRelatedExecution={openThread}
+                    onSetThreadArchived={setThreadArchived}
+                    onTagChange={setSelectedTag}
+                    reportRelationThreads={allOverviewInputs}
+                    reports={filteredReports}
+                    respond={window.openAgent.respondToThreadInteraction}
+                    selectedTag={selectedTag}
+                    tagFilters={tagFilters}
+                    threads={filteredThreadInputs}
+                    transitionId={transitionSessionId}
+                  />
+                  </div>
+                ) : null}
+              </main>
+            }
+            style={{ position: 'absolute', inset: 0 }}
+          >
+            <div data-bart-camera-dock inert={bartThreadOpen || camera.active} aria-hidden={bartThreadOpen || camera.active} style={{ opacity: bartThreadOpen || camera.active ? 0 : undefined }}>
+            <SubscribedBartDock
+              composer={composer}
+              inputDisabled={false}
+              inputOpen={bartInputOpen}
+              onChooseFiles={chooseBartFiles}
+              onInputOpenChange={setBartInputOpen}
+              onInteractionResponse={respondToDockInteraction}
+              onReplyOpen={openBartReply}
+              onPasteFiles={pasteBartFiles}
+              onRemoveBartAttachment={composer.removeAttachment}
+              onSubmit={sendBartMessage}
+              onThreadFollowUpClose={closeThreadFollowUp}
+              onThreadFollowUpSubmit={followUpThread}
+              onThreadOpenChange={setBartThreadOpen}
+              passiveVisible={(overviewRendered || camera.busy) && !settingsOpen}
+              presentationCovered={bartThreadOpen || camera.active}
+              running={Boolean(bartExecution)}
+              threadFollowUp={threadFollowUpTarget}
+              threadOpen={bartThreadOpen && !camera.busy}
+            />
+            </div>
+          </BartLiquidStage>
 
           <SubscribedBartThreadGenerations
             orchestration={orchestration}
@@ -735,6 +743,10 @@ function AppContent(): React.JSX.Element {
           {localizedOperationError && !bartThreadOpen ? (
             <button
               className="operation-error-toast"
+              /* The workspace is inside the stage's positioned overlay now, and a
+                 positioned box paints over in-flow siblings whatever the order —
+                 so this stays positioned too, or the shell's own surface hides it. */
+              style={{ position: 'relative', zIndex: 1 }}
               onClick={() => reportOperationError('')}
               type="button"
             >{localizedOperationError}</button>

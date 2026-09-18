@@ -111,6 +111,15 @@ describe('Bart glass ownership and fallback', () => {
     expect(view.container.querySelector('[data-bart-liquid-stage]')?.getAttribute('data-bart-liquid-stage')).toBe('unsupported')
     expect(view.container.querySelector('.bart-logo')?.getAttribute('data-body-material')).toBe('solid')
   })
+  it('keeps the layer above the canvas out of the hit test', () => {
+    const view = render(<BartLiquidStage backdrop={<div>real backdrop</div>} style={{ width: 640, height: 640 }}>
+      <button type="button">dock control</button>
+    </BartLiquidStage>)
+    // The foreground spans the whole stage. Hit-testable, it would swallow every
+    // click on whatever the caller captured as substrate — which, for a stage
+    // wrapped around a window, is the entire interactive app.
+    expect(view.getByRole('button').parentElement?.style.pointerEvents).toBe('none')
+  })
 })
 
 /* The enabled path: a real stage, a real registration, and a hand-driven capture
