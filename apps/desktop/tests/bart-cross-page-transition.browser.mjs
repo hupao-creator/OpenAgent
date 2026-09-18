@@ -794,32 +794,6 @@ try {
   await page.screenshot({ path: path.join(output, 'tab-switch-abort.png') })
   console.log('tab-switch: the copy was dropped mid-route and the seat was already in place.')
 
-  // Reduced motion can arrive after the flight has left. `canFly` answered for the
-  // moment of takeoff, so without the flight watching the setting itself the route
-  // would keep going and land on a seat the page has already stopped moving.
-  await page.goto(OVERVIEW_URL)
-  await page.waitForSelector(DOCK_LOGO)
-  await sleep(900)
-  await installSampler({ source: DOCK_LOGO, target: SEAT_LOGO, held: '.bart-host-character' })
-  await page.getByRole('button', { name: '设置', exact: true }).click()
-  await page.waitForSelector('.bart-cross-page-flight-copy', { state: 'attached' })
-  await sleep(200)
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.waitForSelector('.bart-cross-page-flight', { state: 'detached' })
-  await sleep(300)
-  const reduced = await collect()
-  const reducedAir = reduced.samples.filter((sample) => sample.copy)
-  const reducedMs = reducedAir.at(-1).t - reducedAir[0].t
-  // The route is 760ms; anything close to that is a flight that flew out anyway.
-  assert.ok(reducedMs < OPEN_ROUTE - 150, `reduced-motion: a flight already underway must stop where it is (${reducedMs.toFixed(0)}ms of a ${OPEN_ROUTE}ms route)`)
-  assert.equal(await page.evaluate(() => !document.querySelector('[data-bart-cross-page-flight]')), true, 'reduced-motion: the flight layer must be torn down')
-  assert.equal(reduced.samples.at(-1).heldVisible, true, 'reduced-motion: the seat must take over the moment the copy is gone')
-  await page.screenshot({ path: path.join(output, 'reduced-motion-abort.png') })
-  console.log(`reduced-motion: a flight already underway stopped after ${reducedMs.toFixed(0)}ms and the seat took over.`)
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await page.getByRole('button', { name: '返回' }).click()
-  await page.waitForSelector('.settings-page', { state: 'detached' })
-
   // The seat is laid out before the page has asked the machine what is installed:
   // an unanswered status reads as installed, so the seat starts among every Harness
   // and slides once the missing ones drop out. A flight already on its way has to
@@ -1426,8 +1400,8 @@ for (const observation of observations) {
 // A skipped flight has to be indistinguishable from the page transition alone:
 // no layer left behind, no change to the reveal, and no close swallowed.
 const skips = []
-async function observeSkip({ label, url, contextOptions = {}, open }) {
-  const skipContext = await browser.newContext({ viewport: { width: 1369, height: 994 }, ...contextOptions })
+async function observeSkip({ label, url, open }) {
+  const skipContext = await browser.newContext({ viewport: { width: 1369, height: 994 } })
   const skipPage = await skipContext.newPage()
   skipPage.on('pageerror', (error) => console.error(`[${label}]`, error.message))
   skipPage.on('crash', () => console.error(`[${label}] page crashed`))
@@ -1451,12 +1425,6 @@ async function observeSkip({ label, url, contextOptions = {}, open }) {
   console.log(`${label}: no flight, page revealed and closed normally.`)
 }
 
-await observeSkip({
-  label: 'reduced-motion',
-  url: OVERVIEW_URL,
-  contextOptions: { reducedMotion: 'reduce' },
-  open: (target) => target.getByRole('button', { name: '设置', exact: true }).click()
-})
 await observeSkip({
   // A thread view has no Overview for Bart to leave from, and no settings button
   // either — the shortcut is the only way in, which is exactly how a user gets here.

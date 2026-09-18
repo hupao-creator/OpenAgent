@@ -57,12 +57,11 @@ export function CharacterCanvas({ width, height, description }: {
     const renderer = createMotionSurface(output, measured.width, measured.height, 'character', failed)
     surface.current = renderer
     let configured = renderer.ready
-    const media = window.matchMedia?.('(prefers-reduced-motion: reduce)')
     const update = (): void => {
       try {
         const size = measuredSize()
         renderer.resize(size.width, size.height)
-        configured = renderer.character({ ...latest.current, eyeMotion: eyeMotion.current, animate: latest.current.animate !== false && !media?.matches })
+        configured = renderer.character({ ...latest.current, eyeMotion: eyeMotion.current, animate: latest.current.animate !== false })
         void configured
           .then(() => { if (current) svg.setAttribute('data-worker-ready', 'true') }, failed)
       } catch { failed() }
@@ -74,17 +73,15 @@ export function CharacterCanvas({ width, height, description }: {
     }
     eyeControllers.set(svg, eyeController)
     const character = { id: renderer.id, ready: () => configured,
-      description: () => ({ ...latest.current, eyeMotion: eyeMotion.current, animate: latest.current.animate !== false && !media?.matches }) }
+      description: () => ({ ...latest.current, eyeMotion: eyeMotion.current, animate: latest.current.animate !== false }) }
     characters.set(svg, character)
     const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(update)
     resize?.observe(svg)
-    media?.addEventListener('change', update)
     refresh.current = update
     return () => {
       current = false
       if (eyeControllers.get(svg) === eyeController) eyeControllers.delete(svg)
       if (characters.get(svg) === character) characters.delete(svg)
-      media?.removeEventListener('change', update)
       resize?.disconnect()
       renderer.dispose()
       if (surface.current === renderer) surface.current = null

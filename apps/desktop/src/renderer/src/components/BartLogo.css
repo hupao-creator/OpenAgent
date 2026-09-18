@@ -139,6 +139,3 @@
   100% { opacity: 1; transform: translateY(0); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bart-logo .bart-message { animation: none !important; }
-}

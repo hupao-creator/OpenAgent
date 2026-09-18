@@ -60,7 +60,7 @@ export function useCameraTransition({ duration = DEFAULT_DURATION, slow = false 
   const play = useCallback(async (inside: boolean) => {
     const command = ++commandRef.current
     targetRef.current = inside
-    if (sceneRef.current && presentedRef.current && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    if (sceneRef.current && presentedRef.current) {
       // A new destination takes over the same snapshots, locks and live clock.
       // Older completion callbacks retain their command and cannot hand off.
       try {
@@ -77,7 +77,7 @@ export function useCameraTransition({ duration = DEFAULT_DURATION, slow = false 
     }
     retire()
     if (!focusRef.current && document.activeElement instanceof HTMLElement) focusRef.current = document.activeElement
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || openRef.current === inside) { finish(inside); return }
+    if (openRef.current === inside) { finish(inside); return }
     const stage = stageRef.current
     if (!stage) { finish(inside); return }
     const controller = new AbortController(), signal = controller.signal
@@ -159,18 +159,15 @@ export function useCameraTransition({ duration = DEFAULT_DURATION, slow = false 
   useEffect(() => {
     const settle = (): void => { if (sceneRef.current || captureRef.current) finish(targetRef.current) }
     const hidden = (): void => { if (document.hidden) settle() }
-    const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)')
     const scheme = window.matchMedia?.('(prefers-color-scheme: dark)')
     window.addEventListener('resize', settle)
     document.addEventListener('visibilitychange', hidden)
-    motion?.addEventListener?.('change', settle)
     scheme?.addEventListener?.('change', settle)
     return () => {
       commandRef.current++
       retire()
       window.removeEventListener('resize', settle)
       document.removeEventListener('visibilitychange', hidden)
-      motion?.removeEventListener?.('change', settle)
       scheme?.removeEventListener?.('change', settle)
     }
   }, [finish, retire])

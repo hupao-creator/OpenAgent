@@ -181,14 +181,4 @@ describe('BartLogo idle eye behavior', () => {
     expect(interventionVisualState({ ...base, responseStatus: 'fallback' })).toBeUndefined()
   })
 
-  it('keeps its static fallback still when reduced motion is requested', () => {
-    Object.defineProperty(window, 'matchMedia', {
-      configurable: true,
-      value: () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
-    })
-    const logo = render(<BartLogo size={30} layout="message" />)
-    const before = eyeCenters(logo.container)
-    flushFrames(4000)
-    expect(eyeCenters(logo.container)).toEqual(before)
-  })
 })

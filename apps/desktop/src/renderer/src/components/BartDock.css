@@ -306,20 +306,6 @@
   to { opacity: 0 }
 }
 
-/* The capsule's arrival is what carries Bart, so it cannot be removed without
-   putting him back to a jump; it is shortened to a single frame instead. */
-@media (prefers-reduced-motion: reduce) {
-  .bart-dock[data-layout='input'],
-  .bart-dock[data-capsule-leaving],
-  .bart-dock-inline-composer,
-  .bart-dock-thread-follow-up,
-  .bart-dock[data-capsule-leaving] .bart-dock-inline-composer,
-  .bart-dock[data-capsule-leaving] .bart-dock-thread-follow-up {
-    animation-duration: 1ms;
-    animation-delay: 0ms;
-  }
-}
-
 .bart-dock-inline-row {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) 34px;

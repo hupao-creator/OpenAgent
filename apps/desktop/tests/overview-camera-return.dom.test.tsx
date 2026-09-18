@@ -114,22 +114,3 @@ it('到期后仍等待既有舞台节拍，取得舞台才读取最新目标', a
     expect(camera.live?.transform.y).toBeCloseTo(193.2)
   } finally { lease.release() }
 })
-
-it('减少动态效果直接显示最终取景；相同目标不产生额外移动', async () => {
-  vi.useFakeTimers()
-  vi.stubGlobal('matchMedia', () => ({ matches: true }))
-  const camera = createCamera()
-  cameras.push(camera)
-  try {
-    const saved = { manual: false, transform: { scale: 0.7, x: -200, y: 30 } }
-    camera.restore(saved, card, viewport)
-    await vi.advanceTimersByTimeAsync(1)
-    expect(camera.live?.transform).toEqual({ scale: 1, x: 320, y: 279.6 })
-    const frames: unknown[] = []
-    camera.restore(camera.live!, card, viewport)
-    const unsubscribe = camera.subscribeFrame(() => frames.push(camera.live))
-    await vi.advanceTimersByTimeAsync(1200)
-    expect(frames).toEqual([])
-    unsubscribe()
-  } finally { vi.unstubAllGlobals() }
-})

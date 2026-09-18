@@ -29,12 +29,10 @@ class FakeQuery {
 
 const asQuery = (query: FakeQuery): MediaQueryList => query as unknown as MediaQueryList
 
-function installMatchMedia(schemeDark: boolean, reducedMotion = false) {
+function installMatchMedia(schemeDark: boolean) {
   const scheme = new FakeQuery(schemeDark)
-  const reduced = new FakeQuery(reducedMotion)
-  window.matchMedia = ((media: string) =>
-    media.includes('reduced-motion') ? reduced : scheme) as unknown as typeof window.matchMedia
-  return { scheme, reduced }
+  window.matchMedia = (() => scheme) as unknown as typeof window.matchMedia
+  return { scheme }
 }
 
 function installViewTransition() {
@@ -114,19 +112,12 @@ describe('appearance blur fade transition', () => {
     expect(transitioning()).toBe(false)
   })
 
-  it('applies without a transition under reduced motion or without the API', async () => {
-    installMatchMedia(false, true)
-    const viewTransition = installViewTransition()
-    const apply = vi.fn(async () => undefined)
-    await runThemeTransition('dark', apply)
-    expect(viewTransition.startViewTransition).not.toHaveBeenCalled()
-    expect(apply).toHaveBeenCalledTimes(1)
-
+  it('applies without a transition when the API is absent', async () => {
     installMatchMedia(false)
     removeViewTransitionApi()
-    const second = vi.fn(async () => undefined)
-    await runThemeTransition('dark', second)
-    expect(second).toHaveBeenCalledTimes(1)
+    const apply = vi.fn(async () => undefined)
+    await runThemeTransition('dark', apply)
+    expect(apply).toHaveBeenCalledTimes(1)
     expect(transitioning()).toBe(false)
   })
 

@@ -31,11 +31,12 @@ let acknowledgmentAnimations: FakeAnimation[] = []
 beforeEach(() => {
   acknowledgmentClips = []
   acknowledgmentAnimations = []
-  // jsdom reports no layout and no media support, which both make the motion code
-  // opt out; the settings page needs them to reach its acknowledgment path at all.
+  // jsdom reports no layout, which makes the motion code opt out; the settings
+  // page needs real client rects to reach its acknowledgment path at all.
   Element.prototype.getClientRects = function (this: Element) {
     return [{ x: 0, y: 0, width: 1, height: 1, top: 0, left: 0, right: 1, bottom: 1 }] as unknown as DOMRectList
   }
+  // jsdom ships no matchMedia at all; the page reads the resolved color scheme.
   window.matchMedia = ((query: string) => ({
     matches: false, media: query, onchange: null,
     addEventListener: () => undefined, removeEventListener: () => undefined,

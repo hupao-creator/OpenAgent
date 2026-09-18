@@ -301,10 +301,6 @@ export class OverviewCameraCockpit {
       const from = this.state?.transform ?? IDENTITY_CANVAS_TRANSFORM
       const target = targetForBounds()
       if (sameTransform(from, target) && options.due === undefined) return true
-      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-        this.commit({ transform: target, manual: this.state?.manual ?? false })
-        return true
-      }
       const delay = Math.max(0, (options.due ?? currentTime()) - currentTime())
       const frames = cameraMove(from, target, CAMERA_ANIMATION_MS, delay)
       const duration = CAMERA_ANIMATION_MS + delay
@@ -321,15 +317,8 @@ export class OverviewCameraCockpit {
       animation.startTime = started - performance.timeOrigin
       this.track = { frames, duration, started, animation, token }
       await new Promise<void>((resolve, reject) => {
-        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
-        const onReduced = (): void => {
-          if (!reduced?.matches || this.track?.token !== token) return
-          this.track.started = performance.timeOrigin + currentTime() - duration
-          animation.finish()
-        }
         const cleanup = (): void => {
           controller.signal.removeEventListener('abort', onAbort)
-          reduced?.removeEventListener?.('change', onReduced)
         }
         const onAbort = (): void => {
           cleanup()
@@ -337,7 +326,6 @@ export class OverviewCameraCockpit {
           reject(abortError())
         }
         controller.signal.addEventListener('abort', onAbort, { once: true })
-        reduced?.addEventListener?.('change', onReduced)
         void animation.finished.then(() => {
           cleanup()
           if (this.track?.token === token) this.settleTrack()

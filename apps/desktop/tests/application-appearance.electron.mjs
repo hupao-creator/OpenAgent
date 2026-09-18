@@ -76,27 +76,25 @@ async function checkOpaqueBackground(page) {
   const alpha = await pageBackgroundAlpha(page)
   assert.equal(alpha, 255, 'Overview and Bart thread must both paint an opaque background')
 }
-async function navigateBart(page, inside, reduced) {
+async function navigateBart(page, inside) {
   const samples = []
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+b' : 'Control+b')
-  if (!reduced) {
-    await page.waitForSelector('[data-bart-camera-active]')
-    // Pause after preparation: screenshot latency must not skip the entire
-    // 1.1s animation on a loaded verification machine. The real scene still
-    // renders each sampled frame; only the browser clock is controlled.
-    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100))
-    // Sample final compositor output, not the Canvas backing bitmap: a clear
-    // frame from the Canvas or any ancestor must fail this regression as well.
-    const deadline = Date.now() + 15_000
-    do {
-      assert.ok(Date.now() < deadline, 'Bart navigation must finish')
-      samples.push(await pageBackgroundAlpha(page))
-      await page.clock.runFor(100)
-    } while (await page.locator('[data-bart-camera-active]').count())
-    assert.ok(samples.length > 1, 'exercise the real animation, not the preparation failure fallback')
-    assert.ok(samples.every(alpha => alpha === 255), 'every animated frame must paint an opaque background')
-    await page.clock.resume()
-  }
+  await page.waitForSelector('[data-bart-camera-active]')
+  // Pause after preparation: screenshot latency must not skip the entire
+  // 1.1s animation on a loaded verification machine. The real scene still
+  // renders each sampled frame; only the browser clock is controlled.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100))
+  // Sample final compositor output, not the Canvas backing bitmap: a clear
+  // frame from the Canvas or any ancestor must fail this regression as well.
+  const deadline = Date.now() + 15_000
+  do {
+    assert.ok(Date.now() < deadline, 'Bart navigation must finish')
+    samples.push(await pageBackgroundAlpha(page))
+    await page.clock.runFor(100)
+  } while (await page.locator('[data-bart-camera-active]').count())
+  assert.ok(samples.length > 1, 'exercise the real animation, not the preparation failure fallback')
+  assert.ok(samples.every(alpha => alpha === 255), 'every animated frame must paint an opaque background')
+  await page.clock.resume()
   await page.locator('#bart-thread-view').waitFor({ state: inside ? 'visible' : 'detached' })
   await checkOpaqueBackground(page)
 }
@@ -168,15 +166,13 @@ try {
   for (const mode of ['dark', 'light']) {
     await save(page, mode)
     await effective(page, mode === 'dark')
-    for (const reduced of [false, true]) {
-      await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference', colorScheme: null })
-      await checkOpaqueBackground(page)
-      await navigateBart(page, true, reduced)
-      await navigateBart(page, false, reduced)
-      result.cases.push(`${mode}, reduced motion ${reduced}: opaque Overview and Bart thread survive round-trip navigation`)
-    }
+    await page.emulateMedia({ colorScheme: null })
+    await checkOpaqueBackground(page)
+    await navigateBart(page, true)
+    await navigateBart(page, false)
+    result.cases.push(`${mode}: opaque Overview and Bart thread survive round-trip navigation`)
   }
-  await page.emulateMedia({ reducedMotion: 'no-preference', colorScheme: null })
+  await page.emulateMedia({ colorScheme: null })
   await save(page, 'dark')
   await effective(page, true)
   // UI choices apply immediately and survive both page reopen and a cold start.

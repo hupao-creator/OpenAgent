@@ -16,8 +16,15 @@ vi.mock('../src/renderer/src/bart-thread-transition/camera-scene', () => ({
 }))
 import { captureCameraAssets, createCameraScene, type CameraAssets } from '../src/renderer/src/bart-thread-transition/camera-scene'
 
+// The camera owns the way into the thread. Tests that do not exercise it get a
+// shot that lands at once, so opening Bart reaches the real page without a
+// captured frame. Suites that drive the camera replace both mocks themselves.
 beforeEach(() => {
   vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  vi.mocked(captureCameraAssets).mockResolvedValue({} as CameraAssets)
+  vi.mocked(createCameraScene).mockReturnValue({ ready: Promise.resolve(), dispose: vi.fn(),
+    play: () => ({ started: Promise.resolve(performance.timeOrigin + performance.now()),
+      performed: Promise.resolve() }) })
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -301,10 +308,12 @@ describe('App Renderer Core regressions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'paste two' }))
     await waitFor(() => expect(screen.getByTestId('dock-attachment-count')).toHaveTextContent('2'))
     fireEvent.click(screen.getByRole('button', { name: 'open bart' }))
+    await screen.findByRole('button', { name: 'close bart' })
     expect(screen.getByLabelText('thread draft')).toHaveValue('Create a real thread')
     expect(screen.getByTestId('thread-attachment-count')).toHaveTextContent('2')
     fireEvent.change(screen.getByLabelText('thread draft'), { target: { value: 'edited on page' } })
     fireEvent.click(screen.getByRole('button', { name: 'close bart' }))
+    await screen.findByRole('button', { name: 'open bart' })
     expect(screen.getByTestId('dock-text')).toHaveTextContent('edited on page')
     expect(screen.getByTestId('dock-attachment-count')).toHaveTextContent('2')
   })
@@ -354,6 +363,7 @@ describe('App Renderer Core regressions', () => {
     expect(orchestration.getState()).toMatchObject({ works: [], hiddenIds: [], reveal: null, revisions: [], deletedIndexes: {} })
     const second = enqueue(2)
     fireEvent.click(screen.getByRole('button', { name: 'open bart' }))
+    await screen.findByRole('button', { name: 'close bart' })
     expect(second.signal.aborted).toBe(true)
     expect(orchestration.getState()).toMatchObject({ works: [], hiddenIds: [], reveal: null })
     fireEvent.click(screen.getByRole('button', { name: 'close bart' }))

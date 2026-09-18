@@ -3207,10 +3207,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .thread-overview-archive,
-  .report-overview-archive { transition: none; }
-}
 .report-overview-relations-more {
   position: relative;
   z-index: 3;
@@ -3274,9 +3270,6 @@
 }
 .report-overview-relations-more svg { transition: transform 140ms ease; }
 .report-overview-relations-more[aria-expanded='true'] svg { transform: rotate(180deg); }
-@media (prefers-reduced-motion: reduce) {
-  .report-overview-relations-more svg { transition: none; }
-}
 
 .overview-layout-error {
   position: absolute;

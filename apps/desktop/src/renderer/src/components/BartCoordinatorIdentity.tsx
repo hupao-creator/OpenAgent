@@ -42,8 +42,7 @@ export function BartCoordinatorIdentity({ harnessId, handoff, inFlight, position
   useLayoutEffect(() => {
     const coordinator = coordinatorRef.current
     if (!handoff || handoff.harnessId !== harnessId || !coordinator ||
-      typeof coordinator.animate !== 'function' || typeof window.matchMedia !== 'function' ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      typeof coordinator.animate !== 'function') {
       setDriver(harnessId)
       setReceiving(false)
       return
@@ -85,11 +84,7 @@ export function BartCoordinatorIdentity({ harnessId, handoff, inFlight, position
       setReceiving(false)
     }
     const settle = window.setTimeout(finish, 1050)
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const reduce = (): void => { if (media.matches) { window.clearTimeout(settle); finish() } }
-    media.addEventListener?.('change', reduce)
     return () => {
-      media.removeEventListener?.('change', reduce)
       window.clearTimeout(settle)
       body?.cancel()
       eyes?.cancel()

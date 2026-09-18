@@ -56,8 +56,7 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     canvas.dataset.generationState = 'preparing'
     canvas.hidden = true
     if (!ids.length || ids.length > MOTION_LIMITS.sceneCards ||
-      typeof Worker === 'undefined' || !canvas.transferControlToOffscreen ||
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+      typeof Worker === 'undefined' || !canvas.transferControlToOffscreen) return
     // Only prepared resources enter the global execution FIFO. Fonts, lazy
     // Markdown and shaders never hold a character or the user's scroll region.
     const prepared = await prepareWithinBudget(async warmSignal => {
@@ -90,11 +89,9 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
     const plane = elements[0].closest<HTMLElement>('.thread-overview-plane')
     // Environment invalidation is distinct from ordinary business updates, and
     // applies during preparation as well as playback.
-    for (const query of ['(prefers-reduced-motion: reduce)', '(prefers-color-scheme: dark)']) {
-      const media = window.matchMedia?.(query)
-      media?.addEventListener('change', abort)
-      lifetime.observe(() => media?.removeEventListener('change', abort))
-    }
+    const scheme = window.matchMedia?.('(prefers-color-scheme: dark)')
+    scheme?.addEventListener('change', abort)
+    lifetime.observe(() => scheme?.removeEventListener('change', abort))
     seal = sealMotionScene({ root, canvas, covered: [...elements, dockContainer],
       interactions: [scroll ?? plane ?? elements[0], ...elements, dockContainer],
       resources: plane ? [plane] : [], scroll: scroll ? [scroll] : [], freezeTransforms: [dockContainer] })

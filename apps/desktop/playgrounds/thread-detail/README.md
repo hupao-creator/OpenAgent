@@ -75,4 +75,4 @@ Claude runtime/MCP/remote/background/fork、Codex 后台终端与系统错误等
 
 ## Document reading (#63)
 
-`?renderer=plugin&scenario=local-five&harness=codex&kind=agent` previews the saved five-turn Codex conversation. Both remaining Harness renderers can display this same recorded content; it is not a native Claude conversation and has no imported usage. Other scenarios use explicit fixed protocol fixtures with known token categories. Both Agent and Bart render production navigation with the preview parent label “Thread 详情”. Subpage transitions use production CSS and animate regardless of the system reduced-motion preference.
+`?renderer=plugin&scenario=local-five&harness=codex&kind=agent` previews the saved five-turn Codex conversation. Both remaining Harness renderers can display this same recorded content; it is not a native Claude conversation and has no imported usage. Other scenarios use explicit fixed protocol fixtures with known token categories. Both Agent and Bart render production navigation with the preview parent label “Thread 详情”. Subpage transitions use production CSS.

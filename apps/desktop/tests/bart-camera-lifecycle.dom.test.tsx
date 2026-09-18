@@ -33,16 +33,6 @@ const enter = async (): Promise<void> => { await act(async () => { await camera.
 const land = async (): Promise<void> => { await act(async () => complete()) }
 
 describe('Bart camera autonomous shot and native handoff', () => {
-  it('hands off and restores focus immediately for reduced motion', async () => {
-    vi.stubGlobal('matchMedia', () => ({ matches: true }))
-    const view = render(<Harness />), origin = view.getByText('Enter')
-    act(() => origin.focus()); await enter()
-    expect(document.activeElement).toBe(view.getByLabelText('Bart draft'))
-    await act(async () => { await camera.play(false) })
-    expect(document.activeElement).toBe(origin)
-    expect(captureCameraAssets).not.toHaveBeenCalled()
-    expect(camera.busy).toBe(false)
-  })
   it('submits the entire shot once without scheduling a Renderer frame', async () => {
     render(<Harness />); await enter()
     expect(play).toHaveBeenCalledExactlyOnceWith(true, 1100)
@@ -111,12 +101,6 @@ describe('Bart camera autonomous shot and native handoff', () => {
   it('restores the requested destination on a viewport change', async () => {
     render(<Harness />); await enter(); act(() => window.dispatchEvent(new Event('resize')))
     expect(camera.open).toBe(true); expect(camera.busy).toBe(false); expect(dispose).toHaveBeenCalledOnce()
-  })
-  it('honors reduced motion enabled during playback', async () => {
-    let changed!: () => void
-    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: (_: string, listener: () => void) => { changed = listener }, removeEventListener: vi.fn() }))
-    render(<Harness />); await enter(); act(() => changed())
-    expect(camera.open).toBe(true); expect(camera.busy).toBe(false)
   })
   it('opens real business content when graphics preparation fails', async () => {
     vi.mocked(captureCameraAssets).mockRejectedValue(new Error('image decode failed'))

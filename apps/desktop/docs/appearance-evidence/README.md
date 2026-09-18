@@ -28,8 +28,8 @@ screenshots are what the compositor shows.
 The native regression also samples renderer screenshot alpha in empty Overview
 space and final composited animation frames during Bart thread round trips in light/dark
 appearance. It checks that Overview and thread backgrounds stay opaque through
-handoffs, and direct navigation with reduced motion. These checks detect clear
-page wrappers and Canvas contexts.
+handoffs, and direct navigation. These checks detect clear page wrappers and
+Canvas contexts.
 
 Report HTML keeps its own colors and isolation. This feature adapts its card
 and host controls, and does not promise to recolor report content.

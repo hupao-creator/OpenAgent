@@ -5,11 +5,10 @@ export function useBartCoordinatorIdle(rootRef: RefObject<HTMLElement | null>, e
   useLayoutEffect(() => {
     const character = rootRef.current?.querySelector<HTMLElement>('.bart-host-character')
     if (!enabled || !character || typeof character.animate !== 'function') return
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
     let animation: Animation | undefined
     const update = (): void => {
       animation?.cancel()
-      if (document.hidden || reduced?.matches) return
+      if (document.hidden) return
       const neutral = 'translate(0, 0) rotate(0) scale(1)'
       const duration = 76000
       const frames: Keyframe[] = [{ transform: neutral, offset: 0 }]
@@ -27,9 +26,8 @@ export function useBartCoordinatorIdle(rootRef: RefObject<HTMLElement | null>, e
       frames.push({ transform: neutral, offset: 1 })
       animation = character.animate(frames, { duration, iterations: Infinity })
     }
-    reduced?.addEventListener('change', update)
     document.addEventListener('visibilitychange', update)
     update()
-    return () => { animation?.cancel(); reduced?.removeEventListener('change', update); document.removeEventListener('visibilitychange', update) }
+    return () => { animation?.cancel(); document.removeEventListener('visibilitychange', update) }
   }, [rootRef, enabled])
 }
