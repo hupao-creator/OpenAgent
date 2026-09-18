@@ -1,4 +1,5 @@
 import { getFontEmbedCSS } from 'html-to-image'
+import type { Options } from 'html-to-image/lib/types'
 import type { CameraGeometry } from './transitions'
 import type { CameraDive, CapturedEye } from './camera-model'
 import { generationSurface } from '../bart-motion/generation-surface'
@@ -29,6 +30,9 @@ export interface CameraScene {
 let fontCSS: Promise<string> | undefined
 const DOCK_PADDING = 96
 
+/** 那帧还没画出来，只能隔一帧重拍；重拍次数是它的上界。 */
+const OVERVIEW_CAPTURE_ATTEMPTS = 3
+
 /** Capture at viewport resolution. Never scale or mutate the live page tree. */
 export async function captureCameraAssets(stage: HTMLElement, signal?: AbortSignal, seal?: () => Promise<void>): Promise<CameraAssets> {
   const overview = stage.querySelector<HTMLElement>('[data-bart-camera-overview]')!
@@ -55,7 +59,7 @@ export async function captureCameraAssets(stage: HTMLElement, signal?: AbortSign
   }
   const dock = stage.querySelector<HTMLElement>('[data-bart-camera-dock] .bart-dock')!
   const [overviewImage, sessionImage, dockImage] = await Promise.all([
-    snapshotSurface(overview, options), snapshotSurface(session, options),
+    snapshotOverview(overview, options, signal), snapshotSurface(session, options),
     snapshotSurface(dock, { ...options, width: dive.dock.width, height: dive.dock.height,
       style: { ...options.style, width: `${dock.offsetWidth}px`, height: `${dock.offsetHeight}px`,
         translate: 'none', transform: `translate(${DOCK_PADDING}px, ${DOCK_PADDING}px)` }
@@ -77,6 +81,55 @@ export async function captureCameraAssets(stage: HTMLElement, signal?: AbortSign
     background: getComputedStyle(overview).backgroundColor,
     sessionBackground: getComputedStyle(session).backgroundColor
   }
+}
+
+/**
+ * 俯瞰视图的截图。那张图里含一块液体玻璃画布（`<canvas layoutsubtree>`），它的**元素图像**
+ * 是浏览器现捕一帧得到的：返回俯瞰这块画布刚挂载，`@liquid-dom` 的渲染器还没异步就绪、
+ * 一帧都没画过，此时读回的是整片单一颜色；html-to-image 把它当成 `<img>` 的源烤进位图，
+ * 转场再把这块位图铺满整屏 —— 返回俯瞰时那一下闪就是这么来的。
+ *
+ * 画布画出帧之后读回就有结构了，所以拍到平色就隔一帧重拍。重拍用尽仍拍不到就退回背景色：
+ * 平色只是少一帧内容，不会把整屏闪一下。
+ */
+async function snapshotOverview(source: HTMLElement, options: Options, signal?: AbortSignal): Promise<HTMLCanvasElement> {
+  let canvas = await snapshotSurface(source, options)
+  for (let attempt = 1; attempt < OVERVIEW_CAPTURE_ATTEMPTS && isFlat(canvas); attempt++) {
+    signal?.throwIfAborted()
+    await nextPaint(signal)
+    canvas = await snapshotSurface(source, options)
+  }
+  if (!isFlat(canvas)) return canvas
+  const context = canvas.getContext('2d')!
+  context.fillStyle = opaqueBackground(source)
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  return canvas
+}
+
+/** 画布上没有任何内容读得出来时铺什么色。`source` 自己的背景是透明的（那一层只看
+    得到画布和下面的卡片），得往上找第一个不透明的祖先，都没有才退回白。 */
+function opaqueBackground(source: HTMLElement): string {
+  for (let element: HTMLElement | null = source; element; element = element.parentElement) {
+    const background = getComputedStyle(element).backgroundColor
+    if (background !== 'rgba(0, 0, 0, 0)' && background !== 'transparent') return background
+  }
+  return '#fff'
+}
+
+/** 一帧都没画出来的读回是整片单一颜色：8×8 缩略图里每个像素都一样。真正的俯瞰视图，
+    哪怕是空状态，也有卡片和文字撑着，缩略图不会只有一个颜色。 */
+function isFlat(canvas: HTMLCanvasElement): boolean {
+  const probe = document.createElement('canvas')
+  probe.width = 8
+  probe.height = 8
+  const context = probe.getContext('2d')!
+  context.drawImage(canvas, 0, 0, 8, 8)
+  const { data } = context.getImageData(0, 0, 8, 8)
+  const [red, green, blue] = data
+  for (let index = 4; index < data.length; index += 4) {
+    if (data[index] !== red || data[index + 1] !== green || data[index + 2] !== blue) return false
+  }
+  return true
 }
 
 function nextPaint(signal?: AbortSignal): Promise<void> {
