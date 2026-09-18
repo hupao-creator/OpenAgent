@@ -31,6 +31,8 @@ import { BartLiquidStage } from '../src/renderer/src/liquid/BartLiquidStage'
 
 ## 验证
 
-新增 `bart-glass.test.ts`、`bart-character-appearance.test.ts`、`bart-liquid.test.tsx`：覆盖配方、颜色、圆形准入、坐标映射、刷新合并/停止、Worker 颜色/实体互斥、飞行回退、DOM 所有权、挂载抛错和能力缺失。完整类型检查与回归按仓库 `verify` 工作流执行。
+新增 `bart-glass.test.tsx`、`bart-character-appearance.test.tsx`、`bart-liquid.test.tsx`：覆盖配方、颜色、圆形准入、坐标映射、刷新合并/停止、Worker 颜色/实体互斥、飞行回退、DOM 所有权、挂载抛错和能力缺失。完整类型检查与回归按仓库 `verify` 工作流执行。
+
+这些测试引用 renderer/Canvas 类型，按仓库约定使用 `.test.tsx`，由继承 DOM 类型环境的 `tsconfig.tests.json` 检查；不能命名为 `.test.ts`，否则会被 `tsconfig.node.json` 的 `tests/**/*.ts` 收入并将浏览器依赖带进 Node 项目。扩展名不改变 Vitest 的测试发现或运行环境。
 
 DOM mock 不能证明折射效果。视觉验收需在启用 CanvasDrawElement 的 Electron 中，分别检查亮/暗条纹衬底，待机、思考、工具中、完成、失败；切换黑色眼睛、禁用玻璃、移除 WebGPU 适配器；观察玻璃边缘折射、非圆形回退、真实空间转场和卸载后资源释放。本提交不将尚未执行的真机验收记作通过。
