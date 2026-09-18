@@ -20,10 +20,10 @@ const seam = vi.hoisted(() => ({
 vi.mock('../src/renderer/src/bart-motion/CharacterCanvas', () => ({ CharacterCanvas: () => null }))
 vi.mock('@liquid-dom/react', async () => {
   const { Fragment, createElement, forwardRef, useImperativeHandle } = await import('react')
-  const pass = ({ children }: { children?: unknown }) => createElement(Fragment, null, children ?? null)
+  const pass = ({ children }: { children?: ReactNode }) => createElement(Fragment, null, children ?? null)
   return {
     Frame: pass, GlassContainer: pass, Html: pass, Padding: pass, ZStack: pass, Glass: () => null,
-    LiquidCanvas: forwardRef(({ children }: { children?: unknown }, ref: unknown) => {
+    LiquidCanvas: forwardRef(({ children }: { children?: ReactNode }, ref: unknown) => {
       useImperativeHandle(ref as never, () => ({
         invalidateLayout: () => { seam.layout++ },
         invalidateFrame: () => { seam.frames++ }
