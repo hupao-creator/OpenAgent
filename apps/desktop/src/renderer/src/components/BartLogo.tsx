@@ -102,7 +102,7 @@ export const BartLogo = memo(function BartLogo({
   const bodyColor = bartColor(requestedBodyColor, BODY_COLOR)
   const eyeColor = bartColor(requestedEyeColor, EYE_COLOR)
   const glassBody = useBartLiquidBody(svgRef, bodyMaterial === 'liquidGlass'
-    && supportsBartGlass(layout, descriptor.shape, interventionState), bodyColor, motionKey)
+    && supportsBartGlass(layout, descriptor.shape, interventionState), bodyColor)
   const motionRef = useRef<BartMotionState | null>(null)
   motionRef.current ||= createMotionState(motionKey, descriptor, layout)
   const motion = motionRef.current

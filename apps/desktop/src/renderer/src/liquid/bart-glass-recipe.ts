@@ -5,7 +5,15 @@ import { glassFor, type LiquidTheme } from './glass-recipe'
 /** The circle in buildShape(), in the logo's 640 × 640 coordinate system. */
 export const BART_BODY_RADIUS = 164
 export const BART_BODY_DIAMETER = 2 * BART_BODY_RADIUS
-export const BART_GLASS_CORNER = { cornerRadius: BART_BODY_RADIUS, cornerSmoothing: 0 }
+
+/** `Glass`'s circular primitive for the drawn disc. The radius tracks the disc's
+ * actual size, so the rendered corner must be derived here rather than from the
+ * 640-space constant, and `cornerSmoothing` stays 0: the body is a true circle,
+ * not the iOS squircle the library defaults to. */
+export function bartGlassCorner(diameter: number): { cornerRadius: number; cornerSmoothing: number } {
+  if (!Number.isFinite(diameter) || diameter <= 0) throw new RangeError('Bart glass diameter must be positive')
+  return { cornerRadius: diameter / 2, cornerSmoothing: 0 }
+}
 
 /** Keep the Lab's canonical recipe separate from the 42px toolbar recipe. */
 export function bartGlassFor(theme: LiquidTheme, color = BODY_COLOR, scale = 1) {

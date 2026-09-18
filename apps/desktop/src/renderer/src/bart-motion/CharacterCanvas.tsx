@@ -58,15 +58,16 @@ export function CharacterCanvas({ width, height, description }: {
     surface.current = renderer
     let configured = renderer.ready
     let configureVersion = 0
-    let appearance = ''
+    let material = latest.current.bodyMaterial
     const media = window.matchMedia?.('(prefers-reduced-motion: reduce)')
     const update = (): void => {
       const version = ++configureVersion
-      const nextAppearance = JSON.stringify([latest.current.bodyMaterial, latest.current.bodyColor, latest.current.eyeColor])
-      if (appearance !== nextAppearance) {
-        // Never expose an old body-free Worker frame after a glass failure.
+      // Only a material flip can leave the held Worker frame body-free, so only a
+      // material flip withholds it. Colours redraw in place; withholding the
+      // frame for those would drop a whole colour drag back to the static SVG.
+      if (material !== latest.current.bodyMaterial) {
         svg.removeAttribute('data-worker-ready')
-        appearance = nextAppearance
+        material = latest.current.bodyMaterial
       }
       try {
         const size = measuredSize()

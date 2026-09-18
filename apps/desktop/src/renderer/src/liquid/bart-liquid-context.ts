@@ -15,11 +15,13 @@ export const BartLiquidContext = createContext<{
 }>({ host: null, painted: new Set() })
 
 /** Merely asking for glass never hides the body: the host must acknowledge a frame. */
-export function useBartLiquidBody(ref: RefObject<SVGSVGElement | null>, eligible: boolean,
-  color: string, motionKey: string): boolean {
+export function useBartLiquidBody(ref: RefObject<SVGSVGElement | null>, eligible: boolean, color: string): boolean {
   const id = useId()
   const { host, painted } = useContext(BartLiquidContext)
-  const token = JSON.stringify([id, color, motionKey])
+  // The acknowledgement is keyed by the registration's identity alone. Folding
+  // colour or motion into it would revoke the acknowledgement on every activity
+  // or colour change, dropping the body back to solid for a frame each time.
+  const token = id
   useLayoutEffect(() => {
     if (!eligible || !host || !ref.current) return
     return host.register({ id, token, element: ref.current, color })

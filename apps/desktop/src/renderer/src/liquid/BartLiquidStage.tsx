@@ -1,22 +1,16 @@
-import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
   type CSSProperties, type ReactNode } from 'react'
 import { Frame, Glass, GlassContainer, Html, LiquidCanvas, Padding, ZStack, useFrame,
   type LiquidCanvasRef } from '@liquid-dom/react'
 import { canvasDrawElementGap, installLiquidCaptureCompat } from './capture-compat'
 import { useLiquidTheme, type LiquidTheme } from './glass-recipe'
-import { BART_BODY_DIAMETER, bartGlassBox, bartGlassFor, type BartGlassBox } from './bart-glass-recipe'
+import { BART_BODY_DIAMETER, bartGlassBox, bartGlassCorner, bartGlassFor, type BartGlassBox } from './bart-glass-recipe'
 import { BartLiquidContext, type BartLiquidRegistration } from './bart-liquid-context'
 import { createLiquidFollow } from './liquid-follow'
+import { LiquidStageBoundary } from './liquid-stage-boundary'
 
 installLiquidCaptureCompat()
 const EMPTY: ReadonlySet<string> = new Set()
-
-export class BartLiquidBoundary extends Component<{ children: ReactNode; onFailure(error: unknown): void }, { failed: boolean }> {
-  state = { failed: false }
-  static getDerivedStateFromError(): { failed: true } { return { failed: true } }
-  componentDidCatch(error: unknown): void { this.props.onFailure(error) }
-  render(): ReactNode { return this.state.failed ? null : this.props.children }
-}
 
 interface BodyBox extends BartGlassBox { registration: BartLiquidRegistration }
 
@@ -36,7 +30,7 @@ function BodyGlass({ box, theme }: { box: BodyBox; theme: LiquidTheme }): React.
   return <Padding insets={{ left: box.left, top: box.top }}>
     <GlassContainer {...params}>
       <Frame width={box.diameter} height={box.diameter}>
-        <Glass cornerRadius={box.diameter / 2} cornerSmoothing={0} />
+        <Glass {...bartGlassCorner(box.diameter)} />
       </Frame>
     </GlassContainer>
   </Padding>
@@ -48,6 +42,24 @@ function visibleWithin(element: Element, stop: Element): boolean {
     // Keep fades/handoffs in their owning DOM/Worker scene, not a detached glass disc.
     if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse'
       || Number(style.opacity || 1) < 0.999) return false
+  }
+  return true
+}
+
+/** The disc is drawn on a canvas that knows nothing about the foreground's
+ * clipping, and `getScreenCTM()` carries no clip information. A character inside
+ * an `overflow: hidden` or scrolled ancestor therefore keeps its solid body: the
+ * disc would spill past the edge its face is held inside, or stay behind after
+ * the character scrolled out of a nested scroll container. `disc` is the screen
+ * -space box, so it compares directly against ancestor rects. */
+function unclippedWithin(element: Element, stop: Element, disc: BartGlassBox): boolean {
+  const right = disc.left + disc.diameter, bottom = disc.top + disc.diameter
+  for (let node = element.parentElement; node && node !== stop; node = node.parentElement) {
+    const style = getComputedStyle(node)
+    if (![style.overflow, style.overflowX, style.overflowY].some(value => value && value !== 'visible')) continue
+    const rect = node.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return false
+    if (disc.left < rect.left || disc.top < rect.top || right > rect.right || bottom > rect.bottom) return false
   }
   return true
 }
@@ -101,8 +113,12 @@ export function BartLiquidStage({ backdrop, children, className, style, backdrop
     }
   }, [])
   const host = useMemo(() => ({ register }), [register])
-  const context = useMemo(() => ({ host: capable && !failed ? host : null, painted: failed ? EMPTY : painted }),
-    [capable, failed, host, painted])
+  // The acknowledgement dies with the frames that justify it: when the canvas is
+  // not mounted nothing repaints, so a token left in `painted` would keep a Bart
+  // body-free with no glass behind it.
+  const ready = capable && !failed && size.width > 0 && size.height > 0
+  const context = useMemo(() => ({ host: ready ? host : null, painted: ready ? painted : EMPTY }),
+    [ready, host, painted])
 
   useLayoutEffect(() => {
     if (!capable || failed || !root.current) return
@@ -117,6 +133,11 @@ export function BartLiquidStage({ backdrop, children, className, style, backdrop
     return () => observer.disconnect()
   }, [capable, failed])
 
+  /* Re-run only when the observation set changes — capability, failure, a
+     registration, the substrate node, the measured size, or an explicit
+     backdrop revision. `backdrop` is deliberately absent: it is an element the
+     caller usually writes inline, so depending on it would tear this down and
+     re-arm the follow window on every parent render. */
   useEffect(() => {
     if (!capable || failed || !foreground.current) return
     const layer = foreground.current
@@ -124,12 +145,18 @@ export function BartLiquidStage({ backdrop, children, className, style, backdrop
       if (failure.current) return
       try {
         const base = coordinates.current?.getScreenCTM()
+        // A collapsed ancestor makes the CTM singular; inverse() throws rather
+        // than returning null, and a transient collapse must not latch glass off.
+        const inverse = base && base.a * base.d - base.b * base.c !== 0 ? base.inverse() : null
         const next: BodyBox[] = []
-        if (base) {
-          const inverse = base.inverse()
+        if (inverse) {
           for (const registration of registrations.current.values()) {
             const matrix = registration.element.getScreenCTM()
             if (!matrix || !registration.element.isConnected || !visibleWithin(registration.element, layer)) continue
+            // The screen-space disc is the same circle before the inverse, and it
+            // is what the ancestor clip rects are expressed against.
+            const screen = bartGlassBox(matrix)
+            if (!screen || !unclippedWithin(registration.element, layer, screen)) continue
             const box = bartGlassBox(inverse.multiply(matrix))
             // A clipped glass disc would leave the face without a full body.
             if (!box || box.left < 0 || box.top < 0 || box.left + box.diameter > size.width
@@ -171,7 +198,7 @@ export function BartLiquidStage({ backdrop, children, className, style, backdrop
       document.fonts?.removeEventListener('loadingdone', invalidate)
       window.removeEventListener('resize', invalidate)
     }
-  }, [capable, failed, revision, size.width, size.height, substrate, theme, backdrop, backdropRevision, fail])
+  }, [capable, failed, revision, size.width, size.height, substrate, backdropRevision, fail])
 
   const acknowledge = useCallback((): void => {
     if (failure.current) return
@@ -179,14 +206,17 @@ export function BartLiquidStage({ backdrop, children, className, style, backdrop
       .map(box => box.registration.token))
     setPainted(current => current.size === next.size && [...current].every(token => next.has(token)) ? current : next)
   }, [boxes])
-  const ready = capable && !failed && size.width > 0 && size.height > 0
   return <div ref={root} className={className} data-bart-liquid-stage={failed ? 'failed' : capable ? 'enabled' : 'unsupported'}
     style={{ ...style, position: style?.position ?? 'relative', isolation: 'isolate', padding: 0, border: 0 }}>
     <div style={{ position: 'absolute', inset: 0 }}>
-      {ready ? <BartLiquidBoundary onFailure={fail}>
+      {capable && !failed ? <LiquidStageBoundary label="bart-liquid" onFail={fail}>
         <LiquidCanvas ref={canvas} frameloop="demand" onError={fail}
           style={{ width: '100%', height: '100%' }} canvasStyle={{ display: 'block', width: '100%', height: '100%' }}>
-          <Frame width={size.width} height={size.height}>
+          {/* The canvas mounts as soon as the stage is capable and stays mounted
+              across resizes: `backdrop` is the caller's subtree, and moving it
+              between two parents would remount it (and lose any video, canvas
+              or focus state inside it) every time the stage re-measures. */}
+          <Frame width={Math.max(size.width, 1)} height={Math.max(size.height, 1)}>
             <ZStack alignment="topLeading">
               <Html sizing="fill"><div ref={bindSubstrate} style={{ width: '100%', height: '100%' }}>{backdrop}</div></Html>
               {boxes.map(box => <BodyGlass key={box.registration.id} box={box} theme={theme} />)}
@@ -194,7 +224,7 @@ export function BartLiquidStage({ backdrop, children, className, style, backdrop
           </Frame>
           <PaintedFrame onPaint={acknowledge} />
         </LiquidCanvas>
-      </BartLiquidBoundary> : <div style={{ width: '100%', height: '100%' }}>{backdrop}</div>}
+      </LiquidStageBoundary> : <div style={{ width: '100%', height: '100%' }}>{backdrop}</div>}
     </div>
     <svg ref={coordinates} aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', visibility: 'hidden', pointerEvents: 'none' }} />
     <div ref={foreground} style={{ position: 'relative', width: '100%', height: '100%', mixBlendMode: 'normal' }}>

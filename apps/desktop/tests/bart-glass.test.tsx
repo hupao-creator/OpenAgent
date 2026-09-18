@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { bartColor, supportsBartGlass, tintOf } from '../src/renderer/src/bart-motion/appearance'
 import { BODY_COLOR, EYE_COLOR, seatDescriptor } from '../src/renderer/src/bart-motion/character-model'
-import { BART_BODY_DIAMETER, BART_BODY_RADIUS, BART_GLASS_CORNER, bartGlassBox, bartGlassFor } from '../src/renderer/src/liquid/bart-glass-recipe'
+import { BART_BODY_DIAMETER, bartGlassBox, bartGlassCorner, bartGlassFor } from '../src/renderer/src/liquid/bart-glass-recipe'
 import { createLiquidFollow } from '../src/renderer/src/liquid/liquid-follow'
 
 describe('Bart liquid material recipe', () => {
@@ -24,8 +24,11 @@ describe('Bart liquid material recipe', () => {
       blur: 8, bezelWidth: 39, thickness: 234, specularOpacity: 0.6,
       shadowBlur: 78, shadowOffsetY: 23, tint: tintOf(BODY_COLOR, 0.8)
     })
-    expect(BART_BODY_DIAMETER).toBe(2 * BART_BODY_RADIUS)
-    expect(BART_GLASS_CORNER).toEqual({ cornerRadius: 164, cornerSmoothing: 0 })
+    // The disc's corner must come from the disc's own size, so assert the value
+    // `BodyGlass` actually hands `Glass` rather than a detached constant.
+    expect(bartGlassCorner(BART_BODY_DIAMETER)).toEqual({ cornerRadius: 164, cornerSmoothing: 0 })
+    expect(bartGlassCorner(164)).toEqual({ cornerRadius: 82, cornerSmoothing: 0 })
+    for (const diameter of [0, -1, NaN, Infinity]) expect(() => bartGlassCorner(diameter)).toThrow(RangeError)
   })
   it('scales lengths at the actual SVG size, but never scales blur or alpha', () => {
     const recipe = bartGlassFor('dark', '#ffffff', 0.1)
