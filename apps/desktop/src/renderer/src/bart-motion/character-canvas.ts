@@ -1,5 +1,5 @@
 import { createMotionState, seatDescriptor, interactionDescriptor, renderMotionFrame, applyDescriptor,
-  snapMotionToTargets, poseOf, type BartElements, type MotionPart } from './character-model'
+  snapMotionToTargets, poseOf, BODY_COLOR, EYE_COLOR, type BartElements, type MotionPart } from './character-model'
 import type { CharacterDescription } from './worker-types'
 import { paintInterventionTokens, transformInterventionBody } from './intervention-canvas'
 
@@ -45,12 +45,22 @@ function transform(ctx: OffscreenCanvasRenderingContext2D, value: string | null)
   }
 }
 
+const descriptorFor = (value: CharacterDescription) => value.layout === 'permission' || value.layout === 'question'
+  ? interactionDescriptor(value.layout) : seatDescriptor(value.activity, value.phase, value.intervention)
+const keyOf = (value: CharacterDescription): string => value.key ?? `${value.activity}:${value.phase}`
+
+/** Everything `descriptorFor` and `applyDescriptor` read. A change here is a new
+ * semantic state — a change to the eye track is not. */
+function samePose(left: CharacterDescription, right: CharacterDescription): boolean {
+  return left.key === right.key && left.activity === right.activity && left.phase === right.phase
+    && left.layout === right.layout && left.intervention === right.intervention
+    && left.animate === right.animate && left.role === right.role
+}
+
 /** Draws the production 36-point silhouette, spring eyes, gestures and orbit. */
 export function createCanvasCharacter(initial: CharacterDescription, seed?: CharacterSeed): CanvasCharacter {
   let description = initial
-  const descriptorFor = (value: CharacterDescription) => value.layout === 'permission' || value.layout === 'question'
-    ? interactionDescriptor(value.layout) : seatDescriptor(value.activity, value.phase, value.intervention)
-  let state = seed?.state ?? createMotionState(initial.key ?? `${initial.activity}:${initial.phase}`, descriptorFor(initial), initial.layout ?? 'mark')
+  let state = seed?.state ?? createMotionState(keyOf(initial), descriptorFor(initial), initial.layout ?? 'mark')
   state.restBetweenGestures = true
   let changedAt = seed?.changedAt ?? performance.now()
   let interventionAt = seed?.interventionAt ?? changedAt
@@ -65,13 +75,17 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
     update(value: CharacterDescription): void {
       if (description.eyeMotion?.key !== value.eyeMotion?.key) eyeMotionAt = performance.now()
       if (description.intervention !== value.intervention || description.key !== value.key) interventionAt = performance.now()
+      // An eye-track update is not a new semantic state: restamping the clock
+      // would re-arm nextWake's follow window and repaint at frame rate for it.
+      const poseUnchanged = samePose(description, value)
       description = value
+      if (poseUnchanged) return
       changedAt = performance.now()
       if (value.animate === false) {
-        state = createMotionState(value.key ?? `${value.activity}:${value.phase}`, descriptorFor(value), value.layout ?? 'mark')
+        state = createMotionState(keyOf(value), descriptorFor(value), value.layout ?? 'mark')
         state.restBetweenGestures = true
       }
-      applyDescriptor(state, value.key ?? `${value.activity}:${value.phase}`, descriptorFor(value), value.layout ?? 'mark', changedAt)
+      applyDescriptor(state, keyOf(value), descriptorFor(value), value.layout ?? 'mark', changedAt)
     },
     nextWake(now: number): number {
       if (description.animate === false) return Infinity
@@ -117,7 +131,7 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         if (description.animate !== false) transformInterventionBody(ctx, description.intervention, elapsed)
       }
       transform(ctx, parts.bot.getAttribute('transform'))
-      ctx.fillStyle = '#10110f'
+      ctx.fillStyle = BODY_COLOR
       ctx.shadowColor = state.layout === 'mark' ? 'rgba(32,35,44,0.18)' : 'transparent'
       const shadowScale = Math.hypot(ctx.getTransform().a, ctx.getTransform().b)
       ctx.shadowBlur = 22 * shadowScale
@@ -127,7 +141,7 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       if (parts.satellite.path) ctx.fill(parts.satellite.path)
       ctx.restore()
       ctx.shadowColor = 'transparent'
-      ctx.fillStyle = '#f7f5ee'
+      ctx.fillStyle = EYE_COLOR
       ctx.save()
       if (description.animate !== false && description.eyeMotion?.points.length) {
         const points = description.eyeMotion.points, elapsed = now - eyeMotionAt
@@ -163,7 +177,7 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       ctx.restore()
       ctx.beginPath(); ctx.arc(477, 178, Math.max(0, parts.thoughtDot.number('r')), 0, Math.PI * 2)
       ctx.fillStyle = description.role === 'tool' ? '#34c759' : '#249cff'; ctx.fill()
-      if (parts.thoughtDot.number('r') > 0.1) { ctx.strokeStyle = '#f7f5ee'; ctx.lineWidth = 8; ctx.stroke() }
+      if (parts.thoughtDot.number('r') > 0.1) { ctx.strokeStyle = EYE_COLOR; ctx.lineWidth = 8; ctx.stroke() }
       ctx.restore()
     }
   }

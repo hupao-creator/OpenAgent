@@ -191,11 +191,11 @@ export function OverviewLiquidStage({ children, backdropRefs, onSubtreeMounted, 
     let handle = 0
     let until = 0
     const step = (): void => {
+      /* 先放手再重画：`invalidateFrame` 抛了也不会留下已经消费掉的 rAF id，
+         否则 `invalidate` 的 `if (handle) return` 会一直把后续失效挡在门外。 */
+      handle = 0
       canvasRef.current?.invalidateFrame()
-      if (performance.now() >= until) {
-        handle = 0
-        return
-      }
+      if (performance.now() >= until) return
       handle = requestAnimationFrame(step)
     }
     /* 同一帧里的多次触发合并成一次重画；带过渡的（悬停、焦点）再跟一段时间，
