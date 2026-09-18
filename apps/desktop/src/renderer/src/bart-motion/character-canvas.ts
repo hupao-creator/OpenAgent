@@ -1,5 +1,6 @@
 import { createMotionState, seatDescriptor, interactionDescriptor, renderMotionFrame, applyDescriptor,
-  snapMotionToTargets, poseOf, type BartElements, type MotionPart } from './character-model'
+  snapMotionToTargets, poseOf, BODY_COLOR, EYE_COLOR, type BartElements, type MotionPart } from './character-model'
+import { bartColor, supportsBartGlass } from './appearance'
 import type { CharacterDescription } from './worker-types'
 import { paintInterventionTokens, transformInterventionBody } from './intervention-canvas'
 
@@ -60,12 +61,18 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
     orbits: new CanvasPart(), orbitEllipses: Array.from({ length: 5 }, () => new CanvasPart()) } satisfies BartElements
   return {
     capture: () => poseOf(state),
-    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt }),
+    // Borrowed characters draw in another scene, without this resident's glass.
+    fork: () => createCanvasCharacter({ ...description, bodyMaterial: 'solid' }, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt }),
     description: () => description,
     update(value: CharacterDescription): void {
       if (description.eyeMotion?.key !== value.eyeMotion?.key) eyeMotionAt = performance.now()
       if (description.intervention !== value.intervention || description.key !== value.key) interventionAt = performance.now()
+      const samePose = description.key === value.key && description.activity === value.activity
+        && description.phase === value.phase && description.layout === value.layout
+        && description.intervention === value.intervention && description.animate === value.animate
       description = value
+      // Material/colour/eye-track updates are not a new semantic state.
+      if (samePose) return
       changedAt = performance.now()
       if (value.animate === false) {
         state = createMotionState(value.key ?? `${value.activity}:${value.phase}`, descriptorFor(value), value.layout ?? 'mark')
@@ -116,18 +123,21 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         paintInterventionTokens(ctx, description.intervention, elapsed)
         if (description.animate !== false) transformInterventionBody(ctx, description.intervention, elapsed)
       }
-      transform(ctx, parts.bot.getAttribute('transform'))
-      ctx.fillStyle = '#10110f'
+      const glassBody = description.bodyMaterial === 'liquidGlass'
+        && supportsBartGlass(state.layout, state.shape, description.intervention)
+      if (!glassBody) transform(ctx, parts.bot.getAttribute('transform'))
+      ctx.fillStyle = bartColor(description.bodyColor, BODY_COLOR)
       ctx.shadowColor = state.layout === 'mark' ? 'rgba(32,35,44,0.18)' : 'transparent'
       const shadowScale = Math.hypot(ctx.getTransform().a, ctx.getTransform().b)
       ctx.shadowBlur = 22 * shadowScale
       ctx.shadowOffsetY = 28 * shadowScale
-      if (parts.body.path) ctx.fill(parts.body.path)
+      if (!glassBody && parts.body.path) ctx.fill(parts.body.path)
       ctx.save(); ctx.globalAlpha *= parts.satellite.number('opacity')
-      if (parts.satellite.path) ctx.fill(parts.satellite.path)
+      if (!glassBody && parts.satellite.path) ctx.fill(parts.satellite.path)
       ctx.restore()
       ctx.shadowColor = 'transparent'
-      ctx.fillStyle = '#f7f5ee'
+      const eyeColor = bartColor(description.eyeColor, EYE_COLOR)
+      ctx.fillStyle = eyeColor
       ctx.save()
       if (description.animate !== false && description.eyeMotion?.points.length) {
         const points = description.eyeMotion.points, elapsed = now - eyeMotionAt
@@ -163,7 +173,7 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       ctx.restore()
       ctx.beginPath(); ctx.arc(477, 178, Math.max(0, parts.thoughtDot.number('r')), 0, Math.PI * 2)
       ctx.fillStyle = description.role === 'tool' ? '#34c759' : '#249cff'; ctx.fill()
-      if (parts.thoughtDot.number('r') > 0.1) { ctx.strokeStyle = '#f7f5ee'; ctx.lineWidth = 8; ctx.stroke() }
+      if (parts.thoughtDot.number('r') > 0.1) { ctx.strokeStyle = eyeColor; ctx.lineWidth = 8; ctx.stroke() }
       ctx.restore()
     }
   }

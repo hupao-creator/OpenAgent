@@ -142,3 +142,14 @@
 @media (prefers-reduced-motion: reduce) {
   .bart-logo .bart-message { animation: none !important; }
 }
+
+/* A rigid glass circle replaces the deforming body, not the face. Only this
+   opt-in material drops body bob/squash; springs and expression clocks stay alive. */
+.bart-logo[data-body-material='liquidGlass'] .bart-bot {
+  transform: none;
+  filter: none;
+}
+.bart-logo[data-body-material='liquidGlass'] .bart-body-motion {
+  transform: none;
+  animation: none !important;
+}

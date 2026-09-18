@@ -57,14 +57,24 @@ export function CharacterCanvas({ width, height, description }: {
     const renderer = createMotionSurface(output, measured.width, measured.height, 'character', failed)
     surface.current = renderer
     let configured = renderer.ready
+    let configureVersion = 0
+    let appearance = ''
     const media = window.matchMedia?.('(prefers-reduced-motion: reduce)')
     const update = (): void => {
+      const version = ++configureVersion
+      const nextAppearance = JSON.stringify([latest.current.bodyMaterial, latest.current.bodyColor, latest.current.eyeColor])
+      if (appearance !== nextAppearance) {
+        // Never expose an old body-free Worker frame after a glass failure.
+        svg.removeAttribute('data-worker-ready')
+        appearance = nextAppearance
+      }
       try {
         const size = measuredSize()
         renderer.resize(size.width, size.height)
         configured = renderer.character({ ...latest.current, eyeMotion: eyeMotion.current, animate: latest.current.animate !== false && !media?.matches })
         void configured
-          .then(() => { if (current) svg.setAttribute('data-worker-ready', 'true') }, failed)
+          .then(() => { if (current && version === configureVersion) svg.setAttribute('data-worker-ready', 'true') },
+            () => { if (version === configureVersion) failed() })
       } catch { failed() }
     }
     const eyeController = (motion: CharacterDescription['eyeMotion']): void => {
@@ -74,7 +84,9 @@ export function CharacterCanvas({ width, height, description }: {
     }
     eyeControllers.set(svg, eyeController)
     const character = { id: renderer.id, ready: () => configured,
-      description: () => ({ ...latest.current, eyeMotion: eyeMotion.current, animate: latest.current.animate !== false && !media?.matches }) }
+      // Scene flights have no resident glass stage. Carry colours/identity, but
+      // not the resident-only permission to omit the body. Landing restores it.
+      description: () => ({ ...latest.current, bodyMaterial: 'solid' as const, eyeMotion: eyeMotion.current, animate: latest.current.animate !== false && !media?.matches }) }
     characters.set(svg, character)
     const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(update)
     resize?.observe(svg)
@@ -98,7 +110,7 @@ export function CharacterCanvas({ width, height, description }: {
   useLayoutEffect(() => {
     refresh.current?.()
   }, [width, height, description.activity, description.phase, description.key, description.layout,
-    description.intervention, description.role, description.animate])
+    description.intervention, description.role, description.animate, description.bodyMaterial, description.bodyColor, description.eyeColor])
   return <foreignObject className="bart-worker-character" x={x} y={y} width={w} height={h} pointerEvents="none">
     <canvas ref={canvas} style={{ display: 'block', width: '100%', height: '100%' }} />
   </foreignObject>
