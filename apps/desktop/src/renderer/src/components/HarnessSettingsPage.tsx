@@ -673,7 +673,7 @@ function DispatchMap(props: {
   // the very first frame rather than only once a link exists.
   const svgRef = useRef<SVGSVGElement>(null)
   const [links, setLinks] = useState<readonly { harnessId: string; path: string }[]>([])
-  const [dispatch, setDispatch] = useState<DispatchDescription>({ source: { x: 0, y: 0 }, targets: [], color: '#718269', animate: true })
+  const [dispatch, setDispatch] = useState<DispatchDescription>({ source: { x: 0, y: 0 }, targets: [], color: '#718269' })
   const targets = props.targetHarnessIds.join(' ')
   // Detection can drop an icon while the configured ids stay put, which leaves
   // the container's own box unchanged and the ResizeObserver silent, so the
@@ -713,7 +713,7 @@ function DispatchMap(props: {
       setLinks(current => current.length === nextLinks.length && current.every((link, index) =>
         link.harnessId === nextLinks[index].harnessId && link.path === nextLinks[index].path)
         ? current : nextLinks)
-      setDispatch({ source: start, targets: endpoints, color: getComputedStyle(svgRef.current!).color || '#718269', animate: true })
+      setDispatch({ source: start, targets: endpoints, color: getComputedStyle(svgRef.current!).color || '#718269' })
     }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
