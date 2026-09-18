@@ -1,6 +1,10 @@
 # Bart 的液体玻璃本体
 
-对应 issue #16。生产组件提供显式启用入口，不修改未启用的挂载点，也不引入 Lab 页面。
+对应 issue #16。生产组件提供显式启用入口，不引入 Lab 页面。
+
+应用内唯一的挂载点是 Dock 的 Bart。`App.tsx` 把 `main.app-workspace` 整个作为 `backdrop`（衬底即整页），`data-bart-camera-dock` 留在 `children` 里，所以角色自身永远不进捕获树。舞台根是 `position: absolute; inset: 0` 的浮层，不参与 `.app-shell` 的流式布局；`main` 的 `height: 100%` 改为对舞台根求解，尺寸不变。玻璃只在拿得到捕获能力且显式 `bodyMaterial="liquidGlass"` 时出现；其余环境（单元测试的 jsdom、未开 Blink 开关的宿主、适配器失败）渲染同一棵 DOM，只是没有玻璃。
+
+手动挂载的写法：
 
 ```tsx
 import { BartLogo } from '../src/renderer/src/components/BartLogo'

@@ -68,6 +68,9 @@ export function useLiquidTheme(): LiquidTheme {
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
     const media = window.matchMedia(query)
+    // An engine whose MediaQueryList answers `matches` but has no listener API
+    // cannot report a change; the read above is the whole answer it has.
+    if (typeof media.addEventListener !== 'function') return
     const onChange = (): void => setDark(media.matches)
     onChange()
     media.addEventListener('change', onChange)

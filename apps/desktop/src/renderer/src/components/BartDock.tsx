@@ -1052,6 +1052,10 @@ export const BartDock = memo(function BartDock({
         <BartLogo
           width={400}
           height={210}
+          /* The resident's body is glass while the app shell's stage can vouch
+             for it; every fallback (no stage, no capture, a non-circular layout,
+             a flight) keeps the solid body. */
+          bodyMaterial="liquidGlass"
           operations={interactionVisible ? undefined : operations}
           running={interactionVisible ? false : displayRunning}
           resolvedActivity={activity}
