@@ -1,5 +1,6 @@
 import { createMotionState, seatDescriptor, interactionDescriptor, renderMotionFrame, applyDescriptor,
-  snapMotionToTargets, poseOf, type BartElements, type MotionPart } from './character-model'
+  snapMotionToTargets, poseOf, BODY_COLOR, EYE_COLOR, type BartElements, type MotionPart } from './character-model'
+import { bartColor, supportsBartGlass } from './appearance'
 import type { CharacterDescription } from './worker-types'
 import { paintInterventionTokens, transformInterventionBody } from './intervention-canvas'
 
@@ -45,12 +46,22 @@ function transform(ctx: OffscreenCanvasRenderingContext2D, value: string | null)
   }
 }
 
+const descriptorFor = (value: CharacterDescription) => value.layout === 'permission' || value.layout === 'question'
+  ? interactionDescriptor(value.layout) : seatDescriptor(value.activity, value.phase, value.intervention)
+const keyOf = (value: CharacterDescription): string => value.key ?? `${value.activity}:${value.phase}`
+
+/** Everything `descriptorFor` and `applyDescriptor` read. A change here is a new
+ * semantic state — a change to colours, material or the eye track is not. */
+function samePose(left: CharacterDescription, right: CharacterDescription): boolean {
+  return left.key === right.key && left.activity === right.activity && left.phase === right.phase
+    && left.layout === right.layout && left.intervention === right.intervention
+    && left.animate === right.animate && left.role === right.role
+}
+
 /** Draws the production 36-point silhouette, spring eyes, gestures and orbit. */
 export function createCanvasCharacter(initial: CharacterDescription, seed?: CharacterSeed): CanvasCharacter {
   let description = initial
-  const descriptorFor = (value: CharacterDescription) => value.layout === 'permission' || value.layout === 'question'
-    ? interactionDescriptor(value.layout) : seatDescriptor(value.activity, value.phase, value.intervention)
-  let state = seed?.state ?? createMotionState(initial.key ?? `${initial.activity}:${initial.phase}`, descriptorFor(initial), initial.layout ?? 'mark')
+  let state = seed?.state ?? createMotionState(keyOf(initial), descriptorFor(initial), initial.layout ?? 'mark')
   state.restBetweenGestures = true
   let changedAt = seed?.changedAt ?? performance.now()
   let interventionAt = seed?.interventionAt ?? changedAt
@@ -58,20 +69,37 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
   const parts = { body: new CanvasPart(), satellite: new CanvasPart(), leftEye: new CanvasPart(),
     rightEye: new CanvasPart(), thoughtDot: new CanvasPart(), bot: new CanvasPart(),
     orbits: new CanvasPart(), orbitEllipses: Array.from({ length: 5 }, () => new CanvasPart()) } satisfies BartElements
+  /** The last word on whether this frame may drop the body. `bodyMaterial` is a
+   * request, not a permission: the Worker refuses it unless the geometry it is
+   * about to hide is really a circle, and unless that circle has settled. The
+   * silhouette springs between shapes, so it lags `state.shape`; hiding it on
+   * the descriptor's word alone would snap a hexagon into a disc. Only ever errs
+   * by drawing the body. */
+  const hidesBody = (): boolean => description.bodyMaterial === 'liquidGlass'
+    && supportsBartGlass(state.layout, state.shape, description.intervention)
+    && !state.bodyPoints.some(point => Math.abs(point.vx) + Math.abs(point.vy) > .002)
   return {
     capture: () => poseOf(state),
-    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt }),
+    // `fork()` is the copy a scene flight borrows (motion.worker.ts's
+    // 'borrow-character'): it draws in another scene, with no resident glass
+    // stage behind it. It carries colours and identity, never the
+    // resident-only permission to omit the body. Landing restores the seat's.
+    fork: () => createCanvasCharacter({ ...description, bodyMaterial: 'solid' }, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt }),
     description: () => description,
     update(value: CharacterDescription): void {
       if (description.eyeMotion?.key !== value.eyeMotion?.key) eyeMotionAt = performance.now()
       if (description.intervention !== value.intervention || description.key !== value.key) interventionAt = performance.now()
+      // Material/colour/eye-track updates are not a new semantic state.
+      const poseUnchanged = samePose(description, value)
       description = value
+      if (poseUnchanged) return
       changedAt = performance.now()
+      const key = keyOf(value), descriptor = descriptorFor(value)
       if (value.animate === false) {
-        state = createMotionState(value.key ?? `${value.activity}:${value.phase}`, descriptorFor(value), value.layout ?? 'mark')
+        state = createMotionState(key, descriptor, value.layout ?? 'mark')
         state.restBetweenGestures = true
       }
-      applyDescriptor(state, value.key ?? `${value.activity}:${value.phase}`, descriptorFor(value), value.layout ?? 'mark', changedAt)
+      applyDescriptor(state, key, descriptor, value.layout ?? 'mark', changedAt)
     },
     nextWake(now: number): number {
       if (description.animate === false) return Infinity
@@ -116,18 +144,20 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         paintInterventionTokens(ctx, description.intervention, elapsed)
         if (description.animate !== false) transformInterventionBody(ctx, description.intervention, elapsed)
       }
-      transform(ctx, parts.bot.getAttribute('transform'))
-      ctx.fillStyle = '#10110f'
+      const glassBody = hidesBody()
+      if (!glassBody) transform(ctx, parts.bot.getAttribute('transform'))
+      ctx.fillStyle = bartColor(description.bodyColor, BODY_COLOR)
       ctx.shadowColor = state.layout === 'mark' ? 'rgba(32,35,44,0.18)' : 'transparent'
       const shadowScale = Math.hypot(ctx.getTransform().a, ctx.getTransform().b)
       ctx.shadowBlur = 22 * shadowScale
       ctx.shadowOffsetY = 28 * shadowScale
-      if (parts.body.path) ctx.fill(parts.body.path)
+      if (!glassBody && parts.body.path) ctx.fill(parts.body.path)
       ctx.save(); ctx.globalAlpha *= parts.satellite.number('opacity')
-      if (parts.satellite.path) ctx.fill(parts.satellite.path)
+      if (!glassBody && parts.satellite.path) ctx.fill(parts.satellite.path)
       ctx.restore()
       ctx.shadowColor = 'transparent'
-      ctx.fillStyle = '#f7f5ee'
+      const eyeColor = bartColor(description.eyeColor, EYE_COLOR)
+      ctx.fillStyle = eyeColor
       ctx.save()
       if (description.animate !== false && description.eyeMotion?.points.length) {
         const points = description.eyeMotion.points, elapsed = now - eyeMotionAt
@@ -163,7 +193,7 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       ctx.restore()
       ctx.beginPath(); ctx.arc(477, 178, Math.max(0, parts.thoughtDot.number('r')), 0, Math.PI * 2)
       ctx.fillStyle = description.role === 'tool' ? '#34c759' : '#249cff'; ctx.fill()
-      if (parts.thoughtDot.number('r') > 0.1) { ctx.strokeStyle = '#f7f5ee'; ctx.lineWidth = 8; ctx.stroke() }
+      if (parts.thoughtDot.number('r') > 0.1) { ctx.strokeStyle = eyeColor; ctx.lineWidth = 8; ctx.stroke() }
       ctx.restore()
     }
   }
