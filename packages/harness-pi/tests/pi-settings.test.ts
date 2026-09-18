@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createPiSettings } from '../src/main/settings.js'
 import { retirePiVersions, startPiRpc } from '../src/main/runtime/rpc.js'
+import { piJson, piState } from '../src/shared/state.js'
 
 vi.mock('../src/main/runtime/rpc.js', () => ({ startPiRpc: vi.fn(), retirePiVersions: vi.fn() }))
 const models = [
@@ -119,6 +120,26 @@ describe('Pi settings public contract', () => {
     await expect(detectInstallation({ cwd: '/workspace', signal: signal() })).resolves.toEqual({ status: 'installed', executablePath: '/bin/pi' })
     expect(settings.hasThreadContent({ version: 1, messages: [], executions: [], latestExecutionId: null })).toBe(false)
     expect(settings.hasThreadContent({ sessionFile: '/native/session.jsonl' })).toBe(true)
+  })
+  it('keeps the pinned path of a Thread with history when a Core-composed request names none', async () => {
+    const { settings } = createPiSettings(host)
+    const existing = { executablePath: '/pinned/pi', provider: 'anthropic', model: 'reasoner', thinkingLevel: 'high' }
+    const resolved = await settings.resolveThreadSettings({
+      merged: { provider: 'openai', model: 'fast' }, existing,
+      sessionState: { sessionFile: '/native/session.jsonl' },
+      cwd: '/workspace', signal: signal()
+    })
+    expect(resolved).toEqual({ executablePath: '/pinned/pi', provider: 'openai', model: 'fast', thinkingLevel: 'off' })
+    expect(host.resolveExecutable).toHaveBeenLastCalledWith('pi', '/workspace', '/pinned/pi')
+  })
+  it('lets a Thread without history follow the current installation instead of its stored path', async () => {
+    const { settings } = createPiSettings(host)
+    const existing = { executablePath: '/stale/pi', provider: 'anthropic', model: 'reasoner', thinkingLevel: 'high' }
+    await expect(settings.resolveThreadSettings({
+      merged: {}, existing, sessionState: piJson(piState(null)),
+      cwd: '/workspace', signal: signal()
+    })).resolves.toEqual({ executablePath: '/bin/pi', provider: 'anthropic', model: 'reasoner', thinkingLevel: 'medium' })
+    expect(host.resolveExecutable).toHaveBeenLastCalledWith('pi', '/workspace', undefined)
   })
   it('loads provider/model-specific thinking choices and scoped schema examples', async () => {
     const { settingsPresentation, settings } = createPiSettings(host)
