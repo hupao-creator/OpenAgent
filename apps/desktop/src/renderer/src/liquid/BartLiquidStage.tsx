@@ -227,7 +227,14 @@ export function BartLiquidStage({ backdrop, children, className, style, backdrop
       </LiquidStageBoundary> : <div style={{ width: '100%', height: '100%' }}>{backdrop}</div>}
     </div>
     <svg ref={coordinates} aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', visibility: 'hidden', pointerEvents: 'none' }} />
-    <div ref={foreground} style={{ position: 'relative', width: '100%', height: '100%', mixBlendMode: 'normal' }}>
+    {/* The foreground layer only decides what draws above the canvas; its own box
+        must not decide what is clickable. It covers the whole stage, and the
+        substrate beneath it is the caller's interactive subtree whenever the
+        caller captured one — a window-sized workspace, say — so the layer itself
+        stays transparent to the pointer. Interactive foreground elements keep
+        working because they already have to opt in with `pointer-events: auto`:
+        the layer they sit above is `none` on every stage that has one. */}
+    <div ref={foreground} style={{ position: 'relative', width: '100%', height: '100%', mixBlendMode: 'normal', pointerEvents: 'none' }}>
       <BartLiquidContext.Provider value={context}>{children}</BartLiquidContext.Provider>
     </div>
   </div>

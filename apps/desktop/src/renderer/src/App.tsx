@@ -743,6 +743,10 @@ function AppContent(): React.JSX.Element {
           {localizedOperationError && !bartThreadOpen ? (
             <button
               className="operation-error-toast"
+              /* The workspace is inside the stage's positioned overlay now, and a
+                 positioned box paints over in-flow siblings whatever the order —
+                 so this stays positioned too, or the shell's own surface hides it. */
+              style={{ position: 'relative', zIndex: 1 }}
               onClick={() => reportOperationError('')}
               type="button"
             >{localizedOperationError}</button>

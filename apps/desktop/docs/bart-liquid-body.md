@@ -4,6 +4,8 @@
 
 应用内唯一的挂载点是 Dock 的 Bart。`App.tsx` 把 `main.app-workspace` 整个作为 `backdrop`（衬底即整页），`data-bart-camera-dock` 留在 `children` 里，所以角色自身永远不进捕获树。舞台根是 `position: absolute; inset: 0` 的浮层，不参与 `.app-shell` 的流式布局；`main` 的 `height: 100%` 改为对舞台根求解，尺寸不变。玻璃只在拿得到捕获能力且显式 `bodyMaterial="liquidGlass"` 时出现；其余环境（单元测试的 jsdom、未开 Blink 开关的宿主、适配器失败）渲染同一棵 DOM，只是没有玻璃。
 
+衬底是可交互的整页，所以前景层自己不吃指针事件：它铺满整个舞台，一旦参与命中测试就会替 `.app-workspace` 接走每一次点击。前景元素本来就写死 `pointer-events: auto`（`.bart-dock` 及其祖先都是 `none`），因此这层变透明对它们没有影响；实测 `elementFromPoint` 在改动前落在前景层、改动后回到 `.app-workspace`，而 Dock 上的按钮两种情况都能命中。同理，舞台根是有定位的浮层，会盖住 `.app-shell` 里排在它后面的非定位兄弟，`operation-error-toast` 因此补上 `position: relative; z-index: 1`。
+
 手动挂载的写法：
 
 ```tsx
