@@ -21,6 +21,8 @@ import {
   ThreadTimelineAttachment,
   ThreadTimelineAttachments,
   ThreadTimelineUserMessage,
+  groupThreadExecutionRows,
+  threadExecutionRunIds,
   type ThreadDetailRow
 } from '@openagent/plugin-kit/renderer'
 import {
@@ -54,6 +56,9 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
   const [forkingCheckpoint, setForkingCheckpoint] = useState<string>()
   const [forkError, setForkError] = useState<string>()
   const timeline = projectClaudeTimeline(turn)
+  // Preserve boundaries that projection removes, including internal prompts.
+  const executionRunIds = new Map(threadExecutionRunIds(turn.timeline,
+    item => item.kind === 'reasoning' || item.kind === 'activity'))
   const referencedPrompts = new Set(timeline.flatMap((item) =>
     item.kind === 'user-message' ? [item.promptIndex] : []
   ))
@@ -103,7 +108,11 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
         }
         next += 1
       }
-      rows.push({ id: item.id, kind: 'work', node: <ClaudeActivities activities={activities} /> })
+      rows.push({
+        id: item.id,
+        kind: activities.some(activity => activity.status === 'failed') ? 'attention' : 'work',
+        node: <ClaudeActivities activities={activities} />
+      })
       index = next - 1
       continue
     }
@@ -124,8 +133,16 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
       />
     })
   }
-  const append = (id: string, kind: ThreadDetailRow['kind'], node: ReactNode): void => {
-    rows.push({ id: `${turn.executionId}:unreferenced:${id}`, kind, node })
+  let fallbackRunId: string | undefined
+  const append = (id: string, kind: ThreadDetailRow['kind'], node: ReactNode, execution = false): void => {
+    const rowId = `${turn.executionId}:unreferenced:${id}`
+    if (execution && kind === 'work') {
+      fallbackRunId ??= rowId
+      executionRunIds.set(rowId, fallbackRunId)
+    } else {
+      fallbackRunId = undefined
+    }
+    rows.push({ id: rowId, kind, node })
   }
   turn.prompts.forEach((prompt, index) => {
     if (referencedPrompts.has(index) || turn.internalPromptIndexes?.includes(index)) return
@@ -138,7 +155,7 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
     />)
   })
   if (!timelineKinds.has('reasoning') && turn.reasoning) {
-    append('reasoning', 'work', <ClaudeReasoning content={turn.reasoning} running={props.active} />)
+    append('reasoning', 'work', <ClaudeReasoning content={turn.reasoning} running={props.active} />, true)
   }
   if (!timelineKinds.has('assistant') && turn.text) {
     append('assistant', props.waiting ? 'work' : 'content',
@@ -150,7 +167,8 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
   }
   const activities = turn.activities.filter((activity) => !referencedActivities.has(activity.id))
   if (activities.length) {
-    append('activities', 'work', <ClaudeActivities activities={activities} />)
+    append('activities', activities.some(activity => activity.status === 'failed') ? 'attention' : 'work',
+      <ClaudeActivities activities={activities} />, true)
   }
   turn.interactions.filter((interaction) => !referencedInteractions.has(interaction.id))
     .forEach((interaction) => append(`interaction:${interaction.id}`,
@@ -190,7 +208,7 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
       reasoning={turn.usage?.reasoningTokens}
     />}
     status={props.waiting ? t('等待你的响应') : turn.statusLabel || turnStatusLabel(turn.status, t)}
-    rows={rows}
+    rows={groupThreadExecutionRows(rows, executionRunIds)}
   />
 })
 

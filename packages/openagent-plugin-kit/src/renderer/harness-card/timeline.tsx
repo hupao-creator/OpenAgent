@@ -371,6 +371,8 @@ export function HarnessToolActivityGroup(props: {
   readonly summaryClassName?: string
   readonly className?: string
   readonly defaultExpanded?: boolean
+  /** Keep the same disclosure owner when a single streaming item grows into a run. */
+  readonly alwaysGroup?: boolean
   /** Lets a parent hand focus back when it swaps a lone row out for this group. */
   readonly summaryRef?: RefObject<HTMLButtonElement | null>
 }): React.JSX.Element | null {
@@ -440,7 +442,7 @@ export function HarnessToolActivityGroup(props: {
   })
 
   if (props.items.length === 0) return null
-  if (props.items.length === 1) return <>{props.items[0].node}</>
+  if (props.items.length === 1 && !props.alwaysGroup) return <>{props.items[0].node}</>
   const pinned = props.items.filter((item) => item.running)
   const materializing = expanded && materializedCount < props.items.length
   const visible = materializing

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { HarnessRendererThreadActions, HarnessRendererThreadInput } from '@openagent/contracts/renderer'
 import { isPublicExecutionActive } from '@openagent/contracts/renderer'
 import type { PublicInteraction } from '@openagent/contracts'
-import { ThreadDetailSurface, ThreadDetailTurn, ThreadDocumentSummary, threadDocumentHeading, ThreadTokenUsage, ThreadTimelineMarkdown, ThreadTimelineUserMessage, ThreadTimelineAssistantMessage, ThreadSurfaceDisclosure, ThreadDetailRequest, InteractionQuestionField, useInteractionAnswers, useI18n } from '@openagent/plugin-kit/renderer'
+import { ThreadDetailSurface, ThreadDetailTurn, ThreadDocumentSummary, threadDocumentHeading, ThreadTokenUsage, ThreadTimelineMarkdown, ThreadTimelineUserMessage, ThreadTimelineAssistantMessage, ThreadSurfaceDisclosure, ThreadDetailRequest, InteractionQuestionField, useInteractionAnswers, useI18n, groupThreadExecutionRows, threadExecutionRunIds, type ThreadDetailRow } from '@openagent/plugin-kit/renderer'
 import { piBartReplyAnchor } from '../shared/bart-presentation.js'
 import { piState } from '../shared/state.js'
 import type { PiMessage } from '../shared/types.js'
@@ -43,6 +43,21 @@ function PiTimeline(props: Props): React.JSX.Element {
         const current = latest?.executionId === execution.executionId
         const historical = index < state.executions.length - 1
         const finishedAt = 'finishedAt' in execution ? execution.finishedAt : undefined
+        const messageRows: ThreadDetailRow[] = messages.flatMap(m => [
+          // A thinking-only assistant placeholder is not a prose boundary.
+          ...(m.role === 'assistant' && m.thinking ? [{
+            id: `${m.id}:thinking`, kind: 'work' as const,
+            node: <ThreadSurfaceDisclosure label={t('思考过程')}><ThreadTimelineMarkdown>{m.thinking}</ThreadTimelineMarkdown></ThreadSurfaceDisclosure>
+          }] : []),
+          ...(m.role === 'assistant' && !m.text.trim() ? [] : [{
+            id: m.id,
+            kind: m.role === 'user' ? 'user' as const : m.role === 'tool'
+              ? m.isError ? 'attention' as const : 'work' as const : 'content' as const,
+            node: <Message message={m} />
+          }])
+        ])
+        const processRows = groupThreadExecutionRows(messageRows,
+          threadExecutionRunIds(messageRows, row => row.kind === 'work'))
         return { id: execution.executionId, createdAt: execution.startedAt,
           subpage: historical ? {
             ...threadDocumentHeading(messages.find(m => m.role === 'user')?.text || t('历史对话')),
@@ -54,14 +69,7 @@ function PiTimeline(props: Props): React.JSX.Element {
             completedAt={execution.status === 'completed' ? finishedAt : undefined}
             usage={usage ? <ThreadTokenUsage input={usage.input + usage.cacheRead + usage.cacheWrite} output={usage.output} cached={usage.cacheRead} cacheWrite={usage.cacheWrite} /> : undefined}
             rows={[
-              ...messages.flatMap(m => [
-                // Native thinking belongs to the execution's work, live and historical alike.
-                ...(m.role === 'assistant' && m.thinking ? [{
-                  id: `${m.id}:thinking`, kind: 'work' as const,
-                  node: <ThreadSurfaceDisclosure label={t('思考过程')}><ThreadTimelineMarkdown>{m.thinking}</ThreadTimelineMarkdown></ThreadSurfaceDisclosure>
-                }] : []),
-                { id: m.id, kind: m.role === 'user' ? 'user' as const : m.role === 'tool' ? 'work' as const : 'content' as const, node: <Message message={m} /> }
-              ]),
+              ...processRows,
               ...(execution.status === 'failed' && execution.error ? [{ id: 'execution-error', kind: 'content' as const, node: <div role="alert">{execution.error}</div> }] : []),
               ...(current && latest?.status === 'waiting-for-user' ? latest.interactions.map(interaction => ({ id: interaction.id, kind: 'content' as const, node: <PiInteraction key={interaction.id} interaction={interaction} busy={busy} respond={(actionId, answers) => run(() => props.actions.respond({ interactionId: interaction.id, actionId, ...(answers ? { answers } : {}) }))} /> })) : [])
             ]} /> }

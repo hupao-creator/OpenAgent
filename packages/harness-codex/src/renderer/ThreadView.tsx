@@ -31,6 +31,8 @@ import {
   threadDocumentHeading,
   ThreadDetailTurn,
   ThreadTokenUsage,
+  groupThreadExecutionRows,
+  threadExecutionRunIds,
   type ThreadDetailRow,
   ThreadTimelineAssistantMessage,
   ThreadTimelineArtifactDisclosure,
@@ -253,6 +255,8 @@ export const CodexTurnRows = memo(function CodexTurnRows(props: {
   )
   const noticesById = useMemo(() => indexById(props.turn.notices), [props.turn.notices])
   const activitiesById = useMemo(() => indexById(props.turn.activities), [props.turn.activities])
+  const executionRunIds = threadExecutionRunIds(props.turn.timeline,
+    item => item.kind === 'reasoning' || item.kind === 'activity')
   const lastAssistant = props.turn.timeline.findLastIndex(
     (item) => item.kind === 'assistant' && item.content.trim()
   )
@@ -272,7 +276,7 @@ export const CodexTurnRows = memo(function CodexTurnRows(props: {
       }
       if (activities.length) rows.push({
         id: item.id,
-        kind: 'work',
+        kind: activities.some(activity => activity.status === 'failed') ? 'attention' : 'work',
         node: <CodexToolActivityGroup
           activities={activities}
           groupId={`${props.turn.executionId}:${item.id}:tools`}
@@ -318,7 +322,7 @@ export const CodexTurnRows = memo(function CodexTurnRows(props: {
       active={props.active}
       createdAt={props.turn.createdAt}
       id={props.turn.executionId}
-      rows={rows}
+      rows={groupThreadExecutionRows(rows, executionRunIds)}
       status={codexTurnStatus(props.turn, t)}
       updatedAt={props.turn.finishedAt ?? props.turn.updatedAt}
       completedAt={props.turn.status === 'completed' ? props.turn.finishedAt : undefined}

@@ -12,6 +12,7 @@ export type TranslationCatalog = Readonly<
 
 const EN_US: Readonly<Record<string, string>> = {
   '思考过程': 'Reasoning',
+  '执行过程': 'Execution process',
   '执行失败': 'Failed',
   '消息显示': 'Message display',
   '对话': 'Conversation',
