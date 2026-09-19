@@ -26,8 +26,6 @@ export function installButtonFocusVisibility(doc: Document): () => void {
     const active = doc.activeElement
     if (marked !== active) clear()
     if (active instanceof HTMLElement && active.matches(BUTTONS)) {
-      // Put the marker on the control so liquid capture's subtree observer also
-      // sees a changed focus cue when the active element itself stays the same.
       active.toggleAttribute(QUIET_FOCUS, !navigating)
       // Chromium may withhold :focus-visible after a modified shortcut that
       // follows pointer input. Explicit keyboard navigation still needs a cue.

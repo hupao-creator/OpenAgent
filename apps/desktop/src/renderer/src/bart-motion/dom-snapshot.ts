@@ -13,8 +13,8 @@ export async function snapshotSurface(source: HTMLElement, options: Options, pre
 export async function snapshotSurfaceVariants(source: HTMLElement, options: Options, variants: readonly (((document: Document) => void) | undefined)[]): Promise<HTMLCanvasElement[]> {
   const attribute = `data-bart-capture-${++captureId}`
   // html-to-image replaces a canvas with its bitmap, but still traverses its
-  // children. HTML-in-canvas scenes can contain the whole Overview DOM there;
-  // those descendants are already pixels and must not be cloned into the img.
+  // children. Those descendants are already represented by the bitmap and
+  // must not be cloned into the img.
   const insideCapturedCanvas = (node: Node): boolean => {
     const canvas = node.parentElement?.closest('canvas')
     return !!canvas && source.contains(canvas)

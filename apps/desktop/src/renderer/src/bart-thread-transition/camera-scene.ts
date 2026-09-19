@@ -44,11 +44,6 @@ export async function captureCameraAssets(stage: HTMLElement, signal?: AbortSign
   await nextPaint(signal)
   fontCSS ??= getFontEmbedCSS(stage).catch((error: unknown) => { fontCSS = undefined; throw error })
   const fontEmbedCSS = await fontCSS
-  // A remounted LiquidCanvas starts at 300×150 before WebGPU and its HTML
-  // portal are ready. Wait while the page is interactive, before the short
-  // sealing budget and revision snapshot begin. A DOM fallback needs no GPU.
-  do { await nextPaint(signal) } while ([...overview.querySelectorAll('.overview-liquid-stage')].some(liquid =>
-    !liquid.hasAttribute('data-liquid-fallback') && !liquid.querySelector('canvas[data-liquid-frame-ready="true"]')))
   signal?.throwIfAborted()
   await seal?.()
   signal?.throwIfAborted()
