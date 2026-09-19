@@ -12,14 +12,25 @@ export async function snapshotSurface(source: HTMLElement, options: Options, pre
 /** Variants share one DOM/style read and serialization, keeping sealing bounded. */
 export async function snapshotSurfaceVariants(source: HTMLElement, options: Options, variants: readonly (((document: Document) => void) | undefined)[]): Promise<HTMLCanvasElement[]> {
   const attribute = `data-bart-capture-${++captureId}`
+  // html-to-image replaces a canvas with its bitmap, but still traverses its
+  // children. HTML-in-canvas scenes can contain the whole Overview DOM there;
+  // those descendants are already pixels and must not be cloned into the img.
+  const insideCapturedCanvas = (node: Node): boolean => {
+    const canvas = node.parentElement?.closest('canvas')
+    return !!canvas && source.contains(canvas)
+  }
   const elements = [source, ...source.querySelectorAll<HTMLElement | SVGElement>('*')]
+    .filter(element => element === source || !insideCapturedCanvas(element))
   const metrics = elements.map((element, index) => {
     const previous = element.getAttribute(attribute)
     element.setAttribute(attribute, String(index))
     return { previous, fontSize: getComputedStyle(element).fontSize, scrollTop: element.scrollTop, scrollLeft: element.scrollLeft }
   })
   let url: string
-  try { url = await toSvg(source, options) }
+  try { url = await toSvg(source, {
+    ...options,
+    filter: node => !insideCapturedCanvas(node) && (options.filter?.(node) ?? true)
+  }) }
   finally {
     elements.forEach((element, index) => {
       const previous = metrics[index]!.previous
@@ -60,4 +71,3 @@ export async function snapshotSurfaceVariants(source: HTMLElement, options: Opti
     return canvas
   }))
 }
-

@@ -181,6 +181,19 @@ try {
   await page.evaluate(() => {
     window.__appearanceUserTiming = Object.fromEntries(['mark', 'clearMarks', 'getEntriesByType', 'getEntriesByName']
       .map(name => [name, performance[name].bind(performance)]))
+    const now = performance.now.bind(performance)
+    const trace = window.__appearanceCaptureTrace = []
+    const record = row => { trace.push(row); if (trace.length > 32) trace.shift(); return row }
+    const encode = HTMLCanvasElement.prototype.toDataURL
+    HTMLCanvasElement.prototype.toDataURL = function (...args) {
+      const row = record({ operation: 'canvas encode', width: this.width, height: this.height, start: now() })
+      try { return encode.apply(this, args) } finally { row.end = now() }
+    }
+    const decode = HTMLImageElement.prototype.decode
+    HTMLImageElement.prototype.decode = function (...args) {
+      const row = record({ operation: 'image decode', type: this.src.split(';', 1)[0].slice(0, 40), bytes: this.src.length, start: now() })
+      return decode.apply(this, args).finally(() => { row.end = now() })
+    }
   })
   await page.clock.install()
   await page.evaluate(() => Object.assign(performance, window.__appearanceUserTiming))
@@ -325,6 +338,7 @@ try {
   result.status = 'passed'
 } catch (error) {
   result.status = 'failed'; result.error = String(error)
+  if (application) result.captureTrace = await application.windows()[0]?.evaluate(() => window.__appearanceCaptureTrace ?? [])
   throw error
 } finally {
   if (application) await application.close()
