@@ -52,6 +52,15 @@ app.whenReady().then(async () => {
     const after = await state()
     assert.ok(after.presents - before.presents >= 12, 'WAAPI paints must present throughout the 360ms animation without React invalidation')
     result.cases.push(`native animation: ${after.presents - before.presents} presentations`)
+    // Real product CSS: completed Bart effects used to keep transparent layers
+    // in the capture tree indefinitely. The plain three-card fixture missed it.
+    await run('liquidFixture.decorate()')
+    await sleep(100)
+    assert.equal(await run('liquidFixture.decorationBoxes()'), 3, 'completion effects must remain visible while they play')
+    await sleep(650)
+    assert.equal(await run('liquidFixture.decorationBoxes()'), 0, 'finished decorations must leave the capture layout')
+    for (let i = 0; i < 6; i++) await run('liquidFixture.animate()')
+    result.cases.push('completed Bart decorations leave capture layout before six camera returns')
     const heldPixel = await pixel()
     const failuresBefore = (await state()).failures
     await run("liquidFixture.state.blocked = true; liquidFixture.replace('#d4ecd9')")
