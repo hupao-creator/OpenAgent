@@ -47,6 +47,7 @@ export interface HarnessSettingsPageProps {
   readonly bartInFlight?: boolean
   readonly defaultCwd: string
   readonly origin?: HTMLElement | null
+  readonly originRect?: DOMRectReadOnly | null
   readonly open: boolean
   readonly value: OpenAgentSettings
   readonly resources: HarnessPresentationResources
@@ -101,7 +102,7 @@ export function HarnessSettingsPage(
   // replacement — even one that reads the same — is not this write's to clear.
   const reportedSaveError = useRef<(() => void) | null>(null)
   const [horizontalTabs, setHorizontalTabs] = useState(false)
-  const transition = useSettingsPageTransition({ open: props.open, origin: props.origin, onClose: props.onClose })
+  const transition = useSettingsPageTransition({ open: props.open, origin: props.origin, originRect: props.originRect, onClose: props.onClose })
   useLayoutEffect(() => {
     props.onPhaseChange?.(transition.phase)
   }, [props.onPhaseChange, transition.phase])

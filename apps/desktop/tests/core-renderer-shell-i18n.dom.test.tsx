@@ -208,6 +208,51 @@ describe('Core Renderer shell localization', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['moved', 'removed'] as const)('opens around the clicked button after its DOM is %s', async change => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    const clickedRect = new DOMRect(1185, 58, 30, 30)
+    const currentRect = new DOMRect(920, 100, 30, 30)
+    vi.spyOn(opener, 'getBoundingClientRect').mockReturnValue(currentRect)
+    const measure = HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('settings-page') ? new DOMRect(60, 35, 1200, 800) : measure.call(this)
+    })
+    const effects: { target: Element; frames: Keyframe[] }[] = []
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'animate')
+    Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: function (this: Element, frames: Keyframe[]) {
+      effects.push({ target: this, frames })
+      return { cancel() {}, finished: new Promise(() => undefined), effect: { getComputedTiming: () => ({ progress: 1 }) } }
+    } })
+    try {
+      if (change === 'removed') opener.remove()
+      const view = render(<I18nProvider locale="zh-CN"><HarnessSettingsPage
+        open origin={opener} originRect={clickedRect}
+        onClearHistory={async () => undefined} onClose={() => undefined} onSave={async () => undefined}
+        loadHarnessInstallations={installedHarnesses}
+        resources={{} as HarnessPresentationResources} defaultCwd="/workspace" value={createDefaultOpenAgentSettings()}
+      /></I18nProvider>)
+      const root = view.container.querySelector('.settings-page')!
+      expect(effects.find(effect => effect.target === root)?.frames[0]?.clipPath)
+        .toBe('circle(15px at 1140px 38px)')
+      // Closing after a layout change must still land on the button's current position.
+      if (change === 'moved') {
+        fireEvent.keyDown(document, { key: 'Escape' })
+        expect(effects.filter(effect => effect.target === root).at(-1)?.frames[1]?.clipPath)
+          .toBe('circle(15px at 875px 80px)')
+        fireEvent.keyDown(window, { key: ',', metaKey: true, ctrlKey: true })
+        expect(effects.filter(effect => effect.target === root).at(-1)?.frames.at(-1)?.clipPath)
+          .toMatch(/ at 875px 80px\)$/)
+      }
+      await act(async () => undefined)
+    } finally {
+      cleanup()
+      opener.remove()
+      if (descriptor) Object.defineProperty(Element.prototype, 'animate', descriptor)
+      else Reflect.deleteProperty(Element.prototype, 'animate')
+    }
+  })
+
   it('focuses the page, hides the underlay, and restores the opener', () => {
     function SettingsFixture(): React.JSX.Element {
       const [open, setOpen] = React.useState(false)

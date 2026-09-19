@@ -172,11 +172,19 @@ function AppContent(): React.JSX.Element {
     setSettingsOpen(false)
   }, [bartFlightActive])
   const settingsOriginRef = useRef<HTMLElement | null>(null)
+  const settingsOriginRectRef = useRef<DOMRectReadOnly | null>(null)
   const openSettings = useCallback((event?: React.MouseEvent<HTMLButtonElement>): void => {
     if (settingsOpen) return
+    // Finishing navigation can synchronously move or unmount the clicked page.
+    // Keep the visible button's bounds before any of those layout changes.
+    const clickedOrigin = event?.currentTarget
+    const clickedRect = clickedOrigin?.getBoundingClientRect()
     finishBartNavigation(getBartTarget())
-    settingsOriginRef.current = event?.currentTarget ?? Array.from(document.querySelectorAll<HTMLElement>('[data-settings-trigger]'))
+    // Shortcuts have no clicked button. Settle the camera first so its destination
+    // trigger is available instead of rejecting both inert transition surfaces.
+    settingsOriginRef.current = clickedOrigin ?? Array.from(document.querySelectorAll<HTMLElement>('[data-settings-trigger]'))
       .find((element) => element.getBoundingClientRect().width > 0 && !element.closest('[inert]')) ?? null
+    settingsOriginRectRef.current = clickedRect ?? settingsOriginRef.current?.getBoundingClientRect() ?? null
     setSettingsOpen(true)
   }, [settingsOpen, finishBartNavigation, getBartTarget])
   const [openReportId, setOpenReportId] = useState<string | null>(null)
@@ -746,6 +754,7 @@ function AppContent(): React.JSX.Element {
 
           <HarnessSettingsPage
             origin={settingsOriginRef.current}
+            originRect={settingsOriginRectRef.current}
             activeHostHarnessId={bartHarnessId}
             bartInFlight={bartFlightActive}
             defaultCwd={defaultCwd}

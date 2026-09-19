@@ -6,8 +6,8 @@ const OPEN_DURATION = 480
 const CLOSE_DURATION = 380
 const OPEN_EASING = 'cubic-bezier(.2,.8,.2,1)'
 const CLOSE_EASING = 'cubic-bezier(.55,0,.25,1)'
-function revealGeometry(root: HTMLElement, opener?: HTMLElement | null) {
-  const rect = opener?.isConnected ? opener.getBoundingClientRect() : null
+function revealGeometry(root: HTMLElement, opener?: HTMLElement | null, capturedRect?: DOMRectReadOnly | null) {
+  const rect = capturedRect ?? (opener?.isConnected ? opener.getBoundingClientRect() : null)
   const viewport = root.getBoundingClientRect()
   const anchored = Boolean(rect && rect.width > 0 && rect.height > 0 &&
     rect.right > viewport.left && rect.left < viewport.right &&
@@ -25,8 +25,8 @@ function revealGeometry(root: HTMLElement, opener?: HTMLElement | null) {
 }
 
 /** Owns only the page transition and background/focus lifecycle, never form state. */
-export function useSettingsPageTransition({ open, origin, onClose }: {
-  open: boolean; origin?: HTMLElement | null; onClose: () => void
+export function useSettingsPageTransition({ open, origin, originRect, onClose }: {
+  open: boolean; origin?: HTMLElement | null; originRect?: DOMRectReadOnly | null; onClose: () => void
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLElement>(null)
@@ -40,6 +40,7 @@ export function useSettingsPageTransition({ open, origin, onClose }: {
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   const originRef = useRef(origin)
+  const originRectRef = useRef(originRect)
 
   const transition = useCallback((closing: boolean) => {
     const root = rootRef.current
@@ -68,7 +69,12 @@ export function useSettingsPageTransition({ open, origin, onClose }: {
     finishRef.current = null
 
     const opener = originRef.current
-    const { anchored, collapsedClip, expandedClip } = revealGeometry(root, opener)
+    // Opening follows the button the user clicked, even if navigation moved it.
+    // Closing measures the current button so a resized window still lands on it.
+    const { anchored, collapsedClip, expandedClip } = revealGeometry(root, opener, closing ? null : originRectRef.current)
+    // A shortcut can reopen this mounted page after a resize; only the initial
+    // opening should consume the click-time snapshot.
+    originRectRef.current = null
     const pageColor = currentRoot.getPropertyValue('--settings-page-surface-color').trim() || 'rgba(242, 245, 249, .5)'
     // Preserve the trigger's actual theme/hover color and alpha rather than
     // introducing a white disk at the start (or end) of the reveal.
@@ -185,6 +191,7 @@ export function useSettingsPageTransition({ open, origin, onClose }: {
     const root = rootRef.current
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
     originRef.current = origin ?? null
+    originRectRef.current = originRect ?? null
     const background = Array.from(root.parentElement?.children ?? [])
       .filter((node): node is HTMLElement => node instanceof HTMLElement && node !== root)
       .map((element) => ({ element, inert: element.hasAttribute('inert'), hidden: element.getAttribute('aria-hidden') }))
