@@ -21,7 +21,6 @@ import {
   ThreadTimelineAttachment,
   ThreadTimelineAttachments,
   ThreadTimelineUserMessage,
-  activityRowKind,
   groupThreadExecutionRows,
   threadExecutionRunIds,
   type ThreadDetailRow
@@ -111,7 +110,7 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
       }
       rows.push({
         id: item.id,
-        kind: activityRowKind(activities),
+        kind: 'work',
         node: <ClaudeActivities activities={activities} />
       })
       index = next - 1
@@ -164,7 +163,7 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
   }
   const activities = turn.activities.filter((activity) => !referencedActivities.has(activity.id))
   if (activities.length) {
-    append('activities', activityRowKind(activities),
+    append('activities', 'work',
       <ClaudeActivities activities={activities} />, true)
   }
   turn.interactions.filter((interaction) => !referencedInteractions.has(interaction.id))

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { Fragment } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // The Harness views below resolve the package build, so the Kit is taken from the
@@ -110,6 +110,50 @@ for (const [harnessId, fixture, View] of [
   ['codex', createCodexPreview, CodexThreadView],
   ['claude', createClaudePreview, ClaudeThreadView]
 ] as const) {
+  for (const source of harnessId === 'claude' ? ['timeline', 'unreferenced'] : ['timeline']) {
+    it.each(['current', 'history'] as const)(`${harnessId} folds failed ${source} tools in %s reading`, (mode) => {
+      const input = fixture({ threadId: 'failed-tool', phase: 'completed', history: true, answer: 'Final answer' })
+      const state = JSON.parse(JSON.stringify(input.sessionState))
+      state.turns = state.turns.slice(mode === 'history' ? -2 : -1)
+      const turn = state.turns[0]
+      const reference = turn.timeline.find((item: { kind: string }) => item.kind === 'activity')
+      const original = harnessId === 'claude' ? reference.activity
+        : turn.activities.find((item: { id: string }) => item.id === reference.activityId)
+      const activity = { ...original, kind: 'command', label: 'Failed shell command', status: 'failed', detail: 'Command exited with code 1' }
+      turn.activities = [activity]
+      turn.timeline = turn.timeline.flatMap((item: { id: string; kind: string }) => item.kind !== 'activity'
+        ? [item]
+        : source === 'unreferenced' || item.id !== reference.id ? []
+          : [harnessId === 'claude' ? { ...reference, activity } : { ...reference, activityId: activity.id }])
+      const thread: AgentThreadRecord = {
+        archived: false, id: 'failed-tool', harnessId, title: 'Failed tool', cwd: '/workspace', tags: [],
+        settings: {}, revision: 1, createdAt: 1, updatedAt: 2, ...input, sessionState: state
+      }
+      const actions = { interrupt: vi.fn(), openFollowUp: vi.fn(), respond: vi.fn(), forkThread: vi.fn(), invokeHarnessExtension: vi.fn(), openExternal: vi.fn() }
+      const view = render(<I18nProvider locale="en-US"><View thread={thread} actions={actions}
+        readingTarget={{ requestId: mode, executionId: turn.executionId, mode }}
+      /></I18nProvider>)
+      const page = within(mode === 'history'
+        ? view.container.querySelector<HTMLElement>('.thread-detail-subpage')! : view.container)
+      expect(page.queryByText('Failed shell command')).toBeNull()
+      fireEvent.click(page.getByRole('button', { name: 'Show work' }))
+      expect(page.queryByText('Failed shell command')).toBeNull()
+      for (const summary of page.getAllByRole('button', { name: 'Execution process' })) {
+        expect(summary).toHaveAttribute('aria-expanded', 'false')
+        fireEvent.click(summary)
+      }
+      flushFrames()
+      const tool = page.getByRole('button', { name: /Failed shell command/ })
+      expect(tool.closest('.thread-execution-process')).not.toBeNull()
+      expect(tool.querySelector('.lucide-circle-alert')).not.toBeNull()
+      fireEvent.click(tool)
+      expect(page.getByText('Command exited with code 1')).toBeVisible()
+      fireEvent.click(page.getByRole('button', { name: 'Hide work' }))
+      expect(page.queryByText('Failed shell command')).toBeNull()
+      expect(page.queryByText('Command exited with code 1')).toBeNull()
+    })
+  }
+
   it(`${harnessId} merges mixed native rows without crossing hidden user messages`, () => {
     const input = fixture({ threadId: 'mixed', phase: 'running', history: false, answer: '' })
     const state = JSON.parse(JSON.stringify(input.sessionState))

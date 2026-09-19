@@ -16,13 +16,6 @@ export function threadExecutionRunIds<T extends { readonly id: string }>(
   return ids
 }
 
-/** One settled failure makes the whole row visible; every Harness shares the rule. */
-export function activityRowKind(
-  activities: readonly { readonly status: string }[]
-): 'attention' | 'work' {
-  return activities.some((activity) => activity.status === 'failed') ? 'attention' : 'work'
-}
-
 export type ExecutionRowRun<T> =
   | { readonly kind: 'row'; readonly row: T }
   | { readonly kind: 'execution'; readonly id: string; readonly rows: readonly T[] }
