@@ -1,5 +1,5 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..81ad43ea0a9bd7264048cc7b514c0b9e500587da 100644
+index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..4e8931d5cfb6e592456c6050bd25118b7da4f8fd 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
 @@ -2620,16 +2620,17 @@ var DomContentSync = class {
@@ -24,7 +24,7 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..81ad43ea0a9bd7264048cc7b514c0b9e
        this.copyGlassContentAtlas();
      }
      if (this.needsContentFilter) {
-@@ -4509,12 +4510,45 @@ var Renderer = class {
+@@ -4509,12 +4510,46 @@ var Renderer = class {
    core = null;
    canvasConfigured = false;
    lastFrameTexture = null;
@@ -32,6 +32,7 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..81ad43ea0a9bd7264048cc7b514c0b9e
 +  /** Forward asynchronous paint failures to the host's guarded render path. */
 +  handleRenderError(error) {
 +    this.initError = error;
++    this.targetCanvas.removeAttribute("data-liquid-frame-ready");
 +    cancelAnimationFrame(this.paintRetry);
 +    this.paintRetry = 0;
 +    this.targetCanvas.dispatchEvent(new Event("liquid-render-error"));
@@ -72,16 +73,17 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..81ad43ea0a9bd7264048cc7b514c0b9e
    };
    /** Marks scene-derived DOM and interaction state as dirty after scene mutations. */
    handleSceneMutation = () => {
-@@ -4582,6 +4616,8 @@ var Renderer = class {
+@@ -4582,6 +4617,9 @@ var Renderer = class {
        return;
      }
      this.destroyed = true;
++    this.targetCanvas.removeAttribute("data-liquid-frame-ready");
 +    cancelAnimationFrame(this.paintRetry);
 +    this.paintRetry = 0;
      this.targetCanvas.removeEventListener("paint", this.handlePaintEvent);
      this.targetCanvas.removeEventListener("pointermove", this.pointerController.handlePointerMove, true);
      this.targetCanvas.removeEventListener("pointerdown", this.pointerController.handlePointerDown, true);
-@@ -4661,22 +4697,18 @@ var Renderer = class {
+@@ -4661,26 +4699,23 @@ var Renderer = class {
      if (!previousFrame || !this.device || !this.context || !this.lastFrameTexture || previousWidth <= 0 || previousHeight <= 0) {
        return;
      }
@@ -111,7 +113,12 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..81ad43ea0a9bd7264048cc7b514c0b9e
      this.device.queue.submit([encoder.finish()]);
    }
    /** Queues scene-derived DOM and pointer state synchronization on a microtask. */
-@@ -4701,7 +4733,13 @@ var Renderer = class {
+   queueSceneContentSync() {
++    this.targetCanvas.removeAttribute("data-liquid-frame-ready");
+     this.pendingSceneContentSync = true;
+     if (this.sceneContentSyncQueued || this.destroyed) {
+       return;
+@@ -4701,7 +4736,14 @@ var Renderer = class {
      const hostOrder = getHtmlHostOrder(layers);
      this.pointerController.syncInteractions(containers);
      this.domContent.sync(layers, containers, hostOrder);
@@ -121,12 +128,13 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..81ad43ea0a9bd7264048cc7b514c0b9e
 +    // rendering can reuse the previous complete frame until that record arrives.
 +    this.domContent.copyPending(false);
 +    if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++      this.targetCanvas.removeAttribute("data-liquid-frame-ready");
 +      this.requestContentPaint();
 +    }
      this.pendingSceneContentSync = false;
      return layers;
    }
-@@ -4716,6 +4754,12 @@ var Renderer = class {
+@@ -4716,6 +4758,12 @@ var Renderer = class {
      if (this.destroyed || !this.context || !this.core || !this.device || !this.lastFrameTexture || this.targetCanvas.width <= 0 || this.targetCanvas.height <= 0) {
        return;
      }
@@ -139,8 +147,19 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..81ad43ea0a9bd7264048cc7b514c0b9e
      this.core.render({
        layers,
        width: this.targetCanvas.width,
+@@ -4734,6 +4782,10 @@ var Renderer = class {
+       height: this.targetCanvas.height
+     });
+     this.device.queue.submit([encoder.finish()]);
++    // Snapshot callers must wait for an actual complete frame, not GPU setup.
++    if (!this.targetCanvas.hasAttribute("data-liquid-frame-ready")) {
++      this.targetCanvas.setAttribute("data-liquid-frame-ready", "true");
++    }
+   }
+ };
+ // Annotate the CommonJS export names for ESM import in node:
 diff --git a/dist/index.js b/dist/index.js
-index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..5692a0229e7d4bbb1870ff352c79d8204676157f 100644
+index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..4307ee6d0fce37c2f3890502f6816a4a2f1740b5 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1679,16 +1679,17 @@ var DomContentSync = class {
@@ -165,7 +184,7 @@ index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..5692a0229e7d4bbb1870ff352c79d820
        this.copyGlassContentAtlas();
      }
      if (this.needsContentFilter) {
-@@ -3568,12 +3569,45 @@ var Renderer = class {
+@@ -3568,12 +3569,46 @@ var Renderer = class {
    core = null;
    canvasConfigured = false;
    lastFrameTexture = null;
@@ -173,6 +192,7 @@ index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..5692a0229e7d4bbb1870ff352c79d820
 +  /** Forward asynchronous paint failures to the host's guarded render path. */
 +  handleRenderError(error) {
 +    this.initError = error;
++    this.targetCanvas.removeAttribute("data-liquid-frame-ready");
 +    cancelAnimationFrame(this.paintRetry);
 +    this.paintRetry = 0;
 +    this.targetCanvas.dispatchEvent(new Event("liquid-render-error"));
@@ -213,16 +233,17 @@ index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..5692a0229e7d4bbb1870ff352c79d820
    };
    /** Marks scene-derived DOM and interaction state as dirty after scene mutations. */
    handleSceneMutation = () => {
-@@ -3641,6 +3675,8 @@ var Renderer = class {
+@@ -3641,6 +3676,9 @@ var Renderer = class {
        return;
      }
      this.destroyed = true;
++    this.targetCanvas.removeAttribute("data-liquid-frame-ready");
 +    cancelAnimationFrame(this.paintRetry);
 +    this.paintRetry = 0;
      this.targetCanvas.removeEventListener("paint", this.handlePaintEvent);
      this.targetCanvas.removeEventListener("pointermove", this.pointerController.handlePointerMove, true);
      this.targetCanvas.removeEventListener("pointerdown", this.pointerController.handlePointerDown, true);
-@@ -3720,22 +3756,18 @@ var Renderer = class {
+@@ -3720,26 +3758,23 @@ var Renderer = class {
      if (!previousFrame || !this.device || !this.context || !this.lastFrameTexture || previousWidth <= 0 || previousHeight <= 0) {
        return;
      }
@@ -252,7 +273,12 @@ index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..5692a0229e7d4bbb1870ff352c79d820
      this.device.queue.submit([encoder.finish()]);
    }
    /** Queues scene-derived DOM and pointer state synchronization on a microtask. */
-@@ -3760,7 +3792,13 @@ var Renderer = class {
+   queueSceneContentSync() {
++    this.targetCanvas.removeAttribute("data-liquid-frame-ready");
+     this.pendingSceneContentSync = true;
+     if (this.sceneContentSyncQueued || this.destroyed) {
+       return;
+@@ -3760,7 +3795,14 @@ var Renderer = class {
      const hostOrder = getHtmlHostOrder(layers);
      this.pointerController.syncInteractions(containers);
      this.domContent.sync(layers, containers, hostOrder);
@@ -262,12 +288,13 @@ index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..5692a0229e7d4bbb1870ff352c79d820
 +    // rendering can reuse the previous complete frame until that record arrives.
 +    this.domContent.copyPending(false);
 +    if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++      this.targetCanvas.removeAttribute("data-liquid-frame-ready");
 +      this.requestContentPaint();
 +    }
      this.pendingSceneContentSync = false;
      return layers;
    }
-@@ -3775,6 +3813,12 @@ var Renderer = class {
+@@ -3775,6 +3817,12 @@ var Renderer = class {
      if (this.destroyed || !this.context || !this.core || !this.device || !this.lastFrameTexture || this.targetCanvas.width <= 0 || this.targetCanvas.height <= 0) {
        return;
      }
@@ -280,3 +307,14 @@ index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..5692a0229e7d4bbb1870ff352c79d820
      this.core.render({
        layers,
        width: this.targetCanvas.width,
+@@ -3793,6 +3841,10 @@ var Renderer = class {
+       height: this.targetCanvas.height
+     });
+     this.device.queue.submit([encoder.finish()]);
++    // Snapshot callers must wait for an actual complete frame, not GPU setup.
++    if (!this.targetCanvas.hasAttribute("data-liquid-frame-ready")) {
++      this.targetCanvas.setAttribute("data-liquid-frame-ready", "true");
++    }
+   }
+ };
+ export {

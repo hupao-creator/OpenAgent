@@ -15,6 +15,7 @@ app.whenReady().then(async () => {
   let sampling = false
   const run = code => wc.executeJavaScript(code)
   const state = () => run('({...liquidFixture.state})')
+  const frameReady = () => run("document.querySelector('canvas').hasAttribute('data-liquid-frame-ready')")
   const waitFor = async predicate => {
     const until = Date.now() + 10000
     while (!await run(predicate)) { assert.ok(Date.now() < until, predicate); await sleep(30) }
@@ -31,7 +32,11 @@ app.whenReady().then(async () => {
   })
   try {
     await win.loadURL(process.env.LIQUID_TEST_URL)
+    await waitFor('window.liquidFixture?.state.failures >= 3')
+    assert.equal(await frameReady(), false, 'initialization alone must not make an uncaptured canvas ready')
+    await run('liquidFixture.state.blocked = false')
     await waitFor('window.liquidFixture?.state.copies > 0 && liquidFixture.state.presents > 0')
+    assert.equal(await frameReady(), true, 'a complete submitted capture must make the canvas ready')
     await run("console.error('liquid-console-sentinel')")
     await sleep(100)
     assert.deepEqual(result.errors.splice(0), ['liquid-console-sentinel'], 'the console error channel must be observed')
@@ -70,6 +75,7 @@ app.whenReady().then(async () => {
     // No further DOM mutation or explicit render: failed paints must request their own retry.
     await waitFor(`liquidFixture.state.failures >= ${failuresBefore + 15}`)
     assert.deepEqual(await pixel(), heldPixel, 'failed copies must retain the completed frame beyond ten attempts')
+    assert.equal(await frameReady(), false, 'a replaced scene must become ready only after its new capture')
     result.cases.push('15 autonomous failed capture retries retain the complete frame')
     win.setSize(980, 720)
     await sleep(120)
@@ -81,6 +87,7 @@ app.whenReady().then(async () => {
     await sleep(70)
     const recovered = await pixel()
     assert.ok(recovered[1] > recovered[0] && recovered[1] > recovered[2], 'paint alone must present the new green content')
+    assert.equal(await frameReady(), true)
     result.cases.push('capture retry resumes demand rendering without another DOM mutation')
     sampling = false
     const idleBefore = (await state()).presents
@@ -90,14 +97,20 @@ app.whenReady().then(async () => {
     await run("liquidFixture.state.blocked = true; liquidFixture.replace('#ffffff')")
     await waitFor(`liquidFixture.state.failures > ${failuresAtIdle}`)
     await run('liquidFixture.destroy(); liquidFixture.state.blocked = false')
+    assert.equal(await frameReady(), false, 'a destroyed renderer must not remain ready')
     const destroyed = await state()
     await sleep(70)
     assert.deepEqual(await state(), destroyed, 'destroy must cancel pending paint retries')
     result.cases.push('destroy cancels a pending capture retry')
     await win.loadURL(process.env.LIQUID_TEST_URL)
+    await waitFor('window.liquidFixture?.state.failures >= 3')
+    assert.equal(await frameReady(), false, 'initialization alone must not make an uncaptured canvas ready')
+    await run('liquidFixture.state.blocked = false')
     await waitFor('window.liquidFixture?.state.copies > 0 && liquidFixture.state.presents > 0')
+    assert.equal(await frameReady(), true, 'a complete submitted capture must make the canvas ready')
     await run('liquidFixture.state.failSubmission = true; liquidFixture.repaint()')
     await waitFor('liquidFixture.state.renderErrors.length > 0')
+    assert.equal(await frameReady(), false, 'a failed submission must clear snapshot readiness')
     assert.deepEqual((await state()).renderErrors, ['liquid-test-submission-error'], 'paint errors must reach the guarded public render path')
     await run('liquidFixture.destroy()')
     result.cases.push('paint submission errors reach the guarded render path')

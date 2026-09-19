@@ -15,7 +15,7 @@ const makeSubstrate = color => {
 }
 const html = new Html({ width: innerWidth, height: innerHeight, element: makeSubstrate('#e8edf5') })
 scene.add(html)
-const state = { blocked: false, failures: 0, copies: 0, presents: 0, failSubmission: false, renderErrors: [] }
+const state = { blocked: true, failures: 0, copies: 0, presents: 0, failSubmission: false, renderErrors: [] }
 let repaintCount = 0
 const copy = GPUQueue.prototype.copyElementImageToTexture
 GPUQueue.prototype.copyElementImageToTexture = function (...args) {
