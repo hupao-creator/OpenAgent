@@ -11,6 +11,7 @@ import {
   type CSSProperties
 } from 'react'
 import { flushSync } from 'react-dom'
+import { focusForKeyboardNavigation } from '../button-focus-visibility'
 import {
   Archive,
   Folder,
@@ -399,7 +400,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
   // （Cmd/Ctrl+B 开合 Bart、直接关闭 report）都会拿着陈旧的 key 再抢一次焦点。
   useLayoutEffect(() => {
     if ((props.focusFilterRequestKey ?? 0) === 0) return
-    filterRef.current?.querySelector<HTMLButtonElement>('.thread-tag-filter-option.active, button')?.focus()
+    focusForKeyboardNavigation(filterRef.current?.querySelector<HTMLButtonElement>('.thread-tag-filter-option.active, button'))
     props.onFocusFilterRequestConsumed?.()
   }, [props.focusFilterRequestKey, props.onFocusFilterRequestConsumed])
 

@@ -34,7 +34,15 @@ button:focus-visible,
 textarea:focus-visible,
 input:focus-visible,
 select:focus-visible,
-a:focus-visible {
+a:focus-visible,
+[data-keyboard-focus]:focus {
   outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
   outline-offset: 2px;
+}
+
+/* The app marks automatic/pointer button focus, including plugin controls.
+   Actual focus and text-field cues stay intact; component-specific outlines
+   return as soon as the user starts keyboard navigation. */
+[data-quiet-focus] {
+  outline: none !important;
 }
