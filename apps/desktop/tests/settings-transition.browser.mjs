@@ -3,8 +3,8 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from 'playwright'
 
-// Run after perf:renderer:build and perf:renderer:serve. Real Chromium is needed:
-// DOM animation mocks cannot expose the visible center/radius during collapse.
+// Run after perf:renderer:build and perf:renderer:serve. Check interpolated CSS
+// geometry; settings-transition.electron.mjs separately checks compositor pixels.
 const output = path.resolve(process.env.SETTINGS_EVIDENCE_DIR || 'output/playwright/settings-transition')
 await mkdir(output, { recursive: true })
 const browser = await chromium.launch()
@@ -36,7 +36,8 @@ try {
       const frames = [0, .05, .12, .25, .5, .9].map(fraction => {
         animation.currentTime = Number(animation.effect.getTiming().duration) * fraction
         const [radius, x, y] = getComputedStyle(root).clipPath.match(/[\d.]+/g).map(Number)
-        return { fraction, radius, x: x + rootRect.left, y: y + rootRect.top,
+        return { fraction, radius: radius / 100 * Math.hypot(rootRect.width, rootRect.height) / Math.SQRT2,
+          x: x / 100 * rootRect.width + rootRect.left, y: y / 100 * rootRect.height + rootRect.top,
           button: { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } }
       })
       animation.currentTime = 0
@@ -72,7 +73,9 @@ try {
         for (const animation of animations) animation.currentTime = Number(animation.effect.getTiming().duration) * fraction
         const style = getComputedStyle(root)
         const [radius, x, y] = style.clipPath.match(/[\d.]+/g).map(Number)
-        return { fraction, radius, x: x + rootRect.left, y: y + rootRect.top, opacity: Number(style.opacity), anchor,
+        return { fraction, radius: radius / 100 * Math.hypot(rootRect.width, rootRect.height) / Math.SQRT2,
+          x: x / 100 * rootRect.width + rootRect.left, y: y / 100 * rootRect.height + rootRect.top,
+          opacity: Number(style.opacity), anchor,
           button: { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, radius: Math.min(rect.width, rect.height) / 2 } }
       })
       for (const animation of animations) animation.currentTime = Number(animation.effect.getTiming().duration) * .65

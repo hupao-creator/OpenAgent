@@ -224,6 +224,14 @@ describe('Core Renderer shell localization', () => {
       const finished = new Promise<void>(resolve => { effects.push({ target: this, frames, finish: resolve }) })
       return { cancel() {}, finished, effect: { getComputedTiming: () => ({ progress: 1 }) } }
     } })
+    const expectCircle = (clip: unknown, x: number, y: number, radius?: number) => {
+      const match = String(clip).match(/^circle\(([\d.]+)% at ([\d.]+)% ([\d.]+)%\)$/)
+      expect(match).not.toBeNull()
+      const [r, cx, cy] = match!.slice(1).map(Number)
+      expect(cx / 100 * 1200).toBeCloseTo(x)
+      expect(cy / 100 * 800).toBeCloseTo(y)
+      if (radius !== undefined) expect(r / 100 * Math.hypot(1200, 800) / Math.SQRT2).toBeCloseTo(radius)
+    }
     try {
       if (change === 'removed') opener.remove()
       const view = render(<I18nProvider locale="zh-CN"><HarnessSettingsPage
@@ -233,27 +241,22 @@ describe('Core Renderer shell localization', () => {
         resources={{} as HarnessPresentationResources} defaultCwd="/workspace" value={createDefaultOpenAgentSettings()}
       /></I18nProvider>)
       const root = view.container.querySelector('.settings-page')!
-      expect(effects.find(effect => effect.target === root)?.frames[0]?.clipPath)
-        .toBe('circle(15px at 1140px 38px)')
+      expectCircle(effects.find(effect => effect.target === root)?.frames[0]?.clipPath, 1140, 38, 15)
       await act(async () => { effects.forEach(effect => effect.finish()) })
       expect(root).toHaveAttribute('data-phase', 'open')
-      expect((root as HTMLElement).style.clipPath).toMatch(/ at 1140px 38px\)$/)
+      expectCircle((root as HTMLElement).style.clipPath, 1140, 38)
       fireEvent.keyDown(document, { key: 'Escape' })
-      expect(effects.filter(effect => effect.target === root).at(-1)?.frames[1]?.clipPath)
-        .toBe('circle(15px at 1140px 38px)')
+      expectCircle(effects.filter(effect => effect.target === root).at(-1)?.frames[1]?.clipPath, 1140, 38, 15)
       fireEvent.keyDown(window, { key: ',', metaKey: true, ctrlKey: true })
-      expect(effects.filter(effect => effect.target === root).at(-1)?.frames.at(-1)?.clipPath)
-        .toMatch(/ at 1140px 38px\)$/)
+      expectCircle(effects.filter(effect => effect.target === root).at(-1)?.frames.at(-1)?.clipPath, 1140, 38)
       // Only an explicit window resize updates the shared anchor to the live button.
       if (change === 'moved') {
         fireEvent(window, new Event('resize'))
-        expect((root as HTMLElement).style.clipPath).toMatch(/ at 875px 80px\)$/)
+        expectCircle((root as HTMLElement).style.clipPath, 875, 80)
         fireEvent.keyDown(document, { key: 'Escape' })
-        expect(effects.filter(effect => effect.target === root).at(-1)?.frames[1]?.clipPath)
-          .toBe('circle(15px at 875px 80px)')
+        expectCircle(effects.filter(effect => effect.target === root).at(-1)?.frames[1]?.clipPath, 875, 80, 15)
         fireEvent.keyDown(window, { key: ',', metaKey: true, ctrlKey: true })
-        expect(effects.filter(effect => effect.target === root).at(-1)?.frames.at(-1)?.clipPath)
-          .toMatch(/ at 875px 80px\)$/)
+        expectCircle(effects.filter(effect => effect.target === root).at(-1)?.frames.at(-1)?.clipPath, 875, 80)
       }
       await act(async () => undefined)
     } finally {

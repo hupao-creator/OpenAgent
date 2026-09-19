@@ -135,6 +135,7 @@ async function verify() {
     OPENAGENT_BUILD_EVIDENCE_DIR: join(directory, 'build-cache'),
     OPENAGENT_LIFECYCLE_EVIDENCE_ROOT: join(directory, 'lifecycle'),
     OPENAGENT_APPEARANCE_EVIDENCE_ROOT: join(directory, 'appearance'),
+    OPENAGENT_SETTINGS_EVIDENCE_ROOT: join(directory, 'settings-compositor'),
     OPENAGENT_FORCE_BUILD: options['force-build'] ? '1' : '0'
   }
   // Children read an immutable plan, never the concurrently updated result.json.
