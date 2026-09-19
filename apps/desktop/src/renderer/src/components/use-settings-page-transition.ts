@@ -225,8 +225,9 @@ export function useSettingsPageTransition({ open, origin, onClose }: {
         if (hidden === null) element.removeAttribute('aria-hidden')
         else element.setAttribute('aria-hidden', hidden)
       }
-      const target = originRef.current?.isConnected ? originRef.current : active
-      if (target?.isConnected) target.focus({ preventScroll: true })
+      // The reveal anchor is also supplied for shortcuts; it is not necessarily
+      // the control the user left. Restore that control without selecting the gear.
+      if (active?.isConnected && !active.closest('[inert]')) active.focus({ preventScroll: true })
     }
   }, [open, transition])
 
