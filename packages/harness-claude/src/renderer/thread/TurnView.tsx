@@ -22,7 +22,6 @@ import {
   ThreadTimelineAttachments,
   ThreadTimelineUserMessage,
   activityRowKind,
-  groupThreadExecutionRows,
   threadExecutionRunIds,
   type ThreadDetailRow
 } from '@openagent/plugin-kit/renderer'
@@ -57,7 +56,7 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
   const [forkingCheckpoint, setForkingCheckpoint] = useState<string>()
   const [forkError, setForkError] = useState<string>()
   const timeline = projectClaudeTimeline(turn)
-  // Preserve boundaries that projection removes, including internal prompts.
+  // Keep native identities stable while grouping follows the visible rows.
   const timelineRunIds = useMemo(() => threadExecutionRunIds(turn.timeline,
     item => item.kind === 'reasoning' || item.kind === 'activity'), [turn.timeline])
   const referencedPrompts = new Set(timeline.flatMap((item) =>
@@ -98,6 +97,7 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
   const runStarts = claudeActivityRunStarts(turn)
   for (let index = 0; index < timeline.length; index += 1) {
     const item = timeline[index]!
+    if (item.kind === 'assistant' && !item.content.trim()) continue
     if (item.kind === 'activity') {
       const activities: ClaudeActivity[] = []
       let next = index
@@ -205,7 +205,8 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
       reasoning={turn.usage?.reasoningTokens}
     />}
     status={props.waiting ? t('等待你的响应') : turn.statusLabel || turnStatusLabel(turn.status, t)}
-    rows={groupThreadExecutionRows(rows, appendedExecutionRunIds(timelineRunIds, appended))}
+    rows={rows}
+    executionRunIds={appendedExecutionRunIds(timelineRunIds, appended)}
   />
 })
 

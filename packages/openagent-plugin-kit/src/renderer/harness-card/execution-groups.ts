@@ -1,4 +1,4 @@
-/** Assign runs before a Harness projects away hidden native timeline entries. */
+/** Record execution membership and stable native identities before projection. */
 export function threadExecutionRunIds<T extends { readonly id: string }>(
   items: readonly T[],
   isExecution: (item: T) => boolean
@@ -27,27 +27,24 @@ export type ExecutionRowRun<T> =
   | { readonly kind: 'row'; readonly row: T }
   | { readonly kind: 'execution'; readonly id: string; readonly rows: readonly T[] }
 
-/** The Harness supplies membership; work alone does not imply reasoning/tool work. */
+/** Merge adjacent visible execution rows; native boundaries may have been hidden. */
 export function partitionExecutionRows<T extends { readonly id: string; readonly kind: string }>(
   rows: readonly T[],
   runIds: ReadonlyMap<string, string>
 ): readonly ExecutionRowRun<T>[] {
   const result: ExecutionRowRun<T>[] = []
   let current: { kind: 'execution'; id: string; rows: T[] } | undefined
-  let currentRunId: string | undefined
   for (const row of rows) {
     const runId = row.kind === 'work' ? runIds.get(row.id) : undefined
     if (runId === undefined) {
       current = undefined
-      currentRunId = undefined
       result.push({ kind: 'row', row })
-    } else if (current && currentRunId === runId) {
+    } else if (current) {
       current.rows.push(row)
     } else {
       // The run id, not the first surviving row, so the group keeps its identity
       // when that row later leaves the run.
       current = { kind: 'execution', id: runId, rows: [row] }
-      currentRunId = runId
       result.push(current)
     }
   }

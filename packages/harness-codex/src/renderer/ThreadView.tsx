@@ -32,7 +32,6 @@ import {
   ThreadDetailTurn,
   ThreadTokenUsage,
   activityRowKind,
-  groupThreadExecutionRows,
   threadExecutionRunIds,
   type ThreadDetailRow,
   ThreadTimelineAssistantMessage,
@@ -323,7 +322,8 @@ export const CodexTurnRows = memo(function CodexTurnRows(props: {
       active={props.active}
       createdAt={props.turn.createdAt}
       id={props.turn.executionId}
-      rows={groupThreadExecutionRows(rows, executionRunIds)}
+      rows={rows}
+      executionRunIds={executionRunIds}
       status={codexTurnStatus(props.turn, t)}
       updatedAt={props.turn.finishedAt ?? props.turn.updatedAt}
       completedAt={props.turn.status === 'completed' ? props.turn.finishedAt : undefined}

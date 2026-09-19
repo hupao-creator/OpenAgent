@@ -126,7 +126,7 @@ describe('Claude current timeline', () => {
       .toBe(`Claude execution activity · ${named}`)
   })
 
-  it('keeps an internal prompt as a boundary between activity groups', () => {
+  it('merges execution processes across an internal prompt', () => {
     const turn: ClaudeTurn = {
       executionId: 'execution-internal', createdAt: 1, updatedAt: 4, finishedAt: 4,
       prompts: ['First ask', 'Steering nudge', 'Second ask'],
@@ -150,14 +150,14 @@ describe('Claude current timeline', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
     showExecutionProcesses()
 
-    expect(container.querySelectorAll('.thread-execution-process')).toHaveLength(2)
+    expect(container.querySelectorAll('.thread-execution-process')).toHaveLength(1)
     expect(nativeActivityGroups(container)).toHaveLength(0)
     expect(screen.getByText('Read project routes')).toBeInTheDocument()
     expect(screen.getByText('Add status filter')).toBeInTheDocument()
     expect(screen.queryByText('Steering nudge')).not.toBeInTheDocument()
   })
 
-  it('keeps a projected-away entry as a boundary between activity groups', () => {
+  it('merges execution processes across a projected-away entry', () => {
     const turn: ClaudeTurn = {
       executionId: 'execution-projected', createdAt: 1, updatedAt: 4, finishedAt: 4,
       prompts: [], promptAttachments: [], text: '', reasoning: '',
@@ -178,7 +178,7 @@ describe('Claude current timeline', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
     showExecutionProcesses()
 
-    expect(container.querySelectorAll('.thread-execution-process')).toHaveLength(2)
+    expect(container.querySelectorAll('.thread-execution-process')).toHaveLength(1)
     expect(nativeActivityGroups(container)).toHaveLength(0)
     expect(screen.getByText('Read project routes')).toBeInTheDocument()
     expect(screen.getByText('Add status filter')).toBeInTheDocument()

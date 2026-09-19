@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { HarnessRendererThreadActions, HarnessRendererThreadInput } from '@openagent/contracts/renderer'
 import { isPublicExecutionActive } from '@openagent/contracts/renderer'
 import type { PublicInteraction } from '@openagent/contracts'
-import { ThreadDetailSurface, ThreadDetailTurn, ThreadDocumentSummary, threadDocumentHeading, ThreadTokenUsage, ThreadTimelineMarkdown, ThreadTimelineUserMessage, ThreadTimelineAssistantMessage, ThreadSurfaceDisclosure, ThreadDetailRequest, InteractionQuestionField, useInteractionAnswers, useI18n, groupThreadExecutionRows, threadExecutionRunIds, type ThreadDetailRow } from '@openagent/plugin-kit/renderer'
+import { ThreadDetailSurface, ThreadDetailTurn, ThreadDocumentSummary, threadDocumentHeading, ThreadTokenUsage, ThreadTimelineMarkdown, ThreadTimelineUserMessage, ThreadTimelineAssistantMessage, ThreadSurfaceDisclosure, ThreadDetailRequest, InteractionQuestionField, useInteractionAnswers, useI18n, threadExecutionRunIds, type ThreadDetailRow } from '@openagent/plugin-kit/renderer'
 import { piBartReplyAnchor } from '../shared/bart-presentation.js'
 import { piState } from '../shared/state.js'
 import type { PiMessage, PiSessionState } from '../shared/types.js'
@@ -30,7 +30,7 @@ function PiTimeline(props: Props): React.JSX.Element {
   }, [props.thread.sessionState])
   if ('failure' in parsed) return <div role="alert">{t('Pi 状态不可用')} · {parsed.failure}</div>
   const state = parsed.state
-  // Native rows and their grouping depend only on the session and the locale.
+  // Native rows and execution membership depend only on the session and locale.
   const executions = useMemo(() => {
     const messagesByExecution = new Map<string, PiMessage[]>()
     for (const message of state.messages) {
@@ -57,9 +57,8 @@ function PiTimeline(props: Props): React.JSX.Element {
           }])
         ]
       })
-      return { execution, messages,
-        processRows: groupThreadExecutionRows(messageRows,
-          threadExecutionRunIds(messageRows, row => row.kind === 'work')) }
+      return { execution, messages, messageRows,
+        executionRunIds: threadExecutionRunIds(messageRows, row => row.kind === 'work') }
     })
   }, [state, t])
   return <div className="pi-thread provider-theme-pi">
@@ -73,7 +72,7 @@ function PiTimeline(props: Props): React.JSX.Element {
         rowId: state.executions.some(e => e.executionId === props.readingTarget!.executionId)
           ? props.readingTarget.mode === 'current' ? undefined : props.readingTarget.executionId : null,
         anchorId: piBartReplyAnchor(state, props.readingTarget.message) } : undefined}
-      rows={executions.map(({ execution, messages, processRows }, index) => {
+      rows={executions.map(({ execution, messages, messageRows, executionRunIds }, index) => {
         const usage = messages.findLast(m => m.role === 'assistant' && m.usage)?.usage
         const current = latest?.executionId === execution.executionId
         const historical = index < executions.length - 1
@@ -87,9 +86,10 @@ function PiTimeline(props: Props): React.JSX.Element {
           node: <ThreadDetailTurn id={execution.executionId} active={current && active}
             createdAt={execution.startedAt} updatedAt={finishedAt ?? execution.startedAt} status={execution.status}
             completedAt={execution.status === 'completed' ? finishedAt : undefined}
+            executionRunIds={executionRunIds}
             usage={usage ? <ThreadTokenUsage input={usage.input + usage.cacheRead + usage.cacheWrite} output={usage.output} cached={usage.cacheRead} cacheWrite={usage.cacheWrite} /> : undefined}
             rows={[
-              ...processRows,
+              ...messageRows,
               ...(execution.status === 'failed' && execution.error ? [{ id: 'execution-error', kind: 'content' as const, node: <div role="alert">{execution.error}</div> }] : []),
               ...(current && latest?.status === 'waiting-for-user' ? latest.interactions.map(interaction => ({ id: interaction.id, kind: 'content' as const, node: <PiInteraction key={interaction.id} interaction={interaction} busy={busy} respond={(actionId, answers) => run(() => props.actions.respond({ interactionId: interaction.id, actionId, ...(answers ? { answers } : {}) }))} /> })) : [])
             ]} /> }
