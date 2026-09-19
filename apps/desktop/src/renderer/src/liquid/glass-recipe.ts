@@ -31,20 +31,21 @@ const GLASS_BASE = {
   shadowBlur: 10
 }
 
-/* 染色分浅深两套，取自展示页里 light / night 那一对。
-   注意它只是个叠色，不是不透明度：调高只是把玻璃涂白，挡不住背后被糊开的原图。
-   要「看不见背景」得靠生产原来那套近乎不透明的表面色（`color-mix(surface 90%)`），
-   而玻璃的卖点恰恰是背景透得过来 —— 这是取舍不是开关。 */
-const GLASS_TINT = {
-  light: { r: 0.82, g: 0.92, b: 0.95, a: 0.22 },
-  dark: { r: 0.7, g: 0.7, b: 0.7, a: 0.22 }
-}
+/* 不染色，但**必须显式写出来、不能把这个键删掉**：库的默认 tint 是白色 15%
+   （`MaterialOptions` 里 `tint = { r: 1, g: 1, b: 1, a: 0.15 }`），删键等于换回那层白雾。
+   着色器里 tint 只出现一次 —— `mix(refractedColor, tint.rgb, tint.a)` —— a 为 0 时这个
+   mix 恒等于折射色本身，所以零 alpha 才是真的没有叠加。浅深两套共用一份（零 alpha 下
+   rgb 不起作用），但要的是一个稳定对象：悬停 / 选中会频繁重渲染，每次现拼一个新对象
+   会被当成属性一直在变，白白往场景图上写。
+   代价是浮条内部回到背景被折射 + 模糊后的原样，底下的深色卡片会直接透上来，
+   可读性只能靠浮条外那套 DOM 样式兜 —— 这是取舍不是开关。 */
+const GLASS_TINT = { r: 1, g: 1, b: 1, a: 0 }
 
-/* 预先拼好两份，好让每次渲染拿到同一个对象：悬停 / 选中会频繁重渲染，
-   每次现拼一个新对象会把这些属性当成一直在变，白白往场景图上写。 */
+/* 预先拼好两份，好让每次渲染拿到同一个对象。两套目前内容相同，按键留着是为了
+   给 `glassFor` 一个按外观取值的形状 —— 哪天浅深要分开调光学参数，就在这里分。 */
 const GLASS_FOR_THEME = {
-  light: { ...GLASS_BASE, tint: GLASS_TINT.light },
-  dark: { ...GLASS_BASE, tint: GLASS_TINT.dark }
+  light: { ...GLASS_BASE, tint: GLASS_TINT },
+  dark: { ...GLASS_BASE, tint: GLASS_TINT }
 }
 
 export function glassFor(theme: LiquidTheme): typeof GLASS_FOR_THEME.light {
