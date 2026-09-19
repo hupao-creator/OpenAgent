@@ -256,14 +256,14 @@ describe('Core Renderer shell localization', () => {
     expect(underlayAction).not.toHaveAttribute('aria-hidden')
   })
 
-  it.each(['canvas', 'input'] as const)('restores %s focus instead of the settings animation origin', focus => {
+  it.each(['canvas', 'input', 'removed-input'] as const)('restores settings focus after opening from %s', focus => {
     const onClose = vi.fn()
-    function SettingsFixture({ open }: { open: boolean }): React.JSX.Element {
+    function SettingsFixture({ open, showInput = true }: { open: boolean; showInput?: boolean }): React.JSX.Element {
       const origin = React.useRef<HTMLButtonElement>(null)
       return (
         <I18nProvider locale="zh-CN">
           <button ref={origin} type="button">打开设置</button>
-          <input aria-label="消息" />
+          {showInput && <input aria-label="消息" />}
           <HarnessSettingsPage
             onClearHistory={async () => undefined}
             onClose={onClose}
@@ -280,17 +280,20 @@ describe('Core Renderer shell localization', () => {
     }
 
     const view = render(<SettingsFixture open={false} />)
-    const target = focus === 'input' ? screen.getByRole('textbox', { name: '消息' }) : document.body
-    if (focus === 'input') target.focus()
+    const opener = screen.getByRole('button', { name: '打开设置' })
+    const target = focus === 'canvas' ? document.body : screen.getByRole('textbox', { name: '消息' })
+    if (focus !== 'canvas') target.focus()
     expect(target).toHaveFocus()
     // A shortcut opens settings without first moving focus to its animation anchor.
     view.rerender(<SettingsFixture open />)
     expect(screen.getByRole('button', { name: '返回' })).toHaveFocus()
+    // The live underlay may remove a completed interaction while settings are open.
+    if (focus === 'removed-input') view.rerender(<SettingsFixture open showInput={false} />)
     fireEvent.keyDown(screen.getByRole('region', { name: '设置' }), { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
-    view.rerender(<SettingsFixture open={false} />)
-    expect(target).toHaveFocus()
-    expect(screen.getByRole('button', { name: '打开设置' })).not.toHaveFocus()
+    view.rerender(<SettingsFixture open={false} showInput={focus !== 'removed-input'} />)
+    expect(focus === 'removed-input' ? opener : target).toHaveFocus()
+    if (focus !== 'removed-input') expect(opener).not.toHaveFocus()
   })
 
   it('localizes the Bart workspace navigation and running clear status', () => {
