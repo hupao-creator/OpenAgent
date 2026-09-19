@@ -27,6 +27,7 @@
     "test:bart-headless:pbt:replay": "node tests/bart-headless-pbt.mjs replay",
     "test:harness-health": "pnpm build && node tests/harness-health.mjs",
     "perf:bench": "pnpm generate:registry && vitest bench --run",
+    "test:liquid-runtime": "node tests/liquid-capture.electron.mjs",
     "test:report-runtime": "node tests/report-runtime.electron.mjs",
     "test:appearance-runtime": "node tests/application-appearance.electron.mjs",
     "test:lifecycle-runtime": "node tests/app-lifecycle.electron.mjs && node tests/application-appearance.electron.mjs",

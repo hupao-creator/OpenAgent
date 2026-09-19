@@ -234,16 +234,15 @@ export function OverviewLiquidStage({ children, backdropRefs, onSubtreeMounted, 
     if (failed) onFailure?.()
   }, [failed, onFailure])
 
-  /* 平移和缩放是命令式改 plane 的 transform，只落在合成器上，浏览器不会为此给画布发
-     paint，库也就不会重捕获 —— 不挂这一路，玻璃底下会一直停着拖动前那一帧。
-     同一帧里的多次相机更新合并成一次失效。 */
+  /* 手势直接提交 plane 的 transform，不改变 liquid 场景布局。只失效画面，避免在
+     浏览器生成新 paint record 前重排、重捕获整棵衬底。WAAPI 的中间帧由库的 paint
+     回调捕获并呈现，不依赖悬停跟帧窗口。同一帧里的多次提交仍合并为一次失效。 */
   useEffect(() => {
     let handle = 0
     const invalidate = (): void => {
       if (handle) return
       handle = requestAnimationFrame(() => {
         handle = 0
-        canvasRef.current?.invalidateLayout()
         canvasRef.current?.invalidateFrame()
       })
     }

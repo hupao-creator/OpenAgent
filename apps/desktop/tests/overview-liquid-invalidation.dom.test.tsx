@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OverviewLiquidStage } from '../src/renderer/src/liquid/OverviewLiquidStage'
+import { getOverviewCameraCockpit } from '../src/renderer/src/overview-motion/camera'
 
 /* 舞台的失效路径全是「衬底上发生了画布自己看不见的变化」。库本身要 WebGPU，测试里
    只留它的形状：`LiquidCanvas` 把 ref 交出来，其余原语照原样渲染子树。 */
@@ -59,6 +60,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  getOverviewCameraCockpit().dispose()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -81,6 +83,21 @@ function draw(props: { onSubtreeMounted?: () => void; onFailure?: () => void } =
 }
 
 describe('overview liquid invalidation', () => {
+  it('repaints camera gestures without recomputing liquid scene layout', () => {
+    draw()
+    flush(700)
+    const camera = getOverviewCameraCockpit()
+    camera.cutTo({ left: 0, top: 0, width: 360, height: 200 }, { width: 800, height: 600, toolbarBottom: 60 })
+    flush()
+    liquid.invalidateFrame.mockClear()
+    liquid.invalidateLayout.mockClear()
+    camera.setManualTransform({ x: 200, y: 100, scale: 0.8 })
+    camera.setManualTransform({ x: 220, y: 100, scale: 0.8 })
+    flush()
+    expect(liquid.invalidateFrame).toHaveBeenCalledTimes(1)
+    expect(liquid.invalidateLayout).not.toHaveBeenCalled()
+  })
+
   it('repaints when the pointer enters and leaves, long enough to outlast the transition', () => {
     const { substrate } = draw()
     flush(700)

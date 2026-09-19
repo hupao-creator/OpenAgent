@@ -13,7 +13,8 @@
       "esbuild"
     ],
     "patchedDependencies": {
-      "llm-mock-server@1.1.0": "patches/llm-mock-server@1.1.0.patch"
+      "llm-mock-server@1.1.0": "patches/llm-mock-server@1.1.0.patch",
+      "@liquid-dom/core@0.1.1": "patches/@liquid-dom__core@0.1.1.patch"
     }
   },
   "scripts": {
