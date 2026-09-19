@@ -69,12 +69,9 @@ export function useSettingsPageTransition({ open, origin, originRect, onClose }:
     finishRef.current = null
 
     const opener = originRef.current
-    // Opening follows the button the user clicked, even if navigation moved it.
-    // Closing measures the current button so a resized window still lands on it.
-    const { anchored, collapsedClip, expandedClip } = revealGeometry(root, opener, closing ? null : originRectRef.current)
-    // A shortcut can reopen this mounted page after a resize; only the initial
-    // opening should consume the click-time snapshot.
-    originRectRef.current = null
+    // One open/close cycle shares an anchor. Background layout changes must not
+    // move the center while the page settles, collapses or reverses direction.
+    const { anchored, collapsedClip, expandedClip } = revealGeometry(root, opener, originRectRef.current)
     const pageColor = currentRoot.getPropertyValue('--settings-page-surface-color').trim() || 'rgba(242, 245, 249, .5)'
     // Preserve the trigger's actual theme/hover color and alpha rather than
     // introducing a white disk at the start (or end) of the reveal.
@@ -112,7 +109,7 @@ export function useSettingsPageTransition({ open, origin, originRect, onClose }:
       // Write the terminal frame synchronously BEFORE removing fill effects.
       // A closed page remains hidden even if its parent unmount is deferred.
       root.style.visibility = closing ? 'hidden' : 'visible'
-      root.style.clipPath = closing ? toClip : revealGeometry(root, originRef.current).expandedClip
+      root.style.clipPath = closing ? toClip : revealGeometry(root, originRef.current, originRectRef.current).expandedClip
       root.style.opacity = toOpacity
       background.style.backgroundColor = toColor
       materialLayersRef.current.forEach(layer => layer.remove())
@@ -191,7 +188,7 @@ export function useSettingsPageTransition({ open, origin, originRect, onClose }:
     const root = rootRef.current
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
     originRef.current = origin ?? null
-    originRectRef.current = originRect ?? null
+    originRectRef.current = originRect ?? (origin?.isConnected ? origin.getBoundingClientRect() : null)
     const background = Array.from(root.parentElement?.children ?? [])
       .filter((node): node is HTMLElement => node instanceof HTMLElement && node !== root)
       .map((element) => ({ element, inert: element.hasAttribute('inert'), hidden: element.getAttribute('aria-hidden') }))
@@ -202,8 +199,13 @@ export function useSettingsPageTransition({ open, origin, originRect, onClose }:
       element.setAttribute('aria-hidden', 'true')
     }
     const resize = () => {
+      // Window resizing is the explicit boundary for moving the shared anchor.
+      // Retain it if the underlying button is temporarily hidden or detached.
+      const opener = originRef.current
+      const rect = opener?.isConnected ? opener.getBoundingClientRect() : null
+      if (rect && rect.width > 0 && rect.height > 0) originRectRef.current = rect
       if (finishRef.current) finishRef.current()
-      else if (phaseRef.current === 'open') root.style.clipPath = revealGeometry(root, originRef.current).expandedClip
+      else if (phaseRef.current === 'open') root.style.clipPath = revealGeometry(root, opener, originRectRef.current).expandedClip
     }
     // The parent keeps this page mounted until Bart lands. Its background is
     // inert, so Cmd+, must remain a live reopen command during that return.
