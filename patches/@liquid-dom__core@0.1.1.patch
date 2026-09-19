@@ -1,0 +1,282 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..81ad43ea0a9bd7264048cc7b514c0b9e500587da 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -2620,16 +2620,17 @@ var DomContentSync = class {
+     if (this.needsContentFilter) {
+       this.filterGlassContentAtlas();
+     }
++    return shouldCopySceneHtml || shouldCopyContent;
+   }
+-  /** Attempts any pending DOM-to-texture copies immediately. */
+-  copyPending() {
+-    if (this.needsSceneHtmlCopy) {
++  /** Filters pending content; standalone content sources may also request immediate capture. */
++  copyPending(capture = true) {
++    if (capture && this.needsSceneHtmlCopy) {
+       this.copySceneHtmlTextures();
+     }
+     if (this.needsSceneHtmlFilter) {
+       this.filterSceneHtmlTextures();
+     }
+-    if (this.needsContentCopy) {
++    if (capture && this.needsContentCopy) {
+       this.copyGlassContentAtlas();
+     }
+     if (this.needsContentFilter) {
+@@ -4509,12 +4510,45 @@ var Renderer = class {
+   core = null;
+   canvasConfigured = false;
+   lastFrameTexture = null;
++  paintRetry = 0;
++  /** Forward asynchronous paint failures to the host's guarded render path. */
++  handleRenderError(error) {
++    this.initError = error;
++    cancelAnimationFrame(this.paintRetry);
++    this.paintRetry = 0;
++    this.targetCanvas.dispatchEvent(new Event("liquid-render-error"));
++  }
++  /** Retry even when the failed capture belonged to the final DOM mutation. */
++  requestContentPaint() {
++    if (this.paintRetry || this.destroyed || this.initError) return;
++    this.paintRetry = requestAnimationFrame(() => {
++      this.paintRetry = 0;
++      if (this.destroyed || this.initError) return;
++      try {
++        this.targetCanvas.requestPaint();
++      } catch (error) {
++        this.handleRenderError(error);
++      }
++    });
++  }
+   /** Handles canvas paint events by copying managed DOM content into GPU textures. */
+   handlePaintEvent = (event) => {
+-    if (this.destroyed || !this.core) {
++    if (this.destroyed || !this.core || this.initError) {
+       return;
+     }
+-    this.domContent.handlePaintEvent(event);
++    try {
++      // Native DOM/WAAPI paints need no React invalidation to present a frame.
++      const copied = this.domContent.handlePaintEvent(event);
++      if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++        this.requestContentPaint();
++      } else {
++        cancelAnimationFrame(this.paintRetry);
++        this.paintRetry = 0;
++        if (copied) this.drawFrame();
++      }
++    } catch (error) {
++      this.handleRenderError(error);
++    }
+   };
+   /** Marks scene-derived DOM and interaction state as dirty after scene mutations. */
+   handleSceneMutation = () => {
+@@ -4582,6 +4616,8 @@ var Renderer = class {
+       return;
+     }
+     this.destroyed = true;
++    cancelAnimationFrame(this.paintRetry);
++    this.paintRetry = 0;
+     this.targetCanvas.removeEventListener("paint", this.handlePaintEvent);
+     this.targetCanvas.removeEventListener("pointermove", this.pointerController.handlePointerMove, true);
+     this.targetCanvas.removeEventListener("pointerdown", this.pointerController.handlePointerDown, true);
+@@ -4661,22 +4697,18 @@ var Renderer = class {
+     if (!previousFrame || !this.device || !this.context || !this.lastFrameTexture || previousWidth <= 0 || previousHeight <= 0) {
+       return;
+     }
+-    const copyWidth = Math.min(previousWidth, this.targetCanvas.width);
+-    const copyHeight = Math.min(previousHeight, this.targetCanvas.height);
+     const encoder = this.device.createCommandEncoder();
+-    const currentTexture = this.context.getCurrentTexture();
+-    const region = {
++    // Cover the entire resized target while its DOM capture catches up. Copying
++    // only the old rectangle leaves an opaque black border on a growing canvas.
++    this.core.blitTexture(encoder, previousFrame, this.lastFrameTexture);
++    copyTextureRegion(encoder, this.lastFrameTexture, this.context.getCurrentTexture(), {
+       sourceX: 0,
+       sourceY: 0,
+       destinationX: 0,
+       destinationY: 0,
+-      width: copyWidth,
+-      height: copyHeight
+-    };
+-    clearRenderTarget(encoder, this.lastFrameTexture);
+-    clearRenderTarget(encoder, currentTexture);
+-    copyTextureRegion(encoder, previousFrame, this.lastFrameTexture, region);
+-    copyTextureRegion(encoder, previousFrame, currentTexture, region);
++      width: this.targetCanvas.width,
++      height: this.targetCanvas.height
++    });
+     this.device.queue.submit([encoder.finish()]);
+   }
+   /** Queues scene-derived DOM and pointer state synchronization on a microtask. */
+@@ -4701,7 +4733,13 @@ var Renderer = class {
+     const hostOrder = getHtmlHostOrder(layers);
+     this.pointerController.syncInteractions(containers);
+     this.domContent.sync(layers, containers, hostOrder);
+-    this.domContent.copyPending();
++    // Layout/React callbacks run before native paint. Their cached paint record
++    // may be absent or belong to the previous DOM size. Capture only in paint;
++    // rendering can reuse the previous complete frame until that record arrives.
++    this.domContent.copyPending(false);
++    if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++      this.requestContentPaint();
++    }
+     this.pendingSceneContentSync = false;
+     return layers;
+   }
+@@ -4716,6 +4754,12 @@ var Renderer = class {
+     if (this.destroyed || !this.context || !this.core || !this.device || !this.lastFrameTexture || this.targetCanvas.width <= 0 || this.targetCanvas.height <= 0) {
+       return;
+     }
++    // A failed copy must never replace the last complete frame with the black
++    // scene clear / a partially copied HTML layer. The next paint retries the
++    // capture and presents it via handlePaintEvent, even in demand mode.
++    if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++      return;
++    }
+     this.core.render({
+       layers,
+       width: this.targetCanvas.width,
+diff --git a/dist/index.js b/dist/index.js
+index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..5692a0229e7d4bbb1870ff352c79d8204676157f 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1679,16 +1679,17 @@ var DomContentSync = class {
+     if (this.needsContentFilter) {
+       this.filterGlassContentAtlas();
+     }
++    return shouldCopySceneHtml || shouldCopyContent;
+   }
+-  /** Attempts any pending DOM-to-texture copies immediately. */
+-  copyPending() {
+-    if (this.needsSceneHtmlCopy) {
++  /** Filters pending content; standalone content sources may also request immediate capture. */
++  copyPending(capture = true) {
++    if (capture && this.needsSceneHtmlCopy) {
+       this.copySceneHtmlTextures();
+     }
+     if (this.needsSceneHtmlFilter) {
+       this.filterSceneHtmlTextures();
+     }
+-    if (this.needsContentCopy) {
++    if (capture && this.needsContentCopy) {
+       this.copyGlassContentAtlas();
+     }
+     if (this.needsContentFilter) {
+@@ -3568,12 +3569,45 @@ var Renderer = class {
+   core = null;
+   canvasConfigured = false;
+   lastFrameTexture = null;
++  paintRetry = 0;
++  /** Forward asynchronous paint failures to the host's guarded render path. */
++  handleRenderError(error) {
++    this.initError = error;
++    cancelAnimationFrame(this.paintRetry);
++    this.paintRetry = 0;
++    this.targetCanvas.dispatchEvent(new Event("liquid-render-error"));
++  }
++  /** Retry even when the failed capture belonged to the final DOM mutation. */
++  requestContentPaint() {
++    if (this.paintRetry || this.destroyed || this.initError) return;
++    this.paintRetry = requestAnimationFrame(() => {
++      this.paintRetry = 0;
++      if (this.destroyed || this.initError) return;
++      try {
++        this.targetCanvas.requestPaint();
++      } catch (error) {
++        this.handleRenderError(error);
++      }
++    });
++  }
+   /** Handles canvas paint events by copying managed DOM content into GPU textures. */
+   handlePaintEvent = (event) => {
+-    if (this.destroyed || !this.core) {
++    if (this.destroyed || !this.core || this.initError) {
+       return;
+     }
+-    this.domContent.handlePaintEvent(event);
++    try {
++      // Native DOM/WAAPI paints need no React invalidation to present a frame.
++      const copied = this.domContent.handlePaintEvent(event);
++      if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++        this.requestContentPaint();
++      } else {
++        cancelAnimationFrame(this.paintRetry);
++        this.paintRetry = 0;
++        if (copied) this.drawFrame();
++      }
++    } catch (error) {
++      this.handleRenderError(error);
++    }
+   };
+   /** Marks scene-derived DOM and interaction state as dirty after scene mutations. */
+   handleSceneMutation = () => {
+@@ -3641,6 +3675,8 @@ var Renderer = class {
+       return;
+     }
+     this.destroyed = true;
++    cancelAnimationFrame(this.paintRetry);
++    this.paintRetry = 0;
+     this.targetCanvas.removeEventListener("paint", this.handlePaintEvent);
+     this.targetCanvas.removeEventListener("pointermove", this.pointerController.handlePointerMove, true);
+     this.targetCanvas.removeEventListener("pointerdown", this.pointerController.handlePointerDown, true);
+@@ -3720,22 +3756,18 @@ var Renderer = class {
+     if (!previousFrame || !this.device || !this.context || !this.lastFrameTexture || previousWidth <= 0 || previousHeight <= 0) {
+       return;
+     }
+-    const copyWidth = Math.min(previousWidth, this.targetCanvas.width);
+-    const copyHeight = Math.min(previousHeight, this.targetCanvas.height);
+     const encoder = this.device.createCommandEncoder();
+-    const currentTexture = this.context.getCurrentTexture();
+-    const region = {
++    // Cover the entire resized target while its DOM capture catches up. Copying
++    // only the old rectangle leaves an opaque black border on a growing canvas.
++    this.core.blitTexture(encoder, previousFrame, this.lastFrameTexture);
++    copyTextureRegion(encoder, this.lastFrameTexture, this.context.getCurrentTexture(), {
+       sourceX: 0,
+       sourceY: 0,
+       destinationX: 0,
+       destinationY: 0,
+-      width: copyWidth,
+-      height: copyHeight
+-    };
+-    clearRenderTarget(encoder, this.lastFrameTexture);
+-    clearRenderTarget(encoder, currentTexture);
+-    copyTextureRegion(encoder, previousFrame, this.lastFrameTexture, region);
+-    copyTextureRegion(encoder, previousFrame, currentTexture, region);
++      width: this.targetCanvas.width,
++      height: this.targetCanvas.height
++    });
+     this.device.queue.submit([encoder.finish()]);
+   }
+   /** Queues scene-derived DOM and pointer state synchronization on a microtask. */
+@@ -3760,7 +3792,13 @@ var Renderer = class {
+     const hostOrder = getHtmlHostOrder(layers);
+     this.pointerController.syncInteractions(containers);
+     this.domContent.sync(layers, containers, hostOrder);
+-    this.domContent.copyPending();
++    // Layout/React callbacks run before native paint. Their cached paint record
++    // may be absent or belong to the previous DOM size. Capture only in paint;
++    // rendering can reuse the previous complete frame until that record arrives.
++    this.domContent.copyPending(false);
++    if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++      this.requestContentPaint();
++    }
+     this.pendingSceneContentSync = false;
+     return layers;
+   }
+@@ -3775,6 +3813,12 @@ var Renderer = class {
+     if (this.destroyed || !this.context || !this.core || !this.device || !this.lastFrameTexture || this.targetCanvas.width <= 0 || this.targetCanvas.height <= 0) {
+       return;
+     }
++    // A failed copy must never replace the last complete frame with the black
++    // scene clear / a partially copied HTML layer. The next paint retries the
++    // capture and presents it via handlePaintEvent, even in demand mode.
++    if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++      return;
++    }
+     this.core.render({
+       layers,
+       width: this.targetCanvas.width,
