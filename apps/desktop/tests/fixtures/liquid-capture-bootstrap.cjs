@@ -11,7 +11,7 @@ app.whenReady().then(async () => {
   nativeTheme.themeSource = 'light'
   const win = new BrowserWindow({ width: 800, height: 600, show: true, webPreferences: { backgroundThrottling: false } })
   const wc = win.webContents
-  const result = { cases: [], frames: 0, black: [], errors: [] }
+  const result = { electron: process.versions.electron, chromium: process.versions.chrome, cases: [], frames: 0, black: [], errors: [] }
   let sampling = false
   const run = code => wc.executeJavaScript(code)
   const state = () => run('({...liquidFixture.state})')
@@ -57,10 +57,13 @@ app.whenReady().then(async () => {
     await run('liquidFixture.decorate()')
     await sleep(100)
     assert.equal(await run('liquidFixture.decorationBoxes()'), 3, 'completion effects must remain visible while they play')
-    await sleep(650)
+    await run('liquidFixture.holdDecorationFade()')
+    for (let i = 0; i < 6; i++) await run('liquidFixture.animate()')
+    await run('liquidFixture.finishDecorations()')
+    await sleep(70)
     assert.equal(await run('liquidFixture.decorationBoxes()'), 0, 'finished decorations must leave the capture layout')
     for (let i = 0; i < 6; i++) await run('liquidFixture.animate()')
-    result.cases.push('completed Bart decorations leave capture layout before six camera returns')
+    result.cases.push('camera returns stay complete during and after the Bart decoration fade')
     const heldPixel = await pixel()
     const failuresBefore = (await state()).failures
     await run("liquidFixture.state.blocked = true; liquidFixture.replace('#d4ecd9')")

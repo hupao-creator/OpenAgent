@@ -62,6 +62,19 @@ window.liquidFixture = {
   decorationBoxes() {
     return [...html.element.querySelectorAll('.bart-operation-motion')].filter(element => element.getClientRects().length > 0).length
   },
+  holdDecorationFade() {
+    for (const element of html.element.querySelectorAll('.bart-operation-motion')) {
+      for (const animation of element.getAnimations()) {
+        animation.pause()
+        animation.currentTime = 610
+      }
+    }
+  },
+  finishDecorations() {
+    for (const element of html.element.querySelectorAll('.bart-operation-motion')) {
+      for (const animation of element.getAnimations()) animation.finish()
+    }
+  },
   replace(color) { html.setElement(makeSubstrate(color)); renderer.render() },
   render() { renderer.render() },
   repaint() { html.element.querySelector('.card').style.background = `rgb(72, 123, ${150 + (++repaintCount % 2)})` },

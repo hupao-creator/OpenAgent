@@ -12,7 +12,12 @@ const core = require.resolve('@liquid-dom/core', { paths: [dirname(require.resol
 const evidence = await mkdtemp(join(tmpdir(), 'oa-liquid-capture-'))
 const server = await createServer({
   configFile: false, root: join(tests, 'fixtures'),
-  resolve: { alias: { '@liquid-dom/core': join(dirname(core), 'index.js') } },
+  resolve: { alias: {
+    '@liquid-dom/core': join(dirname(core), 'index.js'),
+    // Production CSS is copied unchanged into dist; use its source so this
+    // standalone regression also works before workspace packages are built.
+    '@openagent/plugin-kit/renderer/styles.css': resolve(tests, '../../../packages/openagent-plugin-kit/src/renderer/components.css')
+  } },
   server: { host: '127.0.0.1', port: 0, fs: { allow: [resolve(tests, '../../..')] } }
 })
 try {
@@ -20,7 +25,7 @@ try {
   const url = server.resolvedUrls.local[0] + 'liquid-capture.html'
   const env = { ...process.env, LIQUID_TEST_URL: url, LIQUID_TEST_EVIDENCE: evidence }
   delete env.ELECTRON_RUN_AS_NODE
-  const child = spawn(require('electron'), [join(tests, 'fixtures/liquid-capture-bootstrap.cjs')], { env, stdio: 'inherit' })
+  const child = spawn(process.env.LIQUID_TEST_ELECTRON || require('electron'), [join(tests, 'fixtures/liquid-capture-bootstrap.cjs')], { env, stdio: 'inherit' })
   const code = await new Promise((yes, no) => { child.once('error', no); child.once('exit', yes) })
   if (code !== 0) throw new Error(`Liquid capture regression failed (${code}); evidence: ${evidence}`)
 } finally {
