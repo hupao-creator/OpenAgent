@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { RendererReport } from '../../../shared/renderer-state-contracts'
 import { harnessDisplayName } from '../../../shared/harnesses'
 import { formatReportUpdatedTime } from './ReportCard'
-import { createGenerationScene } from '../bart-motion/generation-scene'
+import { createGenerationScene, type GenerationPreview } from '../bart-motion/generation-scene'
 import { flushSync } from 'react-dom'
 import type { HarnessOverviewThread } from '@openagent/contracts/renderer'
 import './BartThreadGeneration.css'
@@ -79,16 +79,17 @@ export interface BartGenerationWork {
   controller: AbortController
 }
 
-function BartPreparedGeneration({ work, onComplete }: {
+function BartPreparedGeneration({ work, onComplete, preview }: {
   work: BartGenerationWork
   onComplete: () => void
+  preview?: GenerationPreview
 }): React.JSX.Element {
   const marker = useRef<HTMLSpanElement>(null)
   useLayoutEffect(() => {
     const root = marker.current?.closest<HTMLElement>('.app-shell')
     if (!root) { queueMicrotask(onComplete); return }
     let active = true
-    const scene = createGenerationScene(root, work.targets.map(target => target.id), work.controller.signal)
+    const scene = createGenerationScene(root, work.targets.map(target => target.id), work.controller.signal, preview)
     const finish = (): void => {
       if (!active) return
       // Release native pending facts and the covering surface in this same Host
@@ -97,7 +98,7 @@ function BartPreparedGeneration({ work, onComplete }: {
     }
     void scene.performed.then(finish, finish)
     return () => { active = false; scene.dispose() }
-  }, [work, onComplete])
+  }, [work, onComplete, preview])
   return <span hidden aria-hidden="true" ref={marker} />
 }
 
@@ -108,9 +109,11 @@ export function BartThreadGenerations({
   onWorkConsumed,
   onReveal,
   onHiddenIdsChange,
-  orchestration
+  orchestration,
+  preview
 }: {
   orchestration?: OverviewOrchestrationStore
+  preview?: GenerationPreview
   overviewOpen: boolean
   threads: readonly HarnessOverviewThread[]
   reports?: readonly RendererReport[]
@@ -175,6 +178,7 @@ export function BartThreadGenerations({
       key={activeWork.key}
       work={activeWork}
       onComplete={complete}
+      preview={preview}
     />
   )
 }

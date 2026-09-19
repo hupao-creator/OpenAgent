@@ -1,5 +1,11 @@
 import type { BartWebGLPose } from './webgl-renderer'
-import type { MotionMatrixFrame, MotionPoseFrame, MotionRevealFrame } from './worker-types'
+import type { MotionMatrixFrame, MotionPoseFrame, MotionRevealFrame, MotionTexture } from './worker-types'
+
+export function sampleTextureOpacity(texture: MotionTexture, at: number): number {
+  if (at < texture.from || (texture.until !== undefined && at > texture.until)) return 0
+  const p = texture.fadeIn ? Math.max(0, Math.min(1, (at - texture.from) / texture.fadeIn)) : 1
+  return p * p * (3 - 2 * p)
+}
 
 export function sampleMatrix(frames: readonly MotionMatrixFrame[], at: number): MotionMatrixFrame {
   let index = 0
@@ -42,5 +48,7 @@ export function sampleReveal(frames: readonly MotionRevealFrame[], at: number): 
   const from = frames[index], to = frames[index + 1] ?? from
   const t = from === to ? 0 : Math.max(0, Math.min(1, (at - from.at) / (to.at - from.at)))
   return { at, x: from.x + (to.x - from.x) * t,
-    top: from.top + (to.top - from.top) * t, bottom: from.bottom + (to.bottom - from.bottom) * t }
+    top: from.top + (to.top - from.top) * t, bottom: from.bottom + (to.bottom - from.bottom) * t,
+    ...(from.feather !== undefined || to.feather !== undefined
+      ? { feather: (from.feather ?? 0) + ((to.feather ?? 0) - (from.feather ?? 0)) * t } : {}) }
 }

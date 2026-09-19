@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { createBartWebGLRenderer, type BartWebGLRenderer, type BartWebGLTexture } from './webgl-renderer'
 import { forwardTimeline, sampleTimeline, type MotionTimeline } from './motion-timeline'
-import { sampleMatrix, samplePose, sampleReveal } from './program'
+import { sampleMatrix, samplePose, sampleReveal, sampleTextureOpacity } from './program'
 import { sampleCamera } from '../overview-motion/camera-track'
 import { createCanvasCharacter } from './character-canvas'
 import { createCameraPainter } from '../bart-thread-transition/camera-canvas'
@@ -50,11 +50,12 @@ function paint(surface: Surface, elapsed: number): void {
     if (elapsed < texture.from || (texture.until !== undefined && elapsed > texture.until)) continue
     const clip = texture.reveal ? sampleReveal(texture.reveal, elapsed) : undefined
     if (clip === null) continue
-    layers.push({ id: texture.id,
+    layers.push({ id: texture.id, opacity: sampleTextureOpacity(texture, elapsed),
       x: camera.x + texture.rect.x * camera.scale, y: camera.y + texture.rect.y * camera.scale,
       width: texture.rect.width * camera.scale, height: texture.rect.height * camera.scale,
       viewport: playback.program.viewport,
-      clip: clip ? { x: clip.x * camera.scale, top: clip.top * camera.scale, bottom: clip.bottom * camera.scale } : undefined })
+      clip: clip ? { x: clip.x * camera.scale, top: clip.top * camera.scale, bottom: clip.bottom * camera.scale,
+        feather: (clip.feather ?? 0) * camera.scale } : undefined })
   }
   const pose = samplePose(playback.program.poses, elapsed)
   const character = playback.program.character, borrowed = surface.borrowed
@@ -80,8 +81,12 @@ function paint(surface: Surface, elapsed: number): void {
       context.restore()
       for (const layer of layers) {
         const bitmap = surface.bitmaps.get(layer.id)
-        if (bitmap) context.drawImage(bitmap, layer.x, layer.y, layer.width, layer.height)
+        if (bitmap) {
+          context.globalAlpha = layer.opacity ?? 1
+          context.drawImage(bitmap, layer.x, layer.y, layer.width, layer.height)
+        }
       }
+      context.globalAlpha = 1
       draws++
       return
     }

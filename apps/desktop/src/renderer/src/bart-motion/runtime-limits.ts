@@ -66,9 +66,12 @@ export function validateMotionProgram(program: MotionProgram, assetIds: Readonly
     if (!Object.values(texture.rect).every(Number.isFinite) || texture.rect.width <= 0 || texture.rect.height <= 0 ||
       !Number.isFinite(texture.from) || texture.from < 0 || texture.from > program.duration) throw new Error('Bart texture placement is invalid')
     if (texture.until !== undefined && (!Number.isFinite(texture.until) || texture.until < texture.from || texture.until > program.duration)) throw new Error('Bart texture interval is invalid')
+    if (texture.fadeIn !== undefined && (!Number.isFinite(texture.fadeIn) || texture.fadeIn <= 0 ||
+      texture.from + texture.fadeIn > program.duration)) throw new Error('Bart texture fade is invalid')
     if (texture.reveal) {
       times(texture.reveal)
-      if (!texture.reveal.every(frame => Object.values(frame).every(Number.isFinite))) throw new Error('Bart reveal is invalid')
+      if (!texture.reveal.every(frame => Object.values(frame).every(Number.isFinite) &&
+        (frame.feather === undefined || frame.feather >= 0 && frame.feather <= 64))) throw new Error('Bart reveal is invalid')
     }
   }
 }

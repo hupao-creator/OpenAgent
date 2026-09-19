@@ -13,6 +13,8 @@ export interface PreparedMotionCard {
   assets: { id: string; bitmap: ImageBitmap }[]
   textures: MotionTexture[]
   caret: TypesetCaretPoint[]
+  /** Glyph, line and block boundaries used to compile the writing rhythm. */
+  beats?: readonly { at: number; kind: 'character' | 'wrap' | 'block'; text?: string }[]
 }
 
 export interface CapturedMotionCard {
@@ -103,6 +105,7 @@ export function captureMotionCard(card: HTMLElement, origin: { x: number; y: num
         const assets: PreparedMotionCard['assets'] = []
         const textures: MotionTexture[] = []
         const caret: TypesetCaretPoint[] = []
+        const beats: NonNullable<PreparedMotionCard['beats']>[number][] = []
         let elapsed = 0
         try {
           const [full, shell] = await snapshotSurfaceVariants(frozen.element, options, [undefined, xml => {
@@ -125,6 +128,16 @@ export function captureMotionCard(card: HTMLElement, origin: { x: number; y: num
             const typed = typesetBlock(points.map(point => ({ ...point,
               left: point.left + dx, right: point.right + dx, top: point.top + dy, bottom: point.bottom + dy
             })), { width: w, height: h, singleLine }, duration)
+            beats.push({ at: elapsed, kind: 'block' })
+            let characterTime = elapsed
+            for (const point of points) {
+              characterTime += point.weight / 38 * 1000
+              beats.push({ at: characterTime, kind: 'character', text: point.text })
+            }
+            for (let cursor = 1; cursor < typed.caret.length; cursor++) {
+              const previous = typed.caret[cursor - 1], next = typed.caret[cursor]
+              if (previous.at === next.at && previous.y !== next.y) beats.push({ at: elapsed + next.at, kind: 'wrap' })
+            }
             const reveal: MotionRevealFrame[] = typed.frames.map(frame => {
               const polygon = String(frame.clipPath).match(/-?\d+(?:\.\d+)?/g)!.map(Number)
               return { at: elapsed + Number(frame.offset) * duration,
@@ -142,7 +155,7 @@ export function captureMotionCard(card: HTMLElement, origin: { x: number; y: num
             elapsed += duration + 34
           }
           assertActive()
-          return { rect, duration: elapsed, assets, textures, caret }
+          return { rect, duration: elapsed, assets, textures, caret, beats }
         } catch (error) { assets.forEach(asset => asset.bitmap.close()); throw error }
         finally { signal.removeEventListener('abort', dispose); dispose() }
       }

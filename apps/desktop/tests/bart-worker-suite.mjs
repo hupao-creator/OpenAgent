@@ -26,6 +26,7 @@ for (const scenario of [
   ['2000', '2600'], ['5000', '1500'], ['--residents'],
   ['--message', '2000'], ['--message', '5000'],
   ['--generation', '2000', '2500'], ['--generation', '5000', '1400'],
+  ['--generation', '2000', 'relay'],
   ['--cross-page', '2000'], ['--cross-page', '5000'],
   ['--camera', '2000'], ['--camera', '5000'],
   ['--cross-page', '2000', '--interrupt'], ['--cross-page', '5000', '--interrupt'],

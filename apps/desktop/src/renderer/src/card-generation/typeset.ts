@@ -5,6 +5,8 @@ export interface MeasuredCharacter {
   bottom: number
   lineHeight: number
   weight: number
+  /** Visible character retained for the prepared writing rhythm. */
+  text?: string
 }
 
 export interface TypesetCaretPoint { x: number; y: number; at: number }
