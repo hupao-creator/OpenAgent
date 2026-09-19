@@ -211,9 +211,10 @@ describe('Core Renderer shell localization', () => {
   it('focuses the page, hides the underlay, and restores the opener', () => {
     function SettingsFixture(): React.JSX.Element {
       const [open, setOpen] = React.useState(false)
+      const origin = React.useRef<HTMLButtonElement>(null)
       return (
         <I18nProvider locale="zh-CN">
-          <button onClick={() => setOpen(true)} type="button">打开设置</button>
+          <button ref={origin} onClick={() => setOpen(true)} type="button">打开设置</button>
           <button type="button">底层操作</button>
           <HarnessSettingsPage
             onClearHistory={async () => undefined}
@@ -221,6 +222,7 @@ describe('Core Renderer shell localization', () => {
             onSave={async () => undefined}
             loadHarnessInstallations={installedHarnesses}
             open={open}
+            origin={origin.current}
             resources={{} as HarnessPresentationResources}
             defaultCwd="/workspace"
             value={createDefaultOpenAgentSettings()}
@@ -252,6 +254,57 @@ describe('Core Renderer shell localization', () => {
     expect(opener).not.toHaveAttribute('aria-hidden')
     expect(underlayAction).not.toHaveAttribute('inert')
     expect(underlayAction).not.toHaveAttribute('aria-hidden')
+  })
+
+  it.each(['canvas', 'input', 'removed-input', 'inert-input', 'disabled-input', 'hidden-input'] as const)('restores settings focus after opening from %s', focus => {
+    const onClose = vi.fn()
+    function SettingsFixture({ open, changed = false }: {
+      open: boolean; changed?: boolean
+    }): React.JSX.Element {
+      const origin = React.useRef<HTMLButtonElement>(null)
+      return (
+        <I18nProvider locale="zh-CN">
+          <button ref={origin} type="button">打开设置</button>
+          <div>
+            <div inert={changed && focus === 'inert-input'}>
+              {(!changed || focus !== 'removed-input') && <input
+                aria-label="消息"
+                disabled={changed && focus === 'disabled-input'}
+                type={changed && focus === 'hidden-input' ? 'hidden' : 'text'}
+              />}
+            </div>
+          </div>
+          <HarnessSettingsPage
+            onClearHistory={async () => undefined}
+            onClose={onClose}
+            onSave={async () => undefined}
+            loadHarnessInstallations={installedHarnesses}
+            open={open}
+            origin={origin.current}
+            resources={{} as HarnessPresentationResources}
+            defaultCwd="/workspace"
+            value={createDefaultOpenAgentSettings()}
+          />
+        </I18nProvider>
+      )
+    }
+
+    const view = render(<SettingsFixture open={false} />)
+    const opener = screen.getByRole('button', { name: '打开设置' })
+    const target = focus === 'canvas' ? document.body : screen.getByRole('textbox', { name: '消息' })
+    if (focus !== 'canvas') target.focus()
+    expect(target).toHaveFocus()
+    // A shortcut opens settings without first moving focus to its animation anchor.
+    view.rerender(<SettingsFixture open />)
+    expect(screen.getByRole('button', { name: '返回' })).toHaveFocus()
+    // Live interaction controls can disappear or stop accepting focus.
+    view.rerender(<SettingsFixture open changed />)
+    fireEvent.keyDown(screen.getByRole('region', { name: '设置' }), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    view.rerender(<SettingsFixture open={false} changed />)
+    const fallback = focus !== 'canvas' && focus !== 'input'
+    expect(fallback ? opener : target).toHaveFocus()
+    if (!fallback) expect(opener).not.toHaveFocus()
   })
 
   it('localizes the Bart workspace navigation and running clear status', () => {

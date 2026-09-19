@@ -516,7 +516,7 @@
   animation: thread-overview-toolbar-in 320ms var(--ease-out) both;
 }
 
-.thread-tag-filter-bar:focus-within {
+.thread-tag-filter-bar:has(:is(:focus-visible, [data-keyboard-focus]):not([data-quiet-focus])) {
   border-color: rgba(255, 255, 255, 0.4);
 }
 
@@ -594,7 +594,7 @@
   color: rgba(255, 255, 255, 0.96);
 }
 
-.thread-tag-filter-option:focus-visible {
+.thread-tag-filter-option:is(:focus-visible, [data-keyboard-focus]) {
   outline: 2px solid color-mix(in srgb, var(--accent) 38%, transparent);
   outline-offset: -2px;
 }
@@ -678,7 +678,7 @@
 }
 
 .overview-liquid .thread-tag-filter-bar,
-.overview-liquid .thread-tag-filter-bar:focus-within,
+.overview-liquid .thread-tag-filter-bar:has(:is(:focus-visible, [data-keyboard-focus]):not([data-quiet-focus])),
 .overview-liquid .thread-overview-actions {
   background: transparent;
   backdrop-filter: none;
@@ -864,7 +864,7 @@
 }
 
 .thread-overview-item:hover::after,
-.thread-overview-item:has(> .thread-overview-item-open:focus-visible)::after {
+.thread-overview-item:has(> .thread-overview-item-open:is(:focus-visible, [data-keyboard-focus]):not([data-quiet-focus]))::after {
   width: 3px;
   opacity: 1;
 }
@@ -892,7 +892,7 @@
   appearance: none;
 }
 
-.thread-overview-item:has(> .thread-overview-item-open:focus-visible) {
+.thread-overview-item:has(> .thread-overview-item-open:is(:focus-visible, [data-keyboard-focus]):not([data-quiet-focus])) {
   outline: 2px solid color-mix(in srgb, var(--thread-provider-color) 64%, transparent);
   outline-offset: -2px;
 }
@@ -1120,7 +1120,7 @@
       inset 0 0 14px rgba(255, 255, 255, 0.3);
   }
 
-  .thread-tag-filter-bar:focus-within {
+  .thread-tag-filter-bar:has(:is(:focus-visible, [data-keyboard-focus]):not([data-quiet-focus])) {
     border-color: rgba(25, 114, 95, 0.3);
   }
 
@@ -3151,7 +3151,7 @@
     0 1px 2px light-dark(rgba(16, 17, 15, .04), rgba(224, 229, 218, .04));
 }
 .thread-overview-item.overview-grid-card:is(.thread-card-composed, .report-overview-item)::after { content: none; }
-.thread-overview-item.overview-grid-card:is(.thread-card-composed, .report-overview-item):has(> .thread-overview-item-open:focus-visible) {
+.thread-overview-item.overview-grid-card:is(.thread-card-composed, .report-overview-item):has(> .thread-overview-item-open:is(:focus-visible, [data-keyboard-focus]):not([data-quiet-focus])) {
   outline-color: var(--ink);
 }
 

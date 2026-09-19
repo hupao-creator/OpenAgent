@@ -6,12 +6,14 @@ import { synchronizeRendererState } from '../../shared/renderer-state-sync'
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode
 } from 'react'
 import { flushSync } from 'react-dom'
+import { installButtonFocusVisibility } from './button-focus-visibility'
 import { createBartComposerStore, ATTACHMENT_LIMIT_ERROR, ATTACHMENT_IMPORT_BUSY_ERROR } from './bart-composer-store'
 import type { AgentThreadRecord } from '@openagent/contracts'
 import type { ThreadInteractionResponseRequest } from '../../shared/desktop-api'
@@ -87,6 +89,7 @@ interface ProjectedOverviewAggregate {
 }
 
 export default function App(): React.JSX.Element {
+  useLayoutEffect(() => installButtonFocusVisibility(document), [])
   const [store] = useState(() => createRendererStateStore(''))
   return <RendererStoreProvider store={store}><AppContent /></RendererStoreProvider>
 }
