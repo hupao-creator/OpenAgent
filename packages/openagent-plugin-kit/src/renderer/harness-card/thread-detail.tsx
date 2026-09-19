@@ -5,6 +5,7 @@ import { HarnessMessageTimeline, type ThreadTimelineRow } from './timeline.js'
 import { formatThreadWorkDuration } from './thread-view.js'
 import { threadDocumentHeading, threadDocumentSummary } from './document-summary.js'
 import { useTextSwap } from './text-swap.js'
+import { groupThreadExecutionRows } from './execution-process.js'
 import './thread-detail.css'
 
 const FrameContext = createContext(false)
@@ -342,6 +343,8 @@ function ThreadHistoryPage(props: {
 export const ThreadDetailTurn = memo(function ThreadDetailTurn(props: {
   readonly id: string
   readonly rows: readonly ThreadDetailRow[]
+  /** Harness-owned execution membership; grouping follows visible row order. */
+  readonly executionRunIds?: ReadonlyMap<string, string>
   readonly createdAt: number
   readonly updatedAt: number
   readonly status: ReactNode
@@ -353,11 +356,14 @@ export const ThreadDetailTurn = memo(function ThreadDetailTurn(props: {
   const visibility = useThreadDetailVisibility()
   const workVisible = visibility.work &&
     (!visibility.workTurnId || visibility.workTurnId === props.id)
+  const visibleRows = props.rows.filter(row =>
+    (row.kind !== 'user' || visibility.userMessages) &&
+    (row.kind !== 'work' || workVisible))
+  const rows = props.executionRunIds
+    ? groupThreadExecutionRows(visibleRows, props.executionRunIds) : visibleRows
   return (
     <section className="thread-detail-turn" data-turn-id={props.id} aria-label={t('对话轮次')}>
-      {props.rows.map((row) => {
-        if (row.kind === 'user' && !visibility.userMessages) return null
-        if (row.kind === 'work' && !workVisible) return null
+      {rows.map((row) => {
         return <div key={row.id} data-thread-row-id={row.id} className={`thread-detail-row thread-detail-${row.kind}`}>{row.node}</div>
       })}
       {!props.active ? <footer className="thread-detail-turn-footer">

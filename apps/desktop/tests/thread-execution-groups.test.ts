@@ -24,12 +24,12 @@ describe('adjacent execution runs', () => {
   })
 
   it.each(['assistant', 'user-message', 'interaction', 'error', 'notice', 'plan', 'usage', 'context-compaction'])
-    ('preserves the %s boundary, including when projected away', (kind) => {
+    ('only preserves the %s boundary while it is rendered', (kind) => {
       const items = [{ id: 'r', kind: 'reasoning' }, { id: 'boundary', kind }, { id: 'a', kind: 'activity' }]
       const runIds = threadExecutionRunIds(items, execution)
       expect(groupedIds(items)).toEqual([['r'], ['boundary'], ['a']])
       const runs = partitionExecutionRows(project(items).filter(item => item.id !== 'boundary'), runIds)
-      expect(runs.map(run => run.kind === 'execution' ? run.rows.map(row => row.id) : [])).toEqual([['r'], ['a']])
+      expect(runs.map(run => run.kind === 'execution' ? run.rows.map(row => row.id) : [])).toEqual([['r', 'a']])
     })
 
   it('does not swallow attention rows even when the native run includes them', () => {
