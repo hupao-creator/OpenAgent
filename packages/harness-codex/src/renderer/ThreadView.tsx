@@ -31,7 +31,6 @@ import {
   threadDocumentHeading,
   ThreadDetailTurn,
   ThreadTokenUsage,
-  activityRowKind,
   threadExecutionRunIds,
   type ThreadDetailRow,
   ThreadTimelineAssistantMessage,
@@ -276,7 +275,7 @@ export const CodexTurnRows = memo(function CodexTurnRows(props: {
       }
       if (activities.length) rows.push({
         id: item.id,
-        kind: activityRowKind(activities),
+        kind: 'work',
         node: <CodexToolActivityGroup
           activities={activities}
           groupId={`${props.turn.executionId}:${item.id}:tools`}

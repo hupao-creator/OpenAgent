@@ -51,8 +51,7 @@ function PiTimeline(props: Props): React.JSX.Element {
           }] : []),
           ...(m.role === 'assistant' && !text.trim() ? [] : [{
             id: m.id,
-            kind: m.role === 'user' ? 'user' as const : m.role === 'tool'
-              ? m.isError ? 'attention' as const : 'work' as const : 'content' as const,
+            kind: m.role === 'user' ? 'user' as const : m.role === 'tool' ? 'work' as const : 'content' as const,
             node: <Message message={m} />
           }])
         ]

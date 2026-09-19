@@ -102,6 +102,31 @@ it('interrupts running execution and displays action failures', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('abort failed')
   expect(a.interrupt).toHaveBeenCalledOnce()
 })
+it.each(['current', 'history'] as const)('folds failed tools in %s reading', (mode) => {
+  const current = thread()
+  const state = JSON.parse(JSON.stringify(current.sessionState)) as PiSessionState
+  const executionId = mode === 'history' ? 'first' : 'second'
+  const answerIndex = state.messages.findIndex(message => message.executionId === executionId && message.role === 'assistant')
+  state.messages.splice(answerIndex, 0, { id: 'failed-tool', executionId, role: 'tool', toolName: 'Failed shell command', text: 'Command exited with code 1', isError: true })
+  const view = render(<I18nProvider locale="en-US"><PiThreadView thread={{ ...current, sessionState: piJson(state) }} actions={actions()}
+    readingTarget={{ requestId: mode, executionId, mode }}
+  /></I18nProvider>)
+  const page = within(mode === 'history'
+    ? view.container.querySelector<HTMLElement>('.thread-detail-subpage')! : view.container)
+  expect(page.queryByText('Failed shell command')).toBeNull()
+  fireEvent.click(page.getByRole('button', { name: 'Show work' }))
+  expect(page.queryByText('Failed shell command')).toBeNull()
+  const process = page.getByRole('button', { name: 'Execution process' })
+  expect(process).toHaveAttribute('aria-expanded', 'false')
+  fireEvent.click(process)
+  const tool = page.getByText('Failed shell command').closest('summary')!
+  expect(tool.closest('.thread-execution-process')).not.toBeNull()
+  fireEvent.click(tool)
+  expect(page.getByRole('alert')).toHaveTextContent('Command exited with code 1')
+  fireEvent.click(page.getByRole('button', { name: 'Hide work' }))
+  expect(page.queryByText('Failed shell command')).toBeNull()
+  expect(page.queryByText('Command exited with code 1')).toBeNull()
+})
 it('answers current public questions and removes controls after resolution', async () => {
   const a = actions()
   const waiting: PublicExecution = { executionId: 'second', startedAt: 3, status: 'waiting-for-user', interactions: [{ id: 'request', kind: 'question', title: 'Choose deployment', actions: [{ id: 'submit', intent: 'submit', label: 'Send answer' }], questions: [{ id: 'target', prompt: 'Which target?', multiple: false, allowOther: false, secret: false, options: [{ value: 'staging', label: 'Staging' }] }] }] }
