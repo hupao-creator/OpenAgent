@@ -28,6 +28,13 @@ import type { HarnessRendererThreadActions } from '@openagent/contracts/renderer
 
 afterEach(cleanup)
 
+/** Merged work rows live inside a folded disclosure until the reader opens it. */
+function showExecutionProcesses(): void {
+  for (const summary of document.querySelectorAll<HTMLElement>(
+    '.thread-execution-process .activity-group-summary[aria-expanded="false"]'
+  )) fireEvent.click(summary)
+}
+
 describe('Claude Plugin-owned interaction renderer', () => {
   it.each(['other-first', 'option-first'] as const)(
     'submits only the latest single-choice answer when switching %s',
@@ -411,6 +418,7 @@ describe('Claude Plugin-owned interaction renderer', () => {
 
     expect(screen.queryByText('Cancelled native tool')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
+    showExecutionProcesses()
     const activity = screen.getByText('Cancelled native tool').closest('button')
     expect(activity).not.toBeNull()
     expect(within(activity!).getByText('Cancelled')).toBeInTheDocument()
@@ -543,6 +551,7 @@ describe('Claude Plugin-owned interaction renderer', () => {
     expect(screen.queryByText('Ordered current prompt')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show user messages' }))
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
+    showExecutionProcesses()
     fireEvent.click(screen.getByRole('button', { name: 'Current native activity Completed' }))
     expect(screen.getAllByText('Current native activity')).toHaveLength(1)
     expect(screen.getByText('Current final activity detail')).toBeInTheDocument()
@@ -1054,6 +1063,7 @@ describe('Claude Plugin-owned interaction renderer', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: '显示执行过程' }))
+    showExecutionProcesses()
     const agentRow = screen.getByText('Backgroundable native agent')
       .closest<HTMLElement>('.claude-renderer-activity-row')
     const taskRow = screen.getByText('Stoppable native task')

@@ -18,6 +18,13 @@ import type { AgentThreadRecord } from '@openagent/contracts'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
+/** Adjacent work is merged into a folded 执行过程 entry; the reader has to open it. */
+function openExecutionProcesses(scope: HTMLElement): void {
+  for (const summary of scope.querySelectorAll<HTMLElement>(
+    'button[aria-label="执行过程"][aria-expanded="false"]'
+  )) fireEvent.click(summary)
+}
+
 function rows(count: number): ThreadDocumentRow[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `turn-${index}`, createdAt: index,
@@ -289,6 +296,7 @@ describe('shared history controls in Agent and Bart shells', () => {
       if (harnessId === 'pi') {
         expect(screen.queryByText('思考过程')).toBeNull()
         fireEvent.click(screen.getByRole('button', { name: '显示执行过程' }))
+        openExecutionProcesses(view.container)
         expect(screen.getByText('思考过程')).toBeVisible()
         fireEvent.click(screen.getByRole('button', { name: '收起执行过程' }))
         expect(screen.queryByText('思考过程')).toBeNull()
@@ -310,6 +318,7 @@ describe('shared history controls in Agent and Bart shells', () => {
       fireEvent.click(page.getByRole('button', { name: '显示执行过程' }))
       expect(element.querySelector('.thread-detail-work')).toBeVisible()
       if (harnessId === 'pi') {
+        openExecutionProcesses(element)
         fireEvent.click(page.getByText('思考过程'))
         expect(await page.findByText('reasoning')).toBeVisible()
         fireEvent.click(page.getByRole('button', { name: '收起执行过程' }))

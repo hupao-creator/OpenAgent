@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { HarnessRendererThreadActions, HarnessRendererThreadInput } from '@openagent/contracts/renderer'
 import { isPublicExecutionActive } from '@openagent/contracts/renderer'
 import type { PublicInteraction } from '@openagent/contracts'
-import { ThreadDetailSurface, ThreadDetailTurn, ThreadDocumentSummary, threadDocumentHeading, ThreadTokenUsage, ThreadTimelineMarkdown, ThreadTimelineUserMessage, ThreadTimelineAssistantMessage, ThreadSurfaceDisclosure, ThreadDetailRequest, InteractionQuestionField, useInteractionAnswers, useI18n } from '@openagent/plugin-kit/renderer'
+import { ThreadDetailSurface, ThreadDetailTurn, ThreadDocumentSummary, threadDocumentHeading, ThreadTokenUsage, ThreadTimelineMarkdown, ThreadTimelineUserMessage, ThreadTimelineAssistantMessage, ThreadSurfaceDisclosure, ThreadDetailRequest, InteractionQuestionField, useInteractionAnswers, useI18n, groupThreadExecutionRows, threadExecutionRunIds, type ThreadDetailRow } from '@openagent/plugin-kit/renderer'
 import { piBartReplyAnchor } from '../shared/bart-presentation.js'
 import { piState } from '../shared/state.js'
-import type { PiMessage } from '../shared/types.js'
+import type { PiMessage, PiSessionState } from '../shared/types.js'
 
 type Props = HarnessRendererThreadInput & { readonly actions: HarnessRendererThreadActions }
 export function PiThreadView(props: Props): React.JSX.Element {
@@ -23,9 +23,45 @@ function PiTimeline(props: Props): React.JSX.Element {
     try { await action() } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
     finally { setBusy(false) }
   }
-  let state
-  try { state = piState(props.thread.sessionState) }
-  catch (e) { return <div role="alert">{t('Pi 状态不可用')} · {String(e)}</div> }
+  // Parsing clones the whole session, so it stays off every unrelated render.
+  const parsed = useMemo<{ readonly state: PiSessionState } | { readonly failure: string }>(() => {
+    try { return { state: piState(props.thread.sessionState) } }
+    catch (e) { return { failure: String(e) } }
+  }, [props.thread.sessionState])
+  if ('failure' in parsed) return <div role="alert">{t('Pi 状态不可用')} · {parsed.failure}</div>
+  const state = parsed.state
+  // Native rows and their grouping depend only on the session and the locale.
+  const executions = useMemo(() => {
+    const messagesByExecution = new Map<string, PiMessage[]>()
+    for (const message of state.messages) {
+      const existing = messagesByExecution.get(message.executionId)
+      if (existing) existing.push(message)
+      else messagesByExecution.set(message.executionId, [message])
+    }
+    return state.executions.map((execution) => {
+      const messages = messagesByExecution.get(execution.executionId) ?? []
+      const messageRows: ThreadDetailRow[] = messages.flatMap(m => {
+        // Session state is not validated per field: a message without text is empty.
+        const text = typeof m.text === 'string' ? m.text : ''
+        return [
+          // A thinking-only assistant placeholder is not a prose boundary.
+          ...(m.role === 'assistant' && m.thinking ? [{
+            id: `${m.id}:thinking`, kind: 'work' as const,
+            node: <ThreadSurfaceDisclosure label={t('思考过程')}><ThreadTimelineMarkdown>{m.thinking}</ThreadTimelineMarkdown></ThreadSurfaceDisclosure>
+          }] : []),
+          ...(m.role === 'assistant' && !text.trim() ? [] : [{
+            id: m.id,
+            kind: m.role === 'user' ? 'user' as const : m.role === 'tool'
+              ? m.isError ? 'attention' as const : 'work' as const : 'content' as const,
+            node: <Message message={m} />
+          }])
+        ]
+      })
+      return { execution, messages,
+        processRows: groupThreadExecutionRows(messageRows,
+          threadExecutionRunIds(messageRows, row => row.kind === 'work')) }
+    })
+  }, [state, t])
   return <div className="pi-thread provider-theme-pi">
     <div className="pi-actions">
       {active ? <button disabled={busy} onClick={() => void run(props.actions.interrupt)}>{t('中断')}</button> : null}
@@ -37,11 +73,10 @@ function PiTimeline(props: Props): React.JSX.Element {
         rowId: state.executions.some(e => e.executionId === props.readingTarget!.executionId)
           ? props.readingTarget.mode === 'current' ? undefined : props.readingTarget.executionId : null,
         anchorId: piBartReplyAnchor(state, props.readingTarget.message) } : undefined}
-      rows={state.executions.map((execution, index) => {
-        const messages = state.messages.filter(m => m.executionId === execution.executionId)
+      rows={executions.map(({ execution, messages, processRows }, index) => {
         const usage = messages.findLast(m => m.role === 'assistant' && m.usage)?.usage
         const current = latest?.executionId === execution.executionId
-        const historical = index < state.executions.length - 1
+        const historical = index < executions.length - 1
         const finishedAt = 'finishedAt' in execution ? execution.finishedAt : undefined
         return { id: execution.executionId, createdAt: execution.startedAt,
           subpage: historical ? {
@@ -54,14 +89,7 @@ function PiTimeline(props: Props): React.JSX.Element {
             completedAt={execution.status === 'completed' ? finishedAt : undefined}
             usage={usage ? <ThreadTokenUsage input={usage.input + usage.cacheRead + usage.cacheWrite} output={usage.output} cached={usage.cacheRead} cacheWrite={usage.cacheWrite} /> : undefined}
             rows={[
-              ...messages.flatMap(m => [
-                // Native thinking belongs to the execution's work, live and historical alike.
-                ...(m.role === 'assistant' && m.thinking ? [{
-                  id: `${m.id}:thinking`, kind: 'work' as const,
-                  node: <ThreadSurfaceDisclosure label={t('思考过程')}><ThreadTimelineMarkdown>{m.thinking}</ThreadTimelineMarkdown></ThreadSurfaceDisclosure>
-                }] : []),
-                { id: m.id, kind: m.role === 'user' ? 'user' as const : m.role === 'tool' ? 'work' as const : 'content' as const, node: <Message message={m} /> }
-              ]),
+              ...processRows,
               ...(execution.status === 'failed' && execution.error ? [{ id: 'execution-error', kind: 'content' as const, node: <div role="alert">{execution.error}</div> }] : []),
               ...(current && latest?.status === 'waiting-for-user' ? latest.interactions.map(interaction => ({ id: interaction.id, kind: 'content' as const, node: <PiInteraction key={interaction.id} interaction={interaction} busy={busy} respond={(actionId, answers) => run(() => props.actions.respond({ interactionId: interaction.id, actionId, ...(answers ? { answers } : {}) }))} /> })) : [])
             ]} /> }

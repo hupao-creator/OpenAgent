@@ -9,6 +9,18 @@ import { parseClaudeThreadState, type ClaudeTurn } from '../src/shared/state.js'
 
 afterEach(cleanup)
 
+/** The merged work disclosure starts folded, so its native rows are not mounted yet. */
+function showExecutionProcesses(): void {
+  for (const summary of screen.queryAllByRole('button', { name: 'Execution process' })) {
+    if (summary.getAttribute('aria-expanded') === 'false') fireEvent.click(summary)
+  }
+}
+
+/** Groups the native activity rows own; the merged work disclosure is not one of them. */
+function nativeActivityGroups(container: HTMLElement): NodeListOf<Element> {
+  return container.querySelectorAll('.activity-group:not(.thread-execution-process)')
+}
+
 describe('Claude current timeline', () => {
   it.each([
     ['completed', 'completed', 'Completed'],
@@ -40,6 +52,7 @@ describe('Claude current timeline', () => {
     renderClaudeTurn(turn)
 
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
+    showExecutionProcesses()
     expect(screen.getByRole('button', { name: `Settled task ${label}` })).toBeInTheDocument()
     const interaction = screen.getByText('Settled permission').closest('div')!
     expect(within(interaction).getByText('Cancelled')).toBeInTheDocument()
@@ -69,14 +82,17 @@ describe('Claude current timeline', () => {
     ]
     const container = renderClaudeTurn(turn)
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
+    showExecutionProcesses()
 
-    const groups = container.querySelectorAll('.activity-group')
+    // The assistant answer splits the run, so the two sides stay separate entries.
+    expect(container.querySelectorAll('.thread-execution-process')).toHaveLength(2)
+    const groups = nativeActivityGroups(container)
     expect(groups).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Claude execution activity' }))
     expect(groups[0]!.querySelectorAll('.claude-renderer-activity-row')).toHaveLength(2)
     expect(screen.getByText('Read project routes').closest('.activity-group')).toBe(groups[0])
     expect(screen.getByText('Search filter components').closest('.activity-group')).toBe(groups[0])
-    expect(screen.getByText('Add status filter').closest('.activity-group')).toBeNull()
+    expect(screen.getByText('Add status filter').closest('.activity-group:not(.thread-execution-process)')).toBeNull()
     expect(groups[0]!.querySelector('.activity-group-state svg')?.getAttribute('class'))
       .toContain('lucide-wrench')
   })
@@ -101,8 +117,9 @@ describe('Claude current timeline', () => {
     ]
     const container = renderClaudeTurn(turn)
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
+    showExecutionProcesses()
 
-    const group = container.querySelector('.activity-group')!
+    const group = nativeActivityGroups(container)[0]!
     expect(group.querySelector('.activity-group-body')?.classList.contains('open')).toBe(false)
     expect(group.querySelector('.activity-group-state svg')?.getAttribute('class')).toContain(glyph)
     expect(group.querySelector('.activity-group-summary')?.getAttribute('aria-label'))
@@ -131,8 +148,10 @@ describe('Claude current timeline', () => {
     ]
     const container = renderClaudeTurn(turn)
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
+    showExecutionProcesses()
 
-    expect(container.querySelectorAll('.activity-group')).toHaveLength(0)
+    expect(container.querySelectorAll('.thread-execution-process')).toHaveLength(2)
+    expect(nativeActivityGroups(container)).toHaveLength(0)
     expect(screen.getByText('Read project routes')).toBeInTheDocument()
     expect(screen.getByText('Add status filter')).toBeInTheDocument()
     expect(screen.queryByText('Steering nudge')).not.toBeInTheDocument()
@@ -157,8 +176,10 @@ describe('Claude current timeline', () => {
     ]
     const container = renderClaudeTurn(turn)
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
+    showExecutionProcesses()
 
-    expect(container.querySelectorAll('.activity-group')).toHaveLength(0)
+    expect(container.querySelectorAll('.thread-execution-process')).toHaveLength(2)
+    expect(nativeActivityGroups(container)).toHaveLength(0)
     expect(screen.getByText('Read project routes')).toBeInTheDocument()
     expect(screen.getByText('Add status filter')).toBeInTheDocument()
   })
@@ -166,19 +187,21 @@ describe('Claude current timeline', () => {
   it('hands focus to the group summary when a live row becomes a group', () => {
     const view = render(<ClaudeTurnTree turn={focusTurn(false)} />)
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
+    showExecutionProcesses()
     const row = view.container.querySelector<HTMLElement>('.claude-renderer-activity-row .activity-summary')!
     row.focus()
     expect(row).toHaveFocus()
 
     view.rerender(<ClaudeTurnTree turn={focusTurn(true)} />)
 
-    expect(view.container.querySelectorAll('.activity-group')).toHaveLength(1)
+    expect(nativeActivityGroups(view.container)).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Claude execution activity' })).toHaveFocus()
   })
 
   it('leaves focus alone when the row already lost it before becoming a group', () => {
     const view = render(<ClaudeTurnTree turn={focusTurn(false)} />)
     fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
+    showExecutionProcesses()
     const row = view.container.querySelector<HTMLElement>('.claude-renderer-activity-row .activity-summary')!
     row.focus()
     row.blur()
@@ -186,7 +209,7 @@ describe('Claude current timeline', () => {
 
     view.rerender(<ClaudeTurnTree turn={focusTurn(true)} />)
 
-    expect(view.container.querySelectorAll('.activity-group')).toHaveLength(1)
+    expect(nativeActivityGroups(view.container)).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Claude execution activity' })).not.toHaveFocus()
   })
 })
