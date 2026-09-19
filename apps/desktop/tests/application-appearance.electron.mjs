@@ -79,7 +79,16 @@ async function checkOpaqueBackground(page) {
 async function navigateBart(page, inside) {
   const samples = []
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+b' : 'Control+b')
-  await page.waitForFunction(() => document.querySelector('[data-bart-camera-active], [data-bart-camera-error]'))
+  try {
+    await page.waitForFunction(() => document.querySelector('[data-bart-camera-active], [data-bart-camera-error]'))
+  } catch (error) {
+    result.cameraAtFailure = await page.locator('.app-shell').evaluate(element => ({
+      attributes: Object.fromEntries([...element.attributes].filter(attribute => attribute.name.startsWith('data-bart-camera')).map(attribute => [attribute.name, attribute.value])),
+      hidden: document.hidden, width: innerWidth, height: innerHeight,
+      marks: performance.getEntriesByType('mark').filter(mark => mark.name.startsWith('bart-camera')).map(mark => ({ name: mark.name, startTime: mark.startTime, detail: mark.detail }))
+    }))
+    throw error
+  }
   const failure = await page.locator('.app-shell').getAttribute('data-bart-camera-error')
   assert.equal(failure, null, `Bart camera preparation failed: ${failure}`)
   await page.waitForSelector('[data-bart-camera-active]')
