@@ -172,11 +172,15 @@ function AppContent(): React.JSX.Element {
     setSettingsOpen(false)
   }, [bartFlightActive])
   const settingsOriginRef = useRef<HTMLElement | null>(null)
+  const settingsOriginRectRef = useRef<DOMRectReadOnly | null>(null)
   const openSettings = useCallback((event?: React.MouseEvent<HTMLButtonElement>): void => {
     if (settingsOpen) return
-    finishBartNavigation(getBartTarget())
     settingsOriginRef.current = event?.currentTarget ?? Array.from(document.querySelectorAll<HTMLElement>('[data-settings-trigger]'))
       .find((element) => element.getBoundingClientRect().width > 0 && !element.closest('[inert]')) ?? null
+    // Finishing navigation can synchronously move or unmount the clicked page.
+    // Keep the visible button's bounds before any of those layout changes.
+    settingsOriginRectRef.current = settingsOriginRef.current?.getBoundingClientRect() ?? null
+    finishBartNavigation(getBartTarget())
     setSettingsOpen(true)
   }, [settingsOpen, finishBartNavigation, getBartTarget])
   const [openReportId, setOpenReportId] = useState<string | null>(null)
@@ -746,6 +750,7 @@ function AppContent(): React.JSX.Element {
 
           <HarnessSettingsPage
             origin={settingsOriginRef.current}
+            originRect={settingsOriginRectRef.current}
             activeHostHarnessId={bartHarnessId}
             bartInFlight={bartFlightActive}
             defaultCwd={defaultCwd}

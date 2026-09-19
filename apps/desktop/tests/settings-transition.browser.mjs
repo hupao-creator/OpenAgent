@@ -21,7 +21,26 @@ try {
     { name: 'resize-opening', width: 1369, height: 994, resize: { width: 760, height: 650 }, duringOpening: true, close: 'Escape' }
   ]) {
     await page.setViewportSize({ width: scenario.width, height: scenario.height })
-    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const openingFrames = await page.evaluate(async () => {
+      const button = document.querySelector('[data-settings-trigger]')
+      const rect = button.getBoundingClientRect()
+      // Click the icon itself: the reveal must still be anchored to its button.
+      button.querySelector('svg').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await new Promise(resolve => queueMicrotask(resolve))
+      const root = document.querySelector('.settings-page')
+      const animation = root.getAnimations()[0]
+      animation.pause()
+      const rootRect = root.getBoundingClientRect()
+      const frames = [0, .05, .12, .25, .5, .9].map(fraction => {
+        animation.currentTime = Number(animation.effect.getTiming().duration) * fraction
+        const [radius, x, y] = getComputedStyle(root).clipPath.match(/[\d.]+/g).map(Number)
+        return { fraction, radius, x: x + rootRect.left, y: y + rootRect.top,
+          button: { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } }
+      })
+      animation.currentTime = 0
+      animation.play()
+      return frames
+    })
     if (!scenario.duringOpening) await page.waitForSelector('.settings-page[data-phase=open]')
     if (scenario.resize) {
       await page.setViewportSize(scenario.resize)
@@ -62,7 +81,7 @@ try {
       for (const animation of animations) animation.currentTime = Number(animation.effect.getTiming().duration) * .65
       return samples
     }, scenario.close)
-    observations.push({ scenario, frames })
+    observations.push({ scenario, openingFrames, frames })
     await page.screenshot({ path: path.join(output, `${scenario.name}-handoff.png`) })
     await page.evaluate(() => {
       // The Bart tab keeps decorative loops running inside the page (the dispatch
@@ -80,7 +99,10 @@ try {
   await browser.close()
   await writeFile(path.join(output, 'frames.json'), JSON.stringify(observations, null, 2))
 }
-for (const { scenario, frames } of observations) {
+for (const { scenario, openingFrames, frames } of observations) {
+  for (const frame of openingFrames) {
+    assert.ok(Math.hypot(frame.x - frame.button.x, frame.y - frame.button.y) < 1, `${scenario.name}: opening center must stay on the clicked button`)
+  }
   for (const frame of frames) {
     assert.ok(Math.hypot(frame.x - frame.button.x, frame.y - frame.button.y) < 1, `${scenario.name}: closing center must follow the visible button`)
     if (frame.opacity > .05 && frame.opacity < .95) {
@@ -88,4 +110,4 @@ for (const { scenario, frames } of observations) {
     }
   }
 }
-console.log(`Settings close geometry, fade handoff and focus passed in ${observations.length} scenarios. Evidence: ${output}`)
+console.log(`Settings opening/closing geometry, fade handoff and focus passed in ${observations.length} scenarios. Evidence: ${output}`)
