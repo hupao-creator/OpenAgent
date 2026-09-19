@@ -240,6 +240,9 @@ describe('Core Renderer shell localization', () => {
         fireEvent.keyDown(document, { key: 'Escape' })
         expect(effects.filter(effect => effect.target === root).at(-1)?.frames[1]?.clipPath)
           .toBe('circle(15px at 875px 80px)')
+        fireEvent.keyDown(window, { key: ',', metaKey: true, ctrlKey: true })
+        expect(effects.filter(effect => effect.target === root).at(-1)?.frames.at(-1)?.clipPath)
+          .toMatch(/ at 875px 80px\)$/)
       }
       await act(async () => undefined)
     } finally {
