@@ -3,10 +3,11 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Fragment } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { I18nProvider } from '../../../packages/openagent-plugin-kit/src/renderer/i18n'
-import { groupThreadExecutionRows } from '../../../packages/openagent-plugin-kit/src/renderer/harness-card/execution-process'
-import { threadExecutionRunIds } from '../../../packages/openagent-plugin-kit/src/renderer/harness-card/execution-groups'
-import type { ThreadDetailRow } from '../../../packages/openagent-plugin-kit/src/renderer/harness-card/thread-detail'
+// The Harness views below resolve the package build, so the Kit is taken from the
+// same graph: a deep `src` import would give the test a second, unrelated context.
+import {
+  I18nProvider, groupThreadExecutionRows, threadExecutionRunIds, type ThreadDetailRow
+} from '@openagent/plugin-kit/renderer'
 import type { AgentThreadRecord } from '@openagent/contracts'
 import { createCodexPreview } from '../playgrounds/thread-detail/src/native-fixtures/codex'
 import { createClaudePreview } from '../playgrounds/thread-detail/src/native-fixtures/claude'
@@ -123,13 +124,16 @@ for (const [harnessId, fixture, View] of [
       : turn.activities.find((item: { id: string }) => item.id === reference.activityId)
     const activities = [1, 2].map(index => ({ ...original, id: `native-${index}`, status: 'completed' }))
     turn.activities = activities
+    // Claude rejects a timeline whose timestamps move backwards, and the fixture's
+    // own values cannot be reused across the rebuilt rows, so number them here.
+    const base = Math.max(turn.createdAt, reasoning.createdAt, reference.createdAt, user.createdAt)
     turn.timeline = [
-      { ...reasoning, id: 'r1', content: 'Reasoning one' },
-      harnessId === 'claude' ? { ...reference, id: 'a1', activity: activities[0] }
-        : { ...reference, id: 'a1', activityId: activities[0].id },
-      { ...reasoning, id: 'r2', content: 'Reasoning two' },
-      harnessId === 'claude' ? { ...reference, id: 'a2', activity: activities[1] }
-        : { ...reference, id: 'a2', activityId: activities[1].id }
+      { ...reasoning, id: 'r1', createdAt: base, content: 'Reasoning one' },
+      harnessId === 'claude' ? { ...reference, id: 'a1', createdAt: base + 1, activity: activities[0] }
+        : { ...reference, id: 'a1', createdAt: base + 1, activityId: activities[0].id },
+      { ...reasoning, id: 'r2', createdAt: base + 2, content: 'Reasoning two' },
+      harnessId === 'claude' ? { ...reference, id: 'a2', createdAt: base + 3, activity: activities[1] }
+        : { ...reference, id: 'a2', createdAt: base + 3, activityId: activities[1].id }
     ]
     const thread: AgentThreadRecord = {
       archived: false, id: 'mixed', harnessId, title: 'Mixed', cwd: '/workspace', tags: [],
@@ -148,7 +152,7 @@ for (const [harnessId, fixture, View] of [
       .toEqual(['r1', 'a1', 'r2', 'a2'])
     if (harnessId === 'claude') turn.internalPromptIndexes = [user.promptIndex]
     else turn.messages.find((message: { id: string }) => message.id === user.messageId).internal = true
-    turn.timeline.splice(1, 0, { ...user, id: 'internal-boundary' })
+    turn.timeline.splice(1, 0, { ...user, id: 'internal-boundary', createdAt: base + 1 })
     view.rerender(renderThread())
     expect(screen.getAllByRole('button', { name: 'Execution process' })).toHaveLength(2)
   })

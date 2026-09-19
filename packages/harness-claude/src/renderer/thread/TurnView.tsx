@@ -1,4 +1,4 @@
-import { memo, useState, type ReactNode } from 'react'
+import { memo, useMemo, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
   Check,
@@ -21,6 +21,7 @@ import {
   ThreadTimelineAttachment,
   ThreadTimelineAttachments,
   ThreadTimelineUserMessage,
+  activityRowKind,
   groupThreadExecutionRows,
   threadExecutionRunIds,
   type ThreadDetailRow
@@ -57,8 +58,8 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
   const [forkError, setForkError] = useState<string>()
   const timeline = projectClaudeTimeline(turn)
   // Preserve boundaries that projection removes, including internal prompts.
-  const executionRunIds = new Map(threadExecutionRunIds(turn.timeline,
-    item => item.kind === 'reasoning' || item.kind === 'activity'))
+  const timelineRunIds = useMemo(() => threadExecutionRunIds(turn.timeline,
+    item => item.kind === 'reasoning' || item.kind === 'activity'), [turn.timeline])
   const referencedPrompts = new Set(timeline.flatMap((item) =>
     item.kind === 'user-message' ? [item.promptIndex] : []
   ))
@@ -110,7 +111,7 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
       }
       rows.push({
         id: item.id,
-        kind: activities.some(activity => activity.status === 'failed') ? 'attention' : 'work',
+        kind: activityRowKind(activities),
         node: <ClaudeActivities activities={activities} />
       })
       index = next - 1
@@ -133,15 +134,11 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
       />
     })
   }
-  let fallbackRunId: string | undefined
+  // Recorded, not applied: membership is derived once from the finished order.
+  const appended: { readonly rowId: string; readonly execution: boolean }[] = []
   const append = (id: string, kind: ThreadDetailRow['kind'], node: ReactNode, execution = false): void => {
     const rowId = `${turn.executionId}:unreferenced:${id}`
-    if (execution && kind === 'work') {
-      fallbackRunId ??= rowId
-      executionRunIds.set(rowId, fallbackRunId)
-    } else {
-      fallbackRunId = undefined
-    }
+    appended.push({ rowId, execution: execution && kind === 'work' })
     rows.push({ id: rowId, kind, node })
   }
   turn.prompts.forEach((prompt, index) => {
@@ -167,7 +164,7 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
   }
   const activities = turn.activities.filter((activity) => !referencedActivities.has(activity.id))
   if (activities.length) {
-    append('activities', activities.some(activity => activity.status === 'failed') ? 'attention' : 'work',
+    append('activities', activityRowKind(activities),
       <ClaudeActivities activities={activities} />, true)
   }
   turn.interactions.filter((interaction) => !referencedInteractions.has(interaction.id))
@@ -208,9 +205,28 @@ export const ClaudeTurnView = memo(function ClaudeTurnView(props: {
       reasoning={turn.usage?.reasoningTokens}
     />}
     status={props.waiting ? t('等待你的响应') : turn.statusLabel || turnStatusLabel(turn.status, t)}
-    rows={groupThreadExecutionRows(rows, executionRunIds)}
+    rows={groupThreadExecutionRows(rows, appendedExecutionRunIds(timelineRunIds, appended))}
   />
 })
+
+/** Unreferenced rows are appended in one block, so a run is consecutive appended work. */
+function appendedExecutionRunIds(
+  base: ReadonlyMap<string, string>,
+  appended: readonly { readonly rowId: string; readonly execution: boolean }[]
+): ReadonlyMap<string, string> {
+  if (!appended.some((entry) => entry.execution)) return base
+  const ids = new Map(base)
+  let run: string | undefined
+  for (const entry of appended) {
+    if (!entry.execution) {
+      run = undefined
+      continue
+    }
+    run ??= entry.rowId
+    ids.set(entry.rowId, run)
+  }
+  return ids
+}
 
 export function claudeTimelineRowKind(
   item: DeepReadonly<ClaudeTimelineItem | ClaudeForkHistoryItem>,

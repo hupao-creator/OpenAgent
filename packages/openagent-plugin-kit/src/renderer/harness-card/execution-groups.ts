@@ -2,7 +2,7 @@
 export function threadExecutionRunIds<T extends { readonly id: string }>(
   items: readonly T[],
   isExecution: (item: T) => boolean
-): ReadonlyMap<string, string> {
+): Map<string, string> {
   const ids = new Map<string, string>()
   let start: string | undefined
   for (const item of items) {
@@ -14,6 +14,13 @@ export function threadExecutionRunIds<T extends { readonly id: string }>(
     ids.set(item.id, start)
   }
   return ids
+}
+
+/** One settled failure makes the whole row visible; every Harness shares the rule. */
+export function activityRowKind(
+  activities: readonly { readonly status: string }[]
+): 'attention' | 'work' {
+  return activities.some((activity) => activity.status === 'failed') ? 'attention' : 'work'
 }
 
 export type ExecutionRowRun<T> =
@@ -37,7 +44,9 @@ export function partitionExecutionRows<T extends { readonly id: string; readonly
     } else if (current && currentRunId === runId) {
       current.rows.push(row)
     } else {
-      current = { kind: 'execution', id: row.id, rows: [row] }
+      // The run id, not the first surviving row, so the group keeps its identity
+      // when that row later leaves the run.
+      current = { kind: 'execution', id: runId, rows: [row] }
       currentRunId = runId
       result.push(current)
     }

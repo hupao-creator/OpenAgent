@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  partitionExecutionRows, threadExecutionRunIds
-} from '../../../packages/openagent-plugin-kit/src/renderer/harness-card/execution-groups'
+import { partitionExecutionRows, threadExecutionRunIds } from '@openagent/plugin-kit/renderer'
 
 type Item = { readonly id: string; readonly kind: string }
 const execution = (item: Item): boolean => item.kind === 'reasoning' || item.kind === 'activity'
