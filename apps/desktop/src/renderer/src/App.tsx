@@ -609,6 +609,7 @@ function AppContent(): React.JSX.Element {
           ref={camera.stageRef}
           data-bart-camera-active={camera.active || undefined}
           data-bart-camera-preparing={camera.preparing || undefined}
+          data-bart-camera-error={camera.error || undefined}
           data-bart-camera-inside={bartThreadOpen || undefined}
           className={[
             'app-shell',

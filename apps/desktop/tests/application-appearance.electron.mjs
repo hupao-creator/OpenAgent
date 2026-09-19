@@ -79,6 +79,9 @@ async function checkOpaqueBackground(page) {
 async function navigateBart(page, inside) {
   const samples = []
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+b' : 'Control+b')
+  await page.waitForFunction(() => document.querySelector('[data-bart-camera-active], [data-bart-camera-error]'))
+  const failure = await page.locator('.app-shell').getAttribute('data-bart-camera-error')
+  assert.equal(failure, null, `Bart camera preparation failed: ${failure}`)
   await page.waitForSelector('[data-bart-camera-active]')
   // Pause after preparation: screenshot latency must not skip the entire
   // 1.1s animation on a loaded verification machine. The real scene still
