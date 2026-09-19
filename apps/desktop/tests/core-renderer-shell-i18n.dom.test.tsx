@@ -256,14 +256,16 @@ describe('Core Renderer shell localization', () => {
     expect(underlayAction).not.toHaveAttribute('aria-hidden')
   })
 
-  it.each(['canvas', 'input', 'removed-input'] as const)('restores settings focus after opening from %s', focus => {
+  it.each(['canvas', 'input', 'removed-input', 'inert-input'] as const)('restores settings focus after opening from %s', focus => {
     const onClose = vi.fn()
-    function SettingsFixture({ open, showInput = true }: { open: boolean; showInput?: boolean }): React.JSX.Element {
+    function SettingsFixture({ open, showInput = true, inputInert = false }: {
+      open: boolean; showInput?: boolean; inputInert?: boolean
+    }): React.JSX.Element {
       const origin = React.useRef<HTMLButtonElement>(null)
       return (
         <I18nProvider locale="zh-CN">
           <button ref={origin} type="button">打开设置</button>
-          {showInput && <input aria-label="消息" />}
+          <div><div inert={inputInert}>{showInput && <input aria-label="消息" />}</div></div>
           <HarnessSettingsPage
             onClearHistory={async () => undefined}
             onClose={onClose}
@@ -287,13 +289,15 @@ describe('Core Renderer shell localization', () => {
     // A shortcut opens settings without first moving focus to its animation anchor.
     view.rerender(<SettingsFixture open />)
     expect(screen.getByRole('button', { name: '返回' })).toHaveFocus()
-    // The live underlay may remove a completed interaction while settings are open.
+    // The live underlay may remove an interaction or make its subtree inert.
     if (focus === 'removed-input') view.rerender(<SettingsFixture open showInput={false} />)
+    if (focus === 'inert-input') view.rerender(<SettingsFixture open inputInert />)
     fireEvent.keyDown(screen.getByRole('region', { name: '设置' }), { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
-    view.rerender(<SettingsFixture open={false} showInput={focus !== 'removed-input'} />)
-    expect(focus === 'removed-input' ? opener : target).toHaveFocus()
-    if (focus !== 'removed-input') expect(opener).not.toHaveFocus()
+    view.rerender(<SettingsFixture open={false} showInput={focus !== 'removed-input'} inputInert={focus === 'inert-input'} />)
+    const fallback = focus === 'removed-input' || focus === 'inert-input'
+    expect(fallback ? opener : target).toHaveFocus()
+    if (!fallback) expect(opener).not.toHaveFocus()
   })
 
   it('localizes the Bart workspace navigation and running clear status', () => {
