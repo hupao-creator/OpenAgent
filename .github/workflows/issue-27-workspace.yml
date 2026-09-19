@@ -5,18 +5,35 @@ on:
 permissions:
   contents: read
 jobs:
-  snapshot:
+  dependencies:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    env:
+      HUSKY: '0'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
         with:
           ref: 9cf1585cf7deb60208d6d0fa3fee5d0ac141272a
           persist-credentials: false
-      - name: Archive tracked baseline only
-        run: git archive --format=tar.gz -o "$RUNNER_TEMP/openagent-source.tar.gz" HEAD
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+      - name: Install frozen dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Package dependencies and isolated tools only
+        run: |
+          mkdir -p issue-27-tools
+          cp "$(command -v node)" issue-27-tools/node
+          npm install --prefix issue-27-tools --ignore-scripts pnpm@10.17.1
+          tar -czf "$RUNNER_TEMP/openagent-dependencies.tar.gz" node_modules apps/desktop/node_modules packages/*/node_modules issue-27-tools
       - uses: actions/upload-artifact@v4
         with:
-          name: issue-27-source
-          path: ${{ runner.temp }}/openagent-source.tar.gz
+          name: issue-27-dependencies
+          path: ${{ runner.temp }}/openagent-dependencies.tar.gz
           retention-days: 1
+          compression-level: 0
