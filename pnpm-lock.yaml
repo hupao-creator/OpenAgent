@@ -5,9 +5,6 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@liquid-dom/core@0.1.1':
-    hash: e855cda9fae9cbda300cf91ae3822dfa50454e091aac98d3e2dd314d8d1af733
-    path: patches/@liquid-dom__core@0.1.1.patch
   llm-mock-server@1.1.0:
     hash: 0e059172fdc568e143303564ec07eca6adb99db6f9c778a491acb8ccc72e3f11
     path: patches/llm-mock-server@1.1.0.patch
@@ -59,9 +56,6 @@ importers:
       '@fontsource-variable/inter':
         specifier: ^5.2.8
         version: 5.3.0
-      '@liquid-dom/react':
-        specifier: 0.1.1
-        version: 0.1.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@openagent/test-kit':
         specifier: workspace:*
         version: link:../../packages/test-kit
@@ -931,18 +925,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
-
-  '@liquid-dom/core@0.1.1':
-    resolution: {integrity: sha512-Q+Agxas90pMz+Az3vd/wlNAbxOXBz7dQDDZl2lRCARm6TrqeKYVUoWM+Q/JmlBNoTM8z0tYMkguhmFz75ZiogQ==}
-
-  '@liquid-dom/layout@0.2.0':
-    resolution: {integrity: sha512-bdKWF2MVF7qv4+Db0e9JPE4aKXAmIEubFF4bivluFAGNJBZklLr45qggg5D2THy/gqwuuCNP5uxnOJZfi+UaHA==}
-
-  '@liquid-dom/react@0.1.1':
-    resolution: {integrity: sha512-5ZYEkxj/QqHk8U7gsGMbhrcfbzQ+03UGeasElGjREo30qEcBGJ+tPyoxEr1XR+JwrfXpEFhHuxAuBzrbvHeVbw==}
-    peerDependencies:
-      react: '>=19'
-      react-dom: '>=19'
 
   '@malept/cross-spawn-promise@2.0.0':
     resolution: {integrity: sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg==}
@@ -4184,19 +4166,6 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
-
-  '@liquid-dom/core@0.1.1(patch_hash=e855cda9fae9cbda300cf91ae3822dfa50454e091aac98d3e2dd314d8d1af733)':
-    dependencies:
-      '@liquid-dom/layout': 0.2.0
-
-  '@liquid-dom/layout@0.2.0': {}
-
-  '@liquid-dom/react@0.1.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
-    dependencies:
-      '@liquid-dom/core': 0.1.1(patch_hash=e855cda9fae9cbda300cf91ae3822dfa50454e091aac98d3e2dd314d8d1af733)
-      '@liquid-dom/layout': 0.2.0
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
 
   '@malept/cross-spawn-promise@2.0.0':
     dependencies:

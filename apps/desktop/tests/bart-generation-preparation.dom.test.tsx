@@ -56,13 +56,13 @@ async function advance(milliseconds = 0) {
   await act(async () => { await vi.advanceTimersByTimeAsync(milliseconds) })
 }
 
-function fixture({ liquid = false }: { liquid?: boolean } = {}) {
+function fixture({ nested = false }: { nested?: boolean } = {}) {
   const root = document.createElement('main')
   root.className = 'app-shell'
   const scrollMarkup = '<div class="thread-overview-scroll">' +
     '<article><strong>Initial title</strong><span class="thread-state idle">Idle</span></article></div>'
   root.innerHTML = '<section><header class="thread-overview-header"></header>' +
-    (liquid ? `<div class="overview-liquid-substrate">${scrollMarkup}</div>` : scrollMarkup) + '</section>' +
+    (nested ? `<div class="overview-content-wrapper">${scrollMarkup}</div>` : scrollMarkup) + '</section>' +
     '<div class="bart-dock"><svg class="bart-logo"></svg></div><div class="generation-host"></div>'
   document.body.append(root)
   const card = root.querySelector('article')!, dock = root.querySelector<HTMLElement>('.bart-dock')!
@@ -195,9 +195,9 @@ describe('generation preparation separates sampled content from live geometry', 
     await f.finish()
   })
 
-  it('finds the toolbar across the liquid glass substrate', async () => {
-    // 液体玻璃路径把滚动容器塞进了衬底，工具条不再是一级之隔的兄弟。
-    const f = fixture({ liquid: true })
+  it('finds the toolbar across a nested scroll container', async () => {
+    // 滚动容器可以在包装层内，工具条仍应从祖先层级找到。
+    const f = fixture({ nested: true })
     f.start(); await advance()
     expect(f.ready()).toBeDefined()
     expect(f.ready().viewport.y).toBe(42)
