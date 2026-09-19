@@ -69,6 +69,9 @@
    anchor, and the dispatch icons sit flush on both edges. */
 .harness-dispatch-map {
   position: relative; width: 100%;
+  /* Full-width translated rails must not extend the settings scroll area.
+     Keep vertical overflow visible for Bart's lift and landing gestures. */
+  overflow-x: clip;
   padding: 26px 18px 18px;
   border: 1px solid light-dark(rgba(35, 40, 48, .14), rgba(224, 229, 218, .14));
   border-radius: 12px;
