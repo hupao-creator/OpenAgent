@@ -110,8 +110,8 @@ export function selectPlan(files, { full = false, baseSha = null, mergeBase = nu
       scopes.add(workspace === desktop ? (renderer ? 'renderer' : 'main-shared') : 'packages')
       const affected = affectedWorkspaces([workspace.name], workspaces)
       product(affected, { build: affected.includes(desktop.name), native: !renderer && affected.includes(desktop.name) })
-      // Appearance is exercised through the native window/OS theme boundary.
-      if (renderer && /(?:appearance|theme|window)/i.test(relative)) add('build', 'lifecycle-runtime')
+      // Appearance and settings clipping need the native window/compositor.
+      if (renderer && /(?:appearance|theme|window|settings-page|HarnessSettingsPage)/i.test(relative)) add('build', 'lifecycle-runtime')
       continue
     }
     if (relative.startsWith('tests/')) {
@@ -120,7 +120,7 @@ export function selectPlan(files, { full = false, baseSha = null, mergeBase = nu
         product([workspace.name])
       } else if (workspace === desktop && relative === 'tests/report-runtime.electron.mjs') {
         scopes.add('report-runtime'); add('install', 'toolchain', 'registry', 'registry-diff', 'lint', 'build', 'report-runtime')
-      } else if (workspace === desktop && ['tests/app-lifecycle.electron.mjs', 'tests/application-appearance.electron.mjs'].includes(relative)) {
+      } else if (workspace === desktop && ['tests/app-lifecycle.electron.mjs', 'tests/application-appearance.electron.mjs', 'tests/settings-transition.electron.mjs'].includes(relative)) {
         scopes.add('lifecycle-runtime'); add('install', 'toolchain', 'registry', 'registry-diff', 'lint', 'build', 'lifecycle-runtime')
       } else {
         // Fixtures/helpers can be shared by native tests; do not guess their import graph.

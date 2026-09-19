@@ -17,10 +17,16 @@ function revealGeometry(root: HTMLElement, opener?: HTMLElement | null, captured
   // Cover the farthest corner, including when the button sits at a window edge.
   const radius = Math.hypot(Math.max(x, viewport.width - x), Math.max(y, viewport.height - y)) + 2
   const buttonRadius = anchored && rect ? Math.min(rect.width, rect.height) / 2 : 0
+  // Electron's Retina compositor can scale pixel-valued circles twice when
+  // clip-path animates on a backdrop-filter layer. Reference-box percentages
+  // keep the rendered geometry identical in both directions at any device scale.
+  // CSS circle radii use the normalized diagonal, not the box width.
+  const radiusBasis = Math.max(Math.hypot(viewport.width, viewport.height) / Math.SQRT2, 1)
+  const center = `${x / Math.max(viewport.width, 1) * 100}% ${y / Math.max(viewport.height, 1) * 100}%`
   return {
     anchored,
-    collapsedClip: `circle(${buttonRadius}px at ${x}px ${y}px)`,
-    expandedClip: `circle(${radius}px at ${x}px ${y}px)`
+    collapsedClip: `circle(${buttonRadius / radiusBasis * 100}% at ${center})`,
+    expandedClip: `circle(${radius / radiusBasis * 100}% at ${center})`
   }
 }
 
