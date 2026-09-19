@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@liquid-dom/core@0.1.1':
-    hash: 0eabfc77bcf8897afd3902204a43c93e088acd53b3fa921e4e0362c567a38cca
+    hash: e855cda9fae9cbda300cf91ae3822dfa50454e091aac98d3e2dd314d8d1af733
     path: patches/@liquid-dom__core@0.1.1.patch
   llm-mock-server@1.1.0:
     hash: 0e059172fdc568e143303564ec07eca6adb99db6f9c778a491acb8ccc72e3f11
@@ -4185,7 +4185,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@liquid-dom/core@0.1.1(patch_hash=0eabfc77bcf8897afd3902204a43c93e088acd53b3fa921e4e0362c567a38cca)':
+  '@liquid-dom/core@0.1.1(patch_hash=e855cda9fae9cbda300cf91ae3822dfa50454e091aac98d3e2dd314d8d1af733)':
     dependencies:
       '@liquid-dom/layout': 0.2.0
 
@@ -4193,7 +4193,7 @@ snapshots:
 
   '@liquid-dom/react@0.1.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@liquid-dom/core': 0.1.1(patch_hash=0eabfc77bcf8897afd3902204a43c93e088acd53b3fa921e4e0362c567a38cca)
+      '@liquid-dom/core': 0.1.1(patch_hash=e855cda9fae9cbda300cf91ae3822dfa50454e091aac98d3e2dd314d8d1af733)
       '@liquid-dom/layout': 0.2.0
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
