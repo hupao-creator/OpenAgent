@@ -3,11 +3,16 @@ import { getBartSpatialRegistry } from './registry'
 import { createMotionSurface, type MotionRun } from './worker-client'
 import { captureMotionCard, prewarmMotionCards, type CapturedMotionCard, type PreparedMotionCard } from './card-assets'
 import { compileGenerationProgram, withGenerationCharacter } from './generation-program'
+import { compileWritingGenerationProgram } from './writing-program'
 import { residentCharacter } from './CharacterCanvas'
 import { prepareWithinBudget, sealGeometry, sealMotionScene } from './scene-host'
 import { MOTION_LIMITS, validateMotionProgram } from './runtime-limits'
 import { generationSurface } from './generation-surface'
 import { createSceneLifetime } from './scene-lifetime'
+import type { MotionProgram } from './worker-types'
+
+/** Internal Lab seam: prepare a complete experiment before handing it to the Worker. */
+export type GenerationPreview = (program: MotionProgram, cards: readonly PreparedMotionCard[]) => MotionProgram
 
 function preparationPause(signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -19,7 +24,7 @@ function preparationPause(signal: AbortSignal): Promise<void> {
 }
 
 /** One production batch, including camera, all reveals and return. */
-export function createGenerationScene(root: HTMLElement, ids: readonly string[], parentSignal: AbortSignal) {
+export function createGenerationScene(root: HTMLElement, ids: readonly string[], parentSignal: AbortSignal, preview?: GenerationPreview) {
   const registry = getBartSpatialRegistry(), coordinator = getOverviewMotionCoordinator()
   const lifetime = createSceneLifetime('Bart generation scene ended', parentSignal), signal = lifetime.signal
   const pool = generationSurface(root), token = Symbol('generation-surface'), canvas = pool.canvas
@@ -160,9 +165,11 @@ export function createGenerationScene(root: HTMLElement, ids: readonly string[],
       await surface!.borrowCharacter(actor.id)
       sealSignal.throwIfAborted()
       if (!valid()) return undefined
-      const program = withGenerationCharacter(compileGenerationProgram(cards, dockPose, plane && initialCamera ? viewport : undefined),
-        dockPose, { a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, e: matrix.e - rootRect.left, f: matrix.f - rootRect.top },
-        actor.id, actor.description())
+      const native = { a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, e: matrix.e - rootRect.left, f: matrix.f - rootRect.top }
+      const sceneViewport = plane && initialCamera ? viewport : undefined
+      const program = preview
+        ? preview(withGenerationCharacter(compileGenerationProgram(cards, dockPose, sceneViewport), dockPose, native, actor.id, actor.description()), cards)
+        : compileWritingGenerationProgram(cards, dockPose, native, actor.id, actor.description(), sceneViewport)
       validateMotionProgram(program, new Set(cards.flatMap(card => card.assets.map(asset => asset.id))))
       run = surface!.play(program)
       const origin = await run.started

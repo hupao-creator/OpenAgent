@@ -146,7 +146,10 @@ async function verifyProductionGeneration(contents, output) {
     frames.push({ at, hash })
     if (at - lastSaved >= 200) { lastSaved = at; images.push({ at, data: image.toBitmap(), size }) }
   })
-  const startDelay = Number(process.argv[4] ?? 1400), blockMs = Number(process.argv[3] ?? 5000)
+  const relay = ready.phases.find(phase => phase.name === 'fly:1')?.at
+  if (relay === undefined || ready.duration > 15000.001) throw new Error('Production fixture must exercise a bounded two-card writing relay')
+  const startDelay = process.argv[4] === 'relay' ? relay - 180 : Number(process.argv[4] ?? 1400)
+  const blockMs = Number(process.argv[3] ?? 5000)
   await delay(Math.max(0, startDelay - (performance.now() - started)))
   const blockedAt = performance.now() - started
   await contents.executeJavaScript(`window.bartProduction.block(${blockMs})`)
@@ -156,7 +159,6 @@ async function verifyProductionGeneration(contents, output) {
   const after = await contents.executeJavaScript('window.bartProduction.status()')
   const resources = await contents.executeJavaScript('window.bartProduction.inspect()')
   await Promise.all(images.map((image, index) => writeFile(path.join(output, `production-${index}-${Math.round(image.at)}.png`), nativeImage.createFromBitmap(image.data, image.size).toPNG())))
-  const relay = ready.phases.find(phase => phase.name === 'fly:1').at
   const native = regionMetrics(frames, 'native', relay + 35, relay + 320)
   const negative = regionMetrics(frames, 'negative', blockedAt + 400, unblockedAt - 75)
   const moving = ready.phases.filter(phase => phase.name.startsWith('fly:') || phase.name.startsWith('morph:') || phase.name === 'return').map(phase => {
@@ -164,11 +166,17 @@ async function verifyProductionGeneration(contents, output) {
     const from = Math.max(blockedAt, phase.at) + 70, to = Math.min(unblockedAt, end) - 70
     return { phase: phase.name, from, to, metrics: regionMetrics(frames, 'scene', from, to) }
   }).filter(item => item.to - item.from >= 100)
-  const report = { output, ready, blockedAt, unblockedAt, native, negative, moving, after, resources, frames }
+  const writing = ready.phases.filter(phase => phase.name.startsWith('reveal:')).map(phase => {
+    const end = ready.phases.find(next => next.at > phase.at)?.at ?? ready.duration
+    const from = Math.max(blockedAt, phase.at) + 70, to = Math.min(unblockedAt, end) - 70
+    return { phase: phase.name, from, to, metrics: regionMetrics(frames, 'scene', from, to) }
+  }).filter(item => item.to - item.from >= 700)
+  const report = { output, ready, blockedAt, unblockedAt, native, negative, moving, writing, after, resources, frames }
   await writeFile(path.join(output, 'production.json'), JSON.stringify(report, null, 2))
   if (relay > blockedAt && relay + 360 < unblockedAt && (native.unique < 5 || native.maxObservedHold >= 100)) throw new Error('Native camera stopped at the offscreen relay')
   if (negative.maxObservedHold < blockMs - 650) throw new Error('Production negative control failed to detect Renderer blocking')
   if (moving.some(item => item.metrics.unique < 3 || item.metrics.maxObservedHold >= 100)) throw new Error('Production generation froze within an active segment')
+  if (!writing.length || writing.some(item => item.metrics.unique < 5 || item.metrics.maxObservedHold >= 700)) throw new Error('Production writing stopped during Renderer blocking')
   if (!after.handoff || after.inert || after.state || after.cards.some(card => card.visibility !== 'visible' || card.opacity !== '1') || resources.textures !== 0) throw new Error('Production handoff left stale pixels, hidden DOM, locks or textures')
   if (after.cards[1].rect.top < 70 || after.cards[1].rect.bottom > 610) throw new Error('Offscreen card was not framed by the prepared camera')
   console.log('BART_PRODUCTION', JSON.stringify({ output, blockedAt, unblockedAt, native, negative, moving,

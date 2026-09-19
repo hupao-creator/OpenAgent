@@ -2,12 +2,14 @@ import { createMotionState, seatDescriptor, interactionDescriptor, renderMotionF
   snapMotionToTargets, poseOf, BODY_COLOR, EYE_COLOR, type BartElements, type MotionPart } from './character-model'
 import type { CharacterDescription } from './worker-types'
 import { paintInterventionTokens, transformInterventionBody } from './intervention-canvas'
+import { paintTravelTrail } from './travel-trail'
 
 interface CharacterSeed {
   state: ReturnType<typeof createMotionState>
   changedAt: number
   interventionAt: number
   eyeMotionAt: number
+  travelTrailAt: number
 }
 export interface CanvasCharacter {
   capture(): ReturnType<typeof poseOf>
@@ -65,15 +67,17 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
   let changedAt = seed?.changedAt ?? performance.now()
   let interventionAt = seed?.interventionAt ?? changedAt
   let eyeMotionAt = seed?.eyeMotionAt ?? changedAt
+  let travelTrailAt = seed?.travelTrailAt ?? changedAt
   const parts = { body: new CanvasPart(), satellite: new CanvasPart(), leftEye: new CanvasPart(),
     rightEye: new CanvasPart(), thoughtDot: new CanvasPart(), bot: new CanvasPart(),
     orbits: new CanvasPart(), orbitEllipses: Array.from({ length: 5 }, () => new CanvasPart()) } satisfies BartElements
   return {
     capture: () => poseOf(state),
-    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt }),
+    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt, travelTrailAt }),
     description: () => description,
     update(value: CharacterDescription): void {
       if (description.eyeMotion?.key !== value.eyeMotion?.key) eyeMotionAt = performance.now()
+      if (description.travelTrail?.key !== value.travelTrail?.key) travelTrailAt = performance.now()
       if (description.intervention !== value.intervention || description.key !== value.key) interventionAt = performance.now()
       // An eye-track update is not a new semantic state: restamping the clock
       // would re-arm nextWake's follow window and repaint at frame rate for it.
@@ -91,6 +95,7 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       if (description.animate === false) return Infinity
       if ((description.layout ?? 'mark') === 'mark' && description.intervention === 'processing') return now
       if (description.eyeMotion && now - eyeMotionAt < description.eyeMotion.duration) return now
+      if (description.travelTrail && now - travelTrailAt < description.travelTrail.duration) return now
       if (state.orbitActive || now - changedAt < 1800 || now - state.blinkStarted < 1400 ||
         now - state.bounceStarted < 1200 || now - state.nodStarted < 1100 || state.eyeSaccade.returnAt > 0) return now
       const eyeMotion = [...Object.values(state.eyeLeft), ...Object.values(state.eyeRight), state.eyeSaccade.offsetX, state.eyeSaccade.offsetY]
@@ -131,6 +136,9 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         if (description.animate !== false) transformInterventionBody(ctx, description.intervention, elapsed)
       }
       transform(ctx, parts.bot.getAttribute('transform'))
+      if (description.animate !== false && description.travelTrail && state.layout === 'mark') {
+        paintTravelTrail(ctx, description.travelTrail, now - travelTrailAt)
+      }
       ctx.fillStyle = BODY_COLOR
       ctx.shadowColor = state.layout === 'mark' ? 'rgba(32,35,44,0.18)' : 'transparent'
       const shadowScale = Math.hypot(ctx.getTransform().a, ctx.getTransform().b)
@@ -151,6 +159,12 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         const p = from === to ? 0 : Math.max(0, Math.min(1, (elapsed - from.at) / (to.at - from.at)))
         const eased = p * p * (3 - 2 * p)
         ctx.translate(from.x + (to.x - from.x) * eased, from.y + (to.y - from.y) * eased)
+        if (from.scaleX !== undefined || to.scaleX !== undefined || from.scaleY !== undefined || to.scaleY !== undefined) {
+          const sx = (from.scaleX ?? 1) + ((to.scaleX ?? 1) - (from.scaleX ?? 1)) * eased
+          const sy = (from.scaleY ?? 1) + ((to.scaleY ?? 1) - (from.scaleY ?? 1)) * eased
+          // Compensate body stretch around the face, retaining the eye shapes.
+          ctx.translate(320, 250); ctx.scale(sx, sy); ctx.translate(-320, -250)
+        }
       }
       if (description.role === 'tool') {
         ctx.translate(22, 28); ctx.translate(320, 240); ctx.scale(1, .62); ctx.translate(-320, -240)

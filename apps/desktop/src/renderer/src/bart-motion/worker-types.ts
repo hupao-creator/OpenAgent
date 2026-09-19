@@ -13,18 +13,22 @@ export interface CharacterDescription {
   intervention?: BartInterventionVisualState
   role?: string
   animate?: boolean
-  eyeMotion?: { key: number; duration: number; points: readonly { at: number; x: number; y: number }[] }
+  eyeMotion?: { key: number; duration: number; points: readonly { at: number; x: number; y: number; scaleX?: number; scaleY?: number }[] }
+  travelTrail?: { key: number; duration: number; style: 'streaks' | 'wake';
+    points: readonly { at: number; direction: number; strength: number }[] }
 }
 
 /** Internal, prepared scene data. No DOM nodes, callbacks, or Host continuations. */
 export interface MotionRect { x: number; y: number; width: number; height: number }
 export interface MotionPoseFrame { at: number; pose: BartWebGLPose }
 export interface MotionMatrixFrame { at: number; a: number; b: number; c: number; d: number; e: number; f: number; opacity?: number }
-export interface MotionRevealFrame { at: number; x: number; top: number; bottom: number }
+export interface MotionRevealFrame { at: number; x: number; top: number; bottom: number; feather?: number }
 export interface MotionTexture {
   id: string
   rect: MotionRect
   from: number
+  /** Fade a complete card when the batch has exhausted its writing budget. */
+  fadeIn?: number
   /** Optional inclusive endpoint for a decoration visible only at departure/return. */
   until?: number
   /** A completed texture remains visible until Host acknowledges the whole scene. */

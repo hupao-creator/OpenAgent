@@ -41,7 +41,7 @@ export interface BartWebGLTexture {
   viewport?: { x: number; y: number; width: number; height: number }
   id: string
   x: number; y: number; width: number; height: number
-  clip?: { x: number; top: number; bottom: number }
+  clip?: { x: number; top: number; bottom: number; feather?: number }
 }
 
 interface BartWebGLRendererOptions {
@@ -86,6 +86,7 @@ uniform sampler2D u_texture;
 uniform vec2 u_extent;
 uniform bool u_clipped;
 uniform vec3 u_clip;
+uniform float u_clip_feather;
 out vec4 out_color;
 
 float roundedBox(vec2 point, vec2 halfSize, float radius) {
@@ -98,7 +99,11 @@ void main() {
     vec2 local = v_pixel + u_extent;
     if (u_clipped && !(local.y < u_clip.y || (local.y <= u_clip.z && local.x <= u_clip.x))) discard;
     vec4 color = texture(u_texture, local / (2.0 * u_extent));
-    out_color = vec4(color.rgb * color.a, color.a) * u_alpha;
+    float coverage = 1.0;
+    if (u_clipped && local.y >= u_clip.y && u_clip_feather > 0.0) {
+      coverage = smoothstep(0.0, u_clip_feather, u_clip.x - local.x);
+    }
+    out_color = vec4(color.rgb * color.a, color.a) * u_alpha * coverage;
     return;
   }
   vec2 direction = u_direction;
@@ -252,6 +257,7 @@ export function createBartWebGLRenderer(
   const textured = gl.getUniformLocation(program, 'u_textured')
   const clipped = gl.getUniformLocation(program, 'u_clipped')
   const clip = gl.getUniformLocation(program, 'u_clip')
+  const clipFeather = gl.getUniformLocation(program, 'u_clip_feather')
   const matrix = gl.getUniformLocation(program, 'u_matrix')
   const identityMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1]
   const textures = new Map<string, WebGLTexture>()
@@ -334,6 +340,7 @@ export function createBartWebGLRenderer(
       gl.uniform2f(center, (layer.x + layer.width / 2) * dpr, (layer.y + layer.height / 2) * dpr)
       gl.uniform2f(extent, layer.width / 2 * dpr, layer.height / 2 * dpr)
       gl.uniform1i(clipped, layer.clip ? 1 : 0)
+      gl.uniform1f(clipFeather, (layer.clip?.feather ?? 0) * dpr)
       if (layer.clip) gl.uniform3f(clip, layer.clip.x * dpr, layer.clip.top * dpr, layer.clip.bottom * dpr)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
     }

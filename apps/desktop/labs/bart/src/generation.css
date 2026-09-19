@@ -22,10 +22,41 @@ body { background: var(--canvas); color: var(--ink); }
 .genlab-choice[aria-pressed=true] { color: var(--ink); border-color: var(--line); background: var(--surface); }
 .genlab-controls label { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; font-size: 12px; }
 .genlab-controls select { border: 1px solid var(--line); border-radius: 5px; padding: 5px; background: var(--surface); color: var(--ink); }
+.genlab-controls .genlab-speed { display: grid; grid-template-columns: 1fr auto; gap: 9px; margin: 22px 0; }
+.genlab-speed output { color: var(--muted); font-variant-numeric: tabular-nums; }
+.genlab-speed input { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--ink); }
+.genlab-speed small { grid-column: 1 / -1; display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
+.genlab-switch { appearance: none; width: 30px; height: 18px; padding: 2px; margin: 0; border: 0; border-radius: 20px; background: var(--faint); cursor: pointer; transition: background .15s; }
+.genlab-switch::before { content: ''; display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--surface); transition: transform .15s; }
+.genlab-switch:checked { background: var(--ink); }
+.genlab-switch:checked::before { transform: translateX(12px); }
+.genlab-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.genlab-switch:disabled { cursor: default; }
+.genlab-controls fieldset:disabled .genlab-choice, .genlab-controls fieldset:disabled label { opacity: .5; }
 .genlab-note { border-top: 1px solid var(--line); padding-top: 18px; line-height: 1.8; font-size: 11px; color: var(--muted); }
 .genlab-preview { min-width: 0; display: flex; flex-direction: column; padding: 24px 28px 0; }
-.genlab-stage-header { display: flex; justify-content: space-between; padding: 0 0 16px; }
+.genlab-stage-header { display: flex; align-items: center; justify-content: space-between; padding: 0 0 16px; }
 .genlab-stage-header small { color: var(--muted); font-size: 10px; }
+.genlab-stage-header button { display: inline-flex; align-items: center; gap: 5px; background: var(--ink); color: var(--surface); font-size: 11px; border: 0; border-radius: 5px; padding: 7px 10px; cursor: pointer; }
+.genlab-candidates { margin-bottom: 25px; }
+.genlab-candidates > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; }
+.genlab-candidates h2 { font-size: 16px; margin: 0 0 6px; font-weight: 600; }
+.genlab-candidates p { font-size: 11px; color: var(--muted); margin: 0; }
+.genlab-candidates nav { display: flex; gap: 6px; }
+.genlab-candidates nav button { width: 30px; height: 30px; display: grid; place-items: center; background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 5px; cursor: pointer; }
+.genlab-candidate-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.genlab-candidate { display: flex; flex-direction: column; align-items: stretch; min-width: 0; text-align: left; background: light-dark(#f5f5ef, #30312c); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 13px 12px 12px; cursor: pointer; }
+.genlab-candidate[aria-pressed=true] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.genlab-candidate:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.genlab-candidate-title { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+.genlab-candidate-title b { font-size: 12px; font-weight: 600; }
+.genlab-candidate-title small { font-size: 9px; color: var(--muted); white-space: nowrap; }
+.genlab-gesture-canvas { display: block; width: 100%; height: 116px; }
+.genlab-gesture-scale { display: grid; grid-template-columns: 72% 16%; color: var(--muted); font-size: 9px; text-align: center; white-space: nowrap; }
+.genlab-gesture-phase { display: block; color: var(--muted); font-size: 10px; text-align: center; padding-top: 11px; min-height: 23px; }
+.genlab-candidate-summary { display: block; font-size: 10px; line-height: 1.7; color: var(--muted); margin-top: 8px; }
+.genlab-preview:has(.genlab-candidates) .genlab-stage { min-height: 450px; }
+.generation-lab .genlab-candidate:disabled { opacity: .7; }
 .genlab-stage { flex: 1; min-height: 560px; border: 1px solid var(--line); border-radius: 8px; background: light-dark(#f0f0e9, #252622); }
 .genlab-grid { position: absolute; top: calc((100% - 170px) / 2); left: 50%; transform: translate(-50%, -50%); display: grid; grid-auto-rows: var(--thread-card-row-height); gap: var(--thread-card-gap); width: max-content; }
 .genlab-stage .bart-dock { left: 50% !important; top: auto !important; bottom: 24px !important; right: auto !important; translate: -50% 0; }

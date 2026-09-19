@@ -65,7 +65,7 @@ export function measureVisibleCharacters(block: HTMLElement, bounds: DOMRect, si
       if (!intersects(rect, clip)) continue
       points.push({ left: Math.max(rect.left, clip.left) - bounds.left,
         right: Math.min(rect.right, clip.right) - bounds.left,
-        top: rect.top - bounds.top, bottom: rect.bottom - bounds.top, lineHeight,
+        top: rect.top - bounds.top, bottom: rect.bottom - bounds.top, lineHeight, text: char,
         weight: /[，。；：,.!?]/.test(char) ? 2.15 : /\s/.test(char) ? 0.42 : char.charCodeAt(0) <= 255 ? 0.56 : 1 })
     }
   }

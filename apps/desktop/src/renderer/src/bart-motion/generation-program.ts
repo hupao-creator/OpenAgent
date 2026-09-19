@@ -6,7 +6,7 @@ import type { CharacterDescription, MotionMatrixFrame, MotionPoseFrame, MotionPr
 import { cameraMove, type CameraFrame } from '../overview-motion/camera-track'
 
 export function compileGenerationProgram(cards: readonly PreparedMotionCard[], dock: { x: number; y: number; radius: number },
-  viewport?: MotionProgram['viewport']): MotionProgram {
+  viewport?: MotionProgram['viewport'], detailedCards = cards.length): MotionProgram {
   const poses: MotionPoseFrame[] = [], textures: MotionTexture[] = []
   const phases: MotionProgram['phases'][number][] = []
   let time = 0
@@ -29,7 +29,7 @@ export function compileGenerationProgram(cards: readonly PreparedMotionCard[], d
     time += duration
   }
   key(0, pose)
-  for (const [index, card] of cards.entries()) {
+  for (const [index, card] of cards.slice(0, detailedCards).entries()) {
     const { rect } = card
     if (viewport) {
       // Every known destination is framed in advance, including cards outside
@@ -77,6 +77,17 @@ export function compileGenerationProgram(cards: readonly PreparedMotionCard[], d
     for (const point of card.caret) key(time + point.at, { x: point.x + view.x, y: point.y + view.y, radius: 9,
       directionX: 1, directionY: 0, stretch: 0, alpha: 1 })
     time += card.duration
+    key(time, pose)
+  }
+  if (detailedCards < cards.length) {
+    // Finish the remaining known cards together without accelerating their text
+    // or scheduling more flights. All textures stay on the same overview plane.
+    for (const [index, card] of cards.slice(detailedCards).entries()) {
+      phases.push({ at: time, name: `fade:${detailedCards + index}` })
+      textures.push(...card.textures.map(texture => ({ ...texture, from: time, reveal: undefined, fadeIn: 240 })))
+    }
+    key(time, pose)
+    time += 240
     key(time, pose)
   }
   phases.push({ at: time, name: 'return' })

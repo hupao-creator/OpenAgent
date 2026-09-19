@@ -102,6 +102,35 @@ describe('Worker character clocks and geometry', () => {
     expect(actor.nextWake(now)).toBe(Infinity)
   })
 
+  it('carries the travel accent clock across a fork and retires the accent at a stop', () => {
+    const strokes: number[][] = []
+    const capture = new Proxy({ getTransform: () => ({ a: 1, b: 0 }), globalAlpha: 1,
+      createLinearGradient(...ends: number[]) { strokes.push(ends); return { addColorStop() {} } } }, {
+      get: (target, key) => Reflect.get(target, key) ?? (() => undefined),
+      set: (target, key, value) => Reflect.set(target, key, value)
+    }) as unknown as OffscreenCanvasRenderingContext2D
+    const description: CharacterDescription = { activity: 'idle', phase: 'idle', travelTrail: {
+      key: 1, duration: 3000, style: 'streaks', points: [
+        { at: 0, direction: 1, strength: 0 }, { at: 200, direction: 1, strength: 1 },
+        { at: 2200, direction: -1, strength: 1 }, { at: 2400, direction: -1, strength: 0 }
+      ] } }
+    const actor = createCanvasCharacter(description)
+    now = 700
+    actor.paint(capture, now, 210, 210)
+    const before = strokes.splice(0)
+    expect(before).toHaveLength(2)
+    expect(actor.nextWake(now)).toBe(now)
+    actor.fork().paint(capture, now, 210, 210)
+    expect(strokes.splice(0)).toEqual(before)
+    now = 2500
+    actor.paint(capture, now, 210, 210)
+    expect(strokes).toHaveLength(0)
+    actor.update({ ...description, animate: false })
+    actor.paint(capture, now, 210, 210)
+    expect(strokes).toHaveLength(0)
+    expect(actor.nextWake(now)).toBe(Infinity)
+  })
+
   it('plays the delayed answer token and retires it without a Host continuation', () => {
     const ink: string[] = []
     const capture = new Proxy({ getTransform: () => ({ a: 1, b: 0 }), fillStyle: '',
