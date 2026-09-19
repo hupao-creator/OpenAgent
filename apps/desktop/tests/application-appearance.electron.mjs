@@ -79,6 +79,20 @@ async function checkOpaqueBackground(page) {
 async function navigateBart(page, inside) {
   const samples = []
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+b' : 'Control+b')
+  try {
+    await page.waitForFunction(() => document.querySelector('[data-bart-camera-active], [data-bart-camera-error]'))
+  } catch (error) {
+    result.cameraAtFailure = await page.locator('.app-shell').evaluate(element => ({
+      attributes: Object.fromEntries([...element.attributes].filter(attribute => attribute.name.startsWith('data-bart-camera')).map(attribute => [attribute.name, attribute.value])),
+      hidden: document.hidden, width: innerWidth, height: innerHeight,
+      marks: performance.getEntriesByType('mark').filter(mark => mark.name.startsWith('bart-camera')).map(mark => ({ name: mark.name, startTime: mark.startTime, detail: mark.detail }))
+    }))
+    throw error
+  }
+  const failure = await page.locator('.app-shell').getAttribute('data-bart-camera-error')
+  if (failure) result.cameraPreparation = await page.evaluate(() => performance.getEntriesByType('mark')
+    .filter(mark => mark.name.startsWith('bart-camera')).map(mark => ({ name: mark.name, startTime: mark.startTime, detail: mark.detail })))
+  assert.equal(failure, null, `Bart camera preparation failed: ${failure}`)
   await page.waitForSelector('[data-bart-camera-active]')
   // Pause after preparation: screenshot latency must not skip the entire
   // 1.1s animation on a loaded verification machine. The real scene still
@@ -162,7 +176,27 @@ async function switchedAppearance(page, mode) {
 }
 try {
   let page = await start()
+  // The clock replaces User Timing with no-op methods. Keep native marks for
+  // preparation diagnostics while retaining its controlled timers and now().
+  await page.evaluate(() => {
+    window.__appearanceUserTiming = Object.fromEntries(['mark', 'clearMarks', 'getEntriesByType', 'getEntriesByName']
+      .map(name => [name, performance[name].bind(performance)]))
+    const now = performance.now.bind(performance)
+    const trace = window.__appearanceCaptureTrace = []
+    const record = row => { trace.push(row); if (trace.length > 32) trace.shift(); return row }
+    const encode = HTMLCanvasElement.prototype.toDataURL
+    HTMLCanvasElement.prototype.toDataURL = function (...args) {
+      const row = record({ operation: 'canvas encode', width: this.width, height: this.height, start: now() })
+      try { return encode.apply(this, args) } finally { row.end = now() }
+    }
+    const decode = HTMLImageElement.prototype.decode
+    HTMLImageElement.prototype.decode = function (...args) {
+      const row = record({ operation: 'image decode', type: this.src.split(';', 1)[0].slice(0, 40), bytes: this.src.length, start: now() })
+      return decode.apply(this, args).finally(() => { row.end = now() })
+    }
+  })
   await page.clock.install()
+  await page.evaluate(() => Object.assign(performance, window.__appearanceUserTiming))
   for (const mode of ['dark', 'light']) {
     await save(page, mode)
     await effective(page, mode === 'dark')
@@ -304,6 +338,7 @@ try {
   result.status = 'passed'
 } catch (error) {
   result.status = 'failed'; result.error = String(error)
+  if (application) result.captureTrace = await application.windows()[0]?.evaluate(() => window.__appearanceCaptureTrace ?? [])
   throw error
 } finally {
   if (application) await application.close()

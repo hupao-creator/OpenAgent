@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@liquid-dom/core@0.1.1':
-    hash: c94452e5b1f603a8fb4f59b5233a8d280ed14a3fe467fe61300151af8a719172
+    hash: e855cda9fae9cbda300cf91ae3822dfa50454e091aac98d3e2dd314d8d1af733
     path: patches/@liquid-dom__core@0.1.1.patch
   llm-mock-server@1.1.0:
     hash: 0e059172fdc568e143303564ec07eca6adb99db6f9c778a491acb8ccc72e3f11
@@ -90,8 +90,8 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2
       electron:
-        specifier: ^43.3.0
-        version: 43.3.0
+        specifier: 44.4.3
+        version: 44.4.3
       electron-builder:
         specifier: ^26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)
@@ -2187,8 +2187,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@43.3.0:
-    resolution: {integrity: sha512-nLlvu0WFjftWsSaTkV2B/c4NDuJBspTyXu8vKSQ6vLvFt8uG3NgN49LLKcXddwX0GqVvAQDhciWp+4xOdTdhew==}
+  electron@44.4.3:
+    resolution: {integrity: sha512-LTpSFTB40qVCXIX5xMo+cgHI/Jjkbjw7VpB26PccEbroqOn72LBukeaDwPVo1fBYzSzs0c9iPuAucFCO7Tw81Q==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -4185,7 +4185,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@liquid-dom/core@0.1.1(patch_hash=c94452e5b1f603a8fb4f59b5233a8d280ed14a3fe467fe61300151af8a719172)':
+  '@liquid-dom/core@0.1.1(patch_hash=e855cda9fae9cbda300cf91ae3822dfa50454e091aac98d3e2dd314d8d1af733)':
     dependencies:
       '@liquid-dom/layout': 0.2.0
 
@@ -4193,7 +4193,7 @@ snapshots:
 
   '@liquid-dom/react@0.1.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@liquid-dom/core': 0.1.1(patch_hash=c94452e5b1f603a8fb4f59b5233a8d280ed14a3fe467fe61300151af8a719172)
+      '@liquid-dom/core': 0.1.1(patch_hash=e855cda9fae9cbda300cf91ae3822dfa50454e091aac98d3e2dd314d8d1af733)
       '@liquid-dom/layout': 0.2.0
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
@@ -5406,7 +5406,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@43.3.0:
+  electron@44.4.3:
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0

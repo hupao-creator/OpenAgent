@@ -263,7 +263,7 @@ export function OverviewLiquidStage({ children, backdropRefs, onSubtreeMounted, 
     }
   }, [])
 
-  return <div className="overview-liquid-stage" ref={stageRef}>
+  return <div className="overview-liquid-stage" ref={stageRef} data-liquid-fallback={failed || undefined}>
     {ready && (failed
       ? <div className="overview-liquid-substrate" ref={bindSubstrate}>{children}</div>
       : <LiquidStageBoundary onFail={handleFailure}>
