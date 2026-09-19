@@ -45,7 +45,8 @@
 .thread-detail-turn + .thread-detail-turn { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line-soft); }
 .thread-detail-row { margin: 0 0 16px; min-width: 0; }
 .thread-detail-user { margin-bottom: 26px; }
-.thread-detail-row > .message { margin: 0; padding: 0; width: 100%; display: block; }
+/* Execution groups nest messages; every document row omits the avatar grid. */
+.thread-detail-row .message { margin: 0; padding: 0; width: 100%; display: block; }
 .thread-detail .assistant-content { width: 100%; padding: 0; min-width: 0; }
 .thread-detail .user-message > div { max-width: none; width: 100%; border: 0; border-radius: 5px; background: var(--surface); padding: 14px 16px; box-shadow: none; }
 .thread-detail .user-message .steering-label { font-size: 10px; font-weight: 500; color: var(--muted); }
