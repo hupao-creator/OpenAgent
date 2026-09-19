@@ -9,19 +9,42 @@ permissions:
   contents: read
 
 jobs:
-  snapshot:
+  dependencies:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    env:
+      HUSKY: '0'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
         with:
           ref: 19bddf0ac6ba4e41aa216bbe0df2ef4825b085b8
           persist-credentials: false
-      - name: Archive the pinned implementation baseline
-        run: git archive --format=tar.gz --output="$RUNNER_TEMP/openagent-source.tar.gz" HEAD
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+      - name: Install exactly the checked-in lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Pack only dependency and tool files, not credentials or runner state
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/issue27-tools"
+          cp "$(command -v node)" "$RUNNER_TEMP/issue27-tools/node"
+          npm install --prefix "$RUNNER_TEMP/issue27-tools" --ignore-scripts pnpm@10.17.1
+          find apps packages -type d -name node_modules -prune -print > "$RUNNER_TEMP/module-paths"
+          printf '%s\n' node_modules >> "$RUNNER_TEMP/module-paths"
+          tar -czf "$RUNNER_TEMP/issue27-dependencies.tar.gz" -T "$RUNNER_TEMP/module-paths"
+          tar -czf "$RUNNER_TEMP/issue27-tools.tar.gz" -C "$RUNNER_TEMP" issue27-tools
       - uses: actions/upload-artifact@v4
         with:
-          name: issue-27-source-19bddf0
-          path: ${{ runner.temp }}/openagent-source.tar.gz
+          name: issue-27-linux-dependencies
+          path: |
+            ${{ runner.temp }}/issue27-dependencies.tar.gz
+            ${{ runner.temp }}/issue27-tools.tar.gz
           retention-days: 1
           if-no-files-found: error
