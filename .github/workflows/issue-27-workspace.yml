@@ -1,0 +1,22 @@
+name: issue-27-workspace
+on:
+  push:
+    branches: [codex/issue-27-workspace]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9cf1585cf7deb60208d6d0fa3fee5d0ac141272a
+          persist-credentials: false
+      - name: Archive tracked baseline only
+        run: git archive --format=tar.gz -o "$RUNNER_TEMP/openagent-source.tar.gz" HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-27-source
+          path: ${{ runner.temp }}/openagent-source.tar.gz
+          retention-days: 1
