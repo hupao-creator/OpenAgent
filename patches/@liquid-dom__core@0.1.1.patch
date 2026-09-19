@@ -1,5 +1,5 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..5a84f31a87d398957cdef8e3dc579db269dbc6dd 100644
+index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..81ad43ea0a9bd7264048cc7b514c0b9e500587da 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
 @@ -2620,16 +2620,17 @@ var DomContentSync = class {
@@ -24,20 +24,64 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..5a84f31a87d398957cdef8e3dc579db2
        this.copyGlassContentAtlas();
      }
      if (this.needsContentFilter) {
-@@ -4514,7 +4515,11 @@ var Renderer = class {
-     if (this.destroyed || !this.core) {
+@@ -4509,12 +4510,45 @@ var Renderer = class {
+   core = null;
+   canvasConfigured = false;
+   lastFrameTexture = null;
++  paintRetry = 0;
++  /** Forward asynchronous paint failures to the host's guarded render path. */
++  handleRenderError(error) {
++    this.initError = error;
++    cancelAnimationFrame(this.paintRetry);
++    this.paintRetry = 0;
++    this.targetCanvas.dispatchEvent(new Event("liquid-render-error"));
++  }
++  /** Retry even when the failed capture belonged to the final DOM mutation. */
++  requestContentPaint() {
++    if (this.paintRetry || this.destroyed || this.initError) return;
++    this.paintRetry = requestAnimationFrame(() => {
++      this.paintRetry = 0;
++      if (this.destroyed || this.initError) return;
++      try {
++        this.targetCanvas.requestPaint();
++      } catch (error) {
++        this.handleRenderError(error);
++      }
++    });
++  }
+   /** Handles canvas paint events by copying managed DOM content into GPU textures. */
+   handlePaintEvent = (event) => {
+-    if (this.destroyed || !this.core) {
++    if (this.destroyed || !this.core || this.initError) {
        return;
      }
 -    this.domContent.handlePaintEvent(event);
-+    // A native DOM/WAAPI paint can arrive without a React frame invalidation.
-+    // Present the captured content here, after the browser's paint record is ready.
-+    if (this.domContent.handlePaintEvent(event)) {
-+      this.drawFrame();
++    try {
++      // Native DOM/WAAPI paints need no React invalidation to present a frame.
++      const copied = this.domContent.handlePaintEvent(event);
++      if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++        this.requestContentPaint();
++      } else {
++        cancelAnimationFrame(this.paintRetry);
++        this.paintRetry = 0;
++        if (copied) this.drawFrame();
++      }
++    } catch (error) {
++      this.handleRenderError(error);
 +    }
    };
    /** Marks scene-derived DOM and interaction state as dirty after scene mutations. */
    handleSceneMutation = () => {
-@@ -4661,22 +4666,18 @@ var Renderer = class {
+@@ -4582,6 +4616,8 @@ var Renderer = class {
+       return;
+     }
+     this.destroyed = true;
++    cancelAnimationFrame(this.paintRetry);
++    this.paintRetry = 0;
+     this.targetCanvas.removeEventListener("paint", this.handlePaintEvent);
+     this.targetCanvas.removeEventListener("pointermove", this.pointerController.handlePointerMove, true);
+     this.targetCanvas.removeEventListener("pointerdown", this.pointerController.handlePointerDown, true);
+@@ -4661,22 +4697,18 @@ var Renderer = class {
      if (!previousFrame || !this.device || !this.context || !this.lastFrameTexture || previousWidth <= 0 || previousHeight <= 0) {
        return;
      }
@@ -67,7 +111,7 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..5a84f31a87d398957cdef8e3dc579db2
      this.device.queue.submit([encoder.finish()]);
    }
    /** Queues scene-derived DOM and pointer state synchronization on a microtask. */
-@@ -4701,7 +4702,10 @@ var Renderer = class {
+@@ -4701,7 +4733,13 @@ var Renderer = class {
      const hostOrder = getHtmlHostOrder(layers);
      this.pointerController.syncInteractions(containers);
      this.domContent.sync(layers, containers, hostOrder);
@@ -76,10 +120,13 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..5a84f31a87d398957cdef8e3dc579db2
 +    // may be absent or belong to the previous DOM size. Capture only in paint;
 +    // rendering can reuse the previous complete frame until that record arrives.
 +    this.domContent.copyPending(false);
++    if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++      this.requestContentPaint();
++    }
      this.pendingSceneContentSync = false;
      return layers;
    }
-@@ -4716,6 +4720,12 @@ var Renderer = class {
+@@ -4716,6 +4754,12 @@ var Renderer = class {
      if (this.destroyed || !this.context || !this.core || !this.device || !this.lastFrameTexture || this.targetCanvas.width <= 0 || this.targetCanvas.height <= 0) {
        return;
      }
@@ -93,7 +140,7 @@ index 3eed47ca7d7b485ac5069efa66cd2f14c7454995..5a84f31a87d398957cdef8e3dc579db2
        layers,
        width: this.targetCanvas.width,
 diff --git a/dist/index.js b/dist/index.js
-index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..ba8e6e32146d8b63108fb1732b43692874bb1988 100644
+index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..5692a0229e7d4bbb1870ff352c79d8204676157f 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1679,16 +1679,17 @@ var DomContentSync = class {
@@ -118,20 +165,64 @@ index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..ba8e6e32146d8b63108fb1732b436928
        this.copyGlassContentAtlas();
      }
      if (this.needsContentFilter) {
-@@ -3573,7 +3574,11 @@ var Renderer = class {
-     if (this.destroyed || !this.core) {
+@@ -3568,12 +3569,45 @@ var Renderer = class {
+   core = null;
+   canvasConfigured = false;
+   lastFrameTexture = null;
++  paintRetry = 0;
++  /** Forward asynchronous paint failures to the host's guarded render path. */
++  handleRenderError(error) {
++    this.initError = error;
++    cancelAnimationFrame(this.paintRetry);
++    this.paintRetry = 0;
++    this.targetCanvas.dispatchEvent(new Event("liquid-render-error"));
++  }
++  /** Retry even when the failed capture belonged to the final DOM mutation. */
++  requestContentPaint() {
++    if (this.paintRetry || this.destroyed || this.initError) return;
++    this.paintRetry = requestAnimationFrame(() => {
++      this.paintRetry = 0;
++      if (this.destroyed || this.initError) return;
++      try {
++        this.targetCanvas.requestPaint();
++      } catch (error) {
++        this.handleRenderError(error);
++      }
++    });
++  }
+   /** Handles canvas paint events by copying managed DOM content into GPU textures. */
+   handlePaintEvent = (event) => {
+-    if (this.destroyed || !this.core) {
++    if (this.destroyed || !this.core || this.initError) {
        return;
      }
 -    this.domContent.handlePaintEvent(event);
-+    // A native DOM/WAAPI paint can arrive without a React frame invalidation.
-+    // Present the captured content here, after the browser's paint record is ready.
-+    if (this.domContent.handlePaintEvent(event)) {
-+      this.drawFrame();
++    try {
++      // Native DOM/WAAPI paints need no React invalidation to present a frame.
++      const copied = this.domContent.handlePaintEvent(event);
++      if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++        this.requestContentPaint();
++      } else {
++        cancelAnimationFrame(this.paintRetry);
++        this.paintRetry = 0;
++        if (copied) this.drawFrame();
++      }
++    } catch (error) {
++      this.handleRenderError(error);
 +    }
    };
    /** Marks scene-derived DOM and interaction state as dirty after scene mutations. */
    handleSceneMutation = () => {
-@@ -3720,22 +3725,18 @@ var Renderer = class {
+@@ -3641,6 +3675,8 @@ var Renderer = class {
+       return;
+     }
+     this.destroyed = true;
++    cancelAnimationFrame(this.paintRetry);
++    this.paintRetry = 0;
+     this.targetCanvas.removeEventListener("paint", this.handlePaintEvent);
+     this.targetCanvas.removeEventListener("pointermove", this.pointerController.handlePointerMove, true);
+     this.targetCanvas.removeEventListener("pointerdown", this.pointerController.handlePointerDown, true);
+@@ -3720,22 +3756,18 @@ var Renderer = class {
      if (!previousFrame || !this.device || !this.context || !this.lastFrameTexture || previousWidth <= 0 || previousHeight <= 0) {
        return;
      }
@@ -161,7 +252,7 @@ index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..ba8e6e32146d8b63108fb1732b436928
      this.device.queue.submit([encoder.finish()]);
    }
    /** Queues scene-derived DOM and pointer state synchronization on a microtask. */
-@@ -3760,7 +3761,10 @@ var Renderer = class {
+@@ -3760,7 +3792,13 @@ var Renderer = class {
      const hostOrder = getHtmlHostOrder(layers);
      this.pointerController.syncInteractions(containers);
      this.domContent.sync(layers, containers, hostOrder);
@@ -170,10 +261,13 @@ index 29938b5b8a9ca4c620cda2e25d26b67cd7a90a60..ba8e6e32146d8b63108fb1732b436928
 +    // may be absent or belong to the previous DOM size. Capture only in paint;
 +    // rendering can reuse the previous complete frame until that record arrives.
 +    this.domContent.copyPending(false);
++    if (this.domContent.needsSceneHtmlCopy || this.domContent.needsContentCopy) {
++      this.requestContentPaint();
++    }
      this.pendingSceneContentSync = false;
      return layers;
    }
-@@ -3775,6 +3779,12 @@ var Renderer = class {
+@@ -3775,6 +3813,12 @@ var Renderer = class {
      if (this.destroyed || !this.context || !this.core || !this.device || !this.lastFrameTexture || this.targetCanvas.width <= 0 || this.targetCanvas.height <= 0) {
        return;
      }

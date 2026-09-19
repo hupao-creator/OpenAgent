@@ -14,7 +14,7 @@ const makeSubstrate = color => {
 }
 const html = new Html({ width: innerWidth, height: innerHeight, element: makeSubstrate('#e8edf5') })
 scene.add(html)
-const state = { blocked: false, failures: 0, copies: 0, presents: 0 }
+const state = { blocked: false, failures: 0, copies: 0, presents: 0, failSubmission: false, renderErrors: [] }
 let repaintCount = 0
 const copy = GPUQueue.prototype.copyElementImageToTexture
 GPUQueue.prototype.copyElementImageToTexture = function (...args) {
@@ -30,6 +30,15 @@ GPUCanvasContext.prototype.getCurrentTexture = function (...args) {
   state.presents += 1
   return present.apply(this, args)
 }
+const submit = GPUQueue.prototype.submit
+GPUQueue.prototype.submit = function (...args) {
+  if (state.failSubmission) throw new Error('liquid-test-submission-error')
+  return submit.apply(this, args)
+}
+// Same guarded public render path used by LiquidCanvas after the stage bridge.
+renderer.canvas.addEventListener('liquid-render-error', () => {
+  try { renderer.render() } catch (error) { state.renderErrors.push(error.message) }
+})
 window.addEventListener('resize', () => {
   html.width = innerWidth
   html.height = innerHeight

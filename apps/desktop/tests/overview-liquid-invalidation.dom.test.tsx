@@ -8,7 +8,8 @@ import { getOverviewCameraCockpit } from '../src/renderer/src/overview-motion/ca
 /* 舞台的失效路径全是「衬底上发生了画布自己看不见的变化」。库本身要 WebGPU，测试里
    只留它的形状：`LiquidCanvas` 把 ref 交出来，其余原语照原样渲染子树。 */
 const liquid = vi.hoisted(() => ({
-  invalidateFrame: vi.fn(), invalidateLayout: vi.fn(), props: {} as Record<string, unknown>
+  invalidateFrame: vi.fn(), invalidateLayout: vi.fn(), props: {} as Record<string, unknown>,
+  canvas: null as HTMLCanvasElement | null
 }))
 
 vi.mock('@liquid-dom/react', async () => {
@@ -24,7 +25,7 @@ vi.mock('@liquid-dom/react', async () => {
     LiquidCanvas: forwardRef(function LiquidCanvas(props: { children?: ReactNode }, ref) {
       liquid.props = props
       useImperativeHandle(ref, () => ({
-        invalidateFrame: liquid.invalidateFrame, invalidateLayout: liquid.invalidateLayout
+        invalidateFrame: liquid.invalidateFrame, invalidateLayout: liquid.invalidateLayout, canvas: liquid.canvas
       }), [])
       return createElement('div', null, props.children)
     })
@@ -46,6 +47,7 @@ beforeEach(() => {
   liquid.invalidateFrame.mockClear()
   liquid.invalidateLayout.mockClear()
   liquid.props = {}
+  liquid.canvas = document.createElement('canvas')
   frames = []
   clock = 0
   vi.spyOn(performance, 'now').mockImplementation(() => clock)
@@ -83,6 +85,20 @@ function draw(props: { onSubtreeMounted?: () => void; onFailure?: () => void } =
 }
 
 describe('overview liquid invalidation', () => {
+  it('routes an asynchronous paint failure back through the guarded canvas frame and DOM fallback', () => {
+    const failed = vi.fn()
+    draw({ onFailure: failed })
+    flush(700)
+    liquid.invalidateFrame.mockImplementationOnce(() => {
+      (liquid.props.onError as (error: unknown) => void)(new Error('paint submission failed'))
+    })
+    act(() => { liquid.canvas!.dispatchEvent(new Event('liquid-render-error')) })
+    expect(failed).toHaveBeenCalledTimes(1)
+    liquid.invalidateFrame.mockClear()
+    liquid.canvas!.dispatchEvent(new Event('liquid-render-error'))
+    expect(liquid.invalidateFrame).not.toHaveBeenCalled()
+  })
+
   it('repaints camera gestures without recomputing liquid scene layout', () => {
     draw()
     flush(700)

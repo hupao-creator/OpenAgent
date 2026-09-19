@@ -174,6 +174,16 @@ export function OverviewLiquidStage({ children, backdropRefs, onSubtreeMounted, 
     if (substrate && !failed) onSubtreeMounted?.()
   }, [substrate, failed, onSubtreeMounted])
 
+  /* 原生 paint 在 React 帧循环之外。库先保存异常，再发这个事件；让下一次受保护的
+     render 重新抛出，统一进入 LiquidCanvas.onError 和普通 DOM 降级。 */
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current?.canvas
+    if (!canvas || !substrate || failed) return
+    const report = (): void => canvasRef.current?.invalidateFrame()
+    canvas.addEventListener('liquid-render-error', report)
+    return () => canvas.removeEventListener('liquid-render-error', report)
+  }, [substrate, failed])
+
   /* 画布画的是捕获到的那一帧，`frameloop="demand"` 下只有被叫到才重画。相机和滚动
      各有一条失效路径，但它们都不是「内容变了」—— 流式文本、状态点、注意力标记这些
      只改衬底的 DOM，布局盒和偏移都不动。没有这一路，画布会一直停在旧帧，直到用户
