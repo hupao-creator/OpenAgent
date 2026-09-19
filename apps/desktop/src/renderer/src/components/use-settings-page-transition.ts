@@ -72,6 +72,9 @@ export function useSettingsPageTransition({ open, origin, originRect, onClose }:
     // Opening follows the button the user clicked, even if navigation moved it.
     // Closing measures the current button so a resized window still lands on it.
     const { anchored, collapsedClip, expandedClip } = revealGeometry(root, opener, closing ? null : originRectRef.current)
+    // A shortcut can reopen this mounted page after a resize; only the initial
+    // opening should consume the click-time snapshot.
+    originRectRef.current = null
     const pageColor = currentRoot.getPropertyValue('--settings-page-surface-color').trim() || 'rgba(242, 245, 249, .5)'
     // Preserve the trigger's actual theme/hover color and alpha rather than
     // introducing a white disk at the start (or end) of the reveal.
