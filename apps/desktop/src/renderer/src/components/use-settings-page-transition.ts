@@ -225,8 +225,17 @@ export function useSettingsPageTransition({ open, origin, onClose }: {
         if (hidden === null) element.removeAttribute('aria-hidden')
         else element.setAttribute('aria-hidden', hidden)
       }
-      const target = originRef.current?.isConnected ? originRef.current : active
-      if (target?.isConnected) target.focus({ preventScroll: true })
+      // The reveal anchor is also supplied for shortcuts; it is not necessarily
+      // the control the user left. Only fall back when that control is unavailable.
+      // Starting on the canvas should leave focus on the document, not the gear.
+      if (active === document.body) return
+      for (const target of [active, originRef.current]) {
+        if (!target?.isConnected || target.closest('[inert]')) continue
+        target.focus({ preventScroll: true })
+        // Live controls can become disabled or hidden; let the browser decide
+        // whether focus succeeded before giving up the still-usable fallback.
+        if (document.activeElement === target) break
+      }
     }
   }, [open, transition])
 
