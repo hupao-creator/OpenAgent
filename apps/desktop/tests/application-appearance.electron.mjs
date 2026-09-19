@@ -176,7 +176,14 @@ async function switchedAppearance(page, mode) {
 }
 try {
   let page = await start()
+  // The clock replaces User Timing with no-op methods. Keep native marks for
+  // preparation diagnostics while retaining its controlled timers and now().
+  await page.evaluate(() => {
+    window.__appearanceUserTiming = Object.fromEntries(['mark', 'clearMarks', 'getEntriesByType', 'getEntriesByName']
+      .map(name => [name, performance[name].bind(performance)]))
+  })
   await page.clock.install()
+  await page.evaluate(() => Object.assign(performance, window.__appearanceUserTiming))
   for (const mode of ['dark', 'light']) {
     await save(page, mode)
     await effective(page, mode === 'dark')
