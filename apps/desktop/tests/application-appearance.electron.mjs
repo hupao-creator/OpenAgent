@@ -90,6 +90,8 @@ async function navigateBart(page, inside) {
     throw error
   }
   const failure = await page.locator('.app-shell').getAttribute('data-bart-camera-error')
+  if (failure) result.cameraPreparation = await page.evaluate(() => performance.getEntriesByType('mark')
+    .filter(mark => mark.name.startsWith('bart-camera')).map(mark => ({ name: mark.name, startTime: mark.startTime, detail: mark.detail })))
   assert.equal(failure, null, `Bart camera preparation failed: ${failure}`)
   await page.waitForSelector('[data-bart-camera-active]')
   // Pause after preparation: screenshot latency must not skip the entire

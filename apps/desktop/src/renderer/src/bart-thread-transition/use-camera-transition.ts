@@ -101,6 +101,7 @@ export function useCameraTransition({ duration = DEFAULT_DURATION, slow = false 
     const cut = coordinator.onSceneCut(() => { if (captureRef.current === controller) finish(targetRef.current) })
     cleanupRef.current = nativeCommit => { cut(); observer?.disconnect(); seal?.release({ restoreInteraction: !nativeCommit }); lease?.release() }
     flushSync(() => { setActive(false); setPreparing(true); setError('') })
+    for (const phase of ['sealed', 'captured', 'uploaded']) performance.clearMarks(`bart-camera-${phase}`)
     try {
       // Fonts and Markdown settle with the original page still interactive.
       const assets = await prepareWithinBudget(warmSignal => captureCameraAssets(stage, warmSignal, async () => {
@@ -115,13 +116,16 @@ export function useCameraTransition({ duration = DEFAULT_DURATION, slow = false 
         seal = sealMotionScene({ root: stage, canvas: pool.canvas, covered, scroll, freezeTransforms: transforms,
           onExpire: () => controller.abort(new Error('Bart camera sealing exceeded its budget')) })
         sealedAt = performance.now()
+        performance.mark('bart-camera-sealed')
         version = revision()
       }), signal)
+      performance.mark('bart-camera-captured')
       if (command !== commandRef.current || signal.aborted) { assets.overview.width = 0; assets.session.width = 0; assets.dock.width = 0; return }
       sceneRef.current = createCameraScene(stage, assets)
       const scene = sceneRef.current
       const sealBudget = (): number => sealedAt ? Math.max(1, 2000 - (performance.now() - sealedAt)) : 2000
       await prepareWithinBudget(() => scene.ready, signal, sealBudget())
+      performance.mark('bart-camera-uploaded')
       if (sealedAt && version !== revision()) throw new Error('Bart camera content changed during preparation')
       const shotDuration = configRef.current.duration * (configRef.current.slow ? 3 : 1)
       const run = scene.play(inside, shotDuration)
