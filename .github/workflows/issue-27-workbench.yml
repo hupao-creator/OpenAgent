@@ -1,0 +1,27 @@
+name: issue-27-workbench
+
+on:
+  push:
+    branches: [codex/issue-27-workbench-20260919]
+    paths: [.github/workflows/issue-27-workbench.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 19bddf0ac6ba4e41aa216bbe0df2ef4825b085b8
+          persist-credentials: false
+      - name: Archive the pinned implementation baseline
+        run: git archive --format=tar.gz --output="$RUNNER_TEMP/openagent-source.tar.gz" HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-27-source-19bddf0
+          path: ${{ runner.temp }}/openagent-source.tar.gz
+          retention-days: 1
+          if-no-files-found: error
