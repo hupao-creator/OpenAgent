@@ -1,5 +1,6 @@
 import { Html, Renderer, Scene } from '@liquid-dom/core'
 import { installLiquidCaptureCompat } from '../../src/renderer/src/liquid/capture-compat'
+import '../../src/renderer/src/styles.css'
 
 installLiquidCaptureCompat()
 const scene = new Scene()
@@ -14,7 +15,7 @@ const makeSubstrate = color => {
 }
 const html = new Html({ width: innerWidth, height: innerHeight, element: makeSubstrate('#e8edf5') })
 scene.add(html)
-const state = { blocked: false, failures: 0, copies: 0, presents: 0, failSubmission: false, renderErrors: [] }
+const state = { blocked: true, failures: 0, copies: 0, presents: 0, failSubmission: false, renderErrors: [] }
 let repaintCount = 0
 const copy = GPUQueue.prototype.copyElementImageToTexture
 GPUQueue.prototype.copyElementImageToTexture = function (...args) {
@@ -52,12 +53,34 @@ const firstFrame = () => {
 requestAnimationFrame(firstFrame)
 window.liquidFixture = {
   state,
+  decorate() {
+    for (const card of html.element.querySelectorAll('.card')) {
+      card.classList.add('thread-overview-item', 'bart-operated', 'operation-start', 'completed')
+      card.innerHTML = '<span class="bart-operation-motion"><span class="bart-operation-sweep"></span><span class="bart-operation-pulse"></span></span>'
+    }
+  },
+  decorationBoxes() {
+    return [...html.element.querySelectorAll('.bart-operation-motion')].filter(element => element.getClientRects().length > 0).length
+  },
+  holdDecorationFade() {
+    for (const element of html.element.querySelectorAll('.bart-operation-motion')) {
+      for (const animation of element.getAnimations()) {
+        animation.pause()
+        animation.currentTime = 610
+      }
+    }
+  },
+  finishDecorations() {
+    for (const element of html.element.querySelectorAll('.bart-operation-motion')) {
+      for (const animation of element.getAnimations()) animation.finish()
+    }
+  },
   replace(color) { html.setElement(makeSubstrate(color)); renderer.render() },
   render() { renderer.render() },
   repaint() { html.element.querySelector('.card').style.background = `rgb(72, 123, ${150 + (++repaintCount % 2)})` },
   animate() {
     return html.element.querySelector('.plane').animate([
-      { transform: 'translateX(0)' }, { transform: 'translateX(280px)' }
+      { transform: 'translate(280px, 70px)' }, { transform: 'translate(0, 0)' }
     ], { duration: 360, fill: 'forwards' }).finished
   },
   destroy() { renderer.destroy() }

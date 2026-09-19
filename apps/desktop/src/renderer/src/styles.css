@@ -2694,9 +2694,13 @@
 @keyframes bart-edge-complete {
   0%,
   72% {
+    display: block;
     opacity: 1;
   }
   100% {
+    /* 结束后退出绘制，连同子节点的 filled 动画一起撤掉。只设 opacity: 0 会让
+       透明装饰层继续参与 CanvasDrawElement 捕获，在相机变换时产生局部黑帧。 */
+    display: none;
     opacity: 0;
   }
 }

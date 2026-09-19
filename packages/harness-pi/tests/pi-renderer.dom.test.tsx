@@ -64,6 +64,37 @@ it('opens full historical execution without a fork entry', async () => {
   expect(screen.queryByRole('button', { name: /复制当前会话|Copy current session/ })).not.toBeInTheDocument()
   expect(a.forkThread).not.toHaveBeenCalled()
 })
+it.each(['current', 'history'] as const)('merges adjacent tools after visibility filtering in %s reading', async (mode) => {
+  const current = thread()
+  const executionId = mode === 'history' ? 'first' : 'second'
+  const state = current.sessionState as unknown as PiSessionState
+  state.messages = [
+    ...state.messages.filter(message => message.executionId !== executionId),
+    { id: 'tool-1', executionId, role: 'tool', text: 'First result', toolName: 'First tool' },
+    { id: 'empty', executionId, role: 'assistant', text: '  ' },
+    { id: 'user-middle', executionId, role: 'user', text: 'Continue working' },
+    { id: 'tool-2', executionId, role: 'tool', text: 'Second result', toolName: 'Second tool' }
+  ]
+  const view = render(<I18nProvider locale="en-US"><PiThreadView thread={current} actions={actions()}
+    readingTarget={{ requestId: mode, executionId, mode }}
+  /></I18nProvider>)
+  const page = within(mode === 'history'
+    ? view.container.querySelector<HTMLElement>('.thread-detail-subpage')! : view.container)
+  fireEvent.click(page.getByRole('button', { name: 'Show work' }))
+  const summary = page.getByRole('button', { name: 'Execution process' })
+  fireEvent.click(summary)
+  expect(page.getByText('First tool')).toBeVisible()
+  expect(page.getByText('Second tool')).toBeVisible()
+  fireEvent.click(page.getByRole('button', { name: 'Show user messages' }))
+  expect(page.getAllByRole('button', { name: 'Execution process' })).toHaveLength(2)
+  const userRow = view.container.querySelector<HTMLElement>('.thread-detail-user')!
+  expect((await within(userRow).findByText('Continue working')).closest('.thread-execution-process')).toBeNull()
+  fireEvent.click(page.getByRole('button', { name: 'Hide user messages' }))
+  expect(page.getByRole('button', { name: 'Execution process' })).toBe(summary)
+  expect(summary).toHaveAttribute('aria-expanded', 'true')
+  fireEvent.click(page.getByRole('button', { name: 'Hide work' }))
+  expect(page.queryByRole('button', { name: 'Execution process' })).toBeNull()
+})
 it('interrupts running execution and displays action failures', async () => {
   const a = actions(); a.interrupt.mockRejectedValue(new Error('abort failed'))
   render(<I18nProvider locale="en-US"><PiThreadView thread={thread({ executionId: 'second', startedAt: 3, status: 'running' })} actions={a} /></I18nProvider>)

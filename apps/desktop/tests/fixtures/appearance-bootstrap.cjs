@@ -10,6 +10,10 @@ app.setPath('userData', join(root, 'user-data'))
 // 替换它即可保持隐藏；绕过它的上屏路径都会发出 show 事件，记成 shown 由 driver 断言不存在。
 if (process.platform === 'darwin') void app.whenReady().then(() => app.dock?.hide())
 app.on('browser-window-created', (_event, window) => {
+  // This test keeps the native window hidden but exercises real Worker/rAF
+  // transitions. Background throttling would suppress the very frames it waits
+  // for; Playwright's page clock does not control the Worker's native clock.
+  window.webContents.setBackgroundThrottling(false)
   const record = phase => fs.appendFileSync(join(root, 'startup.jsonl'), JSON.stringify({
     phase, source: nativeTheme.themeSource, dark: nativeTheme.shouldUseDarkColors,
     background: window.getBackgroundColor(), at: Date.now()

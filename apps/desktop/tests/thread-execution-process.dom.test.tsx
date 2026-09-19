@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Fragment } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // The Harness views below resolve the package build, so the Kit is taken from the
@@ -154,10 +154,11 @@ for (const [harnessId, fixture, View] of [
     })
   }
 
-  it(`${harnessId} merges mixed native rows without crossing hidden user messages`, () => {
-    const input = fixture({ threadId: 'mixed', phase: 'running', history: false, answer: '' })
+  it.each(['current', 'history'] as const)(`${harnessId} merges visually adjacent native rows in %s reading`, async (mode) => {
+    const input = fixture({ threadId: 'mixed', phase: mode === 'history' ? 'completed' : 'running', history: mode === 'history', answer: '' })
     const state = JSON.parse(JSON.stringify(input.sessionState))
-    const turn = state.turns.at(-1)
+    state.turns = state.turns.slice(mode === 'history' ? -2 : -1)
+    const turn = state.turns[0]
     const reasoning = turn.timeline.find((item: { kind: string }) => item.kind === 'reasoning')
     const reference = turn.timeline.find((item: { kind: string }) => item.kind === 'activity')
     const user = turn.timeline.find((item: { kind: string }) => item.kind === 'user-message')
@@ -186,18 +187,57 @@ for (const [harnessId, fixture, View] of [
     const actions = { interrupt: vi.fn(), openFollowUp: vi.fn(), respond: vi.fn(), forkThread: vi.fn(), invokeHarnessExtension: vi.fn(), openExternal: vi.fn() }
     const renderThread = () => <I18nProvider locale="en-US"><View
       thread={{ ...thread, sessionState: JSON.parse(JSON.stringify(state)) }} actions={actions}
+      readingTarget={{ requestId: mode, executionId: turn.executionId, mode }}
     /></I18nProvider>
     const view = render(renderThread())
-    expect(screen.getAllByRole('button', { name: 'Execution process' })).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Execution process' }))
+    const page = within(mode === 'history'
+      ? view.container.querySelector<HTMLElement>('.thread-detail-subpage')! : view.container)
+    const showWork = page.queryByRole('button', { name: 'Show work' })
+    if (showWork) fireEvent.click(showWork)
+    const summary = page.getByRole('button', { name: 'Execution process' })
+    fireEvent.click(summary)
     flushFrames()
-    const group = view.container.querySelector('.thread-execution-process')!
-    expect([...group.querySelectorAll('[data-thread-row-id]')].map(node => node.getAttribute('data-thread-row-id')))
-      .toEqual(['r1', 'a1', 'r2', 'a2'])
+    summary.focus()
+    const group = summary.closest('.thread-execution-process')!
+    const expectMerged = () => {
+      expect(page.getAllByRole('button', { name: 'Execution process' })).toHaveLength(1)
+      expect(page.getByRole('button', { name: 'Execution process' })).toBe(summary)
+      expect(summary).toHaveAttribute('aria-expanded', 'true')
+      expect([...group.querySelectorAll('[data-thread-row-id]')].map(node => node.getAttribute('data-thread-row-id')))
+        .toEqual(['r1', 'a1', 'r2', 'a2'])
+    }
+    expectMerged()
+    // Empty assistant events arrive between streamed tools but show no prose.
+    turn.timeline.splice(1, 0, { id: 'empty-assistant', kind: 'assistant', content: '  ', status: 'complete', createdAt: base + 1,
+      ...(harnessId === 'codex' ? { itemId: 'empty-assistant' } : {}) })
+    view.rerender(renderThread())
+    flushFrames()
+    expectMerged()
+    expect(summary).toHaveFocus()
+    // A displayed user message splits the group; hiding it joins the same work.
+    turn.timeline.splice(1, 0, { ...user, id: 'user-boundary', createdAt: base + 1 })
+    view.rerender(renderThread())
+    flushFrames()
+    expectMerged()
+    fireEvent.click(page.getByRole('button', { name: 'Show user messages' }))
+    expect(page.getAllByRole('button', { name: 'Execution process' })).toHaveLength(2)
+    fireEvent.click(page.getByRole('button', { name: 'Hide user messages' }))
+    flushFrames()
+    expectMerged()
+    // Internal prompts stay hidden regardless of the display switch.
     if (harnessId === 'claude') turn.internalPromptIndexes = [user.promptIndex]
     else turn.messages.find((message: { id: string }) => message.id === user.messageId).internal = true
-    turn.timeline.splice(1, 0, { ...user, id: 'internal-boundary', createdAt: base + 1 })
     view.rerender(renderThread())
-    expect(screen.getAllByRole('button', { name: 'Execution process' })).toHaveLength(2)
+    fireEvent.click(page.getByRole('button', { name: 'Show user messages' }))
+    flushFrames()
+    expectMerged()
+    // A real assistant paragraph remains outside and separates the disclosures.
+    turn.timeline.find((item: { id: string }) => item.id === 'empty-assistant').content = 'Visible progress update'
+    view.rerender(renderThread())
+    expect(page.getAllByRole('button', { name: 'Execution process' })).toHaveLength(2)
+    await waitFor(() => {
+      flushFrames()
+      expect(page.getByText('Visible progress update').closest('.thread-execution-process')).toBeNull()
+    })
   })
 }
