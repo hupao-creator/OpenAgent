@@ -1529,6 +1529,11 @@ export class CodexAppServer {
           context.textByItem.set(itemId, finalText)
           context.emit({ type: 'text-delta', itemId, delta: suffix })
         }
+      } else if (!context.textByItem.has(itemId)) {
+        // Persist a standalone empty boundary before turn/completed, so Core
+        // recovery cannot fall back to an earlier assistant message.
+        context.textByItem.set(itemId, '')
+        context.emit({ type: 'text-delta', itemId, delta: '' })
       }
       return
     }

@@ -306,6 +306,16 @@ describe('Codex app-server transport', () => {
         child.notify(source === 'completed-item' ? 'item/completed' : 'item/started', {
           threadId: 'thread-1', turnId: 'turn-empty', item: empty
         })
+        // Recovery only sees events persisted before the terminal notification.
+        const persisted = JSON.parse(JSON.stringify(stateFromEvents(events, 'turn-empty')))
+        for (const outcome of ['failed', 'interrupted'] as const) {
+          const recovered = codexSessionState.settle({
+            sessionState: persisted, executionId: 'execution-turn-empty', outcome, finishedAt: 1_000
+          })
+          expect(codexSessionState.project(recovered).latestExecution?.status).toBe(outcome)
+          expect(codexSessionState.project(recovered).latestExecution)
+            .not.toHaveProperty('summary')
+        }
       }
       child.notify('turn/completed', { threadId: 'thread-1', turn: {
         id: 'turn-empty', status: 'completed', items: source === 'terminal-list' ? [earlier, empty] : []
