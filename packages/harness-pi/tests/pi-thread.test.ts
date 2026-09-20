@@ -7,6 +7,7 @@ import { openPiThread } from '../src/main/thread/handle.js'
 import { piMainModule } from '../src/main/entry.js'
 import { piJson, piSessionAdapter, piState } from '../src/shared/state.js'
 import { projectPiBartPresentation } from '../src/shared/bart-presentation.js'
+import { piOverviewCardModule } from '../src/renderer/OverviewCard.js'
 import type { PiThreadSettings } from '../src/shared/types.js'
 import type { PiRpc } from '../src/main/runtime/rpc.js'
 import { createAgentOpenContext } from '@openagent/test-kit'
@@ -94,6 +95,71 @@ function answer(native: Native, text: string, stopReason = 'stop') {
 }
 
 describe('Pi native Thread boundary', () => {
+  it('projects confirmed native todo snapshots through persistence and the live card lifecycle', async () => {
+    const test = await owner(); const handle = await test.open()
+    await send(handle); const native = natives.at(-1)!
+    // Optional tools belong to the user's Pi configuration, not automatic extension injection.
+    expect(native.args).not.toContain('-e')
+    const card = () => piOverviewCardModule.project({ thread: test.record(), layout: { availableColumns: 3 } })
+    const extensions = () => {
+      const projection = card().view.presentation.projection
+      if (projection.kind !== 'standard') throw new Error('Expected a standard Pi card')
+      return projection.extensions
+    }
+    const todos = [{ id: 1, text: 'Inspect task', done: false }, { id: 2, text: 'Verify card', done: false }]
+    const result = (id: string, snapshot: unknown, extra: Record<string, unknown> = {}) => native.emit({
+      type: 'tool_execution_end', toolCallId: id, toolName: 'todo',
+      result: { content: [{ type: 'text', text: 'Native TODO result' }], details: { todos: snapshot } }, ...extra
+    })
+    expect(extensions()).toEqual([])
+    result('add', todos)
+    await drain(handle)
+    expect(card().footprint).toEqual({ columns: 2, rows: 1 })
+    expect(extensions()).toEqual([{ kind: 'todo', steps: [
+      { step: 'Inspect task', status: 'pending' }, { step: 'Verify card', status: 'pending' }
+    ] }])
+    todos[0]!.done = true
+    result('toggle', todos)
+    await drain(handle)
+    const confirmed = [{ kind: 'todo', steps: [
+      { step: 'Inspect task', status: 'completed' }, { step: 'Verify card', status: 'pending' }
+    ] }]
+    expect(extensions()).toEqual(confirmed)
+    const restored = JSON.parse(JSON.stringify(test.record())) as AgentThreadRecord<'pi', PiThreadSettings>
+    expect(piOverviewCardModule.project({ thread: restored, layout: { availableColumns: 3 } }).view.presentation.projection)
+      .toEqual(card().view.presentation.projection)
+
+    result('failed', [], { isError: true })
+    result('other-tool', [], { toolName: 'read' })
+    result('semantic-error', [], { result: { details: { todos: [], error: 'Not found' } } })
+    result('malformed', [{ id: 1, text: 'Bad', done: 'false' }])
+    result('duplicate', [todos[0], todos[0]])
+    result('partial', [], { type: 'tool_execution_update' })
+    await drain(handle)
+    expect(extensions()).toEqual(confirmed)
+    expect(test.execution()?.status).toBe('running')
+
+    result('clear', [])
+    await drain(handle)
+    expect(extensions()).toEqual([])
+    result('list', todos)
+    await drain(handle)
+    expect(extensions()).toEqual(confirmed)
+    result('complete', todos.map(todo => ({ ...todo, done: true })))
+    await drain(handle)
+    expect(extensions()).toEqual([])
+    result('reopen', todos)
+    await drain(handle)
+    native.emit({ type: 'agent_settled' }); await drain(handle)
+    expect(extensions()).toEqual([])
+    await send(handle, 'run-2')
+    expect(extensions()).toEqual([])
+    // Pi's list action can restore the native branch's unfinished items in a later execution.
+    result('list-again', todos)
+    await drain(handle)
+    expect(extensions()).toEqual(confirmed)
+  })
+
   it('keeps acknowledged and retrying work running until agent_settled', async () => {
     const test = await owner(); const handle = await test.open()
     await send(handle); const native = natives.at(-1)!

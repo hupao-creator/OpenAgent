@@ -60,6 +60,13 @@ export const piOverviewCardModule: HarnessOverviewCardModule<PiOverviewView> = {
         submitActionId: pending.actions.find(a => a.intent === 'submit')?.id
       } : {})
     } }] : []
+    if (latest?.status === 'running' || latest?.status === 'waiting-for-user') {
+      const todos = state.messages.findLast(message => message.executionId === latest.executionId &&
+        message.role === 'tool' && message.toolName === 'todo' && message.todos !== undefined)?.todos
+      if (todos?.some(todo => !todo.done)) extensions.push({ kind: 'todo', steps: todos.map(todo => ({
+        step: todo.text, status: todo.done ? 'completed' : 'pending'
+      })) })
+    }
     const presentation = composeThreadCard({ kind: 'standard', identity: usage ? { usage } : {}, extensions }, { displayPolicy: input.displayPolicy, availableCols: input.layout.availableColumns })
     return { footprint: { columns: presentation.size.cols, rows: presentation.size.rows }, structureKey: presentation.key, excerpt,
       view: { presentation, excerpt, model: [settings.provider, settings.model].filter(Boolean).join('/') || 'Pi', status: latest?.status || 'idle', pendingInteractionId: pending?.id } }

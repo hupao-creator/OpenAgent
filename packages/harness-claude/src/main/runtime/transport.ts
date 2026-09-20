@@ -2769,7 +2769,11 @@ function parsedJson(value: string): unknown {
 }
 
 function isTopLevelUserFrame(value: UnknownRecord): boolean {
-  return value.type === 'user' && value.parent_tool_use_id == null && isRecord(value.message)
+  if (value.type !== 'user' || value.parent_tool_use_id != null || !isRecord(value.message)) return false
+  const content = value.message.content
+  // Root tool results also use user frames. They must reach the activity/task parser.
+  if (!Array.isArray(content)) return typeof content === 'string'
+  return !content.some((block) => isRecord(block) && block.type === 'tool_result')
 }
 
 function userFrameText(value: UnknownRecord): string {

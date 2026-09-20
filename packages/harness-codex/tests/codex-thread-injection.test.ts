@@ -70,7 +70,7 @@ describe('Codex generic Thread injection', () => {
           tools: { web_search: false, update_plan: { enabled: false } }
         })
       } else {
-        expect(start).not.toHaveProperty('config')
+        expect(start.config).toEqual({ tools: { update_plan: { enabled: true } } })
       }
     } finally {
       await handle.dispose()
@@ -98,6 +98,7 @@ describe('Codex generic Thread injection', () => {
       expect(start.approvalPolicy).toBe('on-request')
       expect(start).not.toHaveProperty('dynamicTools')
       if (mode) expect(start.config).toMatchObject({ features: { shell_tool: false } })
+      else expect(start.config).toEqual({ tools: { update_plan: { enabled: true } } })
     } finally {
       await handle.dispose()
     }
@@ -119,9 +120,9 @@ describe('Codex generic Thread injection', () => {
     expect(test.record().sessionState).toBeNull()
   })
 
-  it('retains the native session on matching-tool reopen', async () => {
+  it.each([undefined, 'exclusive'] as const)('retains the native session and plan setting on %s reopen', async mode => {
     const test = await setup()
-    const injection: HarnessThreadInjection = { tools: { mode: 'exclusive', bindings: [] } }
+    const injection: HarnessThreadInjection = mode ? { tools: { mode, bindings: [] } } : {}
     const first = await openCodexThread(test.runtime, { ...test.context(), injection })
     await first.send({
       executionId: 'first-turn', input: { parts: [{ kind: 'text', text: 'First task.' }] },
@@ -142,7 +143,8 @@ describe('Codex generic Thread injection', () => {
       const wire = await test.wire()
       expect(wire.filter(message => message.method === 'thread/start')).toHaveLength(1)
       expect(wire.find(message => message.method === 'thread/resume')?.params).toMatchObject({
-        threadId: 'thread-1', developerInstructions: 'Refreshed thread instructions.'
+        threadId: 'thread-1', developerInstructions: 'Refreshed thread instructions.',
+        config: { tools: { update_plan: { enabled: !mode } } }
       })
     } finally {
       await reopened.dispose()
@@ -352,15 +354,15 @@ describe('Codex generic Thread injection', () => {
       const readTurn = paramOf(wire, 'turn/start', -1)
 
       // The fork base and turn settings have to match the source request field
-      // for field; a plain Thread carries no exclusive config override.
+      // for field, including OpenAgent's session-local plan-tool setting.
       for (const key of ['cwd', 'approvalPolicy', 'sandbox', 'model', 'approvalsReviewer', 'config', 'developerInstructions']) {
         expect(readFork[key]).toEqual(sourceStart[key])
       }
       expect(readTurn.sandboxPolicy).toEqual(sourceTurn.sandboxPolicy)
       expect(readTurn.approvalPolicy).toEqual(sourceTurn.approvalPolicy)
       expect(readTurn.cwd).toEqual(sourceTurn.cwd)
-      expect(sourceStart.config).toBeUndefined()
-      expect(readFork.config).toBeUndefined()
+      expect(sourceStart.config).toEqual({ tools: { update_plan: { enabled: true } } })
+      expect(readFork.config).toEqual(sourceStart.config)
       // Read keeps the fork ephemeral; the source Thread itself is persisted.
       expect(readFork.ephemeral).toBe(true)
       expect(sourceStart.ephemeral).toBe(false)
