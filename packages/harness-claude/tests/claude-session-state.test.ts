@@ -15,7 +15,8 @@ function turn(executionId: string, createdAt: number, status: ClaudeTurn['status
   return {
     executionId, createdAt, updatedAt: createdAt + 10,
     ...(status === 'running' ? {} : { finishedAt: createdAt + 5 }),
-    prompts: [executionId], promptAttachments: [[]], text: `${executionId} answer`, reasoning: '',
+    prompts: [executionId], promptAttachments: [[]], text: `${executionId} answer`,
+    lastAssistantMessage: { id: `${executionId}-answer`, text: `${executionId} answer` }, reasoning: '',
     status, plan: [], activities: [], interactions: [], notices: [], timeline: []
   }
 }
@@ -33,6 +34,39 @@ function freeze<Value>(value: Value): Value {
 }
 
 describe('Claude persisted Session observation authority', () => {
+  it.each(['completed', 'failed', 'interrupted'] as const)(
+    'preserves the last assistant message through %s settlement and historical lookup', outcome => {
+      const answer = `  ## Result\n\n${'Long answer\n'.repeat(300)}`
+      const current = turn('current', 10, 'running')
+      current.text = `Starting work.\n${answer}`
+      current.error = 'Native error is not the answer'
+      current.lastAssistantMessage = { id: 'last', text: answer }
+      const { settle, project, resolveExecution } = adapter()
+      if (outcome === 'completed') {
+        current.status = 'completed'
+        current.finishedAt = current.updatedAt = 30
+      }
+      const encoded = encodeClaudeThreadState(session([current]))
+      const settled = outcome === 'completed' ? encoded : settle({ sessionState: encoded,
+        executionId: 'current', outcome, finishedAt: 30 })
+      expect(project(settled).latestExecution).toMatchObject({ status: outcome, summary: answer })
+      const stored = parseClaudeThreadState(JSON.parse(JSON.stringify(settled)))
+      stored.turns.push(turn('next', 40, 'running'))
+      expect(resolveExecution(encodeClaudeThreadState(stored), 'current')?.summary).toBe(answer)
+    }
+  )
+
+  it.each([undefined, { id: 'last-empty', text: '' }])(
+    'does not substitute aggregate text, prompt or error for missing assistant text: %j', lastAssistantMessage => {
+      const current = turn('empty', 10, 'failed')
+      if (lastAssistantMessage === undefined) delete current.lastAssistantMessage
+      else current.lastAssistantMessage = lastAssistantMessage
+      current.error = 'Native error'
+      expect(adapter().project(encodeClaudeThreadState(session([current]))).latestExecution)
+        .toEqual({ executionId: 'empty', startedAt: 10, finishedAt: 15, status: 'failed', error: 'Native error' })
+    }
+  )
+
   it('reconstructs the last persisted execution and immutable finish time independently of the clock', () => {
     const state = session([turn('older', 10, 'failed'), turn('latest', 100, 'completed')])
     state.turns[0]!.updatedAt = 90_000

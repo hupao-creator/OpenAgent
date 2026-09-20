@@ -8,6 +8,7 @@ import {
   type CodexNativeActivityEvent
 } from '../src/main/runtime/app-server.js'
 import type { CodexNativeEvent } from '../src/shared/types.js'
+import { codexSessionState } from '../src/shared/session-state.js'
 import {
   createEmptyCodexState,
   decodeCodexState,
@@ -292,6 +293,39 @@ describe('Codex app-server transport', () => {
       { itemId, content: 'Final answer', status: 'complete' }
     ])
   })
+
+  it.each(['terminal-list', 'completed-item', 'started-item'])(
+    'retains an empty last assistant message from %s instead of reusing commentary', async source => {
+      const { server, child } = createServer()
+      child.autoBackgroundTerminals = true
+      const events = await startFakeTurn(server, child, 'turn-empty')
+      const earlier = { id: 'commentary', type: 'agentMessage', text: 'Starting work' }
+      const empty = { id: 'empty', type: 'agentMessage', text: '' }
+      child.notify('item/completed', { threadId: 'thread-1', turnId: 'turn-empty', item: earlier })
+      if (source !== 'terminal-list') {
+        child.notify(source === 'completed-item' ? 'item/completed' : 'item/started', {
+          threadId: 'thread-1', turnId: 'turn-empty', item: empty
+        })
+        // Recovery only sees events persisted before the terminal notification.
+        const persisted = JSON.parse(JSON.stringify(stateFromEvents(events, 'turn-empty')))
+        for (const outcome of ['failed', 'interrupted'] as const) {
+          const recovered = codexSessionState.settle({
+            sessionState: persisted, executionId: 'execution-turn-empty', outcome, finishedAt: 1_000
+          })
+          expect(codexSessionState.project(recovered).latestExecution?.status).toBe(outcome)
+          expect(codexSessionState.project(recovered).latestExecution)
+            .not.toHaveProperty('summary')
+        }
+      }
+      child.notify('turn/completed', { threadId: 'thread-1', turn: {
+        id: 'turn-empty', status: 'completed', items: source === 'terminal-list' ? [earlier, empty] : []
+      } })
+      await vi.waitFor(() => expect(events).toContainEqual({ type: 'done', outcome: 'completed' }))
+      const state = stateFromEvents(events, 'turn-empty')
+      expect(codexSessionState.project(JSON.parse(JSON.stringify(state))).latestExecution)
+        .not.toHaveProperty('summary')
+    }
+  )
 
   it('retains native item identity on interleaved deltas and terminal messages', async () => {
     const { server, child } = createServer()

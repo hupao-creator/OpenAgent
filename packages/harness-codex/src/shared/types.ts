@@ -283,6 +283,11 @@ export interface CodexTurn {
   readonly messages: readonly CodexMessage[]
   readonly timeline: readonly CodexTimelineItem[]
   readonly answer: string
+  /** Prefix retained before the display timeline truncates long native messages. */
+  readonly lastAssistantMessage?: {
+    readonly itemId: string
+    readonly text: string
+  }
   readonly reasoning: string
   readonly plan: readonly CodexPlanStep[]
   readonly planExplanation?: string

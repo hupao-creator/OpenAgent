@@ -10,7 +10,7 @@ import {
   type HarnessBartActivityBody,
   type HarnessBartForeground
 } from '@openagent/contracts/renderer'
-import { piJson, piState } from '../../shared/state.js'
+import { piJson, piLastAssistantText, piState } from '../../shared/state.js'
 import type { PiMessage, PiThreadSettings } from '../../shared/types.js'
 import { startPiRpc, type PiRpc } from '../runtime/rpc.js'
 import { piModelArguments } from '../runtime/model-options.js'
@@ -106,9 +106,9 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
   async function finish(status: 'completed' | 'failed' | 'interrupted', error?: string) {
     const e = active()
     if (!e) return
-    const summary = state.messages.filter(m => m.executionId === e.executionId && m.role === 'assistant').at(-1)?.text
+    const summary = piLastAssistantText(state, e.executionId)
     replaceExecution({ executionId: e.executionId, startedAt: e.startedAt, status,
-      finishedAt: Math.max(e.startedAt, Date.now()), ...(summary ? { summary: clean(summary) } : {}),
+      finishedAt: Math.max(e.startedAt, Date.now()), ...(summary ? { summary } : {}),
       ...(status === 'failed' && error ? { error: clean(error) } : {}) })
     // Foreground activity is a live-run surface; a settled Execution keeps none.
     if (state.foregrounds) {

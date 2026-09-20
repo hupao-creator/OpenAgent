@@ -1,5 +1,5 @@
 import type { AgentInput } from '@openagent/contracts'
-import { isJsonValue } from '@openagent/contracts'
+import { isJsonValue, PUBLIC_OBSERVATION_LIMITS } from '@openagent/contracts'
 import {
   advanceBartForeground,
   advanceBartReasoning,
@@ -175,6 +175,7 @@ export function reduceCodexEvent(
           updatedAt: timestamp,
           answer: timelineAnswer(timeline),
           timeline,
+          ...assistantMessageSnapshot(turn, timeline, event),
           // A delta the settled item refused leaves the answer untouched, so it
           // must not claim Bart's body either.
           ...(event.delta.length === 0 || timeline === turn.timeline
@@ -190,7 +191,8 @@ export function reduceCodexEvent(
           ...turn,
           updatedAt: timestamp,
           answer: timelineAnswer(timeline),
-          timeline
+          timeline,
+          ...assistantMessageSnapshot(turn, timeline, event)
         }
       }
       case 'reasoning-delta': {
@@ -660,6 +662,7 @@ function isTurn(value: unknown, stateUpdatedAt: number): value is CodexTurn {
     'messages',
     'timeline',
     'answer',
+    'lastAssistantMessage',
     'reasoning',
     'plan',
     'planExplanation',
@@ -692,6 +695,8 @@ function isTurn(value: unknown, stateUpdatedAt: number): value is CodexTurn {
     !Array.isArray(value.messages) ||
     !Array.isArray(value.timeline) ||
     !boundedString(value.answer, MAX_ANSWER) ||
+    (value.lastAssistantMessage !== undefined &&
+      !isAssistantMessageSnapshot(value.lastAssistantMessage)) ||
     !boundedString(value.reasoning, MAX_REASONING) ||
     !Array.isArray(value.plan) ||
     value.plan.length > 200 ||
@@ -714,6 +719,12 @@ function isTurn(value: unknown, stateUpdatedAt: number): value is CodexTurn {
     value.activities.every(isActivity) &&
     value.interactions.every(isInteraction) &&
     value.notices.every(isNotice)
+}
+
+function isAssistantMessageSnapshot(value: unknown): boolean {
+  return isRecord(value) && hasOnlyKeys(value, ['itemId', 'text']) &&
+    isCodexAgentMessageId(value.itemId) &&
+    boundedString(value.text, PUBLIC_OBSERVATION_LIMITS.summary)
 }
 
 function isMessage(
@@ -1068,6 +1079,26 @@ function appendTimelineMarker(
 ): readonly CodexTimelineItem[] {
   if (!repeat && timeline.some((item) => item.kind === kind)) return timeline
   return [...timeline, { id: timelineId(timeline, kind, at), kind, createdAt: at }]
+}
+
+function assistantMessageSnapshot(
+  turn: CodexTurn,
+  timeline: readonly CodexTimelineItem[],
+  event: Extract<CodexNativeEvent, { type: 'text-delta' | 'text-final' }>
+): Pick<CodexTurn, 'lastAssistantMessage'> {
+  // Follow native message order, not the arrival order of late deltas/finals.
+  if (timeline === turn.timeline ||
+    timeline.findLast(item => item.kind === 'assistant')?.itemId !== event.itemId) return {}
+  const previous = turn.lastAssistantMessage
+  const text = event.type === 'text-final'
+    ? event.text
+    : (previous?.itemId === event.itemId ? previous.text : '') + event.delta
+  return {
+    lastAssistantMessage: {
+      itemId: event.itemId,
+      text: text.replaceAll('\0', '').slice(0, PUBLIC_OBSERVATION_LIMITS.summary)
+    }
+  }
 }
 
 function appendTimelineTextDelta(

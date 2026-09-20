@@ -74,6 +74,9 @@ function isTerminal(turn: CodexTurn): turn is CodexTurn & {
 }
 
 function summaryForTurn(turn: CodexTurn): string {
+  if (isTerminal(turn)) {
+    return turn.lastAssistantMessage?.text || ''
+  }
   const source = turn.answer.trim() || turn.error?.trim() ||
     turn.messages.findLast(message => !message.internal)?.content.trim() || ''
   return source.replace(/\s+/g, ' ').slice(0, 2_000)
