@@ -1,5 +1,7 @@
-import { memo, useId } from 'react'
+import { memo, useId, useRef, type RefObject } from 'react'
 import type { BartDockRole } from '../bart-role'
+import { BART_REASONING_DEFAULTS, reasoningGeometry, type BartReasoningOptions } from '../bart-motion/reasoning-geometry'
+import { useBartReasoning } from '../bart-motion/use-bart-reasoning'
 import './bart-role.css'
 
 /**
@@ -9,26 +11,31 @@ import './bart-role.css'
  * carrier so Bart's body keeps its production size.
  */
 export const BartRoleDecoration = memo(function BartRoleDecoration({
-  role
+  role, dockRef, active, reasoningOptions = BART_REASONING_DEFAULTS
 }: {
   role: BartDockRole
+  dockRef: RefObject<HTMLElement | null>
+  active: boolean
+  reasoningOptions?: BartReasoningOptions
 }): React.JSX.Element | null {
   const arcId = `bart-role-arc-${useId().replace(/:/g, '')}`
+  const stage = useRef<HTMLDivElement>(null)
+  const geometry = reasoningGeometry(reasoningOptions.length, reasoningOptions.tilt)
+  useBartReasoning(stage, dockRef, role.kind === 'reasoning' ? role.text : null, active, reasoningOptions)
   if (role.kind === 'idle') return null
   return (
-    <div className="bart-role-stage" data-role={role.kind} aria-hidden="true">
+    <div ref={stage} className="bart-role-stage" data-role={role.kind} aria-hidden="true">
       {role.kind === 'reasoning' ? (
         <>
           {role.text ? (
-            <svg className="bart-role-arc" viewBox="0 0 400 310">
+            <svg className="bart-role-arc" viewBox="0 0 400 310" style={{ maskImage: geometry.mask }}>
               <defs>
-                <path id={arcId} d="M110 154 A90 90 0 0 1 290 154" />
+                <path id={arcId} d={geometry.path} />
               </defs>
               <text>
-                {/* Anchor the newest text above the blue dot. The path clips
-                    older glyphs at its start using their actual shaped widths,
-                    without measuring layout or compressing the font to fit. */}
-                <textPath href={`#${arcId}`} startOffset="80%" textAnchor="end">
+                {/* The measured tail is centered on the same circle at every
+                    length. Streaming moves the retained glyphs along it. */}
+                <textPath href={`#${arcId}`} startOffset="50%" textAnchor="end">
                   {role.text}
                 </textPath>
               </text>

@@ -8,6 +8,7 @@ import type { BartDraftAttachment } from '../../../src/shared/attachments'
 import '@fontsource-variable/inter'
 import './preview.css'
 import { CadencePreview } from './cadence'
+import { useReasoningStream } from './reasoning-stream'
 
 function notify(message: PreviewMessage): void {
   if (window.parent !== window) window.parent.postMessage(message, window.location.origin)
@@ -53,6 +54,7 @@ function sessionFor(config: LabConfig): Session {
 }
 
 function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
+  const streamingActivity = useReasoningStream(config)
   const [session, setSession] = useState(() => sessionFor(config))
   const responseGeneration = useRef(0)
   const nextSession = sessionFor(config)
@@ -73,7 +75,7 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
         phase: config.variant === 'success' ? 'completed' : config.variant === 'error' ? 'failed' : 'running'
       }
     : undefined
-  const foregroundActivity = residentActivityFor(config)
+  const foregroundActivity = streamingActivity ?? residentActivityFor(config)
   const reply = residentReplyFor(config)
   const bartRunning = config.scene === 'resident'
     && (foregroundActivity !== null || config.variant === 'working')
@@ -99,6 +101,8 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
   return (
     <main className="app-shell bart-preview" data-guides={config.guides}>
       <BartDock
+        reasoningOptions={{ length: config.reasoningLength, tilt: config.reasoningTilt,
+          gaze: config.reasoningGaze, stream: config.reasoningStreamStyle }}
         activityContext={{ threadKey: 'bart-lab', execution: {
           executionId: 'bart-lab-execution', status: operation || bartRunning ? 'running' : 'completed'
         } }}

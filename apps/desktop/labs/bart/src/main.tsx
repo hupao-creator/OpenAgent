@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowDownLeft, ArrowUpRight, Check, Maximize2, RotateCcw } from 'lucide-react'
-import { initialConfig, scenes, variants, type ConfigMessage, type LabConfig, type LabEvent, type PreviewMessage, type Scene } from './scenarios'
+import { initialConfig, reasoningStreamStyles, scenes, variants, type ConfigMessage, type LabConfig, type LabEvent, type PreviewMessage, type Scene } from './scenarios'
 import '@fontsource-variable/inter'
 import './styles.css'
 
@@ -19,6 +19,9 @@ function App(): React.JSX.Element {
   const scene = scenes.find((item) => item.id === config.scene)!
   const variant = variants[config.scene].find(([id]) => id === config.variant)!
   const index = scenes.indexOf(scene)
+  const thinking = config.scene === 'resident' && config.variant.startsWith('reasoning')
+  const tiltLabel = config.reasoningTilt === 0 ? '居中 0°'
+    : `${config.reasoningTilt < 0 ? '左' : '右'} ${Math.abs(config.reasoningTilt)}°`
   // The input capsule grows upward out of the Dock's box, so this scene has to
   // budget for the room the tallest draft occupies above it.
   const target = config.scene === 'question' ? [820, 560]
@@ -103,7 +106,7 @@ function App(): React.JSX.Element {
             <div className="specimen-caption"><span className="eyebrow">0{index + 1} — {variant[2].toUpperCase()}</span><p>{scene.description}</p></div>
             <div className="canvas-tools">
               <button type="button" className="icon-button" aria-label="重放当前场景" title="重放当前场景"
-                onClick={() => setConfig((current) => ({ ...current, replay: current.replay + 1 }))}><RotateCcw size={15} /><span>重放</span></button>
+                onClick={() => setConfig((current) => ({ ...current, replay: current.replay + 1, reasoningStreamPaused: false }))}><RotateCcw size={15} /><span>重放</span></button>
               <button type="button" className={`icon-button ${fit ? 'is-active' : ''}`} aria-label="适合画布" aria-pressed={fit}
                 title={fit ? '切换到原始比例' : '适合画布'} onClick={() => setFit((current) => !current)}><Maximize2 size={17} /></button>
               <span className="scale-label">{Math.round(scale * 100)}%</span>
@@ -113,6 +116,47 @@ function App(): React.JSX.Element {
 
         <aside className="lab-inspector" aria-label="场景设置">
           <div className="inspector-heading"><span className="eyebrow">INSPECTOR</span><span>0{index + 1}</span></div>
+          {thinking && config.variant === 'reasoning-live' ? <section className="control-section reasoning-controls">
+            <h2>流式展示</h2>
+            <div className="stream-candidates" role="group" aria-label="流式效果候选">
+              {reasoningStreamStyles.map(style => <button key={style.id} type="button"
+                className={`stream-candidate ${config.reasoningStreamStyle === style.id ? 'selected' : ''}`}
+                aria-label={style.label} aria-pressed={config.reasoningStreamStyle === style.id}
+                onClick={() => setConfig(current => ({ ...current, reasoningStreamStyle: style.id }))}>
+                <span><b>{style.label}</b><small>{style.description}</small></span>
+                {config.reasoningStreamStyle === style.id ? <Check size={14} aria-hidden="true" /> : null}
+              </button>)}
+            </div>
+            <label className="range-control">
+              <span>流入速度<output>{config.reasoningStreamSpeed.toFixed(2)}×</output></span>
+              <input aria-label="流入速度" type="range" min={.5} max={2} step={.25} value={config.reasoningStreamSpeed}
+                onChange={(event) => setConfig((current) => ({ ...current, reasoningStreamSpeed: Number(event.target.value) }))} />
+            </label>
+            <button type="button" className="icon-button" onClick={() => setConfig(current => ({
+              ...current, reasoningStreamPaused: !current.reasoningStreamPaused
+            }))}>{config.reasoningStreamPaused ? '继续流入' : '暂停流入'}</button>
+            <p className="control-hint">同一段文本，切换效果不中断播放。末尾停留后循环，可用「重放」从头对比。</p>
+          </section> : null}
+          {thinking ? <section className="control-section reasoning-controls">
+            <h2>思考实验</h2>
+            <label className="range-control">
+              <span>文本显示长度<output>{config.reasoningLength}%</output></span>
+              <input aria-label="文本显示长度" type="range" min={60} max={200} step={5} value={config.reasoningLength}
+                onChange={(event) => setConfig((current) => ({ ...current, reasoningLength: Number(event.target.value) }))} />
+            </label>
+            <label className="range-control">
+              <span>文字倾斜<output>{tiltLabel}</output></span>
+              <input aria-label="文字倾斜" aria-valuetext={tiltLabel} type="range" min={-45} max={45} step={1} value={config.reasoningTilt}
+                onChange={(event) => setConfig((current) => ({ ...current, reasoningTilt: Number(event.target.value) }))} />
+            </label>
+            <label className="toggle-row"><span>眼球跟随文字</span><input type="checkbox" checked={config.reasoningGaze}
+              onChange={(event) => setConfig((current) => ({ ...current, reasoningGaze: event.target.checked }))} /><span className="switch" aria-hidden="true" /></label>
+            <button type="button" className="icon-button" onClick={() => setConfig((current) => ({
+              ...current, reasoningLength: initialConfig.reasoningLength, reasoningTilt: initialConfig.reasoningTilt,
+              reasoningGaze: initialConfig.reasoningGaze, reasoningStreamStyle: initialConfig.reasoningStreamStyle
+            }))}>恢复锁定参数</button>
+            <p className="control-hint">已锁定：顺滑推进 · 200% · 左 20° · 眼球放大 10% · 自然扫读与身体跟随。</p>
+          </section> : null}
           <section className="control-section">
             <h2>{config.scene === 'cadence' ? '输入序列' : config.scene === 'resident' ? '当前状态' : config.scene === 'input' ? '输入场景' : config.scene === 'question' ? '回答方式' : '请求类型'}</h2>
             <div className="variant-list">

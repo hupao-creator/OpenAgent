@@ -55,6 +55,19 @@ button svg { flex-shrink: 0; }
 .cadence-controls label > span { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
 .cadence-controls output { font-variant-numeric: tabular-nums; color: #3c6240; }
 .cadence-controls input { display: block; width: 100%; margin: 12px 0 0; accent-color: #3c6240; }
+.reasoning-controls { padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.stream-candidates { display: grid; gap: 3px; }
+.stream-candidate { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 10px; border: 0; border-left: 2px solid transparent; background: transparent; color: #78836e; text-align: left; cursor: pointer; }
+.stream-candidate:hover { background: #f0f3ed; }
+.stream-candidate.selected { background: #e9eee5; border-left-color: var(--accent); color: #334e2f; }
+.stream-candidate span { display: grid; gap: 5px; }
+.stream-candidate b { font-size: 11px; font-weight: 550; }
+.stream-candidate small { font-size: 9px; line-height: 1.5; color: #7c8774; }
+.range-control { display: block; margin: 18px 0; }
+.range-control > span { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+.range-control output { font-variant-numeric: tabular-nums; color: var(--accent); }
+.range-control input { display: block; width: 100%; margin: 14px 0 0; accent-color: var(--accent); }
+.range-control input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .canvas-footer { display: flex; justify-content: space-between; gap: 12px; align-items: flex-end; padding: 15px 34px 32px; }
 .specimen-caption p { font-size: 12px; margin: 11px 0 0; line-height: 1.6; color: #747c6e; }
 .canvas-tools { display: flex; align-items: center; gap: 5px; }

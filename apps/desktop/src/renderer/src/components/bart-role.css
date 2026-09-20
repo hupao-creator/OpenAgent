@@ -26,9 +26,7 @@
   width: 100%;
   height: 100%;
   overflow: visible;
-  /* Fade fully before the path's left endpoint, so a clipped word never starts
-     with a hard edge. The latest text stays legible above the blue dot. */
-  mask-image: linear-gradient(to right, transparent 28%, #000 40%, #000 65%, transparent 80%);
+  /* The circle geometry supplies symmetric endpoint fades. */
 }
 
 .bart-role-arc text {
@@ -63,7 +61,7 @@
   fill: #f7f5ee;
   transform-box: fill-box;
   transform-origin: center;
-  transform: rotate(-7deg);
+  transform: rotate(-7deg) scale(1.1);
 }
 
 .bart-role-gaze {
@@ -157,4 +155,3 @@
   from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
