@@ -45,6 +45,11 @@ try {
     for (const [label, suffix, name] of cases) {
       await page.getByRole('button', { name: label, exact: true }).click()
       await arc.locator('textPath').filter({ hasText: suffix, visible: true }).waitFor()
+      await page.waitForFunction(() => {
+        const svg = document.querySelector('iframe').contentDocument.querySelector('.bart-role-arc')
+        return svg.querySelector('textPath').getAttribute('startOffset') ===
+          svg.querySelector('[data-bart-stream-layer] textPath')?.getAttribute('startOffset')
+      })
       const sample = await arc.evaluate(async (svg) => {
         await document.fonts.ready
         const text = svg.querySelector('[data-bart-stream-layer] text') ?? svg.querySelector('text')
@@ -107,12 +112,49 @@ try {
   assert.deepEqual(continuity, { changed: true, sameBody: true, advancing: true, circleMoving: true, samePath: true },
     'new deltas preserve the current body animation and circular path')
   await page.getByRole('button', { name: '暂停流入', exact: true }).click()
-  await page.waitForTimeout(1000)
+  await page.waitForFunction(() => {
+    const svg = document.querySelector('iframe').contentDocument.querySelector('.bart-role-arc')
+    return svg.querySelector('textPath').getAttribute('startOffset') ===
+      svg.querySelector('[data-bart-stream-layer] textPath')?.getAttribute('startOffset')
+  })
   const settled = await arc.evaluate(svg => {
     const source = svg.querySelector('textPath'), layer = svg.querySelector('[data-bart-stream-layer] textPath')
     return source.textContent === layer.textContent && source.getAttribute('startOffset') === layer.getAttribute('startOffset')
   })
   assert.ok(settled, 'the glide settles exactly on the centered source when input pauses')
+  await page.getByRole('checkbox', { name: '模拟批量输入', exact: true }).check()
+  await page.getByRole('button', { name: '重放当前场景', exact: true }).click()
+  await arc.locator('[data-bart-stream-layer]').waitFor()
+  const burst = await arc.evaluate(svg => new Promise(resolve => {
+    let previous, travel = 0, elapsed = 0, changes = 0, start
+    const read = now => {
+      start ??= now
+      const layer = svg.querySelector('[data-bart-stream-layer] textPath')
+      const current = { now, text: layer.textContent, offset: Number(layer.getAttribute('startOffset')) }
+      if (previous) {
+        if (current.text !== previous.text) changes++
+        else {
+          // Average over stable text frames: separate frame callbacks can
+          // straddle a paint, making a single observed frame misleading.
+          travel += Math.abs(current.offset - previous.offset)
+          elapsed += now - previous.now
+        }
+      }
+      previous = current
+      if (now - start < 1600) requestAnimationFrame(read)
+      else resolve({ speed: travel / elapsed * 1000, changes })
+    }
+    requestAnimationFrame(read)
+  }))
+  assert.ok(burst.changes >= 3, 'burst fixture delivers multiple real Dock updates')
+  assert.ok(burst.speed > 80 && burst.speed <= 125, `burst text stays at the shared readable speed: ${JSON.stringify(burst)}`)
+  await page.getByRole('button', { name: '暂停流入', exact: true }).click()
+  await page.waitForFunction(() => {
+    const svg = document.querySelector('iframe').contentDocument.querySelector('.bart-role-arc')
+    const source = svg.querySelector('textPath'), layer = svg.querySelector('[data-bart-stream-layer] textPath')
+    return source.textContent === layer.textContent && source.getAttribute('startOffset') === layer.getAttribute('startOffset')
+  })
+  await page.screenshot({ path: path.join(output, 'burst-settled.png') })
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await arc.locator('[data-bart-stream-layer]').waitFor({ state: 'detached' })
   assert.equal(await preview.locator('.bart-dock-reasoning-motion').evaluate(el => el.getAnimations().length), 0)

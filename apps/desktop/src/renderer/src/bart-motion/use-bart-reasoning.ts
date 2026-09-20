@@ -9,10 +9,10 @@ import { REASONING_CENTER, REASONING_RADIUS, type BartReasoningOptions } from '.
  * the current Worker eye track and compositor body track finish uninterrupted. */
 export function useBartReasoning(
   stage: RefObject<HTMLElement | null>, dock: RefObject<HTMLElement | null>,
-  textValue: string | null, active: boolean, options: BartReasoningOptions
+  textValue: string | null, active: boolean, options: BartReasoningOptions, segmentKey: string | null
 ): void {
-  const latest = useRef({ active, options })
-  latest.current = { active, options }
+  const latest = useRef({ active, options, segmentKey })
+  latest.current = { active, options, segmentKey }
   const refresh = useRef<(() => void) | undefined>(undefined)
   const hasText = Boolean(textValue)
   useLayoutEffect(() => {
@@ -66,7 +66,7 @@ export function useBartReasoning(
       timer = window.setTimeout(sweep, track.duration)
     }
     const update = (): void => {
-      const { active, options } = latest.current
+      const { active, options, segmentKey } = latest.current
       const nextShape = `${options.length}:${options.tilt}`
       if (shape !== nextShape) { stop(); shape = nextShape }
       const length = path.getTotalLength(), width = text.getComputedTextLength()
@@ -74,7 +74,7 @@ export function useBartReasoning(
       end = (length + Math.min(length, width)) / 2
       textPath.setAttribute('startOffset', String(end))
       const moving = active && !document.hidden && !reduced?.matches
-      presentation.update(moving ? options.stream : 'direct', end, width)
+      presentation.update(moving ? options.stream : 'direct', end, width, length, segmentKey)
       // Fallback SVG eyes belong to the decoration, not the body wrapper.
       // Keep the whole pose still until the Worker can carry both together.
       if (!moving || !options.gaze || logo?.getAttribute('data-worker-ready') !== 'true') { stop(); return }
@@ -99,5 +99,5 @@ export function useBartReasoning(
       presentation.dispose()
     }
   }, [stage, dock, hasText])
-  useLayoutEffect(() => { refresh.current?.() }, [textValue, active, options.length, options.tilt, options.gaze, options.stream])
+  useLayoutEffect(() => { refresh.current?.() }, [textValue, active, options.length, options.tilt, options.gaze, options.stream, segmentKey])
 }

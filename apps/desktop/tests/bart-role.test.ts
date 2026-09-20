@@ -20,11 +20,11 @@ describe('Bart Dock role resolution', () => {
 
   it('paints the reasoning arc from a bounded, whitespace-collapsed tail', () => {
     const role = resolveBartRole(reasoning('  先看\n\n调用链   再决定  '), false)
-    expect(role).toEqual({ kind: 'reasoning', text: '先看 调用链 再决定' })
+    expect(role).toEqual({ kind: 'reasoning', text: '先看 调用链 再决定', segmentKey: '["execution-1",1]' })
   })
 
   it('keeps the attentive shape when a reasoning signal carries no displayable text', () => {
-    expect(resolveBartRole(reasoning(''), false)).toEqual({ kind: 'reasoning', text: '' })
+    expect(resolveBartRole(reasoning(''), false)).toEqual({ kind: 'reasoning', text: '', segmentKey: '["execution-1",1]' })
   })
 
   it('retains the source budget for width-based clipping and never splits a code point', () => {
@@ -78,9 +78,10 @@ describe('Bart Dock role resolution', () => {
     expect(resolveBartRole(reasoning('想'), true).kind).toBe('idle')
   })
 
-  it('keeps the same display role across equal-text segments', () => {
-    expect(resolveBartRole(reasoning('想', 1), false)).toEqual(
-      resolveBartRole(reasoning('想', 2), false)
-    )
+  it('retains segment and execution identity even when the text is equal', () => {
+    const first = resolveBartRole(reasoning('想', 1), false)
+    expect(first).toMatchObject({ kind: 'reasoning', text: '想' })
+    expect(first).not.toEqual(resolveBartRole(reasoning('想', 2), false))
+    expect(first).not.toEqual(resolveBartRole({ ...reasoning('想', 1), executionId: 'execution-2' }, false))
   })
 })

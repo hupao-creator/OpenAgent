@@ -24,15 +24,18 @@ const FRAMES = DELTAS.map((delta, index) => ({
 export function useReasoningStream(config: LabConfig): HarnessBartActivity | null {
   const active = config.scene === 'resident' && config.variant === 'reasoning-live'
   const [step, setStep] = useState(0)
-  const frame = FRAMES[step % FRAMES.length]
+  const index = step % FRAMES.length
+  const frame = FRAMES[index]
   useEffect(() => { setStep(0) }, [active, config.replay])
   useEffect(() => {
     if (!active || config.reasoningStreamPaused) return
-    const timer = window.setTimeout(() => setStep(current => current + 1), frame.wait / config.reasoningStreamSpeed)
+    const wait = config.reasoningStreamBursts && index < FRAMES.length - 1 ? 150 : frame.wait
+    const stride = config.reasoningStreamBursts ? Math.min(8, FRAMES.length - 1 - index) || 1 : 1
+    const timer = window.setTimeout(() => setStep(current => current + stride), wait / config.reasoningStreamSpeed)
     return () => window.clearTimeout(timer)
-  }, [active, step, frame.wait, config.reasoningStreamPaused, config.reasoningStreamSpeed])
+  }, [active, step, index, frame.wait, config.reasoningStreamPaused, config.reasoningStreamSpeed, config.reasoningStreamBursts])
 
   return active ? {
-    kind: 'reasoning', text: frame.text, sequence: step + 1, executionId: 'bart-lab-execution'
+    kind: 'reasoning', text: frame.text, sequence: Math.floor(step / FRAMES.length) + 1, executionId: 'bart-lab-execution'
   } : null
 }

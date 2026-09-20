@@ -153,6 +153,7 @@ export interface LabConfig {
   reasoningGaze: boolean
   reasoningStreamPaused: boolean
   reasoningStreamSpeed: number
+  reasoningStreamBursts: boolean
   reasoningStreamStyle: ReasoningStreamStyle
 }
 
@@ -160,7 +161,7 @@ export const initialConfig: LabConfig = {
   scene: 'resident', variant: 'idle', replay: 0, guides: false,
   minimumMs: 800, reasoningMs: 150, eventMs: 80,
   reasoningLength: 200, reasoningTilt: -20, reasoningGaze: true,
-  reasoningStreamPaused: false, reasoningStreamSpeed: 1, reasoningStreamStyle: 'glide'
+  reasoningStreamPaused: false, reasoningStreamSpeed: 1, reasoningStreamBursts: false, reasoningStreamStyle: 'glide'
 }
 
 export interface LabEvent {
@@ -194,6 +195,7 @@ export function validConfig(value: unknown): value is LabConfig {
     && Number.isFinite(config.reasoningTilt) && config.reasoningTilt! >= -45 && config.reasoningTilt! <= 45
     && typeof config.reasoningGaze === 'boolean'
     && typeof config.reasoningStreamPaused === 'boolean'
+    && typeof config.reasoningStreamBursts === 'boolean'
     && reasoningStreamStyles.some(style => style.id === config.reasoningStreamStyle)
     && Number.isFinite(config.reasoningStreamSpeed) && config.reasoningStreamSpeed! >= .5 && config.reasoningStreamSpeed! <= 2
 }

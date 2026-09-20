@@ -128,14 +128,16 @@ function App(): React.JSX.Element {
               </button>)}
             </div>
             <label className="range-control">
-              <span>流入速度<output>{config.reasoningStreamSpeed.toFixed(2)}×</output></span>
-              <input aria-label="流入速度" type="range" min={.5} max={2} step={.25} value={config.reasoningStreamSpeed}
+              <span>输入速度<output>{config.reasoningStreamSpeed.toFixed(2)}×</output></span>
+              <input aria-label="输入速度" type="range" min={.5} max={2} step={.25} value={config.reasoningStreamSpeed}
                 onChange={(event) => setConfig((current) => ({ ...current, reasoningStreamSpeed: Number(event.target.value) }))} />
             </label>
+            <label className="toggle-row"><span>模拟批量输入</span><input type="checkbox" checked={config.reasoningStreamBursts}
+              onChange={(event) => setConfig(current => ({ ...current, reasoningStreamBursts: event.target.checked }))} /><span className="switch" aria-hidden="true" /></label>
             <button type="button" className="icon-button" onClick={() => setConfig(current => ({
               ...current, reasoningStreamPaused: !current.reasoningStreamPaused
             }))}>{config.reasoningStreamPaused ? '继续流入' : '暂停流入'}</button>
-            <p className="control-hint">同一段文本，切换效果不中断播放。末尾停留后循环，可用「重放」从头对比。</p>
+            <p className="control-hint">输入速度调整文字到达的频率。开启批量输入可比较成段到达时的推进效果；暂停后，等待中的文字继续滑入。</p>
           </section> : null}
           {thinking ? <section className="control-section reasoning-controls">
             <h2>思考实验</h2>
