@@ -4,6 +4,8 @@ import { useRef } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { BartRoleDecoration } from '../src/renderer/src/components/BartRoleDecoration'
 import { BART_REASONING_DEFAULTS } from '../src/renderer/src/bart-motion/reasoning-geometry'
+import { resolveBartRole, type BartDockRole } from '../src/renderer/src/bart-role'
+import { useBartDisplay } from '../src/renderer/src/use-bart-display'
 import { streamOverlap } from '../src/renderer/src/bart-motion/reasoning-stream-presentation'
 
 const eyes = vi.hoisted(() => ({ start: vi.fn(), cancel: vi.fn() }))
@@ -49,10 +51,14 @@ afterEach(() => {
 })
 
 function Fixture({ text, active = true, workerReady = true }: { text: string; active?: boolean; workerReady?: boolean }) {
+  const role = resolveBartRole({ kind: 'reasoning', text, sequence: 1, executionId: 'execution-1' }, false)
+  return <DecorationFixture role={role} active={active} workerReady={workerReady} />
+}
+function DecorationFixture({ role, active = true, workerReady = true }: { role: BartDockRole; active?: boolean; workerReady?: boolean }) {
   const dock = useRef<HTMLDivElement>(null)
   return <div ref={dock} className="bart-dock">
     <span className="bart-dock-reasoning-motion"><svg className="bart-logo" data-worker-ready={workerReady ? 'true' : undefined} /></span>
-    <BartRoleDecoration role={{ kind: 'reasoning', text }} dockRef={dock} active={active} />
+    <BartRoleDecoration role={role} dockRef={dock} active={active} />
   </div>
 }
 const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms))
@@ -187,4 +193,36 @@ it('bounds continuous burst backlog outside the circle and settles on the latest
   f.rerender(<Fixture text={sample(51 * 56)} active={false} />)
   expect(f.container.querySelector('[data-bart-stream-layer]')).toBeNull()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+
+it('clears pending text at real segment and execution boundaries without restarting the pose', () => {
+  function Scheduled({ text, sequence = 1, executionId = 'execution-1' }: { text: string; sequence?: number; executionId?: string }) {
+    const latest = resolveBartRole({ kind: 'reasoning', text, sequence, executionId }, false)
+    const role = useBartDisplay(latest, true, {
+      threadKey: 'test', execution: { executionId, status: 'running' }
+    }, true)
+    return <DecorationFixture role={role} />
+  }
+  const f = render(<Scheduled text={'甲'.repeat(56)} />)
+  const layer = f.container.querySelector('[data-bart-stream-layer] textPath')!
+  const source = f.container.querySelector('.bart-role-arc > text textPath')!
+  f.rerender(<Scheduled text={'乙'.repeat(56)} />)
+  advance(150)
+  expect(layer.textContent).toContain('甲')
+  expect(layer.getAttribute('startOffset')).not.toBe(source.getAttribute('startOffset'))
+  // Equal text must still cross the display scheduler when the identity changes.
+  f.rerender(<Scheduled text={'乙'.repeat(56)} sequence={2} />)
+  advance(150)
+  expect(layer.textContent).toBe('乙'.repeat(56))
+  expect(layer.getAttribute('startOffset')).toBe(source.getAttribute('startOffset'))
+  f.rerender(<Scheduled text={'丙'.repeat(56)} sequence={2} />)
+  advance(150)
+  expect(layer.textContent).toContain('乙')
+  f.rerender(<Scheduled text={'丁'.repeat(56)} sequence={2} executionId="execution-2" />)
+  expect(layer.textContent).toBe('丁'.repeat(56))
+  expect(layer.getAttribute('startOffset')).toBe(source.getAttribute('startOffset'))
+  expect(f.container.querySelector('[data-bart-stream-layer] textPath')).toBe(layer)
+  expect(eyes.start).toHaveBeenCalledTimes(1)
+  expect(animate).toHaveBeenCalledTimes(2)
 })

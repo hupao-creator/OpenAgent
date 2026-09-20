@@ -9,7 +9,7 @@ import { isDedicatedBartTool } from './bart-visual-operation'
  */
 export type BartDockRole =
   | { readonly kind: 'idle' }
-  | { readonly kind: 'reasoning'; readonly text: string }
+  | { readonly kind: 'reasoning'; readonly text: string; readonly segmentKey: string }
   | { readonly kind: 'tool'; readonly toolName: string }
 
 const IDLE_BART_ROLE: BartDockRole = { kind: 'idle' }
@@ -26,7 +26,8 @@ export function resolveBartRole(
   if (!activity || dedicatedRouteActive) return IDLE_BART_ROLE
   switch (activity.kind) {
     case 'reasoning':
-      return { kind: 'reasoning', text: reasoningArcText(activity.text) }
+      return { kind: 'reasoning', text: reasoningArcText(activity.text),
+        segmentKey: JSON.stringify([activity.executionId, activity.sequence]) }
     case 'tool-call':
       return isDedicatedBartTool(activity.toolName)
         ? IDLE_BART_ROLE

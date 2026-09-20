@@ -36,6 +36,6 @@ export function useReasoningStream(config: LabConfig): HarnessBartActivity | nul
   }, [active, step, index, frame.wait, config.reasoningStreamPaused, config.reasoningStreamSpeed, config.reasoningStreamBursts])
 
   return active ? {
-    kind: 'reasoning', text: frame.text, sequence: step + 1, executionId: 'bart-lab-execution'
+    kind: 'reasoning', text: frame.text, sequence: Math.floor(step / FRAMES.length) + 1, executionId: 'bart-lab-execution'
   } : null
 }

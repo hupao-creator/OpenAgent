@@ -24,7 +24,7 @@ export function streamOverlap(previous: readonly string[], next: readonly string
  * at most that latest tail waiting beyond the circle; obsolete, unseen batches
  * are discarded without moving any glyph already on screen. */
 export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElement, sourcePath: SVGTextPathElement): {
-  update(mode: ReasoningStreamStyle, end: number, width: number, length: number): void
+  update(mode: ReasoningStreamStyle, end: number, width: number, length: number, segmentKey: string | null): void
   dispose(): void
 } {
   const originalVisibility = source.style.visibility
@@ -37,6 +37,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
   layer.append(text)
 
   let mode: ReasoningStreamStyle = 'direct'
+  let segmentKey: string | null = null
   let value = '', sourceWidth = 0, width = 0, offset = 0, target = 0
   let latest: string[] = [], glyphs: Glyph[] = []
   let frame = 0, lastTime = 0
@@ -117,9 +118,9 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
   }
 
   return {
-    update(nextMode, end, nextWidth, length) {
+    update(nextMode, end, nextWidth, length, nextSegment) {
       const nextValue = sourcePath.textContent ?? ''
-      if (nextValue === value && nextMode === mode && end === target && nextWidth === sourceWidth) return
+      if (nextValue === value && nextMode === mode && end === target && nextWidth === sourceWidth && segmentKey === nextSegment) return
       const now = performance.now()
       const next = graphemes(nextValue)
       const overlap = streamOverlap(latest, next)
@@ -127,8 +128,8 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
         value, born: nextMode === 'soft' ? now + Math.min(120, index * 28) : -Infinity
       }))
       const reset = mode === 'direct' || nextMode === 'direct' ||
-        (nextValue === value && (nextWidth !== sourceWidth || end !== target)) ||
-        (!overlap && next.length < latest.length)
+        segmentKey !== nextSegment ||
+        (nextValue === value && (nextWidth !== sourceWidth || end !== target))
 
       if (nextMode === 'direct') {
         cancelAnimationFrame(frame)
@@ -149,6 +150,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
         offset += nextLayerWidth - width
         width = nextLayerWidth
       }
+      segmentKey = nextSegment
       latest = next
       value = nextValue
       mode = nextMode

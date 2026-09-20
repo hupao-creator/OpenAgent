@@ -57,7 +57,7 @@ export function useBartDisplay(
 function sameRole(left: BartDockRole, right: BartDockRole): boolean {
   return left.kind === right.kind && (
     left.kind === 'idle' ||
-    (left.kind === 'reasoning' && right.kind === 'reasoning' && left.text === right.text) ||
+    (left.kind === 'reasoning' && right.kind === 'reasoning' && left.text === right.text && left.segmentKey === right.segmentKey) ||
     (left.kind === 'tool' && right.kind === 'tool' && left.toolName === right.toolName)
   )
 }
