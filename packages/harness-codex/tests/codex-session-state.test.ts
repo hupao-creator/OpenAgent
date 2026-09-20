@@ -87,6 +87,60 @@ describe('Codex Session authority', () => {
       .toBe(`\n${'x'.repeat(99_999)}`)
   })
 
+  it.each(['completed', 'failed', 'interrupted'] as const)(
+    'retains the original prefix of an oversized message through %s settlement', outcome => {
+      const prefix = `  ## Result\n\n${'first\n'.repeat(20_000)}`
+      const suffix = 'tail\n'.repeat(60_000)
+      let state = reduceCodexEvent(staged('long', 10), 'long', {
+        type: 'text-delta', itemId: 'answer', delta: prefix
+      }, 11, 'prefix')
+      state = reduceCodexEvent(state, 'long', {
+        type: 'text-delta', itemId: 'answer', delta: suffix
+      }, 12, 'suffix')
+      const streamed = outcome === 'completed'
+        ? json(settleCodexExecution(state, 'long', outcome, 20))
+        : codexSessionState.settle({
+            sessionState: json(state), executionId: 'long', outcome, finishedAt: 20
+          })
+      expect(codexSessionState.project(streamed).latestExecution?.summary)
+        .toBe(prefix.slice(0, 100_000))
+
+      const corrected = `Corrected\n${prefix}${suffix}`
+      state = reduceCodexEvent(state, 'long', {
+        type: 'text-final', itemId: 'answer', text: corrected
+      }, 13, 'final')
+      state = settleCodexExecution(state, 'long', outcome, 20)
+      const restored = decodeCodexState(JSON.parse(JSON.stringify(state)))
+      expect(codexSessionState.project(json(restored)).latestExecution?.summary)
+        .toBe(corrected.slice(0, 100_000))
+      const later = stageCodexExecution(restored, 'next', {
+        parts: [{ kind: 'text', text: 'Next task' }]
+      }, 30, 'next')
+      expect(codexSessionState.resolveExecution(json(later), 'long')?.summary)
+        .toBe(corrected.slice(0, 100_000))
+    }
+  )
+
+  it('ignores late updates to earlier messages and deltas after a final snapshot', () => {
+    let state = reduceCodexEvent(staged('late', 10), 'late', {
+      type: 'text-delta', itemId: 'earlier', delta: 'Earlier message'
+    }, 11, 'earlier')
+    state = reduceCodexEvent(state, 'late', {
+      type: 'text-final', itemId: 'last', text: 'Last answer'
+    }, 12, 'last')
+    state = reduceCodexEvent(state, 'late', {
+      type: 'text-delta', itemId: 'earlier', delta: ' late delta'
+    }, 13, 'late-delta')
+    state = reduceCodexEvent(state, 'late', {
+      type: 'text-final', itemId: 'earlier', text: 'Late earlier final'
+    }, 14, 'late-final')
+    state = reduceCodexEvent(state, 'late', {
+      type: 'text-delta', itemId: 'last', delta: ' duplicate delta'
+    }, 15, 'duplicate')
+    state = settleCodexExecution(state, 'late', 'completed', 20)
+    expect(codexSessionState.project(json(state)).latestExecution?.summary).toBe('Last answer')
+  })
+
   it('projects the last record while scanning older records for Session background work', () => {
     let state = staged('older', 10)
     state = reduceCodexEvent(state, 'older', {
