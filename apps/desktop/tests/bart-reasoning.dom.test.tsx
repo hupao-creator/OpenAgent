@@ -134,3 +134,57 @@ it('matches Unicode graphemes through tail truncation and resets unrelated text'
   expect(streamOverlap(segment('检查👩‍💻e\u0301'), segment('👩‍💻e\u0301完成'))).toBe(2)
   expect(streamOverlap(segment('完成上一轮。'), segment('新的思考'))).toBe(0)
 })
+
+it('paces large batches like small batches while keeping visible text in place', () => {
+  const sample = (start: number, size: number) => Array.from({ length: size }, (_, index) => String.fromCodePoint(0x4e00 + start + index)).join('')
+  const f = render(<Fixture text={sample(0, 56)} />)
+  const displayed = () => f.container.querySelector('[data-bart-stream-layer] textPath')!
+  const offset = () => Number(displayed().getAttribute('startOffset'))
+  const position = (character: string) => offset() - Array.from(displayed().textContent!).length * 10 +
+    Array.from(displayed().textContent!).indexOf(character) * 10
+  const marker = sample(20, 1)
+  const original = position(marker)
+  f.rerender(<Fixture text={sample(2, 56)} />)
+  expect(position(marker)).toBeCloseTo(original)
+  let before = offset()
+  advance(48)
+  const smallTravel = before - offset()
+  const beforeBurst = position(marker)
+  f.rerender(<Fixture text={sample(22, 56)} />)
+  expect(position(marker)).toBeCloseTo(beforeBurst)
+  before = offset()
+  advance(48)
+  expect(before - offset()).toBeCloseTo(smallTravel)
+  expect(before - offset()).toBeLessThanOrEqual(120 * .048 + .001)
+  advance(4000)
+  expect(displayed().textContent).toBe(sample(22, 56))
+  expect(offset()).toBe(452)
+})
+
+it('bounds continuous burst backlog outside the circle and settles on the latest tail', () => {
+  const sample = (start: number) => Array.from({ length: 56 }, (_, index) => String.fromCodePoint(0x4e00 + start + index)).join('')
+  const f = render(<Fixture text={sample(0)} />)
+  const displayed = () => f.container.querySelector('[data-bart-stream-layer] textPath')!
+  // Each batch replaces the entire capped source, as a real provider can do.
+  for (let batch = 1; batch <= 50; batch++) {
+    advance(160)
+    const oldText = Array.from(displayed().textContent!)
+    const oldOffset = Number(displayed().getAttribute('startOffset'))
+    const oldStart = oldOffset - oldText.length * 10
+    const visible = oldText.findIndex((_, index) => oldStart + index * 10 >= 100)
+    const marker = oldText[visible]
+    f.rerender(<Fixture text={sample(batch * 56)} />)
+    const next = Array.from(displayed().textContent!)
+    const newOffset = Number(displayed().getAttribute('startOffset'))
+    expect(next).toContain(marker)
+    expect(newOffset - next.length * 10 + next.indexOf(marker) * 10).toBeCloseTo(oldStart + visible * 10)
+    expect(next.length).toBeLessThanOrEqual(56 + Math.ceil(452 / 10) + 1)
+    expect(displayed().textContent).toMatch(new RegExp(`${sample(batch * 56)}$`, 'u'))
+  }
+  advance(6000)
+  expect(displayed().textContent).toBe(sample(50 * 56))
+  expect(Number(displayed().getAttribute('startOffset'))).toBe(452)
+  f.rerender(<Fixture text={sample(51 * 56)} active={false} />)
+  expect(f.container.querySelector('[data-bart-stream-layer]')).toBeNull()
+  expect(vi.getTimerCount()).toBe(0)
+})

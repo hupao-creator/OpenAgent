@@ -74,7 +74,7 @@ export function useBartReasoning(
       end = (length + Math.min(length, width)) / 2
       textPath.setAttribute('startOffset', String(end))
       const moving = active && !document.hidden && !reduced?.matches
-      presentation.update(moving ? options.stream : 'direct', end, width)
+      presentation.update(moving ? options.stream : 'direct', end, width, length)
       // Fallback SVG eyes belong to the decoration, not the body wrapper.
       // Keep the whole pose still until the Worker can carry both together.
       if (!moving || !options.gaze || logo?.getAttribute('data-worker-ready') !== 'true') { stop(); return }
