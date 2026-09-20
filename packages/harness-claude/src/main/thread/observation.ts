@@ -15,7 +15,9 @@ export function claudeObservation(state: ClaudeThreadState): ThreadPublicObserva
     : null
   const turn = currentClaudeTurn(state)
   if (!turn) return { latestExecution: null, backgroundWork }
-  const summary = summarizeClaudeState(state, 2_000)
+  const summary = turn.status === 'running'
+    ? summarizeClaudeState(state, 2_000)
+    : turn.lastAssistantMessage?.text
   const execution = {
     executionId: turn.executionId,
     startedAt: turn.createdAt,

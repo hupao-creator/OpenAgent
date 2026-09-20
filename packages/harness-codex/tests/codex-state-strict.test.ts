@@ -46,6 +46,7 @@ describe('Codex current-v1 persisted state', () => {
     expectInvalid((state) => setUnknown(state.nativeActivity!, 'message', 'legacy'))
     expectInvalid((state) => setUnknown(state.backgroundTerminals[0]!, 'processId', 42))
     expectInvalid((state) => setUnknown(turn(state), 'runId', 'legacy'))
+    expectInvalid((state) => setUnknown(turn(state).lastAssistantMessage!, 'summary', 'legacy'))
     expectInvalid((state) => setUnknown(turn(state).messages[0]!, 'text', 'legacy'))
     expectInvalid((state) => setUnknown(
       turn(state).messages[0]!.attachments[0]!,
@@ -157,6 +158,17 @@ describe('Codex current-v1 persisted state', () => {
     })
     expectInvalid((state) => {
       ;(state as Record<string, unknown>).primarySessionId = undefined
+    })
+  })
+
+  it.each([
+    null,
+    { itemId: '', text: 'answer' },
+    { itemId: 'answer' },
+    { itemId: 'answer', text: 'x'.repeat(100_001) }
+  ])('rejects an invalid last-message snapshot %#', snapshot => {
+    expectInvalid(state => {
+      turn(state).lastAssistantMessage = snapshot as never
     })
   })
 

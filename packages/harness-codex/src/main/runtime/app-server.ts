@@ -1371,6 +1371,17 @@ export class CodexAppServer {
       return
     }
     if (method === 'item/started' && isRecord(params.item)) {
+      if (params.item.type === 'agentMessage') {
+        if (!isCodexAgentMessageId(params.item.id)) {
+          this.failInvalidAgentMessage(context)
+          return
+        }
+        if (!context.textByItem.has(params.item.id)) {
+          context.textByItem.set(params.item.id, '')
+          context.emit({ type: 'text-delta', itemId: params.item.id, delta: '' })
+        }
+        return
+      }
       const activity = parseActivity(params.item)
       if (activity) context.emit({ type: 'activity-start', activity })
       return
@@ -1506,9 +1517,10 @@ export class CodexAppServer {
         return
       }
       const finalText = string(item.text)
+      // Empty messages still establish the last assistant message boundary.
+      context.finalTextByItem.set(itemId, finalText)
       if (finalText) {
         this.recordFirstContent(context, 'text')
-        context.finalTextByItem.set(itemId, finalText)
         const streamed = context.textByItem.get(itemId) || ''
         if (!streamed) {
           context.textByItem.set(itemId, finalText)
@@ -1518,6 +1530,11 @@ export class CodexAppServer {
           context.textByItem.set(itemId, finalText)
           context.emit({ type: 'text-delta', itemId, delta: suffix })
         }
+      } else if (!context.textByItem.has(itemId)) {
+        // Persist a standalone empty boundary before turn/completed, so Core
+        // recovery cannot fall back to an earlier assistant message.
+        context.textByItem.set(itemId, '')
+        context.emit({ type: 'text-delta', itemId, delta: '' })
       }
       return
     }
@@ -2493,7 +2510,7 @@ function finalAgentMessages(turn: UnknownRecord): Array<{ id: string; text: stri
     if (!isRecord(value) || value.type !== 'agentMessage') continue
     if (!isCodexAgentMessageId(value.id)) return undefined
     const text = string(value.text)
-    if (text) messages.push({ id: value.id, text })
+    messages.push({ id: value.id, text })
   }
   return messages
 }

@@ -1,4 +1,4 @@
-import type { DeepReadonly, JsonValue, HarnessSessionStateAdapter } from '@openagent/contracts'
+import { PUBLIC_OBSERVATION_LIMITS, type DeepReadonly, type JsonValue, type HarnessSessionStateAdapter } from '@openagent/contracts'
 import type { HarnessBartForeground } from '@openagent/contracts/renderer'
 import type { PiSessionState } from './types.js'
 import { parsePiTodos } from './todos.js'
@@ -61,6 +61,10 @@ export function piState(value: DeepReadonly<JsonValue>): PiSessionState {
   return structuredClone(value) as unknown as PiSessionState
 }
 export function piJson(state: PiSessionState): JsonValue { return state as unknown as JsonValue }
+export function piLastAssistantText(state: PiSessionState, executionId: string): string {
+  const message = state.messages.findLast(m => m.executionId === executionId && m.role === 'assistant')
+  return message?.text.replaceAll('\0', '').slice(0, PUBLIC_OBSERVATION_LIMITS.summary) || ''
+}
 export const piSessionAdapter: HarnessSessionStateAdapter = {
   project(value) {
     const state = piState(value)
@@ -69,9 +73,11 @@ export const piSessionAdapter: HarnessSessionStateAdapter = {
   resolveExecution(value, id) { return piState(value).executions.find(e => e.executionId === id) ?? null },
   settle({ sessionState, executionId, outcome, finishedAt }) {
     const state = piState(sessionState)
+    const summary = piLastAssistantText(state, executionId)
     state.executions = state.executions.map(e => e.executionId === executionId &&
       (e.status === 'running' || e.status === 'waiting-for-user')
-      ? { executionId, startedAt: e.startedAt, status: outcome, finishedAt: Math.max(e.startedAt, finishedAt) } : e)
+      ? { executionId, startedAt: e.startedAt, status: outcome, finishedAt: Math.max(e.startedAt, finishedAt),
+        ...(summary ? { summary } : {}) } : e)
     return piJson(state)
   }
 }

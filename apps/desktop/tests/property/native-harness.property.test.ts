@@ -113,7 +113,7 @@ it('native Claude public Handle and projection contract', async () => {
         signal: new AbortController().signal })
       const outcome = value.stop ? 'failed' : 'completed'
       await vi.waitFor(() => expect(captured.read().observation.latestExecution?.status).toBe(outcome), { interval: 5 })
-      assertTerminal(captured, plugin.sessionState, value.id, outcome, value.chunks.join('').replace(/\s+/g, ' ').trim() || undefined)
+      assertTerminal(captured, plugin.sessionState, value.id, outcome, value.chunks.join('') || null)
       expect(captured.read().observation.backgroundWork).toEqual(value.disposals > 1 ? { status: 'running' } : null)
       const before = structuredClone(captured.read())
       await Promise.all(Array.from({ length: value.disposals }, () => handle!.dispose()))
