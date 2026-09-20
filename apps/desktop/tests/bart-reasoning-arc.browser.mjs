@@ -86,6 +86,8 @@ try {
   assert.equal(await page.getByRole('button', { name: 'B · 顺滑推进', exact: true }).getAttribute('aria-pressed'), 'true')
   await page.getByRole('button', { name: '重放当前场景', exact: true }).click()
   await arc.locator('[data-bart-stream-layer]').waitFor()
+  await page.waitForFunction(() => document.querySelector('iframe').contentDocument
+    .querySelector('.bart-dock-reasoning-motion')?.getAnimations().length === 1)
   const continuity = await arc.evaluate(async (svg) => {
     const circle = svg.closest('.bart-role-stage')
     const body = document.querySelector('.bart-dock-reasoning-motion')
@@ -119,6 +121,17 @@ try {
   await page.getByRole('button', { name: '工具调用', exact: true }).click()
   await arc.waitFor({ state: 'detached' })
   assert.equal(await preview.locator('.bart-dock-reasoning-motion').evaluate(el => el.getAnimations().length), 0)
+  // Exercise the real static-eye fallback, not just a mocked readiness flag.
+  await page.addInitScript(() => { window.Worker = undefined })
+  await page.reload()
+  await preview.locator('.bart-logo').waitFor()
+  await page.getByRole('button', { name: '思考', exact: true }).click()
+  await arc.waitFor()
+  const fallback = await preview.locator('.bart-role-avatar').evaluate(el => ({
+    visible: getComputedStyle(el).visibility,
+    bodyAnimations: document.querySelector('.bart-dock-reasoning-motion').getAnimations().length
+  }))
+  assert.deepEqual(fallback, { visible: 'visible', bodyAnimations: 0 }, 'fallback eyes stay attached to a still body')
   assert.deepEqual(errors, [], 'Lab has no runtime errors')
   await writeFile(path.join(output, 'results.json'), JSON.stringify(samples, null, 2))
   console.log(`Passed ${samples.length} real-browser arc cases. Evidence: ${output}`)

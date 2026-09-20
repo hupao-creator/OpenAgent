@@ -29,6 +29,7 @@ export function useBartReasoning(
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
     const presentation = createStreamPresentation(arc, text, textPath)
     const body = root.querySelector<HTMLElement>('.bart-dock-reasoning-motion')
+    const logo = root.querySelector<SVGSVGElement>('.bart-logo')
     let eye: ReturnType<typeof animateBartEyes> | undefined
     let bodyAnimations: Animation[] = []
     let timer: number | undefined
@@ -74,10 +75,16 @@ export function useBartReasoning(
       textPath.setAttribute('startOffset', String(end))
       const moving = active && !document.hidden && !reduced?.matches
       presentation.update(moving ? options.stream : 'direct', end, width)
-      if (!moving || !options.gaze) { stop(); return }
+      // Fallback SVG eyes belong to the decoration, not the body wrapper.
+      // Keep the whole pose still until the Worker can carry both together.
+      if (!moving || !options.gaze || logo?.getAttribute('data-worker-ready') !== 'true') { stop(); return }
       if (!playing) { playing = true; sweep() }
     }
     refresh.current = update
+    // Readiness can change without a text update (including Worker failure).
+    // Observe only this lifecycle signal, never text or animation writes.
+    const readiness = new MutationObserver(update)
+    if (logo) readiness.observe(logo, { attributes: true, attributeFilter: ['data-worker-ready'] })
     reduced?.addEventListener('change', update)
     document.addEventListener('visibilitychange', update)
     void document.fonts?.ready.then(() => { if (!disposed) update() })
@@ -85,6 +92,7 @@ export function useBartReasoning(
     return () => {
       disposed = true
       refresh.current = undefined
+      readiness.disconnect()
       reduced?.removeEventListener('change', update)
       document.removeEventListener('visibilitychange', update)
       stop()

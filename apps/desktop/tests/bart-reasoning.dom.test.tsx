@@ -48,10 +48,10 @@ afterEach(() => {
   Reflect.deleteProperty(Element.prototype, 'animate')
 })
 
-function Fixture({ text, active = true }: { text: string; active?: boolean }) {
+function Fixture({ text, active = true, workerReady = true }: { text: string; active?: boolean; workerReady?: boolean }) {
   const dock = useRef<HTMLDivElement>(null)
   return <div ref={dock} className="bart-dock">
-    <span className="bart-dock-reasoning-motion" />
+    <span className="bart-dock-reasoning-motion"><svg className="bart-logo" data-worker-ready={workerReady ? 'true' : undefined} /></span>
     <BartRoleDecoration role={{ kind: 'reasoning', text }} dockRef={dock} active={active} />
   </div>
 }
@@ -111,6 +111,21 @@ it('starts when empty reasoning first receives text and cancels when the text cl
   f.rerender(<Fixture text="" />)
   expect(f.container.querySelector('.bart-role-arc')).toBeNull()
   expect(eyes.cancel).toHaveBeenCalled()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('keeps fallback eyes attached by stopping body motion whenever the Worker is unavailable', async () => {
+  const f = render(<Fixture text="检查回退" workerReady={false} />)
+  expect(animate).not.toHaveBeenCalled()
+  expect(eyes.start).not.toHaveBeenCalled()
+  await act(async () => { f.rerender(<Fixture text="检查回退" />) })
+  expect(animate).toHaveBeenCalledTimes(2)
+  expect(eyes.start).toHaveBeenCalledTimes(1)
+  await act(async () => { f.rerender(<Fixture text="检查回退" workerReady={false} />) })
+  expect(cancelBody).toHaveBeenCalledTimes(2)
+  expect(eyes.cancel).toHaveBeenCalledTimes(1)
+  advance(10_000)
+  expect(eyes.start).toHaveBeenCalledTimes(1)
   expect(vi.getTimerCount()).toBe(0)
 })
 
