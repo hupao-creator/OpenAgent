@@ -112,6 +112,9 @@
   height: 100%;
 }
 
+/* Isolate the subtle reading pose from drag and spatial-route transforms. */
+.bart-dock-reasoning-motion { display: grid; place-items: center; width: 100%; height: 100%; }
+
 .bart-dock-drag-surface {
   position: absolute;
   z-index: 2;

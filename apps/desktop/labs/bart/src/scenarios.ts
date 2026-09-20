@@ -1,3 +1,4 @@
+import type { ReasoningStreamStyle } from '../../../src/renderer/src/bart-motion/reasoning-geometry'
 import type { InteractionQuestionSpec } from '@openagent/plugin-kit/renderer'
 import type { HarnessBartActivity } from '@openagent/contracts/renderer'
 import type { BartDockInteractionRequest, BartDockReply, BartDockThreadFollowUpTarget } from '../../../src/renderer/src/components/BartDock'
@@ -103,6 +104,11 @@ export const scenes = [
 ] as const
 
 export type Scene = typeof scenes[number]['id']
+export const reasoningStreamStyles = [
+  { id: 'direct', label: 'A · 即时追加', description: '逐段出现，保留输入节奏' },
+  { id: 'glide', label: 'B · 顺滑推进', description: '文字沿圆弧平滑移动' },
+  { id: 'soft', label: 'C · 柔和显露', description: '平滑推进，新字依次淡入' }
+] as const
 export const variants = {
   cadence: [
     ['burst', '快速交替', 'Burst'], ['reasoning-stream', '连续思考', 'Reasoning stream'],
@@ -111,6 +117,7 @@ export const variants = {
   ],
   resident: [
     ['idle', '待机', 'Idle'], ['reasoning', '思考', 'Reasoning'],
+    ['reasoning-live', '思考 · 流式', 'Reasoning · Live'],
     ['reasoning-en', '思考 · 英文', 'Reasoning · English'],
     ['reasoning-mixed', '思考 · 混合', 'Reasoning · Mixed'],
     ['reasoning-short', '思考 · 短文本', 'Reasoning · Short'],
@@ -141,11 +148,19 @@ export interface LabConfig {
   minimumMs: number
   reasoningMs: number
   eventMs: number
+  reasoningLength: number
+  reasoningTilt: number
+  reasoningGaze: boolean
+  reasoningStreamPaused: boolean
+  reasoningStreamSpeed: number
+  reasoningStreamStyle: ReasoningStreamStyle
 }
 
 export const initialConfig: LabConfig = {
   scene: 'resident', variant: 'idle', replay: 0, guides: false,
-  minimumMs: 800, reasoningMs: 150, eventMs: 80
+  minimumMs: 800, reasoningMs: 150, eventMs: 80,
+  reasoningLength: 200, reasoningTilt: -20, reasoningGaze: true,
+  reasoningStreamPaused: false, reasoningStreamSpeed: 1, reasoningStreamStyle: 'glide'
 }
 
 export interface LabEvent {
@@ -175,6 +190,12 @@ export function validConfig(value: unknown): value is LabConfig {
     && Number.isFinite(config.minimumMs) && config.minimumMs! >= 0 && config.minimumMs! <= 2000
     && Number.isFinite(config.reasoningMs) && config.reasoningMs! >= 0 && config.reasoningMs! <= 500
     && Number.isFinite(config.eventMs) && config.eventMs! >= 20 && config.eventMs! <= 1000
+    && Number.isFinite(config.reasoningLength) && config.reasoningLength! >= 60 && config.reasoningLength! <= 200
+    && Number.isFinite(config.reasoningTilt) && config.reasoningTilt! >= -45 && config.reasoningTilt! <= 45
+    && typeof config.reasoningGaze === 'boolean'
+    && typeof config.reasoningStreamPaused === 'boolean'
+    && reasoningStreamStyles.some(style => style.id === config.reasoningStreamStyle)
+    && Number.isFinite(config.reasoningStreamSpeed) && config.reasoningStreamSpeed! >= .5 && config.reasoningStreamSpeed! <= 2
 }
 
 export function interactionFor(config: LabConfig): BartDockInteractionRequest | undefined {

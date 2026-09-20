@@ -44,15 +44,16 @@ try {
     let bodyWidth
     for (const [label, suffix, name] of cases) {
       await page.getByRole('button', { name: label, exact: true }).click()
-      await arc.locator('textPath').filter({ hasText: suffix }).waitFor()
+      await arc.locator('textPath').filter({ hasText: suffix, visible: true }).waitFor()
       const sample = await arc.evaluate(async (svg) => {
         await document.fonts.ready
-        const text = svg.querySelector('text')
+        const text = svg.querySelector('[data-bart-stream-layer] text') ?? svg.querySelector('text')
         const last = text.getNumberOfChars() - 1
         const endpoint = text.getEndPositionOfChar(last)
         const extent = text.getExtentOfChar(last)
         const curve = svg.querySelector('path')
-        const target = curve.getPointAtLength(curve.getTotalLength() * 0.8)
+        const length = curve.getTotalLength()
+        const target = curve.getPointAtLength((length + Math.min(length, text.getComputedTextLength())) / 2)
         return {
           previewWidth: window.innerWidth,
           logoHeight: Number.parseFloat(getComputedStyle(document.querySelector('.bart-logo')).height),
@@ -70,7 +71,7 @@ try {
       assert.ok(sample.lastGlyphWidth > 0 && sample.lastGlyphHeight > 0,
         `${name}: newest glyph is actually drawn, not clipped beyond the path`)
       assert.ok(Math.hypot(sample.end.x - sample.target.x, sample.end.y - sample.target.y) < 1,
-        `${name}: newest glyph stays at the same upper-right endpoint`)
+        `${name}: visible text is centered on the locked circular arc`)
       assert.equal(sample.fontSize, '10px', `${name}: no text shrinking or stretching`)
       // Measure body geometry before its existing idle rotation, whose axis-
       // aligned screen bounds vary slightly even for an unchanged outline.
@@ -81,6 +82,43 @@ try {
       await page.screenshot({ path: path.join(output, `${width}-${name}.png`) })
     }
   }
+  await page.getByRole('button', { name: '思考 · 流式', exact: true }).click()
+  assert.equal(await page.getByRole('button', { name: 'B · 顺滑推进', exact: true }).getAttribute('aria-pressed'), 'true')
+  await page.getByRole('button', { name: '重放当前场景', exact: true }).click()
+  await arc.locator('[data-bart-stream-layer]').waitFor()
+  const continuity = await arc.evaluate(async (svg) => {
+    const circle = svg.closest('.bart-role-stage')
+    const body = document.querySelector('.bart-dock-reasoning-motion')
+    const animation = body.getAnimations()[0]
+    const bodyTime = animation?.currentTime
+    const before = svg.querySelector('textPath').textContent
+    const path = svg.querySelector('path').getAttribute('d')
+    await new Promise(resolve => setTimeout(resolve, 850))
+    return {
+      changed: before !== svg.querySelector('textPath').textContent,
+      sameBody: body.getAnimations()[0] === animation,
+      advancing: animation?.currentTime > bodyTime,
+      circleMoving: circle.getAnimations().length === 1,
+      samePath: svg.querySelector('path').getAttribute('d') === path
+    }
+  })
+  assert.deepEqual(continuity, { changed: true, sameBody: true, advancing: true, circleMoving: true, samePath: true },
+    'new deltas preserve the current body animation and circular path')
+  await page.getByRole('button', { name: '暂停流入', exact: true }).click()
+  await page.waitForTimeout(1000)
+  const settled = await arc.evaluate(svg => {
+    const source = svg.querySelector('textPath'), layer = svg.querySelector('[data-bart-stream-layer] textPath')
+    return source.textContent === layer.textContent && source.getAttribute('startOffset') === layer.getAttribute('startOffset')
+  })
+  assert.ok(settled, 'the glide settles exactly on the centered source when input pauses')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await arc.locator('[data-bart-stream-layer]').waitFor({ state: 'detached' })
+  assert.equal(await preview.locator('.bart-dock-reasoning-motion').evaluate(el => el.getAnimations().length), 0)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await arc.locator('[data-bart-stream-layer]').waitFor()
+  await page.getByRole('button', { name: '工具调用', exact: true }).click()
+  await arc.waitFor({ state: 'detached' })
+  assert.equal(await preview.locator('.bart-dock-reasoning-motion').evaluate(el => el.getAnimations().length), 0)
   assert.deepEqual(errors, [], 'Lab has no runtime errors')
   await writeFile(path.join(output, 'results.json'), JSON.stringify(samples, null, 2))
   console.log(`Passed ${samples.length} real-browser arc cases. Evidence: ${output}`)

@@ -57,6 +57,7 @@ import {
 } from './BartLogo'
 import { AttachmentChips } from './AttachmentChips'
 import { BartRoleDecoration } from './BartRoleDecoration'
+import type { BartReasoningOptions } from '../bart-motion/reasoning-geometry'
 import { BartReplyBadge } from './BartReplyBadge'
 import { markBartReplyRead, useBartReplyRead } from '../bart-reply-read-state'
 import { resolveBartRole } from '../bart-role'
@@ -123,6 +124,8 @@ interface BartInterventionMeta {
 interface BartDockProps {
   activityContext: BartActivityContext
   displayTiming?: BartDisplayTiming
+  /** Lab comparison overrides; the application uses the locked defaults. */
+  reasoningOptions?: BartReasoningOptions
   threadOpen: boolean
   passiveVisible?: boolean
   /** The parent camera currently covers the mounted Dock. */
@@ -200,6 +203,7 @@ const dockIsVisible = (): boolean => !getBartPresenceCoordinator().isDockHidden
 export const BartDock = memo(function BartDock({
   activityContext,
   displayTiming,
+  reasoningOptions,
   threadOpen,
   passiveVisible = true,
   presentationCovered = false,
@@ -1045,18 +1049,20 @@ export const BartDock = memo(function BartDock({
       aria-label="Bart"
     >
       <span className="bart-dock-logo-motion">
-        <BartLogo
-          width={400}
-          height={210}
-          operations={interactionVisible ? undefined : operations}
-          running={interactionVisible ? false : displayRunning}
-          resolvedActivity={activity}
-          resolvedPhase={phase}
-          layout={logoLayout}
-          interventionState={interactionVisible ? undefined : visibleInterventionState}
-          interventionKey={interactionKey || interventionKey}
-          roleKind={role.kind}
-        />
+        <span className="bart-dock-reasoning-motion">
+          <BartLogo
+            width={400}
+            height={210}
+            operations={interactionVisible ? undefined : operations}
+            running={interactionVisible ? false : displayRunning}
+            resolvedActivity={activity}
+            resolvedPhase={phase}
+            layout={logoLayout}
+            interventionState={interactionVisible ? undefined : visibleInterventionState}
+            interventionKey={interactionKey || interventionKey}
+            roleKind={role.kind}
+          />
+        </span>
         <span
           className="bart-dock-drag-surface"
           aria-hidden="true"
@@ -1069,7 +1075,8 @@ export const BartDock = memo(function BartDock({
       </span>
 
       {residentLayoutVisible && !concealed && spatiallyVisible && !presentationCovered ? (
-        <BartRoleDecoration key={role.kind} role={role} />
+        <BartRoleDecoration key={role.kind} role={role} dockRef={dockRef}
+          active={windowVisible && !threadOpen} reasoningOptions={reasoningOptions} />
       ) : null}
 
       {replyReminder ? (

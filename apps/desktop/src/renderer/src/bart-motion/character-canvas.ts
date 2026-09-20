@@ -184,7 +184,7 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         ctx.translate(-8, -21); ctx.translate(320, 282); ctx.scale(1, blink); ctx.translate(-320, -282)
         for (const [x, y] of [[270, 249], [342, 246]]) {
           ctx.save(); ctx.translate(x + 13.5, y + 31.5); ctx.rotate(-7 * Math.PI / 180)
-          ctx.beginPath(); ctx.roundRect(-13.5, -31.5, 27, 63, 13.5); ctx.fill(); ctx.restore()
+          ctx.beginPath(); ctx.roundRect(-14.85, -34.65, 29.7, 69.3, 14.85); ctx.fill(); ctx.restore()
         }
         ctx.restore()
       }
