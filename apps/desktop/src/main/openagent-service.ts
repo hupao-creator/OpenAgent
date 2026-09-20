@@ -3179,8 +3179,10 @@ export class OpenAgentService {
       // earlier terminal event with the later Execution's observation.
       const threadId = change.record.id
       const event = publicThreadEnvelope(change.record)
+      const suggestReport = execution.status === 'completed' &&
+        change.observation.backgroundWork === null
       void this.terminalEvents.run(() =>
-        this.deliverAgentTerminal(threadId, event)
+        this.deliverAgentTerminal(threadId, event, suggestReport)
       ).catch(error => this.reportFailure('terminal-event', error))
       return
     }
@@ -3256,7 +3258,8 @@ export class OpenAgentService {
 
   private async deliverAgentTerminal(
     threadId: string,
-    event: JsonObject
+    event: JsonObject,
+    suggestReport: boolean
   ): Promise<void> {
     if (this.shuttingDown || this.clearingHistory) return
     await this.bartCommands.run(async () => {
@@ -3270,7 +3273,12 @@ export class OpenAgentService {
         presentation: 'internal',
         parts: [{
           kind: 'text',
-          text: `OpenAgent Agent Thread terminal event:\n${JSON.stringify(event)}`
+          text: [
+            `OpenAgent Agent Thread terminal event:\n${JSON.stringify(event)}`,
+            ...(suggestReport ? [
+              '请结合当前任务阶段和完整协调上下文，自行判断是否需要创建 Report Thread；已有对应报告则按需更新，避免重复创建。不要仅因本次 Execution 结束就认定用户任务已完成。'
+            ] : [])
+          ].join('\n\n')
         }]
       }, true)
     })

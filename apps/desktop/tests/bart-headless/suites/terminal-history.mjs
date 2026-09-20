@@ -246,7 +246,7 @@ function bartTerminalHistory(state) {
         typeof message.content !== 'string' ||
         !message.content.startsWith('OpenAgent Agent Thread terminal event:\n')
       ) return []
-      const payload = JSON.parse(message.content.slice(message.content.indexOf('\n') + 1))
+      const payload = JSON.parse(message.content.split('\n', 2)[1])
       assertRecord(payload, 'Bart terminal history payload')
       return [{ message, payload }]
     })

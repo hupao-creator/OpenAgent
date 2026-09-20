@@ -22,7 +22,7 @@ export function installBartScript(llm) {
     }
     const eventPrefix = 'OpenAgent Agent Thread terminal event:\n'
     if (directive.includes(eventPrefix)) {
-      const event = JSON.parse(directive.slice(directive.lastIndexOf(eventPrefix) + eventPrefix.length))
+      const event = JSON.parse(directive.slice(directive.lastIndexOf(eventPrefix) + eventPrefix.length).split('\n', 1)[0])
       assert.ok(event.threadId && event.observation?.latestExecution, 'Malformed terminal history injection')
       return { text: `Observed ${event.threadId}: ${event.observation.latestExecution.summary}` }
     }

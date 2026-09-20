@@ -4554,9 +4554,13 @@ describe('OpenAgent Service Harness dispatch', () => {
     }
   })
 
-  it('freezes an Agent terminal envelope before queued Bart delivery', async () => {
+  it.each((['completed', 'failed', 'interrupted'] as const).flatMap(status =>
+    [false, true].map(background => ({ status, background }))
+  ))('freezes a $status terminal event and report guidance with background=$background', async ({ status, background }) => {
     const trace: HarnessTrace = { runBartTools: async () => undefined }
-    const fixture = await serviceFixture(trace, [])
+    const fixture = await serviceFixture(trace, [], settings => ({
+      ...settings, bart: { ...settings.bart, autoIntervention: false }
+    }))
     await fixture.service.initialize()
     const createdAt = Date.now()
     await fixture.store.commit({
@@ -4602,38 +4606,53 @@ describe('OpenAgent Service Harness dispatch', () => {
     })
     await deliveryBlocked
 
-    await trace.commitAgentObservation({
+    const terminalObservation: ThreadPublicObservation = {
       latestExecution: {
         executionId: executionA.executionId,
-        status: 'completed',
+        status,
         startedAt: executionA.startedAt,
         finishedAt: Math.max(Date.now(), executionA.startedAt),
-        summary: 'Execution A completed'
+        summary: 'Execution A result\n\nFinal answer'
       },
-      backgroundWork: null
-    })
-    await fixture.service.followUpThread({
-      threadId: 'terminal-snapshot-thread',
-      input: { parts: [{ kind: 'text', text: 'Execution B' }] }
-    })
-    const executionB = readAgentThread(
-      fixture.store.read(),
-      'terminal-snapshot-thread'
-    ).observation.latestExecution
-    expect(executionB).toMatchObject({ status: 'running' })
-    expect(executionB?.executionId).not.toBe(executionA.executionId)
-
-    releaseDelivery()
-    await blocker
+      backgroundWork: background ? { status: 'running' } : null
+    }
+    try {
+      await trace.commitAgentObservation(terminalObservation)
+      if (status === 'failed') {
+        await fixture.service.setThreadArchived('terminal-snapshot-thread', false)
+      }
+      await fixture.service.followUpThread({
+        threadId: 'terminal-snapshot-thread',
+        input: { parts: [{ kind: 'text', text: 'Execution B' }] }
+      })
+      const executionB = readAgentThread(
+        fixture.store.read(),
+        'terminal-snapshot-thread'
+      ).observation.latestExecution
+      expect(executionB).toMatchObject({ status: 'running' })
+      expect(executionB?.executionId).not.toBe(executionA.executionId)
+    } finally {
+      releaseDelivery()
+      await blocker
+    }
     await vi.waitFor(() => expect(terminalEventTexts(trace.bartInputs)).toHaveLength(1))
     const event = JSON.parse(terminalEventTexts(trace.bartInputs)[0]) as {
       observation: ThreadPublicObservation
     }
-    expect(event.observation.latestExecution).toMatchObject({
-      executionId: executionA.executionId,
-      status: 'completed',
-      summary: 'Execution A completed'
-    })
+    expect(event.observation).toEqual(terminalObservation)
+    const input = trace.bartInputs?.find(candidate => candidate.parts.some(part =>
+      part.kind === 'text' && part.text.startsWith('OpenAgent Agent Thread terminal event:\n')
+    ))
+    expect(input?.presentation).toBe('internal')
+    const guidance = input?.parts.flatMap(part => part.kind === 'text' ? [part.text] : []).join('\n') || ''
+    if (status === 'completed' && !background) {
+      expect(guidance).toContain('自行判断是否需要创建 Report Thread')
+      expect(guidance).toContain('已有对应报告则按需更新，避免重复创建')
+      expect(guidance).toContain('不要仅因本次 Execution 结束就认定用户任务已完成')
+    } else {
+      expect(guidance).not.toContain('Report Thread')
+    }
+    expect(fixture.store.read().reports).toEqual([])
   })
 
   it('preempts an in-flight Agent send without blocking the ordinary command queue', async () => {
@@ -7042,7 +7061,7 @@ function terminalEventTexts(inputs: readonly AgentInput[] | undefined): string[]
   const prefix = 'OpenAgent Agent Thread terminal event:\n'
   return (inputs || []).flatMap(input => input.parts.flatMap(part =>
     part.kind === 'text' && part.text.startsWith(prefix)
-      ? [part.text.slice(prefix.length)]
+      ? [part.text.slice(prefix.length).split('\n', 1)[0]]
       : []
   ))
 }
