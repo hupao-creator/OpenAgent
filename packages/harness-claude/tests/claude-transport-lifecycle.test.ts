@@ -16,6 +16,52 @@ afterEach(async () => {
 })
 
 describe('Claude transport lifecycle', () => {
+  it('accepts root task results without treating user echoes as tool output', async () => {
+    const { transport, child, events } = fixture()
+    await transport.send('execution', { parts: [{ kind: 'text', text: 'Track two tasks' }] },
+      'now', new AbortController().signal)
+    const use = (id: string, name: string, input: unknown) => child.frame({ type: 'assistant',
+      message: { content: [{ type: 'tool_use', id, name, input }] } })
+    const result = (id: string, text: string, isError = false) => child.frame({
+      type: 'user', parent_tool_use_id: null, message: { content: [
+        { type: 'text', text: 'Tool response follows' },
+        { type: 'tool_result', tool_use_id: id, content: [{ type: 'text', text }], is_error: isError }
+      ] }
+    })
+    child.frame({ type: 'user', uuid: 'echo', message: { content: [{ type: 'text', text: 'Track two tasks' }] } })
+    child.frame({ type: 'user', uuid: 'text-echo', message: { content: 'Track two tasks' } })
+    expect(events.filter(event => event.type === 'text' || event.type === 'plan-update')).toEqual([])
+
+    use('create-1', 'TaskCreate', { subject: 'Inspect' })
+    use('create-2', 'TaskCreate', { subject: 'Verify' })
+    expect(events.filter(event => event.type === 'plan-update')).toEqual([])
+    result('create-1', 'Task #1 created successfully: Inspect')
+    result('create-2', 'Task #2 created successfully: Verify')
+    use('start-1', 'TaskUpdate', { taskId: '1', status: 'in_progress' })
+    result('start-1', 'Updated task #1 status')
+    await expect.poll(() => events.filter(event => event.type === 'plan-update').at(-1)).toMatchObject({
+      plan: [{ step: 'Inspect', status: 'inProgress' }, { step: 'Verify', status: 'pending' }]
+    })
+
+    use('failed-create', 'TaskCreate', { subject: 'Must not appear' })
+    result('failed-create', 'Task creation failed', true)
+    use('failed-update', 'TaskUpdate', { taskId: '1', status: 'completed' })
+    result('failed-update', 'Task update failed', true)
+    use('shell', 'Bash', { command: 'false' })
+    result('shell', 'Exit code 1', true)
+    await expect.poll(() => events.filter(event => event.type === 'activity-end').length).toBe(6)
+    expect(events.filter(event => event.type === 'plan-update')).toHaveLength(3)
+    expect(events).toContainEqual(expect.objectContaining({ type: 'activity-end', id: 'shell', status: 'failed', detail: 'Exit code 1' }))
+
+    use('complete-1', 'TaskUpdate', { taskId: '1', status: 'completed' })
+    result('complete-1', 'Updated task #1 status')
+    use('delete-2', 'TaskUpdate', { taskId: '2', status: 'deleted' })
+    result('delete-2', 'Deleted task #2')
+    await expect.poll(() => events.filter(event => event.type === 'plan-update').at(-1)).toMatchObject({
+      plan: [{ step: 'Inspect', status: 'completed' }]
+    })
+  })
+
   it('finishes an execution if the native process exits with queued input still pending', async () => {
     const { transport, child, events } = fixture()
     await transport.applySettings(

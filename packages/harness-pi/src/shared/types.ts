@@ -35,9 +35,16 @@ export interface PiMessage {
   thinking?: string
   toolName?: string
   isError?: boolean
+  /** Confirmed snapshot from a successful native todo result, including an empty clear. */
+  todos?: PiTodo[]
   model?: string
   provider?: string
   usage?: { input: number; output: number; cacheRead: number; cacheWrite: number; cost?: number }
+}
+export interface PiTodo {
+  id: number
+  text: string
+  done: boolean
 }
 /** Foreground semantic activity of one Execution, maintained where native events are accepted. */
 export interface PiExecutionForeground {

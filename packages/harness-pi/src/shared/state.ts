@@ -1,6 +1,7 @@
 import { PUBLIC_OBSERVATION_LIMITS, type DeepReadonly, type JsonValue, type HarnessSessionStateAdapter } from '@openagent/contracts'
 import type { HarnessBartForeground } from '@openagent/contracts/renderer'
 import type { PiSessionState } from './types.js'
+import { parsePiTodos } from './todos.js'
 
 const TOOL_NAME_CHARACTERS = 1_024
 const CALL_ID_CHARACTERS = 1_024
@@ -51,6 +52,10 @@ export function piState(value: DeepReadonly<JsonValue>): PiSessionState {
     !('messages' in value) || !('executions' in value) || !Array.isArray(value.messages) || !Array.isArray(value.executions)) throw new Error('Invalid Pi session state')
   if ('foregrounds' in value && value.foregrounds !== undefined &&
     (!Array.isArray(value.foregrounds) || !value.foregrounds.every(isExecutionForeground))) {
+    throw new Error('Invalid Pi session state')
+  }
+  if (value.messages.some(message => isRecord(message) && 'todos' in message &&
+    (message.role !== 'tool' || message.toolName !== 'todo' || message.isError === true || !parsePiTodos(message.todos)))) {
     throw new Error('Invalid Pi session state')
   }
   return structuredClone(value) as unknown as PiSessionState

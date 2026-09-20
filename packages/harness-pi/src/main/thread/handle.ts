@@ -11,6 +11,7 @@ import {
   type HarnessBartForeground
 } from '@openagent/contracts/renderer'
 import { piJson, piLastAssistantText, piState } from '../../shared/state.js'
+import { parsePiTodos } from '../../shared/todos.js'
 import type { PiMessage, PiThreadSettings } from '../../shared/types.js'
 import { startPiRpc, type PiRpc } from '../runtime/rpc.js'
 import { piModelArguments } from '../runtime/model-options.js'
@@ -203,6 +204,11 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
         const result = record(event.result ?? event.partialResult)
         const row: PiMessage = { id, executionId: execution.executionId, role: 'tool', toolName: string(event.toolName),
           text: type === 'tool_execution_start' ? JSON.stringify(event.args ?? {}) : content(result.content), isError: event.isError === true }
+        if (type === 'tool_execution_end' && row.toolName === 'todo' && !row.isError) {
+          const details = record(result.details)
+          const todos = details.error === undefined ? parsePiTodos(details.todos) : undefined
+          if (todos) row.todos = todos
+        }
         if (index < 0) state.messages.push(row); else state.messages[index] = row
         // An extension reports the identifier, so it is bounded and sanitized
         // the way `piState` will read it back: the codec refuses a NUL and a

@@ -589,7 +589,8 @@ export class CodexAppServer {
     const settings = options.settings
     const applicationConfig = options.toolMode === 'exclusive'
       ? await this.exclusiveToolsConfig(options.cwd, admissionSignal)
-      : undefined
+      // Codex 0.152+ makes the checklist opt-in; ordinary Thread cards rely on it.
+      : { tools: { update_plan: { enabled: true } } }
     const permissionConfig = settings.approvalsReviewer && settings.sandbox === 'workspace-write'
       ? { ...applicationConfig, sandbox_workspace_write: {
           writable_roots: [], network_access: false,
