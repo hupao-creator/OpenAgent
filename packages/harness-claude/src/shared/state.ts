@@ -1,4 +1,4 @@
-import type { JsonValue } from '@openagent/contracts'
+import { PUBLIC_OBSERVATION_LIMITS, type JsonValue } from '@openagent/contracts'
 import type { HarnessBartForeground } from '@openagent/contracts/renderer'
 
 export type ClaudeTurnStatus =
@@ -162,6 +162,8 @@ export interface ClaudeTurn {
   promptAttachments: ClaudeInputAttachment[][]
   internalPromptIndexes?: number[]
   text: string
+  /** Last root assistant message, including an empty message boundary. */
+  lastAssistantMessage?: { id?: string; text: string }
   reasoning: string
   status: ClaudeTurnStatus
   statusLabel?: string
@@ -1048,6 +1050,7 @@ function parseTurn(value: unknown): ClaudeTurn {
     'promptAttachments',
     'internalPromptIndexes',
     'text',
+    'lastAssistantMessage',
     'reasoning',
     'status',
     'statusLabel',
@@ -1108,6 +1111,17 @@ function parseTurn(value: unknown): ClaudeTurn {
   }
   const foreground =
     value.foreground === undefined ? undefined : parseForeground(value.foreground)
+  let lastAssistantMessage: ClaudeTurn['lastAssistantMessage']
+  if (value.lastAssistantMessage !== undefined) {
+    const message = value.lastAssistantMessage
+    if (!isRecord(message) ||
+        !isBoundedString(message.text, PUBLIC_OBSERVATION_LIMITS.summary) ||
+        (message.id !== undefined && !isNonEmptyBoundedString(message.id, 512))) {
+      throw new Error('Claude turn lastAssistantMessage 无效')
+    }
+    assertOnlyKeys(message, ['id', 'text'], 'Claude turn lastAssistantMessage')
+    lastAssistantMessage = { ...(message.id === undefined ? {} : { id: message.id }), text: message.text }
+  }
   if (
     value.error !== undefined &&
     !isBoundedString(value.error, CLAUDE_STATE_LIMITS.errorCharacters)
@@ -1164,6 +1178,7 @@ function parseTurn(value: unknown): ClaudeTurn {
       ? {}
       : { internalPromptIndexes: [...value.internalPromptIndexes] as number[] }),
     text: value.text,
+    ...(lastAssistantMessage === undefined ? {} : { lastAssistantMessage }),
     reasoning: value.reasoning,
     status: value.status,
     ...(value.statusLabel === undefined ? {} : { statusLabel: value.statusLabel }),

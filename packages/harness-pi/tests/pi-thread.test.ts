@@ -94,6 +94,50 @@ function answer(native: Native, text: string, stopReason = 'stop') {
 }
 
 describe('Pi native Thread boundary', () => {
+  it.each(['stop', 'error', 'aborted'])(
+    'retains only the last assistant message text on native %s', async stopReason => {
+      const test = await owner(); const handle = await test.open()
+      await send(handle); const native = natives.at(-1)!
+      answer(native, 'I will check this first.', 'toolUse')
+      const final = `  ## Result\n\n${'detail\n'.repeat(500)}`
+      answer(native, final, stopReason)
+      native.emit({ type: 'agent_settled' }); await drain(handle)
+      expect(test.execution()).toMatchObject({
+        summary: final, status: stopReason === 'stop' ? 'completed' : stopReason === 'error' ? 'failed' : 'interrupted'
+      })
+      const stored = JSON.parse(JSON.stringify(test.record().sessionState)) as JsonValue
+      expect(piSessionAdapter.resolveExecution(stored, 'run-1')?.summary).toBe(final)
+    }
+  )
+
+  it.each([false, true])('does not reuse commentary after an empty last message, recovery=%s', async recovery => {
+    const test = await owner(); const handle = await test.open()
+    await send(handle); const native = natives.at(-1)!
+    answer(native, 'Working on it', 'toolUse')
+    answer(native, '', 'toolUse')
+    await drain(handle)
+    if (recovery) {
+      const settled = piSessionAdapter.settle({ sessionState: test.record().sessionState,
+        executionId: 'run-1', outcome: 'interrupted', finishedAt: Date.now() })
+      expect(piSessionAdapter.project(settled).latestExecution).not.toHaveProperty('summary')
+    } else {
+      native.emit({ type: 'agent_settled' }); await drain(handle)
+      expect(test.execution()).not.toHaveProperty('summary')
+    }
+  })
+
+  it('preserves the last partial assistant message during Core recovery settlement', async () => {
+    const test = await owner(); const handle = await test.open()
+    await send(handle); const native = natives.at(-1)!
+    answer(native, 'Earlier commentary', 'toolUse')
+    answer(native, '## Partial\n\nLast message', 'toolUse')
+    await drain(handle)
+    const settled = piSessionAdapter.settle({ sessionState: test.record().sessionState,
+      executionId: 'run-1', outcome: 'interrupted', finishedAt: Date.now() })
+    expect(piSessionAdapter.project(settled).latestExecution)
+      .toMatchObject({ status: 'interrupted', summary: '## Partial\n\nLast message' })
+  })
+
   it('keeps acknowledged and retrying work running until agent_settled', async () => {
     const test = await owner(); const handle = await test.open()
     await send(handle); const native = natives.at(-1)!

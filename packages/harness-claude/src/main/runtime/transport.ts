@@ -58,7 +58,8 @@ export type ClaudeExecutionNativeEvent =
         backgroundTasks?: ClaudeBackgroundTask[]
       }
     }
-  | { type: 'text'; delta: string; messageId?: string }
+  | { type: 'assistant-message-start'; messageId?: string }
+  | { type: 'text'; delta: string; messageId?: string; synthetic?: true }
   | { type: 'reasoning'; delta: string }
   | { type: 'status'; label?: string }
   | { type: 'error'; message: string }
@@ -1108,7 +1109,7 @@ export class ClaudeTransport {
             ? structured
             : JSON.stringify(structured, null, 2)
       if (result) {
-        void this.emitExecution(active.token, { type: 'text', delta: result })
+        void this.emitExecution(active.token, { type: 'text', delta: result, synthetic: true })
       }
     }
     if (isRecord(value.modelUsage)) {
@@ -2181,6 +2182,12 @@ function parseNativeRecord(
   if (value.type === 'assistant' && isRecord(value.message)) {
     const events: ClaudeExecutionNativeEvent[] = []
     const parentId = stringValue(value.parent_tool_use_id)
+    if (!parentId) {
+      events.push({
+        type: 'assistant-message-start',
+        ...(stringValue(value.message.id) ? { messageId: stringValue(value.message.id) } : {})
+      })
+    }
     const content = Array.isArray(value.message.content) ? value.message.content : []
     for (const block of content) {
       if (!isRecord(block)) continue
@@ -2366,7 +2373,11 @@ function parseStreamEvent(
   const streamId = parentId || '$root'
   if (event.type === 'message_start' && isRecord(event.message)) {
     const generationId = stringValue(event.message.id)
-    if (!generationId) return []
+    const events: ClaudeExecutionNativeEvent[] = parentId ? [] : [{
+      type: 'assistant-message-start',
+      ...(generationId ? { messageId: generationId } : {})
+    }]
+    if (!generationId) return events
     const accumulator = {
       generationId,
       model: stringValue(event.message.model) || 'unknown',
@@ -2375,8 +2386,10 @@ function parseStreamEvent(
         : {}
     }
     parser.messageUsageByStream.set(streamId, accumulator)
-    if (Object.keys(accumulator.usage).length === 0) return []
-    return [{ type: 'usage', usageKind: 'generation', provisional: true, ...accumulator }]
+    if (Object.keys(accumulator.usage).length > 0) {
+      events.push({ type: 'usage', usageKind: 'generation', provisional: true, ...accumulator })
+    }
+    return events
   }
   if (event.type === 'content_block_delta' && isRecord(event.delta)) {
     if (event.delta.type === 'text_delta' && typeof event.delta.text === 'string') {

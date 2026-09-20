@@ -1,5 +1,6 @@
 import {
   isJsonValue,
+  PUBLIC_OBSERVATION_LIMITS,
   type HarnessSessionStateAdapter,
   type ThreadPublicObservation
 } from '@openagent/contracts'
@@ -74,6 +75,10 @@ function isTerminal(turn: CodexTurn): turn is CodexTurn & {
 }
 
 function summaryForTurn(turn: CodexTurn): string {
+  if (isTerminal(turn)) {
+    const message = turn.timeline.findLast(item => item.kind === 'assistant')
+    return message?.content.replaceAll('\0', '').slice(0, PUBLIC_OBSERVATION_LIMITS.summary) || ''
+  }
   const source = turn.answer.trim() || turn.error?.trim() ||
     turn.messages.findLast(message => !message.internal)?.content.trim() || ''
   return source.replace(/\s+/g, ' ').slice(0, 2_000)

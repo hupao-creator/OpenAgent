@@ -30,7 +30,6 @@ describe('Codex Session authority', () => {
           status: outcome,
           startedAt: 10,
           finishedAt: 20,
-          summary: outcome === 'failed' ? 'native failed' : 'Prompt first',
           ...(outcome === 'failed' ? { error: 'native failed' } : {})
         },
         backgroundWork: null
@@ -40,6 +39,53 @@ describe('Codex Session authority', () => {
       expect(stored).toEqual(before)
     }
   )
+
+  it.each(['completed', 'failed', 'interrupted'] as const)(
+    'uses only the last native assistant message for a %s summary', outcome => {
+      const answer = `  ## Result\n\n\`\`\`text\n${'answer '.repeat(400)}\n\`\`\`\n`
+      let state = reduceCodexEvent(staged('first', 10), 'first', {
+        type: 'text-final', itemId: 'commentary', text: 'I will check this first.'
+      }, 11, 'commentary')
+      state = reduceCodexEvent(state, 'first', {
+        type: 'text-delta', itemId: 'answer', delta: 'Temporary partial answer'
+      }, 12, 'partial')
+      state = reduceCodexEvent(state, 'first', {
+        type: 'text-final', itemId: 'answer', text: answer
+      }, 13, 'final')
+      state = settleCodexExecution(state, 'first', outcome, 20, 'native failed')
+      const stored = JSON.parse(JSON.stringify(json(state))) as JsonValue
+      expect(codexSessionState.project(stored).latestExecution).toMatchObject({
+        status: outcome, summary: answer,
+        ...(outcome === 'failed' ? { error: 'native failed' } : {})
+      })
+      const later = stageCodexExecution(state, 'second', {
+        parts: [{ kind: 'text', text: 'Next task' }]
+      }, 30, 'next')
+      expect(codexSessionState.resolveExecution(json(later), 'first')?.summary).toBe(answer)
+    }
+  )
+
+  it('does not reuse earlier text when the last assistant message is empty', () => {
+    let state = reduceCodexEvent(staged('empty', 10), 'empty', {
+      type: 'text-final', itemId: 'commentary', text: 'Starting work'
+    }, 11, 'commentary')
+    state = reduceCodexEvent(state, 'empty', {
+      type: 'text-delta', itemId: 'empty-answer', delta: ''
+    }, 12, 'empty')
+    const settled = codexSessionState.settle({
+      sessionState: json(state), executionId: 'empty', outcome: 'interrupted', finishedAt: 20
+    })
+    expect(codexSessionState.project(settled).latestExecution).not.toHaveProperty('summary')
+  })
+
+  it('applies the public limit to the last message without collapsing its whitespace', () => {
+    let state = reduceCodexEvent(staged('bounded', 10), 'bounded', {
+      type: 'text-final', itemId: 'answer', text: `\n${'x'.repeat(100_000)}`
+    }, 11, 'answer')
+    state = settleCodexExecution(state, 'bounded', 'completed', 20)
+    expect(codexSessionState.project(json(state)).latestExecution?.summary)
+      .toBe(`\n${'x'.repeat(99_999)}`)
+  })
 
   it('projects the last record while scanning older records for Session background work', () => {
     let state = staged('older', 10)

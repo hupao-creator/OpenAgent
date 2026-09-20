@@ -9,7 +9,7 @@ import type {
   HarnessRespondRequest,
   HarnessExecutionClaim
 } from '@openagent/contracts'
-import { assertHarnessThreadInjection, assertHarnessThreadReadSource } from '@openagent/contracts'
+import { assertHarnessThreadInjection, assertHarnessThreadReadSource, PUBLIC_OBSERVATION_LIMITS } from '@openagent/contracts'
 import {
   advanceBartForeground,
   advanceBartReasoning,
@@ -951,11 +951,28 @@ class ClaudeThreadController implements HarnessThreadHandle {
           ...boundedRuntime(event.runtime)
         }
         break
+      case 'assistant-message-start':
+        if (!event.messageId || turn.lastAssistantMessage?.id !== event.messageId) {
+          turn.lastAssistantMessage = {
+            ...(event.messageId ? { id: event.messageId } : {}), text: ''
+          }
+        }
+        break
       case 'text': {
-        // The delta reaches three persisted fields, and both text fields drop a
-        // NUL, so a delta that sanitizes to nothing is not assistant text and
-        // must not claim the foreground either.
+        // Sanitize once before the delta reaches persisted text and foreground.
+        // A delta that sanitizes to nothing must not claim the foreground.
         const delta = event.delta.replaceAll('\0', '')
+        // Native result fallbacks remain display text, not assistant messages.
+        if (!event.synthetic) {
+          if (!turn.lastAssistantMessage ||
+              (event.messageId && turn.lastAssistantMessage.id !== event.messageId)) {
+            turn.lastAssistantMessage = {
+              ...(event.messageId ? { id: event.messageId } : {}), text: ''
+            }
+          }
+          turn.lastAssistantMessage.text = (turn.lastAssistantMessage.text + delta)
+            .slice(0, PUBLIC_OBSERVATION_LIMITS.summary)
+        }
         turn.text = appendBounded(
           turn.text,
           delta,
