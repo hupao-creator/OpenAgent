@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   advanceBartForeground,
-  extendBartReasoningTail,
-  MAX_BART_REASONING_TAIL_POINTS
+  advanceBartReasoning,
+  MAX_BART_REASONING_SOURCE_POINTS
 } from '@openagent/contracts/renderer'
 import { projectClaudeBartPresentation } from '../src/shared/bart-presentation.js'
 import type { ClaudeThreadState, ClaudeTimelineItem, ClaudeTurn } from '../src/shared/state.js'
@@ -48,15 +48,9 @@ function assistant(id: string, content: string, messageId?: string): ClaudeTimel
 describe('Claude Bart foreground activity', () => {
   it('keeps one sequence while reasoning deltas keep arriving', () => {
     const current = turn('execution-1', 'running')
-    current.foreground = advanceBartForeground(current.foreground, {
-      kind: 'reasoning',
-      text: extendBartReasoningTail(current.foreground, '先看 ')
-    })
+    current.foreground = advanceBartReasoning(current.foreground, '先看 ', false)
     const first = current.foreground
-    current.foreground = advanceBartForeground(current.foreground, {
-      kind: 'reasoning',
-      text: extendBartReasoningTail(current.foreground, '调用链')
-    })
+    current.foreground = advanceBartReasoning(current.foreground, '调用链', true)
 
     expect(first).toEqual({ kind: 'reasoning', text: '先看 ', sequence: 1 })
     expect(current.foreground).toEqual({ kind: 'reasoning', text: '先看 调用链', sequence: 1 })
@@ -96,19 +90,16 @@ describe('Claude Bart foreground activity', () => {
     expect(current.foreground).toMatchObject({ callId: 'call-2', sequence: 4 })
   })
 
-  it('bounds the retained reasoning tail by code point', () => {
+  it('retains bursts beyond the visual tail for the renderer buffer', () => {
     const current = turn('execution-1', 'running')
     for (const chunk of ['推'.repeat(60), '再推'.repeat(40)]) {
-      current.foreground = advanceBartForeground(current.foreground, {
-        kind: 'reasoning',
-        text: extendBartReasoningTail(current.foreground, chunk)
-      })
+      current.foreground = advanceBartReasoning(current.foreground, chunk, true)
     }
     const reasoning = current.foreground
     expect(reasoning?.kind).toBe('reasoning')
     const text = reasoning?.kind === 'reasoning' ? reasoning.text : ''
-    expect([...text].length).toBe(MAX_BART_REASONING_TAIL_POINTS)
-    expect(text).toBe([...('推'.repeat(60) + '再推'.repeat(40))].slice(-MAX_BART_REASONING_TAIL_POINTS).join(''))
+    expect([...text].length).toBeLessThanOrEqual(MAX_BART_REASONING_SOURCE_POINTS)
+    expect(text).toBe('推'.repeat(60) + '再推'.repeat(40))
   })
 })
 

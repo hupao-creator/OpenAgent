@@ -10,10 +10,11 @@ import { isDedicatedBartTool } from './bart-visual-operation'
 export type BartDockRole =
   | { readonly kind: 'idle' }
   | { readonly kind: 'running' }
-  | { readonly kind: 'reasoning'; readonly text: string; readonly segmentKey: string }
+  | { readonly kind: 'reasoning'; readonly text: string; readonly segmentKey: string; readonly sourceText?: string; readonly sourceOffset?: number }
   | { readonly kind: 'tool'; readonly toolName: string }
 
 const IDLE_BART_ROLE: BartDockRole = { kind: 'idle' }
+const reasoningSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
 /**
  * Dedicated choreography outranks the generic fallback: a tool call whose
@@ -31,6 +32,7 @@ export function resolveBartRole(
   switch (activity.kind) {
     case 'reasoning':
       return { kind: 'reasoning', text: reasoningArcText(activity.text),
+        sourceText: activity.text, sourceOffset: activity.textOffset ?? 0,
         segmentKey: JSON.stringify([activity.executionId, activity.sequence]) }
     case 'tool-call':
       return isDedicatedBartTool(activity.toolName)
@@ -42,9 +44,14 @@ export function resolveBartRole(
 }
 
 /**
- * Keep the bounded source tail, not a fixed count of visible glyphs: SVG fits
- * the text to the arc and keeps the newest end in view for every writing system.
+ * Keep a code-point-bounded tail of whole graphemes. SVG fits the text to the
+ * arc; a cluster crossing the budget boundary belongs to the consumed prefix.
  */
 export function reasoningArcText(text: string): string {
-  return tailPoints(text.replace(/\s+/g, ' ').trim(), MAX_BART_REASONING_TAIL_POINTS)
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  const tail = tailPoints(normalized, MAX_BART_REASONING_TAIL_POINTS)
+  const start = normalized.length - tail.length
+  if (start === 0) return normalized
+  const cluster = reasoningSegmenter.segment(normalized).containing(start)!
+  return normalized.slice(cluster.index === start ? start : cluster.index + cluster.segment.length)
 }

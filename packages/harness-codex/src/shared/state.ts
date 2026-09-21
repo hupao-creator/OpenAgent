@@ -3,6 +3,7 @@ import { isJsonValue, PUBLIC_OBSERVATION_LIMITS } from '@openagent/contracts'
 import {
   advanceBartForeground,
   advanceBartReasoning,
+  isBartReasoningSource,
   headPoints,
   MAX_BART_TOOL_NAME_POINTS,
   type HarnessBartForeground
@@ -839,8 +840,9 @@ function isForeground(value: unknown): value is HarnessBartForeground {
   if (value.kind === 'reasoning') {
     // A provider signal with no displayable text still keeps the thinking eye
     // and blue dot; only the arc text is omitted, never invented.
-    return hasOnlyKeys(value, ['sequence', 'kind', 'text']) &&
-      boundedString(value.text, MAX_REASONING)
+    return hasOnlyKeys(value, ['sequence', 'kind', 'text', 'textOffset']) &&
+      (value.textOffset === undefined || (Number.isSafeInteger(value.textOffset) && Number(value.textOffset) >= 0)) &&
+      isBartReasoningSource(value.text)
   }
   if (value.kind === 'tool-call') {
     return hasOnlyKeys(value, ['sequence', 'kind', 'callId', 'toolName']) &&

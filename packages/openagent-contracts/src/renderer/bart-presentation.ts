@@ -1,11 +1,21 @@
 import type { JsonValue } from '../agent-core/values.js'
 
 /**
- * Retained reasoning tail, in Unicode code points. Harnesses bound the tail
- * where they accept native events; the shared decoration clips it to its arc
- * using the font's actual glyph widths and never receives a full transcript.
+ * Resting visual tail, in Unicode code points. Transport retains a larger
+ * source window so the renderer can queue bursts before displaying them.
  */
 export const MAX_BART_REASONING_TAIL_POINTS = 56
+/** At most 64 Ki UTF-16 units even when every source point is a surrogate pair. */
+export const MAX_BART_REASONING_SOURCE_POINTS = 32 * 1024
+
+/** Validate persisted source windows with the same budget the producer uses. */
+export function isBartReasoningSource(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > MAX_BART_REASONING_SOURCE_POINTS * 2 || value.includes('\0')) return false
+  for (let index = 0, points = 0; index < value.length; index += pointWidth(value, index)) {
+    if (++points > MAX_BART_REASONING_SOURCE_POINTS) return false
+  }
+  return true
+}
 /** Source characters a final-reply preview payload is built from. */
 export const MAX_BART_REPLY_EXCERPT_POINTS = 240
 /** Single-line tool signature input bound, before the renderer ellipsizes. */
@@ -17,7 +27,13 @@ export const MAX_BART_TOOL_NAME_POINTS = 64
  * text, or an accepted tool call whose name is already known.
  */
 export type HarnessBartActivityBody =
-  | { readonly kind: 'reasoning'; readonly text: string }
+  | {
+      readonly kind: 'reasoning'
+      /** Raw contiguous source window, before visual whitespace normalization. */
+      readonly text: string
+      /** UTF-16 position within this segment; omitted while the source starts at zero. */
+      readonly textOffset?: number
+    }
   | { readonly kind: 'assistant-text' }
   | {
       readonly kind: 'tool-call'
@@ -86,34 +102,29 @@ export function advanceBartForeground(
 
 /**
  * The foreground for a reasoning delta. One that continues the segment already
- * showing extends the bounded tail in place; one that begins a new native
+ * showing extends the positioned source window; one that begins a new native
  * segment — another event landed in between, or the harness started a new
- * message — restarts the tail and Bart's arrival with it.
+ * message — restarts the source position and Bart's arrival with it.
  */
 export function advanceBartReasoning(
   previous: HarnessBartForeground | undefined,
   delta: string,
   continuesSegment: boolean
 ): HarnessBartForeground {
+  const previousText = continuesSegment && previous?.kind === 'reasoning' ? previous.text : ''
+  const previousOffset = continuesSegment && previous?.kind === 'reasoning' ? previous.textOffset ?? 0 : 0
+  const source = previousText + delta
+  const text = tailPoints(source, MAX_BART_REASONING_SOURCE_POINTS)
+  const textOffset = previousOffset + source.length - text.length
   return advanceBartForeground(
     previous,
     {
       kind: 'reasoning',
-      text: continuesSegment
-        ? extendBartReasoningTail(previous, delta)
-        : tailPoints(delta, MAX_BART_REASONING_TAIL_POINTS)
+      text,
+      ...(textOffset > 0 ? { textOffset } : {})
     },
     { newSegment: !continuesSegment }
   )
-}
-
-/** The bounded tail of the segment already showing, extended by `delta`. */
-export function extendBartReasoningTail(
-  previous: HarnessBartForeground | undefined,
-  delta: string
-): string {
-  const current = previous?.kind === 'reasoning' ? previous.text : ''
-  return tailPoints(current + delta, MAX_BART_REASONING_TAIL_POINTS)
 }
 
 /**

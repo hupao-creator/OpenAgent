@@ -1,9 +1,9 @@
 import type { ReasoningStreamStyle } from './reasoning-geometry'
 
 const SVG = 'http://www.w3.org/2000/svg'
-// Circle coordinates per second, before the Dock's responsive scale. A batch
-// changes how much is waiting, never how fast the visible text races past.
 const GLIDE_SPEED = 120
+// Only this front of the FIFO reaches SVG; unread input is plain text.
+const WINDOW_GLYPHS = 112
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 const graphemes = (text: string): string[] => Array.from(segmenter.segment(text), item => item.segment)
 const reveal = (born: number, now: number): number => {
@@ -12,19 +12,10 @@ const reveal = (born: number, now: number): number => {
 }
 type Glyph = { value: string; born: number; node?: SVGTSpanElement }
 
-/** Match the surviving tail so capped text can move without jumping at each delta. */
-export function streamOverlap(previous: readonly string[], next: readonly string[]): number {
-  for (let count = Math.min(previous.length, next.length); count > 0; count--) {
-    if (previous.slice(-count).every((value, index) => value === next[index])) return count
-  }
-  return 0
-}
-
-/** React owns the latest bounded source. This layer keeps the visible text and
- * at most that latest tail waiting beyond the circle; obsolete, unseen batches
- * are discarded without moving any glyph already on screen. */
+/** Source positions feed a FIFO. The circle consumes its front at reading speed;
+ * only glyphs that have left the circle are removed, never unread middle text. */
 export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElement, sourcePath: SVGTextPathElement): {
-  update(mode: ReasoningStreamStyle, end: number, width: number, length: number, segmentKey: string | null): void
+  update(mode: ReasoningStreamStyle, end: number, width: number, length: number, segmentKey: string | null, input: string, inputOffset: number): void
   dispose(): void
 } {
   const originalVisibility = source.style.visibility
@@ -38,20 +29,37 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
 
   let mode: ReasoningStreamStyle = 'direct'
   let segmentKey: string | null = null
-  let value = '', sourceWidth = 0, width = 0, offset = 0, target = 0
+  let input = '', inputOffset = 0, initialized = false
+  let sourceWidth = 0, width = 0, offset = 0, target = 0, length = 0
   let latest: string[] = [], glyphs: Glyph[] = []
+  let boundaries = [0]
+  // The producer never edits this queue's unread middle. Repeated text is new
+  // input when its absolute source position advances, even if snapshots match.
+  let pending: string[] = [], read = 0
+  let trailingSpace = false
   let frame = 0, lastTime = 0
+  const waiting = (): boolean => read < pending.length
+  const obsolete = (): number => Math.max(0, Math.min(glyphs.length, glyphs.length + pending.length - read - latest.length))
   const content = (items: readonly Glyph[]): string => items.map(glyph => glyph.value).join('')
-  const measure = (content: string): number => {
-    if (!content) return 0
+  const measureGlyphs = (): number => {
+    boundaries = [0]
+    if (!glyphs.length) return 0
     const probe = source.cloneNode(false) as SVGTextElement
     probe.style.visibility = 'hidden'
-    probe.textContent = content
+    probe.textContent = content(glyphs)
     layer.append(probe)
     const measured = probe.getComputedTextLength()
+    // All reads share one unchanged layout tree. Animation frames use cached
+    // prefix geometry until the glyphs or their font/shape actually change.
+    let characters = 0
+    for (const glyph of glyphs) {
+      characters += glyph.value.length
+      boundaries.push(probe.getSubStringLength(0, characters))
+    }
     probe.remove()
     return measured
   }
+  const fresh = (value: string, now: number): Glyph => ({ value, born: mode === 'soft' ? now : -Infinity })
   const draw = (now: number): void => {
     if (mode === 'soft') {
       path.replaceChildren(...glyphs.map(glyph => {
@@ -63,111 +71,137 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
       }))
     } else path.textContent = content(glyphs)
   }
-  // Only obsolete glyphs can be removed. Always retain the entire latest source
-  // so a paused stream settles on precisely that text, including mixed scripts.
-  const trim = (length: number): void => {
-    let obsolete = glyphs.length - latest.length
-    if (obsolete <= 0) return
-    const position = (index: number): number => offset - width + measure(content(glyphs.slice(0, index)))
-    const boundary = (predicate: (position: number) => boolean): number => {
-      let low = 0, high = obsolete + 1
-      while (low < high) {
-        const middle = (low + high) >>> 1
-        if (predicate(position(middle))) high = middle
-        else low = middle + 1
-      }
-      return low
-    }
-    // Keep the glyph crossing the exit, and all glyphs from the current source.
-    const exited = Math.max(0, Math.min(obsolete, boundary(point => point > 0) - 1))
-    if (exited) {
-      glyphs = glyphs.slice(exited)
-      width = measure(content(glyphs))
-      obsolete -= exited
-    }
-    // Replace only fully off-circle waiting text; the visible prefix keeps its
-    // position because shortening the suffix shortens the end offset equally.
-    const unseen = boundary(point => point >= length)
-    if (unseen < obsolete) {
-      glyphs.splice(unseen, obsolete - unseen)
-      const nextWidth = measure(content(glyphs))
+  const append = (delta: string): void => {
+    // A terminal space is a boundary waiting for the next word, not a glyph
+    // in the resting tail. Keep it out of the consumer until that word arrives.
+    const normalized = ((trailingSpace ? ' ' : '') + delta).replace(/\s+/g, ' ')
+    trailingSpace = normalized.endsWith(' ')
+    const addition = normalized.trimEnd()
+    if (!addition) return
+    // Re-segment the boundary so split emoji, combining marks and whitespace
+    // stay intact even when a provider divides them between updates.
+    if (waiting()) {
+      const previous = pending.pop()!
+      pending.push(...graphemes(previous + addition))
+    } else if (glyphs.length) {
+      const previous = glyphs.at(-1)!
+      const [first, ...rest] = graphemes(previous.value + addition)
+      previous.value = first
+      pending.push(...rest)
+      const nextWidth = measureGlyphs()
       offset += nextWidth - width
       width = nextWidth
+    } else pending.push(...graphemes(addition.trimStart()))
+  }
+  const feed = (now: number, limit = WINDOW_GLYPHS): boolean => {
+    const count = Math.min(limit - glyphs.length, pending.length - read)
+    if (count <= 0) return false
+    for (let index = 0; index < count; index++) glyphs.push(fresh(pending[read++], now))
+    if (read === pending.length || read > 1024) { pending = pending.slice(read); read = 0 }
+    const nextWidth = measureGlyphs()
+    offset += nextWidth - width
+    width = nextWidth
+    return true
+  }
+  const trim = (): boolean => {
+    const removable = obsolete()
+    if (removable <= 0) return false
+    const position = (index: number): number => offset - width + boundaries[index]
+    if (position(1) > 0) return false
+    let low = 0, high = removable + 1
+    while (low < high) {
+      const middle = (low + high) >>> 1
+      if (position(middle) > 0) high = middle
+      else low = middle + 1
     }
+    const exited = Math.max(0, Math.min(removable, low - 1))
+    if (!exited) return false
+    glyphs = glyphs.slice(exited)
+    width = measureGlyphs()
+    return true
   }
   const paint = (now: number): void => {
     const dt = Math.min(64, Math.max(0, now - lastTime))
     lastTime = now
-    const distance = target - offset
+    // Even a visible glyph followed by zero-width characters must fully leave
+    // the circle, freeing a slot for the next queued glyph.
+    const destination = obsolete() > 0 ? Math.min(target, width - boundaries[1]) : target
+    const distance = destination - offset
     const travel = Math.min(Math.abs(distance) * (1 - Math.exp(-dt / 72)), GLIDE_SPEED * dt / 1000)
     offset += Math.sign(distance) * travel
-    if (Math.abs(target - offset) < .02) offset = target
+    if (Math.abs(destination - offset) < .02) offset = destination
+    const trimmed = trim()
+    const fed = feed(now)
+    if (trimmed || fed) draw(now)
     path.setAttribute('startOffset', String(offset))
-    if (offset === target && glyphs.length > latest.length) {
-      glyphs = glyphs.slice(-latest.length)
-      width = sourceWidth
-      draw(now)
-    }
     let revealing = false
     if (mode === 'soft') for (const glyph of glyphs) {
       const opacity = reveal(glyph.born, now)
       glyph.node?.setAttribute('opacity', String(opacity))
       revealing ||= opacity < 1
     }
-    frame = offset !== target || revealing ? requestAnimationFrame(paint) : 0
+    frame = waiting() || obsolete() > 0 || offset !== target || revealing ? requestAnimationFrame(paint) : 0
   }
 
   return {
-    update(nextMode, end, nextWidth, length, nextSegment) {
-      const nextValue = sourcePath.textContent ?? ''
-      if (nextValue === value && nextMode === mode && end === target && nextWidth === sourceWidth && segmentKey === nextSegment) return
+    update(nextMode, end, nextWidth, nextLength, nextSegment, nextInput, nextInputOffset) {
+      if (initialized && nextInput === input && nextInputOffset === inputOffset && nextMode === mode &&
+        end === target && nextWidth === sourceWidth && nextLength === length && segmentKey === nextSegment) return
       const now = performance.now()
-      const next = graphemes(nextValue)
-      const overlap = streamOverlap(latest, next)
-      const fresh = (values: string[]): Glyph[] => values.map((value, index) => ({
-        value, born: nextMode === 'soft' ? now + Math.min(120, index * 28) : -Infinity
-      }))
-      const reset = mode === 'direct' || nextMode === 'direct' ||
-        segmentKey !== nextSegment ||
-        (nextValue === value && (nextWidth !== sourceWidth || end !== target))
+      const inputEnd = inputOffset + input.length
+      const nextEnd = nextInputOffset + nextInput.length
+      const overlapStart = Math.max(inputOffset, nextInputOffset)
+      const overlapEnd = Math.min(inputEnd, nextEnd)
+      const continuous = nextInputOffset <= inputEnd && nextEnd >= inputEnd &&
+        input.slice(overlapStart - inputOffset, overlapEnd - inputOffset) ===
+        nextInput.slice(overlapStart - nextInputOffset, overlapEnd - nextInputOffset)
+      const reset = !initialized || segmentKey !== nextSegment || !continuous
+      const resume = initialized && mode === 'direct' && nextMode !== 'direct' && !reset
+      mode = nextMode
+      latest = graphemes(sourcePath.textContent ?? '')
+      sourceWidth = nextWidth
+      target = end
+      length = nextLength
 
-      if (nextMode === 'direct') {
+      // SVG probes need a connected layout tree, including the first burst.
+      if (mode !== 'direct' && !layer.isConnected) arc.append(layer)
+      if (mode === 'direct' || resume) {
+        pending = []; read = 0
+        trailingSpace = /\s$/.test(nextInput)
+        glyphs = latest.map(value => fresh(value, now))
+        width = nextWidth; offset = end
+      } else if (reset) {
+        pending = []; read = 0; glyphs = []; width = 0; offset = 0; trailingSpace = false
+        append(nextInput)
+        feed(now, Math.max(1, latest.length))
+        offset = Math.max(width, (length + width) / 2)
+        feed(now)
+      } else {
+        const nextLayerWidth = measureGlyphs()
+        offset += nextLayerWidth - width
+        width = nextLayerWidth
+        append(nextInput.slice(inputEnd - nextInputOffset))
+        feed(now)
+      }
+      input = nextInput
+      inputOffset = nextInputOffset
+      segmentKey = nextSegment
+      initialized = true
+      if (mode === 'direct') {
         cancelAnimationFrame(frame)
         frame = 0
         layer.remove()
         source.style.visibility = originalVisibility
       } else {
-        if (!layer.isConnected) arc.append(layer)
         source.style.visibility = 'hidden'
-      }
-      if (reset) {
-        glyphs = fresh(next)
-        offset = end
-        width = nextWidth
-      } else if (nextValue !== value) {
-        glyphs.push(...fresh(next.slice(overlap)))
-        const nextLayerWidth = measure(content(glyphs))
-        offset += nextLayerWidth - width
-        width = nextLayerWidth
-      }
-      segmentKey = nextSegment
-      latest = next
-      value = nextValue
-      mode = nextMode
-      sourceWidth = nextWidth
-      target = end
-      if (mode !== 'direct') {
-        trim(length)
         draw(now)
-      }
-      path.setAttribute('startOffset', String(offset))
-      if (mode !== 'direct' && !frame) {
-        lastTime = now
-        frame = requestAnimationFrame(paint)
+        path.setAttribute('startOffset', String(offset))
+        if (!frame) { lastTime = now; frame = requestAnimationFrame(paint) }
       }
     },
     dispose() {
       cancelAnimationFrame(frame)
+      pending = []; glyphs = []
       layer.remove()
       source.style.visibility = originalVisibility
     }
