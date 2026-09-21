@@ -77,7 +77,7 @@ export const piOverviewCardModule: HarnessOverviewCardModule<PiOverviewView> = {
         await actions.respond({ interactionId: interaction.id, ...response })
       } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
     }} presentation={projection.presentation} onOpenThread={actions.openThread} identity={{ title: thread.title,
-      providerStatus: <ThreadCardProviderStatus brandKey="pi" statusClassName="provider-theme-pi" label="Pi Agent" logoSource={piLogo} />,
+      providerStatus: <ThreadCardProviderStatus brandKey="pi" statusClassName={`provider-theme-pi ${projection.status}`} label="Pi Agent" logoSource={piLogo} />,
       state: <ThreadCardStateLabel className={projection.status} icon={null}>{projection.status}</ThreadCardStateLabel>, model: projection.model, excerpt: projection.excerpt }} />{error ? <div role="alert">{error}</div> : null}</>
   }
 }

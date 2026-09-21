@@ -244,6 +244,61 @@ describe('Pi native Thread boundary', () => {
     ]))
   })
 
+  it('keeps settled call usage through streaming and tools without leaking it into a new execution', async () => {
+    const test = await owner(); const handle = await test.open()
+    await send(handle); const native = natives.at(-1)!
+    const zero = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    const settled = { input: 571, output: 326, cacheRead: 18432, cacheWrite: 0 }
+    const emit = async (type: string, usage: unknown) => {
+      native.emit({ type, message: { role: 'assistant', content: [{ type: 'text', text: 'Checking dependencies' }],
+        stopReason: type === 'message_end' ? 'toolUse' : 'pending', usage } })
+      await drain(handle)
+    }
+    const cardTotal = (record = test.record()) => {
+      const projection = piOverviewCardModule.project({ thread: record, layout: { availableColumns: 2 } }).view.presentation.projection
+      if (projection.kind !== 'standard') throw new Error('Expected a standard Pi card')
+      return projection.identity?.usage?.parts[0]?.numericValue
+    }
+    for (const type of ['message_start', 'message_update']) {
+      await emit(type, zero)
+      expect(cardTotal()).toBeUndefined()
+      expect(test.state().messages.at(-1)).not.toHaveProperty('usage')
+    }
+    await emit('message_end', settled)
+    expect(cardTotal()).toBe(19329)
+    native.emit({ type: 'tool_execution_start', toolCallId: 'search', toolName: 'bash', args: { command: 'search' } })
+    await drain(handle)
+    expect(test.execution()?.status).toBe('running')
+    expect(cardTotal()).toBe(19329)
+    native.emit({ type: 'tool_execution_end', toolCallId: 'search', toolName: 'bash', result: { content: [{ type: 'text', text: 'Found' }] } })
+    await drain(handle)
+    for (const [type, usage] of [['message_start', zero], ['message_update', zero], ['message_update', settled]] as const) {
+      await emit(type, usage)
+      expect(cardTotal()).toBe(19329)
+      expect(test.state().messages.at(-1)).not.toHaveProperty('usage')
+    }
+    const next = { ...settled, output: 700 }
+    await emit('message_end', next)
+    expect(cardTotal()).toBe(19703)
+    // Missing or malformed final usage leaves the last valid call available.
+    for (const usage of [undefined, { ...zero, output: 'unknown' }, { ...zero, input: Infinity }]) {
+      await emit('message_start', zero)
+      await emit('message_end', usage)
+      expect(cardTotal()).toBe(19703)
+    }
+    const restored = JSON.parse(JSON.stringify(test.record())) as AgentThreadRecord<'pi', PiThreadSettings>
+    expect(cardTotal(restored)).toBe(19703)
+    expect(piState(restored.sessionState).messages.findLast(message => message.usage)?.usage).toEqual(next)
+    // A finalized zero is real data, unlike the streaming placeholder.
+    await emit('message_start', zero)
+    await emit('message_end', zero)
+    expect(cardTotal()).toBe(0)
+    native.emit({ type: 'agent_settled' }); await drain(handle)
+    await send(handle, 'run-2')
+    await emit('message_start', zero)
+    expect(cardTotal()).toBeUndefined()
+  })
+
   it('persists the source position when a reasoning window rolls', async () => {
     const test = await owner(); const handle = await test.open()
     await send(handle); const native = natives.at(-1)!

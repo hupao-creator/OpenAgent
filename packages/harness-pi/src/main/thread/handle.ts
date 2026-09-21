@@ -168,7 +168,9 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
             ...(content(message.content, 'thinking') ? { thinking: content(message.content, 'thinking') } : {}),
             ...(message.model ? { model: string(message.model) } : {}), ...(message.provider ? { provider: string(message.provider) } : {}) }
           const usage = record(message.usage)
-          if (['input', 'output', 'cacheRead', 'cacheWrite'].every(key => typeof usage[key] === 'number' && Number.isFinite(usage[key]))) {
+          // Streaming messages carry placeholder usage (often all zero). Publish
+          // only settled calls so the next response cannot hide the last usage.
+          if (type === 'message_end' && ['input', 'output', 'cacheRead', 'cacheWrite'].every(key => typeof usage[key] === 'number' && Number.isFinite(usage[key]))) {
             row.usage = { input: usage.input as number, output: usage.output as number, cacheRead: usage.cacheRead as number, cacheWrite: usage.cacheWrite as number,
               ...(typeof record(usage.cost).total === 'number' ? { cost: record(usage.cost).total as number } : {}) }
           }

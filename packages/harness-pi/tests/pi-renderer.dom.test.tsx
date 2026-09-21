@@ -48,11 +48,23 @@ it('uses the official adaptive Pi mark everywhere the Renderer exposes its logo'
   // Chinese source for every Pi-only string.
   expect(piRendererPluginModule.plugin.translations).toBe(piRendererTranslations)
 
-  const current = thread()
+  const current = thread({ executionId: 'second', startedAt: 3, status: 'running' })
+  const state = current.sessionState as unknown as PiSessionState
+  state.messages.push({
+    id: 'long-tool', executionId: 'second', role: 'tool', toolName: 'bash', text: 'Searching dependencies'
+  })
   const projection = piOverviewCardModule.project({ thread: current, layout: { availableColumns: 2 } })
   const Card = piOverviewCardModule.Card
   const view = render(<I18nProvider locale="en-US"><Card thread={current} projection={projection.view} actions={{ ...actions(), openThread: vi.fn() }} /></I18nProvider>)
   expect(view.container.querySelector('.thread-provider-logo img')).toHaveAttribute('src', piLogo)
+  // The shared animation selector depends on the logo's own running class,
+  // even while a tool is silent and there are no new assistant messages.
+  expect(view.container.querySelector('.thread-provider-status.running .thread-provider-logo')).not.toBeNull()
+  expect(view.container.querySelector('.thread-provider-status')).toHaveClass('provider-theme-pi')
+  const finished = thread()
+  const finishedProjection = piOverviewCardModule.project({ thread: finished, layout: { availableColumns: 2 } })
+  view.rerender(<I18nProvider locale="en-US"><Card thread={finished} projection={finishedProjection.view} actions={{ ...actions(), openThread: vi.fn() }} /></I18nProvider>)
+  expect(view.container.querySelector('.thread-provider-status.running')).toBeNull()
 })
 it('opens full historical execution without a fork entry', async () => {
   const a = actions()
