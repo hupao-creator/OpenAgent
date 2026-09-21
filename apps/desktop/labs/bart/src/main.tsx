@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowDownLeft, ArrowUpRight, Check, Maximize2, RotateCcw } from 'lucide-react'
 import { initialConfig, reasoningStreamStyles, scenes, variants, type ConfigMessage, type LabConfig, type LabEvent, type PreviewMessage, type Scene } from './scenarios'
+import { RUNNING_CYCLE_BEATS } from '../../../src/renderer/src/bart-motion/running-story'
 import '@fontsource-variable/inter'
 import './styles.css'
 
@@ -32,7 +33,7 @@ function App(): React.JSX.Element {
   // budget for the room the tallest draft occupies above it.
   const target = config.scene === 'question' ? [820, 560]
     : config.scene === 'permission' ? [600, 360]
-      : config.scene === 'input' ? [520, 440] : [400, 260]
+      : config.scene === 'input' || config.scene === 'launch' ? [520, 440] : [400, 260]
   const scale = fit ? Math.max(0.1, Math.min(bounds.width / target[0], bounds.height / target[1], 2.1)) : 1
 
   const configure = (value: LabConfig): void => {
@@ -166,7 +167,7 @@ function App(): React.JSX.Element {
             <p className="control-hint">已锁定：顺滑推进 · 200% · 左 20° · 眼球放大 10% · 自然扫读与身体跟随。</p>
           </section> : null}
           <section className="control-section">
-            <h2>{config.scene === 'running' ? '运行动画' : config.scene === 'cadence' ? '输入序列' : config.scene === 'resident' ? '当前状态' : config.scene === 'input' ? '输入场景' : config.scene === 'question' ? '回答方式' : '请求类型'}</h2>
+            <h2>{config.scene === 'launch' ? '播放速度' : config.scene === 'running' ? '运行动画' : config.scene === 'cadence' ? '输入序列' : config.scene === 'resident' ? '当前状态' : config.scene === 'input' ? '输入场景' : config.scene === 'question' ? '回答方式' : '请求类型'}</h2>
             <div className="variant-list">
               {variants[config.scene].map(([id, label]) => (
                 <button type="button" key={id} className={`variant-button ${config.variant === id ? 'selected' : ''}`}
@@ -191,7 +192,7 @@ function App(): React.JSX.Element {
               onClick={() => setConfig(current => ({ ...current, runningPaused: !current.runningPaused }))}>
               {config.runningPaused ? '继续候选动作' : '暂停候选动作'}
             </button>
-            <p className="control-hint">完整循环 {(config.runningCycle * 3).toFixed(1)}s。三拍后起飞，绕一圈再落回原位。暂停会同时停住光点与表情。</p>
+            <p className="control-hint">完整循环 {(config.runningCycle * RUNNING_CYCLE_BEATS).toFixed(1)}s。起飞后加速，经过头顶最快，回到底部前减速。暂停会同时停住光点与表情。</p>
           </section> : null}
 
           {config.scene === 'cadence' ? <section className="control-section cadence-controls">

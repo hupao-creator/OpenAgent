@@ -66,6 +66,12 @@ import { useBartDisplay, type BartActivityContext, type BartDisplayTiming } from
 import { ProviderLogo } from './ProviderLogo'
 import { useI18n } from '@openagent/plugin-kit/renderer'
 import './BartDock.css'
+import { prepareBartLaunch, type PreparedLaunch } from '../bart-motion/launch-capture'
+import { LAUNCH_DURATION } from '../bart-motion/launch-story'
+
+// One resident surface is prepared before a send. Keeping its bounds stable
+// avoids stretching the previous bitmap while the Worker accepts the launch.
+const DOCK_CHARACTER_VIEWPORT = [-360, -600, 1360, 1400] as const
 
 export interface BartDockInteractionRequest {
   threadId: string
@@ -126,6 +132,8 @@ interface BartDockProps {
   displayTiming?: BartDisplayTiming
   /** Lab comparison overrides; the application uses the locked defaults. */
   reasoningOptions?: BartReasoningOptions
+  /** Lab slow playback; production always uses the default speed. */
+  launchSpeed?: number
   threadOpen: boolean
   passiveVisible?: boolean
   /** The parent camera currently covers the mounted Dock. */
@@ -204,6 +212,7 @@ export const BartDock = memo(function BartDock({
   activityContext,
   displayTiming,
   reasoningOptions,
+  launchSpeed = 1,
   threadOpen,
   passiveVisible = true,
   presentationCovered = false,
@@ -237,6 +246,28 @@ export const BartDock = memo(function BartDock({
   const spatiallyVisible = useSyncExternalStore(subscribeDockPresence, dockIsVisible)
   const dockRef = useRef<HTMLElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [submitPending, setSubmitPending] = useState(false)
+  const submitInFlight = useRef(false)
+  const mounted = useRef(true)
+  const [launch, setLaunch] = useState<PreparedLaunch>()
+  const [launchIntro, setLaunchIntro] = useState(false)
+  const launchExecution = useRef(activityContext.execution)
+  const recovery = useRef({ threadOpen, threadKey: activityContext.threadKey })
+  recovery.current = { threadOpen, threadKey: activityContext.threadKey }
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  useEffect(() => {
+    if (!launch) return
+    const timer = window.setTimeout(() => setLaunchIntro(false), LAUNCH_DURATION / launch.description.speed)
+    const stop = (): void => { setLaunch(undefined); setLaunchIntro(false) }
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    window.addEventListener('resize', stop)
+    reduced?.addEventListener('change', stop)
+    return () => {
+      window.clearTimeout(timer); launch.dispose()
+      window.removeEventListener('resize', stop)
+      reduced?.removeEventListener('change', stop)
+    }
+  }, [launch])
   const dragRef = useRef<DockDrag | null>(null)
   const composingRef = useRef(false)
   // null means the CSS default is still the dynamic home; only a persisted or dragged
@@ -266,8 +297,8 @@ export const BartDock = memo(function BartDock({
   const dedicatedRouteActive = operation?.phase === 'running'
   // Only an active Core route owns the body. Finished routes yield even when
   // the next foreground event has not arrived yet.
-  const activeOperation = dedicatedRouteActive ? operation : undefined
-  const displayRunning = submitting || (activityContext.execution
+  const activeOperation = dedicatedRouteActive && !launchIntro ? operation : undefined
+  const displayRunning = submitPending || submitting || (activityContext.execution
     ? activityContext.execution.status === 'running' : running)
   const currentActivity = activityContext.execution?.status === 'running' &&
     foregroundActivity?.executionId === activityContext.execution.executionId ? foregroundActivity : null
@@ -321,7 +352,7 @@ export const BartDock = memo(function BartDock({
     }
     // A card taking the Dock over is not the input closing: it replaces the
     // capsule, so there is nothing left to collapse into.
-    else if (!interactionVisible) setCapsuleLeaving(lastCapsuleRequest)
+    else if (!interactionVisible && !launch) setCapsuleLeaving(lastCapsuleRequest)
   }
   // A card arriving while the capsule is on its way out takes the Dock away
   // from it, and that has to be decided before this render commits: the panel
@@ -381,11 +412,21 @@ export const BartDock = memo(function BartDock({
     residentAvailable && windowVisible && spatiallyVisible && !concealed && !threadOpen && !presentationCovered,
     displayTiming
   )
-  const role = residentAvailable ? displayedRole : { kind: 'idle' as const }
+  const launchVisible = Boolean(launch && !bartInputVisible && !activeOperation && !visibleInterventionState &&
+    !interactionVisible && !threadOpen && !presentationCovered && !concealed && spatiallyVisible && windowVisible)
+  const role = launchVisible && launchIntro ? { kind: 'running' as const } : residentAvailable ? displayedRole : { kind: 'idle' as const }
   // Running alone does not claim thinking; only the Harness activity does.
   const activity: BartLogoActivity =
     activeOperation?.kind || (role.kind === 'reasoning' ? 'thinking' : role.kind === 'running' ? 'idle' : role.kind)
-  const phase: BartLogoPhase = activeOperation?.phase || (displayRunning ? 'running' : 'idle')
+  const phase: BartLogoPhase = activeOperation?.phase || (displayRunning || (launchVisible && launchIntro) ? 'running' : 'idle')
+  useEffect(() => {
+    if (!launch) return
+    const execution = activityContext.execution
+    const terminal = execution && execution !== launchExecution.current &&
+      execution.status !== 'running' && execution.status !== 'waiting-for-user' &&
+      (execution.executionId !== launchExecution.current?.executionId || execution.status !== launchExecution.current?.status)
+    if (!launchVisible || terminal || (!launchIntro && !displayRunning)) { setLaunch(undefined); setLaunchIntro(false) }
+  }, [launch, launchVisible, launchIntro, displayRunning, activityContext.execution])
   const replyRead = useBartReplyRead(reply?.readKey)
   // A new turn hides the previous reminder without reading it, so a failure or
   // a cancel brings the same identity back; a successful turn replaces it.
@@ -998,19 +1039,32 @@ export const BartDock = memo(function BartDock({
     event.preventDefault()
     // The form outlives the input while the capsule collapses, and Enter still
     // reaches it from the field's own key handler.
-    if (capsuleLeaving || inputDisabled || submitting || !draftSubmittable) return
+    if (submitInFlight.current || capsuleLeaving || inputDisabled || submitting || !draftSubmittable) return
     // Submitting empties the draft before the input closes, so what the capsule
     // collapses from is taken here, while it is still on screen, and the copy
     // above is sealed against that clearing until the next capsule opens.
     retainedCapsule.current = { value: inputValue, attachments: bartAttachments, followUp: threadFollowUp }
     setCapsuleSealed(true)
+    submitInFlight.current = true
+    setSubmitPending(true)
+    launchExecution.current = activityContext.execution
+    const prepared = prepareBartLaunch(dockRef.current, launchSpeed)
+    setLaunch(prepared)
+    setLaunchIntro(Boolean(prepared))
+    onInputOpenChange(false)
     try {
       await onSubmit()
     } catch {
-      setCapsuleSealed(false)
-      return
+      if (mounted.current) {
+        setLaunch(undefined)
+        setLaunchIntro(false)
+        setCapsuleSealed(false)
+        if (!recovery.current.threadOpen && recovery.current.threadKey === activityContext.threadKey) onInputOpenChange(true)
+      }
+    } finally {
+      submitInFlight.current = false
+      if (mounted.current) setSubmitPending(false)
     }
-    onInputOpenChange(false)
   }
 
   const positionedStyle: React.CSSProperties | undefined = position
@@ -1041,6 +1095,7 @@ export const BartDock = memo(function BartDock({
       data-phase={phase}
       data-layout={dockLayout}
       data-capsule-leaving={capsuleLeaving ?? undefined}
+      data-launching={launchVisible && launchIntro ? 'true' : undefined}
       data-role={role.kind}
       data-intervention-state={interactionVisible ? undefined : visibleInterventionState}
       data-interaction-kind={interactionVisible ? interactionKind : undefined}
@@ -1060,6 +1115,8 @@ export const BartDock = memo(function BartDock({
             interventionState={interactionVisible ? undefined : visibleInterventionState}
             interventionKey={interactionKey || interventionKey}
             roleKind={role.kind}
+            launch={launchVisible && role.kind === 'running' ? launch?.description : undefined}
+            canvasViewport={logoLayout === 'mark' ? DOCK_CHARACTER_VIEWPORT : undefined}
             motionActive={role.kind !== 'running' || (!concealed && !threadOpen && !presentationCovered && spatiallyVisible)}
           />
         </span>

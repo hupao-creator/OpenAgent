@@ -11,6 +11,7 @@ import './preview.css'
 import { CadencePreview } from './cadence'
 import { useReasoningStream } from './reasoning-stream'
 import { RunningPreview } from './running'
+import { LaunchPreview } from './launch'
 
 function notify(message: PreviewMessage): void {
   if (window.parent !== window) window.parent.postMessage(message, window.location.origin)
@@ -35,6 +36,8 @@ function Preview(): React.JSX.Element {
   }, [])
   return config.scene === 'running'
     ? <RunningPreview key={config.replay} config={config} />
+    : config.scene === 'launch'
+    ? <LaunchPreview key={`${config.variant}:${config.replay}`} config={config} record={record} />
     : config.scene === 'cadence'
     ? <CadencePreview key={`${config.variant}:${config.replay}`} config={config} />
     : <ScenePreview key={config.replay} config={config} />

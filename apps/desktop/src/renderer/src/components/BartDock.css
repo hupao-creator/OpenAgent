@@ -1031,3 +1031,7 @@
       0 8px 20px rgba(0, 0, 0, 0.5);
   }
 }
+
+/* During the handoff the Worker owns Bart and the shrinking composer. */
+.bart-dock[data-launching='true'] .bart-dock-action-menu,
+.bart-dock[data-launching='true'] .bart-dock-drag-surface { visibility: hidden; }
