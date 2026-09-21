@@ -1,11 +1,10 @@
 import { PUBLIC_OBSERVATION_LIMITS, type DeepReadonly, type JsonValue, type HarnessSessionStateAdapter } from '@openagent/contracts'
-import type { HarnessBartForeground } from '@openagent/contracts/renderer'
+import { isBartReasoningSource, type HarnessBartForeground } from '@openagent/contracts/renderer'
 import type { PiSessionState } from './types.js'
 import { parsePiTodos } from './todos.js'
 
 const TOOL_NAME_CHARACTERS = 1_024
 const CALL_ID_CHARACTERS = 1_024
-const REASONING_CHARACTERS = 1_000_000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -30,7 +29,7 @@ function isForeground(value: unknown): value is HarnessBartForeground {
   if (value.kind === 'reasoning') {
     return hasOnlyKeys(value, ['sequence', 'kind', 'text', 'textOffset']) &&
       (value.textOffset === undefined || (Number.isSafeInteger(value.textOffset) && Number(value.textOffset) >= 0)) &&
-      isBoundedNonEmpty(value.text, REASONING_CHARACTERS)
+      isBartReasoningSource(value.text) && value.text.length > 0
   }
   if (value.kind === 'tool-call') {
     return hasOnlyKeys(value, ['sequence', 'kind', 'callId', 'toolName']) &&

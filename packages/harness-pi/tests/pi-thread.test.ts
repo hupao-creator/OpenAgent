@@ -256,6 +256,8 @@ describe('Pi native Thread boundary', () => {
     const invalid = test.state()
     invalid.foregrounds![0]!.foreground = { kind: 'reasoning', sequence: 1, text: '片段', textOffset: -1 }
     expect(() => piState(piJson(invalid))).toThrow('Invalid Pi session state')
+    invalid.foregrounds![0]!.foreground = { kind: 'reasoning', sequence: 1, text: '推'.repeat(MAX_BART_REASONING_SOURCE_POINTS + 1) }
+    expect(() => piState(piJson(invalid))).toThrow('Invalid Pi session state')
   })
 
   it('advances foreground only on new semantic events and clears it on settlement', async () => {

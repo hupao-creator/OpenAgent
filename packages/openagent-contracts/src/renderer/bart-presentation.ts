@@ -7,6 +7,15 @@ import type { JsonValue } from '../agent-core/values.js'
 export const MAX_BART_REASONING_TAIL_POINTS = 56
 /** At most 64 Ki UTF-16 units even when every source point is a surrogate pair. */
 export const MAX_BART_REASONING_SOURCE_POINTS = 32 * 1024
+
+/** Validate persisted source windows with the same budget the producer uses. */
+export function isBartReasoningSource(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > MAX_BART_REASONING_SOURCE_POINTS * 2 || value.includes('\0')) return false
+  for (let index = 0, points = 0; index < value.length; index += pointWidth(value, index)) {
+    if (++points > MAX_BART_REASONING_SOURCE_POINTS) return false
+  }
+  return true
+}
 /** Source characters a final-reply preview payload is built from. */
 export const MAX_BART_REPLY_EXCERPT_POINTS = 240
 /** Single-line tool signature input bound, before the renderer ellipsizes. */

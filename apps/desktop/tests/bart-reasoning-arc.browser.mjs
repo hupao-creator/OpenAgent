@@ -174,9 +174,32 @@ try {
     bodyAnimations: document.querySelector('.bart-dock-reasoning-motion').getAnimations().length
   }))
   assert.deepEqual(fallback, { visible: 'visible', bodyAnimations: 0 }, 'fallback eyes stay attached to a still body')
+  // Start with a whole burst, rather than growing from the Lab's one-character
+  // live fixture. Detached SVG probes have no layout in Chromium (unlike a
+  // naive jsdom measurement stub), and used to stall this queue indefinitely.
+  const burstPage = await browser.newPage({ viewport: { width: 1600, height: 900 } })
+  burstPage.on('pageerror', error => errors.push(error.message))
+  const firstBurst = Array.from({ length: 180 }, (_, index) => String.fromCodePoint(0x4e00 + index)).join('')
+  const fixture = '先确认 Dock 的锚点没有被装饰移动，再把锁定的弧线和蓝点接上，最后检查窄窗口'
+  await burstPage.route('**/src/scenarios.ts*', async route => {
+    const response = await route.fetch()
+    const body = await response.text()
+    assert.ok(body.includes(fixture), 'static Lab fixture is available for initial-burst injection')
+    await route.fulfill({ response, body: body.replace(fixture, firstBurst) })
+  })
+  await burstPage.goto(url)
+  await burstPage.frameLocator('iframe').locator('.bart-logo').waitFor()
+  await burstPage.getByRole('button', { name: '思考', exact: true }).click()
+  await burstPage.waitForFunction(expected => {
+    const svg = document.querySelector('iframe').contentDocument.querySelector('.bart-role-arc')
+    const source = svg?.querySelector('textPath'), layer = svg?.querySelector('[data-bart-stream-layer] textPath')
+    return layer?.textContent === expected && source?.getAttribute('startOffset') === layer.getAttribute('startOffset')
+  }, firstBurst.slice(-56))
+  await burstPage.screenshot({ path: path.join(output, 'initial-burst-settled.png') })
+  await burstPage.close()
   assert.deepEqual(errors, [], 'Lab has no runtime errors')
   await writeFile(path.join(output, 'results.json'), JSON.stringify(samples, null, 2))
-  console.log(`Passed ${samples.length} real-browser arc cases. Evidence: ${output}`)
+  console.log(`Passed ${samples.length} real-browser arc cases and the initial-burst regression. Evidence: ${output}`)
 } finally {
   await browser.close()
 }

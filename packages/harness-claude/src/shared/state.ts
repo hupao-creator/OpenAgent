@@ -1,5 +1,5 @@
 import { PUBLIC_OBSERVATION_LIMITS, type JsonValue } from '@openagent/contracts'
-import type { HarnessBartForeground } from '@openagent/contracts/renderer'
+import { isBartReasoningSource, type HarnessBartForeground } from '@openagent/contracts/renderer'
 
 export type ClaudeTurnStatus =
   | 'running'
@@ -1253,7 +1253,7 @@ function parseForeground(value: unknown): HarnessBartForeground {
   }
   if (value.kind === 'reasoning') {
     assertOnlyKeys(value, ['sequence', 'kind', 'text', 'textOffset'], 'Claude turn foreground')
-    if (!isNonEmptyBoundedString(value.text, CLAUDE_STATE_LIMITS.reasoningCharacters) ||
+    if (!isBartReasoningSource(value.text) || value.text.length === 0 ||
       (value.textOffset !== undefined && (!Number.isSafeInteger(value.textOffset) || Number(value.textOffset) < 0))) {
       throw new Error('Claude turn foreground reasoning 无效')
     }

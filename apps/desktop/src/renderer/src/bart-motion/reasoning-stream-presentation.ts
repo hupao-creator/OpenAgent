@@ -35,6 +35,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
   // The producer never edits this queue's unread middle. Repeated text is new
   // input when its absolute source position advances, even if snapshots match.
   let pending: string[] = [], read = 0
+  let trailingSpace = false
   let frame = 0, lastTime = 0
   const waiting = (): boolean => read < pending.length
   const content = (items: readonly Glyph[]): string => items.map(glyph => glyph.value).join('')
@@ -61,20 +62,26 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
     } else path.textContent = content(glyphs)
   }
   const append = (delta: string): void => {
+    // A terminal space is a boundary waiting for the next word, not a glyph
+    // in the resting tail. Keep it out of the consumer until that word arrives.
+    const normalized = ((trailingSpace ? ' ' : '') + delta).replace(/\s+/g, ' ')
+    trailingSpace = normalized.endsWith(' ')
+    const addition = normalized.trimEnd()
+    if (!addition) return
     // Re-segment the boundary so split emoji, combining marks and whitespace
     // stay intact even when a provider divides them between updates.
     if (waiting()) {
       const previous = pending.pop()!
-      pending.push(...graphemes((previous + delta).replace(/\s+/g, ' ')))
+      pending.push(...graphemes(previous + addition))
     } else if (glyphs.length) {
       const previous = glyphs.at(-1)!
-      const [first, ...rest] = graphemes((previous.value + delta).replace(/\s+/g, ' '))
+      const [first, ...rest] = graphemes(previous.value + addition)
       previous.value = first
       pending.push(...rest)
       const nextWidth = measure(content(glyphs))
       offset += nextWidth - width
       width = nextWidth
-    } else pending.push(...graphemes(delta.replace(/\s+/g, ' ').trimStart()))
+    } else pending.push(...graphemes(addition.trimStart()))
   }
   const feed = (now: number, limit = WINDOW_GLYPHS): boolean => {
     const count = Math.min(limit - glyphs.length, pending.length - read)
@@ -150,17 +157,23 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
       target = end
       length = nextLength
 
+      // SVG probes need a connected layout tree, including the first burst.
+      if (mode !== 'direct' && !layer.isConnected) arc.append(layer)
       if (mode === 'direct' || resume) {
         pending = []; read = 0
+        trailingSpace = /\s$/.test(nextInput)
         glyphs = latest.map(value => fresh(value, now))
         width = nextWidth; offset = end
       } else if (reset) {
-        pending = []; read = 0; glyphs = []; width = 0; offset = 0
+        pending = []; read = 0; glyphs = []; width = 0; offset = 0; trailingSpace = false
         append(nextInput)
         feed(now, Math.max(1, latest.length))
         offset = Math.max(width, (length + width) / 2)
         feed(now)
       } else {
+        const nextLayerWidth = measure(content(glyphs))
+        offset += nextLayerWidth - width
+        width = nextLayerWidth
         append(nextInput.slice(inputEnd - nextInputOffset))
         feed(now)
       }
@@ -174,7 +187,6 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
         layer.remove()
         source.style.visibility = originalVisibility
       } else {
-        if (!layer.isConnected) arc.append(layer)
         source.style.visibility = 'hidden'
         draw(now)
         path.setAttribute('startOffset', String(offset))

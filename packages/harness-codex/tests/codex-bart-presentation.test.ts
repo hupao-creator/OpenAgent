@@ -193,6 +193,9 @@ describe('Codex Bart foreground activity', () => {
       kind: 'reasoning', sequence: 1, textOffset: 10,
       text: '🧠'.repeat(MAX_BART_REASONING_SOURCE_POINTS - 2) + '完成'
     })
+    const oversized = JSON.parse(JSON.stringify(state))
+    oversized.turns[0].foreground.text = '推'.repeat(MAX_BART_REASONING_SOURCE_POINTS + 1)
+    expect(() => decodeCodexState(oversized)).toThrow()
     state = send(state, { type: 'text-delta', itemId: 'a', delta: '说明' })
     state = send(state, { type: 'reasoning-delta', delta: '新的段落' })
     expect(activityOf(state)).toEqual({ kind: 'reasoning', text: '新的段落', sequence: 3, executionId: 'execution-1' })

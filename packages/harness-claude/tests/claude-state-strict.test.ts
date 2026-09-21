@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_BART_REASONING_SOURCE_POINTS } from '@openagent/contracts/renderer'
 import {
   parseClaudeThreadState,
   type ClaudeThreadState
@@ -9,6 +10,10 @@ describe('Claude current state schema', () => {
     const state = questionState()
     state.turns[0]!.foreground = { kind: 'reasoning', sequence: 1, text: '保留片段', textOffset: 120 }
     expect(parseClaudeThreadState(state).turns[0]!.foreground).toEqual(state.turns[0]!.foreground)
+    state.turns[0]!.foreground = { kind: 'reasoning', sequence: 1, text: '🧠'.repeat(MAX_BART_REASONING_SOURCE_POINTS) }
+    expect(parseClaudeThreadState(state).turns[0]!.foreground).toEqual(state.turns[0]!.foreground)
+    state.turns[0]!.foreground = { kind: 'reasoning', sequence: 1, text: '推'.repeat(MAX_BART_REASONING_SOURCE_POINTS + 1) }
+    expect(() => parseClaudeThreadState(state)).toThrow(/foreground/)
     for (const textOffset of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
       state.turns[0]!.foreground = { kind: 'reasoning', sequence: 1, text: '保留片段', textOffset }
       expect(() => parseClaudeThreadState(state)).toThrow(/foreground/)

@@ -31,7 +31,7 @@ beforeEach(() => {
   // browser acceptance checks actual shaped glyphs and geometry separately.
   Object.defineProperties(SVGElement.prototype, {
     getTotalLength: { configurable: true, value: () => 452 },
-    getComputedTextLength: { configurable: true, value: function(this: SVGElement) { return Array.from(this.textContent ?? '').length * 10 } },
+    getComputedTextLength: { configurable: true, value: function(this: SVGElement) { return this.isConnected ? Array.from(this.textContent ?? '').length * 10 : 0 } },
     getPointAtLength: { configurable: true, value: (distance: number) => {
       const angle = (-254 + distance / 452 * 288) * Math.PI / 180
       return { x: 200 + 90 * Math.cos(angle), y: 160 + 90 * Math.sin(angle) }
@@ -206,11 +206,14 @@ it.each(['glide', 'soft'] as const)('keeps %s burst frames contiguous with the o
   expect(displayed().textContent).toBe(f.container.querySelector('.bart-role-arc > text textPath')!.textContent)
 })
 
-it.each(['glide', 'soft'] as const)('consumes every character of a large %s burst in source order', (stream) => {
+it.each([
+  { stream: 'glide', initial: false }, { stream: 'soft', initial: false },
+  { stream: 'glide', initial: true }, { stream: 'soft', initial: true }
+] as const)('consumes every character of a large $stream burst (initial=$initial) in source order', ({ stream, initial }) => {
   const points = Array.from({ length: 500 }, (_, index) => String.fromCodePoint(0x4e00 + index))
-  const f = render(<Fixture text={points.slice(0, 5).join('')} stream={stream} />)
+  const f = render(<Fixture text={points.slice(0, initial ? points.length : 5).join('')} stream={stream} />)
   const displayed = () => f.container.querySelector('[data-bart-stream-layer] textPath')!
-  let seen = 5, visibleThrough = 5
+  let seen = initial ? 0 : 5, visibleThrough = initial ? 0 : 5
   f.rerender(<Fixture text={points.join('')} stream={stream} />)
   // Inspect the bounded SVG front while the independent FIFO drains. Every
   // source character must reach it, with no skipped, repeated or reordered span.
@@ -232,6 +235,25 @@ it.each(['glide', 'soft'] as const)('consumes every character of a large %s burs
   expect(seen).toBe(points.length)
   expect(visibleThrough).toBe(points.length)
   expect(displayed().textContent).toBe(points.slice(-56).join(''))
+})
+
+it('holds terminal whitespace without evicting and replaying the retained tail', () => {
+  const points = Array.from({ length: 180 }, (_, index) => String.fromCodePoint(0x4e00 + index))
+  const value = points.join('')
+  const f = render(<Fixture text={value + ' \n '} />)
+  const displayed = () => f.container.querySelector('[data-bart-stream-layer] textPath')!
+  let first = 0
+  for (let frame = 0; frame < 1500; frame++) {
+    const next = displayed().textContent!.codePointAt(0)! - 0x4e00
+    expect(next).toBeGreaterThanOrEqual(first)
+    expect(value).toContain(displayed().textContent)
+    first = next
+    advance(16)
+  }
+  expect(displayed().textContent).toBe(points.slice(-56).join(''))
+  f.rerender(<Fixture text={value + ' \n 下一步'} />)
+  advance(2000)
+  expect(displayed().textContent).toContain(' 下一步')
 })
 
 it('uses source positions for repeated windows and keeps queued text across source rollover', () => {
