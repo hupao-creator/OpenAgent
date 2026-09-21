@@ -7,7 +7,7 @@ import { ReportCard } from '../../../src/renderer/src/components/ReportCard'
 import { HarnessThreadOverviewCard, reportRelatedThreads } from '../../../src/renderer/src/components/ConversationOverview'
 import { projectHarnessOverviewThread } from '../../../src/renderer/src/harness-composition'
 import { createRendererStateStore, hydrateRendererStateStore } from '../../../src/shared/renderer-store'
-import { fakeSnapshots } from './fake-snapshots'
+import { createTodoPreview, fakeSnapshots, todoPreviewSteps } from './fake-snapshots'
 import { harnesses, agentScenarios, combinations, reportScenarios } from './scenarios'
 
 export function SingleThreadLab(): React.JSX.Element {
@@ -24,6 +24,9 @@ export function SingleThreadLab(): React.JSX.Element {
   const [notice, setNotice] = useState('')
   const [replay, setReplay] = useState(0)
   const [theme, setTheme] = useState('light')
+  const [todoPreview, setTodoPreview] = useState(() => initial.get('motion') === 'todo' && initial.get('kind') !== 'report' && initial.get('case') === 'running')
+  const [todoProgress, setTodoProgress] = useState(1)
+  const [todoPlaying, setTodoPlaying] = useState(false)
   const stage = useRef<HTMLElement>(null)
   const [width, setWidth] = useState(0)
   const availableColumns = overviewCardAvailableColumns(width, width <= 700 ? 28 : 128)
@@ -43,14 +46,21 @@ export function SingleThreadLab(): React.JSX.Element {
   useEffect(() => {
     setLoaded(''); setNotice(''); setNavigationId('')
     if (!selected) return
-    hydrateRendererStateStore(store, selected.state)
+    hydrateRendererStateStore(store, todoPreview ? createTodoPreview(harness, todoProgress) : selected.state)
     setLoaded(selected.snapshot)
-  }, [selected, store])
+  }, [selected, store, todoPreview, todoProgress, harness])
+  useEffect(() => {
+    if (!todoPreview || !todoPlaying) return
+    if (todoProgress >= todoPreviewSteps.length) { setTodoPlaying(false); return }
+    const timer = window.setTimeout(() => setTodoProgress(value => value + 1), 1400)
+    return () => window.clearTimeout(timer)
+  }, [todoPreview, todoPlaying, todoProgress])
   useEffect(() => {
     const url = new URL(location.href)
     url.search = new URLSearchParams({ kind, harness, case: kind === 'report' ? reportScenario : scenario }).toString()
+    if (todoPreview) url.searchParams.set('motion', 'todo')
     history.replaceState(null, '', url)
-  }, [kind, harness, scenario, reportScenario])
+  }, [kind, harness, scenario, reportScenario, todoPreview])
   useEffect(() => {
     document.documentElement.style.colorScheme = theme
     return () => { document.documentElement.style.removeProperty('color-scheme') }
@@ -69,7 +79,7 @@ export function SingleThreadLab(): React.JSX.Element {
       <strong>Single Thread Lab</strong>
       <div className="single-lab-switch" role="group" aria-label="Thread 类型">
         {['agent', 'report'].map(value => <button type="button" key={value} aria-pressed={kind === value}
-          onClick={() => { setKind(value); setNavigationId(''); setNotice('') }}>{value === 'agent' ? 'Agent Thread' : 'Report Thread'}</button>)}
+          onClick={() => { setKind(value); setNavigationId(''); setNotice(''); setTodoPreview(false); setTodoPlaying(false) }}>{value === 'agent' ? 'Agent Thread' : 'Report Thread'}</button>)}
       </div>
       <label>外观 <select aria-label="外观" value={theme} onChange={event => setTheme(event.target.value)}><option value="light">浅色</option><option value="dark">深色</option></select></label>
     </header>
@@ -85,7 +95,7 @@ export function SingleThreadLab(): React.JSX.Element {
           onOpen={() => log('记录打开报告')}
           onOpenThread={(id, executionId) => { setNavigationId(id); log(`记录打开关联 Execution：${id} / ${executionId}`) }}
           onSetArchived={(_id, archived) => log(archived ? '记录归档请求' : '记录恢复请求')} /> : <p>此快照没有 Report。</p>
-          : source ? <HarnessThreadOverviewCard key={`${loaded}:${source.thread.id}:${replay}`} source={source} columns={columns} rows={rows} structureKey={source.envelope.structureKey}
+          : source ? <HarnessThreadOverviewCard key={`${loaded}:${source.thread.id}:${replay}:${todoPreview}`} source={source} columns={columns} rows={rows} structureKey={source.envelope.structureKey}
             availableColumns={availableColumns} index={0} totalCount={1} transitionTarget={false} generationPending={false}
             followUpBlocked={source.thread.archived || source.thread.observation.latestExecution?.status === 'waiting-for-user'}
             interrupt={async () => log('记录停止请求')}
@@ -100,16 +110,30 @@ export function SingleThreadLab(): React.JSX.Element {
         <div className="single-lab-switch" role="group" aria-label="Harness">
           {harnesses.map(item => <button type="button" key={item.id} aria-pressed={harness === item.id}
             onClick={() => {
-              setHarness(item.id); setNotice('')
+              setHarness(item.id); setNotice(''); setTodoPlaying(false); setTodoProgress(1)
             }}>{item.label}</button>)}
         </div>
         <div className="single-lab-switch single-lab-scenarios" role="group" aria-label="任务场景">
           {agentScenarios.map(item => <button type="button" key={item.id} aria-pressed={scenario === item.id}
-            onClick={() => setScenario(item.id)}>{item.label}</button>)}
+            onClick={() => { setScenario(item.id); setTodoPreview(false); setTodoPlaying(false) }}>{item.label}</button>)}
         </div>
         <div className="single-lab-switch single-lab-scenarios" role="group" aria-label="组合场景">
           {combinations.filter(item => cases.some(capture => capture.harness === harness && capture.scenario === item.id)).map(item => <button type="button" key={item.id} aria-pressed={scenario === item.id}
-            onClick={() => setScenario(item.id)}>{item.label}</button>)}
+            onClick={() => { setScenario(item.id); setTodoPreview(false); setTodoPlaying(false) }}>{item.label}</button>)}
+        </div>
+        <div className="single-lab-switch single-lab-motion-controls" role="group" aria-label="Todo 动效预览">
+          <button type="button" aria-pressed={todoPreview} onClick={() => {
+            setTodoPreview(value => !value); setScenario('running'); setTodoProgress(1); setTodoPlaying(false)
+          }}>Todo 接力预览</button>
+          {todoPreview ? <>
+            <button type="button" onClick={() => {
+              if (todoPlaying) { setTodoPlaying(false); return }
+              setTodoProgress(1); setReplay(value => value + 1); setTodoPlaying(true)
+            }}>{todoPlaying ? '暂停' : '播放一轮'}</button>
+            <button type="button" disabled={todoPlaying || todoProgress >= todoPreviewSteps.length}
+              onClick={() => setTodoProgress(value => Math.min(value + 1, todoPreviewSteps.length))}>下一步</button>
+            <span role="status">{todoProgress >= todoPreviewSteps.length ? 'Todo 全部完成' : `当前：${todoPreviewSteps[todoProgress]}`}</span>
+          </> : null}
         </div>
       </> : <div className="single-lab-switch" role="group" aria-label="报告场景">
         {reportScenarios.map(item => <button type="button" key={item.id} aria-pressed={reportScenario === item.id}
@@ -118,7 +142,7 @@ export function SingleThreadLab(): React.JSX.Element {
       <div className="single-lab-footer">
         <span>模拟快照 · 布局随窗口自动调整</span>
         {navigationId ? <button type="button" onClick={() => setNavigationId('')}>返回报告</button> : null}
-        <button type="button" onClick={() => { setReplay(value => value + 1); setNotice('') }}>重置交互</button>
+        <button type="button" onClick={() => { setReplay(value => value + 1); setNotice(''); setTodoProgress(1); setTodoPlaying(false) }}>重置交互</button>
       </div>
       <output aria-live="polite">{notice}</output>
     </aside>

@@ -1061,7 +1061,20 @@
    step 的 gap 同量回收，图标与连线获得呼吸，正文仍落在原来的竖线。 */
 
 .thread-card-plan-steps {
+  position: relative;
   padding-inline-start: 3px;
+}
+
+.thread-card-plan-relay {
+  position: absolute;
+  z-index: 3;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+  opacity: 0;
 }
 
 /* 阶梯把 cell 的余量按行分掉，单行封顶后不再拉伸——步骤少时留白收敛到一档行高，
@@ -1115,6 +1128,28 @@
   color: color-mix(in srgb, var(--ink) 55%, transparent);
 }
 
+.thread-card-plan-number,
+.thread-card-plan-step i > svg {
+  grid-area: 1 / 1;
+}
+
+.thread-card-plan-step i > svg,
+.thread-card-plan-step.completed .thread-card-plan-number {
+  opacity: 0;
+}
+
+.thread-card-plan-step.completed i > svg {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-card-plan-step::after,
+  .thread-card-plan-gap.ahead::before {
+    animation: none !important;
+  }
+  .thread-card-plan-relay { display: none; }
+}
+
 /* 串行连线。最后一个可见步骤没有 ::after；若其后跟着断口块，
    连线只画到行底 + 3px 交给虚线断口接续。 */
 
@@ -1164,7 +1199,7 @@
   );
 }
 
-/* 唯一的动效：当前节点之后的整段虚线一起向下漂移，指出链条方向。只有一段在动
+/* 静态快照中，当前节点之后的整段虚线一起向下漂移，指出链条方向。只有一段在动
    读起来是闪烁，整段同相位才读得出"往下游走"。所有 ::after 同时创建，天然同相。
    动的元素宽 2px，慢速漂移（1.2s / 一个虚线周期），不与「待介入」的脉冲抢注意力。 */
 

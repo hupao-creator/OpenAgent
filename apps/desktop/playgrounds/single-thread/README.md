@@ -14,6 +14,11 @@ They demonstrate UI states, not claims about a native runtime's capabilities.
 Production Harness projectors, Agent/Report cards, relation projection, and responsive
 layout render the snapshots. The Lab has no endpoint for reading local captures.
 Actions only record requests and never invoke host commands or mutate the fixtures.
+The **Todo 接力预览** control uses a separately validated six-step plan to exercise
+the production Todo relay transition. **下一步** advances the same mounted card;
+**播放一轮** replays the sequence and **重置交互** restores its initial state.
+Open `/?kind=agent&harness=claude&case=running&motion=todo` (or `harness=codex`).
+Switching scenes stops playback. Preview updates never change the bundled fixtures.
 Reset remounts controls; related Report links navigate to the fake Agent in the same
 snapshot and offer a return action.
 

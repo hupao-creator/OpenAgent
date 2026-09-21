@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Bot, Check, Hourglass } from 'lucide-react'
+import { Bot, Hourglass } from 'lucide-react'
 import { useI18n } from '../i18n.js'
 import { InteractionOtherAnswer } from '../components/InteractionQuestions.js'
 import { tokenizeCommandLine } from './command-line.js'
@@ -10,59 +10,11 @@ import type {
   ThreadCardDerivedRow,
   ThreadCardInterventionHandler,
   ThreadCardIntervention,
-  ThreadCardPlanStep,
   ThreadCardQuestion,
   ThreadCardVariantId
 } from './contracts.js'
 
-const PLAN_WINDOW_BEFORE = 1
-
-export function threadCardPlanWindow(
-  variant: ThreadCardVariantId
-): { readonly before: number; readonly after: number } {
-  return variant === 'tall'
-    ? { before: 2, after: 5 }
-    : { before: PLAN_WINDOW_BEFORE, after: 2 }
-}
-
-/** 1x1 keeps -1/+2; a selected 1x2 Todo expands the task window to -2/+5. */
-export function CardPlanLadder(props: {
-  readonly steps: readonly ThreadCardPlanStep[]
-  readonly variant: ThreadCardVariantId
-}): ReactNode {
-  const { steps } = props
-  if (!steps.length) return null
-  let currentIndex = steps.findIndex((step) => step.status === 'inProgress')
-  if (currentIndex < 0) currentIndex = steps.findIndex((step) => step.status === 'pending')
-  if (currentIndex < 0) currentIndex = steps.length - 1
-  const window = threadCardPlanWindow(props.variant)
-  const start = Math.max(0, currentIndex - window.before)
-  const visible = steps.slice(start, currentIndex + window.after + 1)
-  const hiddenAfter = steps.length - (start + visible.length)
-  return (
-    <div className={`thread-card-plan variant-${props.variant}`}>
-      <span className="thread-card-plan-steps">
-        {start > 0 ? (
-          <span className="thread-card-plan-gap walked" aria-hidden="true" />
-        ) : null}
-        {visible.map((step, index) => (
-          <span className={'thread-card-plan-step ' + step.status} key={start + index}>
-            <i aria-hidden="true">
-              {step.status === 'completed' ? <Check size={10} strokeWidth={3} /> : start + index + 1}
-            </i>
-            <b>{step.step}</b>
-          </span>
-        ))}
-        {hiddenAfter > 0 ? (
-          <>
-            <span className="thread-card-plan-gap ahead" aria-hidden="true" />
-            <small className="thread-card-overflow">{`+${hiddenAfter}`}</small>
-          </>
-        ) : null}
-      </span>
-    </div>
-  )
-}
+export { CardPlanLadder, threadCardPlanWindow } from './plan-ladder.js'
 
 interface InteractionAnswerState {
   picked(question: ThreadCardQuestion): readonly string[]

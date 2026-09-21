@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { fakeSnapshots } from '../playgrounds/single-thread/src/fake-snapshots'
@@ -14,7 +14,7 @@ const state = {
   reports: [{ id: 'report', title: '真实快照接口测试', tags: [], relatedExecutions: [{ threadId: 'deleted', executionId: 'deleted-execution' }],
     createdAt: 1, updatedAt: 2, archived: false, previewText: 'Renderer-safe text' }]
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); window.history.replaceState(null, '', '/') })
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); window.history.replaceState(null, '', '/') })
 
 it('validates renderer snapshots without rebuilding state and rejects Main-only Report HTML', () => {
   expect(parseSnapshot(state)).toBe(state)
@@ -71,4 +71,42 @@ it('freezes nested snapshot records so preview code cannot alter their source', 
   const captured = parseSnapshot(structuredClone(state))
   expect(() => { Object.assign(captured.reports[0]!, { title: 'changed' }) }).toThrow()
   expect(() => { Array.prototype.push.call(captured.reports, captured.reports[0]!) }).toThrow()
+})
+
+it.each(['claude', 'codex'])('previews live Todo updates for %s in the same card and preserves source scenes', async harness => {
+  window.history.replaceState(null, '', `/?kind=agent&harness=${harness}&case=running&motion=todo`)
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1400)
+  const before = JSON.stringify(fakeSnapshots)
+  const user = userEvent.setup()
+  const { container } = render(<AppI18nProvider locale="zh-CN"><SingleThreadLab /></AppI18nProvider>)
+  const card = container.querySelector('[data-overview-card-id]')
+  const ladder = container.querySelector('.thread-card-plan')
+  expect(ladder?.querySelector('.inProgress b')).toHaveTextContent('实现搜索')
+  await user.click(screen.getByRole('button', { name: '下一步' }))
+  expect(container.querySelector('[data-overview-card-id]')).toBe(card)
+  expect(container.querySelector('.thread-card-plan')).toBe(ladder)
+  expect(ladder?.querySelector('.inProgress b')).toHaveTextContent('验证结果')
+  await user.click(screen.getByRole('button', { name: '重置交互' }))
+  expect(container.querySelector('.thread-card-plan .inProgress b')).toHaveTextContent('实现搜索')
+  for (let index = 0; index < 5; index++) await user.click(screen.getByRole('button', { name: '下一步' }))
+  expect(screen.getByText('Todo 全部完成')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '下一步' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: /^已完成$/ }))
+  expect(screen.queryByRole('button', { name: '下一步' })).not.toBeInTheDocument()
+  expect(new URL(location.href).searchParams.has('motion')).toBe(false)
+  expect(JSON.stringify(fakeSnapshots)).toBe(before)
+})
+
+it('stops Todo playback when switching to a static scene', () => {
+  vi.useFakeTimers()
+  window.history.replaceState(null, '', '/?kind=agent&harness=claude&case=running&motion=todo')
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1400)
+  const { container } = render(<AppI18nProvider locale="zh-CN"><SingleThreadLab /></AppI18nProvider>)
+  fireEvent.click(screen.getByRole('button', { name: '播放一轮' }))
+  act(() => vi.advanceTimersByTime(1400))
+  expect(container.querySelector('.thread-card-plan .inProgress b')).toHaveTextContent('验证结果')
+  fireEvent.click(screen.getByRole('button', { name: /^已完成$/ }))
+  act(() => vi.advanceTimersByTime(3000))
+  expect(container.querySelector('.single-lab-grid')).toHaveAttribute('data-snapshot', 'fake-claude-completed')
+  expect(container.querySelector('.thread-card-plan .inProgress')).not.toBeInTheDocument()
 })

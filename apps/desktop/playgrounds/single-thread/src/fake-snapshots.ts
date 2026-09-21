@@ -16,7 +16,7 @@ const options = [{ id: 'name', label: '项目名称' }, { id: 'description', lab
 const actions = [{ id: 'allow-once', intent: 'allow', label: '允许一次' }, { id: 'deny', intent: 'deny', label: '拒绝' }] as const
 
 /** Lab-only authored data. Never derive fixtures from a user's captured session. */
-function fakeThread(harness: string, scenario: string, suffix = ''): AgentThreadRecord {
+function fakeThread(harness: string, scenario: string, suffix = '', plan?: ClaudeThreadState['turns'][number]['plan']): AgentThreadRecord {
   const id = `fake-${harness}-${scenario}${suffix}`
   const executionId = `${id}-execution`
   const background = scenario.startsWith('background')
@@ -30,7 +30,7 @@ function fakeThread(harness: string, scenario: string, suffix = ''): AgentThread
     executionId, createdAt: at, updatedAt: at + 1000, status,
     ...(terminal ? { finishedAt: at + 1000 } : {}),
     ...(phase === 'failed' ? { error: '模拟错误：搜索测试未通过，请检查查询条件。' } : {}),
-    reasoning: '', plan: [{ step: '确认搜索范围', status: 'completed' as const },
+    reasoning: '', plan: plan ?? [{ step: '确认搜索范围', status: 'completed' as const },
       { step: '实现搜索', status: terminal ? 'completed' as const : 'inProgress' as const },
       { step: '验证结果', status: terminal ? 'completed' as const : 'pending' as const }],
     activities: [], notices: [], timeline: []
@@ -97,3 +97,16 @@ export const fakeSnapshots = [
   ...harnesses.flatMap(h => [...agentScenarios, ...combinations].map(s => fakeCase(h.id, s.id))),
   ...reportScenarios.map(s => fakeCase('report', s.id))
 ]
+
+export const todoPreviewSteps = ['确认搜索范围', '实现搜索', '验证结果', '补充边界用例', '整理交付说明', '完成交付'] as const
+
+/** Reuse native decoders and public snapshot validation without mutating a fixture. */
+export function createTodoPreview(harness: string, current: number) {
+  if (!harnesses.some(item => item.id === harness) || !Number.isInteger(current) || current < 0 || current > todoPreviewSteps.length) {
+    throw new Error('Unknown Todo preview state')
+  }
+  const plan = todoPreviewSteps.map((step, index) => ({ step,
+    status: index < current ? 'completed' as const : index === current ? 'inProgress' as const : 'pending' as const }))
+  const thread = { ...fakeThread(harness, 'running', '', plan), revision: current + 2 }
+  return parseSnapshot({ ...fakeCase(harness, 'running').state, revision: current + 2, threads: [thread] })
+}
