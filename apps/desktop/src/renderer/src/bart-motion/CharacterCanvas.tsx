@@ -49,7 +49,7 @@ export function CharacterCanvas({ width, height, description }: {
     element.replaceWith(output)
     canvas.current = output
     let current = true
-    const failed = (): void => { if (current) svg.removeAttribute('data-worker-ready') }
+    const failed = (): void => { if (current) { svg.removeAttribute('data-worker-ready'); svg.removeAttribute('data-resident-ready') } }
     const measuredSize = (): { width: number; height: number } => {
       const rect = output.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0 ? { width: rect.width, height: rect.height } : dimensions.current
@@ -59,15 +59,24 @@ export function CharacterCanvas({ width, height, description }: {
     surface.current = renderer
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
     const configuration = (): CharacterDescription => ({ ...latest.current, eyeMotion: eyeMotion.current,
-      animate: latest.current.animate !== false && !(latest.current.role === 'running' && reduced?.matches) })
+      resident: latest.current.resident ? { ...latest.current.resident, reducedMotion: reduced?.matches } : undefined,
+      animate: latest.current.animate !== false && !((latest.current.resident || latest.current.role === 'running') && reduced?.matches) })
     let configured = renderer.ready
+    let version = 0
     const update = (): void => {
+      const revision = ++version
       try {
         const size = measuredSize()
         renderer.resize(size.width, size.height)
-        configured = renderer.character(configuration())
+        const config = configuration()
+        configured = renderer.character(config)
         void configured
-          .then(() => { if (current) svg.setAttribute('data-worker-ready', 'true') }, failed)
+          .then(() => {
+            if (!current || revision !== version) return
+            svg.setAttribute('data-worker-ready', 'true')
+            if (config.resident && (config.layout ?? 'mark') === 'mark' && !config.intervention) svg.setAttribute('data-resident-ready', 'true')
+            else svg.removeAttribute('data-resident-ready')
+          }, failed)
       } catch { failed() }
     }
     const eyeController = (motion: CharacterDescription['eyeMotion']): void => {
@@ -93,6 +102,7 @@ export function CharacterCanvas({ width, height, description }: {
       if (surface.current === renderer) surface.current = null
       if (refresh.current === update) refresh.current = undefined
       svg.removeAttribute('data-worker-ready')
+      svg.removeAttribute('data-resident-ready')
       // Restore React's node before it reconciles or re-runs the effect.
       output.replaceWith(element)
       canvas.current = element
@@ -101,7 +111,7 @@ export function CharacterCanvas({ width, height, description }: {
   useLayoutEffect(() => {
     refresh.current?.()
   }, [width, height, description.activity, description.phase, description.key, description.layout,
-    description.intervention, description.role, description.animate, description.launch, description.viewport])
+    description.intervention, description.role, description.resident, description.animate, description.launch, description.viewport])
   return <foreignObject className="bart-worker-character" x={x} y={y} width={w} height={h} pointerEvents="none">
     <canvas ref={canvas} style={{ display: 'block', width: '100%', height: '100%' }} />
   </foreignObject>

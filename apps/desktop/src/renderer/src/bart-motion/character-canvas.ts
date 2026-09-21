@@ -1,5 +1,6 @@
+import { ResidentCharacter } from './resident-character'
 import { createMotionState, seatDescriptor, interactionDescriptor, renderMotionFrame, applyDescriptor,
-  snapMotionToTargets, poseOf, BODY_COLOR, EYE_COLOR, type BartElements, type MotionPart } from './character-model'
+  snapMotionToTargets, poseOf, adoptPose, BODY_COLOR, EYE_COLOR, type BartElements, type MotionPart } from './character-model'
 import type { CharacterDescription } from './worker-types'
 import { paintInterventionTokens, transformInterventionBody } from './intervention-canvas'
 import { paintTravelTrail } from './travel-trail'
@@ -14,6 +15,7 @@ interface CharacterSeed {
   travelTrailAt: number
   runningElapsed: number
   runningPaintAt: number
+  resident?: ResidentCharacter
 }
 export interface CanvasCharacter {
   capture(): ReturnType<typeof poseOf>
@@ -74,22 +76,34 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
   let travelTrailAt = seed?.travelTrailAt ?? changedAt
   let runningElapsed = seed?.runningElapsed ?? 0
   let runningPaintAt = seed?.runningPaintAt ?? changedAt
+  const acceptsResident = (value: CharacterDescription): boolean => !!value.resident &&
+    (value.layout ?? 'mark') === 'mark' && !value.intervention
+  let resident = seed?.resident ?? (acceptsResident(initial) ? new ResidentCharacter(initial.resident!, changedAt) : undefined)
   const running = (): boolean => description.role === 'running' && description.phase === 'running'
     && (description.layout ?? 'mark') === 'mark' && !description.intervention
   const parts = { body: new CanvasPart(), satellite: new CanvasPart(), leftEye: new CanvasPart(),
     rightEye: new CanvasPart(), thoughtDot: new CanvasPart(), bot: new CanvasPart(),
     orbits: new CanvasPart(), orbitEllipses: Array.from({ length: 5 }, () => new CanvasPart()) } satisfies BartElements
   return {
-    capture: () => poseOf(state),
-    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt, travelTrailAt, runningElapsed, runningPaintAt }),
+    capture: () => resident?.capture(poseOf(state)) ?? poseOf(state),
+    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt, travelTrailAt, runningElapsed, runningPaintAt, resident: resident?.clone() }),
     description: () => description,
     update(value: CharacterDescription): void {
+      const now = performance.now()
+      const wasResident = Boolean(resident)
+      if (acceptsResident(value)) {
+        resident ??= new ResidentCharacter(value.resident!, now)
+        resident.update(value.resident!, now, description.animate !== false && value.animate !== false)
+      } else if (resident) {
+        adoptPose(state, resident.capture(poseOf(state)), now)
+        resident = undefined
+      }
       if (description.eyeMotion?.key !== value.eyeMotion?.key) eyeMotionAt = performance.now()
       if (description.travelTrail?.key !== value.travelTrail?.key) travelTrailAt = performance.now()
       if (description.intervention !== value.intervention || description.key !== value.key) interventionAt = performance.now()
       // An eye-track update is not a new semantic state: restamping the clock
       // would re-arm nextWake's follow window and repaint at frame rate for it.
-      const poseUnchanged = samePose(description, value)
+      const poseUnchanged = samePose(description, value) && wasResident === Boolean(resident)
       // Suspension changes paint cadence, not the identity of this light story.
       const sameRunningStory = running() && samePose({ ...description, animate: value.animate }, value)
       description = value
@@ -106,6 +120,7 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
     },
     nextWake(now: number): number {
       if (description.animate === false) return Infinity
+      if (resident) return resident.nextWake(now)
       if (running()) return now
       if ((description.layout ?? 'mark') === 'mark' && description.intervention === 'processing') return now
       if (description.eyeMotion && now - eyeMotionAt < description.eyeMotion.duration) return now
@@ -120,9 +135,6 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
     },
     paint(ctx: OffscreenCanvasRenderingContext2D, now: number, width: number, height: number, viewport?: CharacterDescription['viewport']): void {
       if (description.animate === false) snapMotionToTargets(state)
-      // Resize and density redraws must not advance a suspended face's natural
-      // blink, gaze or gesture clocks. Repaint the same model instant instead.
-      renderMotionFrame(state, parts, description.animate === false ? state.lastFrameAt : now)
       // A suspended/hidden surface resumes without skipping the light story.
       if (running() && description.animate !== false) runningElapsed += Math.max(0, Math.min(64, now - runningPaintAt)) * (description.launch?.speed ?? 1)
       runningPaintAt = now
@@ -140,6 +152,17 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       ctx.translate((width - scale * view[2]) / 2, (height - scale * view[3]) / 2)
       ctx.scale(scale, scale)
       ctx.translate(-view[0], -view[1])
+      if (resident) {
+        if (intro) resident.launchFrame(now, Math.max(0, runningElapsed - LAUNCH_DURATION), intro.running)
+        if (!intro || intro.running) {
+          resident.paint(ctx, now, description.animate !== false)
+          ctx.restore()
+          return
+        }
+      }
+      // Resident pixels and clocks are already owned above. Only a dedicated
+      // character advances the spring renderer; frozen redraws keep its instant.
+      renderMotionFrame(state, parts, description.animate === false ? state.lastFrameAt : now)
       ctx.save()
       ctx.globalAlpha *= Number(parts.orbits.style.opacity)
       transform(ctx, parts.orbits.getAttribute('transform'))

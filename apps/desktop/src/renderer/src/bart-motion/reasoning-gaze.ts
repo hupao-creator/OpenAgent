@@ -1,4 +1,4 @@
-interface GazePoint { x: number; y: number }
+export interface GazePoint { x: number; y: number }
 
 const mix = (from: number, to: number, amount: number): number => from + (to - from) * amount
 const ease = (t: number): number => t * t * t * (t * (6 * t - 15) + 10)

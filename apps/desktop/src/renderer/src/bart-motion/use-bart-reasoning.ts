@@ -68,13 +68,14 @@ export function useBartReasoning(
     }
     const update = (): void => {
       const { active, options, segmentKey, sourceText, sourceOffset } = latest.current
+      const resident = logo?.getAttribute('data-resident-ready') === 'true'
       const nextShape = `${options.length}:${options.tilt}`
       if (shape !== nextShape) { stop(); shape = nextShape }
       const length = path.getTotalLength(), width = text.getComputedTextLength()
       start = (length - Math.min(length, width)) / 2
       end = (length + Math.min(length, width)) / 2
       textPath.setAttribute('startOffset', String(end))
-      const moving = active && !document.hidden && !reduced?.matches
+      const moving = active && !document.hidden && !reduced?.matches && !resident
       presentation.update(moving ? options.stream : 'direct', end, width, length, segmentKey, sourceText, sourceOffset)
       // Fallback SVG eyes belong to the decoration, not the body wrapper.
       // Keep the whole pose still until the Worker can carry both together.
@@ -85,7 +86,7 @@ export function useBartReasoning(
     // Readiness can change without a text update (including Worker failure).
     // Observe only this lifecycle signal, never text or animation writes.
     const readiness = new MutationObserver(update)
-    if (logo) readiness.observe(logo, { attributes: true, attributeFilter: ['data-worker-ready'] })
+    if (logo) readiness.observe(logo, { attributes: true, attributeFilter: ['data-worker-ready', 'data-resident-ready'] })
     reduced?.addEventListener('change', update)
     document.addEventListener('visibilitychange', update)
     void document.fonts?.ready.then(() => { if (!disposed) update() })

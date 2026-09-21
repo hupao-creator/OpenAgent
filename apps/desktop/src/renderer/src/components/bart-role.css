@@ -155,3 +155,11 @@
   from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* The Worker owns the connected widget handoff. Keep the DOM source as a
+   static fallback and preserve the reply button's accessibility/hit target. */
+.bart-dock:has(.bart-logo[data-resident-ready='true']) .bart-role-stage:not(.bart-reply-stage) {
+  visibility: hidden;
+}
+.bart-dock:has(.bart-logo[data-resident-ready='true']) .bart-reply-target { background: transparent; }
+.bart-dock:has(.bart-logo[data-resident-ready='true']) .bart-reply-count { visibility: hidden; }

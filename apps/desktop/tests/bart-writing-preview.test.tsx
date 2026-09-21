@@ -41,6 +41,14 @@ function prepare(card: PreparedMotionCard) {
 }
 
 describe('prepared writing generation', () => {
+  it('lets the writing track take over a resident face and its widgets', () => {
+    const card = fixture()
+    const program = compileWritingGenerationProgram([card], dock, native, 'dock', {
+      activity: 'idle', phase: 'idle', resident: { scope: 'bart', role: { kind: 'idle' }, reply: true }
+    })
+    expect(program.character?.description.resident).toBeUndefined()
+    expect(program.character?.description.eyeMotion?.points.length).toBeGreaterThan(0)
+  })
   it('uses the locked continuous-writing preset for ordinary production callers', () => {
     const card = fixture(), base = prepare(card)
     const actual = compileWritingGenerationProgram([card], dock, native, 'dock', { activity: 'idle', phase: 'idle' })

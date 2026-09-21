@@ -22,6 +22,7 @@ export default defineConfig({
       input: {
         index: resolve(import.meta.dirname, 'index.html'),
         preview: resolve(import.meta.dirname, 'preview.html'),
+        transitions: resolve(import.meta.dirname, 'transitions.html'),
         generation: resolve(import.meta.dirname, 'generation.html'),
         isolation: resolve(import.meta.dirname, 'isolation.html')
       }

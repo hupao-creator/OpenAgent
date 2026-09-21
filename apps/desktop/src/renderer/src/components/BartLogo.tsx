@@ -40,6 +40,7 @@ interface BartLogoProps {
   resolvedKey?: string
   /** Role appearance; spatial transforms belong to the containing scene. */
   roleKind?: string
+  resident?: CharacterDescription['resident']
   /** Covered resident surfaces retain their static appearance without repainting. */
   motionActive?: boolean
   launch?: CharacterDescription['launch']
@@ -64,6 +65,7 @@ export const BartLogo = memo(function BartLogo({
   interventionKey,
   resolvedKey,
   roleKind,
+  resident,
   motionActive = true,
   launch,
   canvasViewport
@@ -227,7 +229,7 @@ export const BartLogo = memo(function BartLogo({
       ) : null}
       <g className="bart-body-motion">
         <CharacterCanvas width={renderWidth} height={renderHeight} description={{
-          activity, phase, key: motionKey, layout, intervention: interventionState, role: roleKind, animate: shouldAnimate, launch, viewport: canvasViewport
+          activity, phase, key: motionKey, layout, intervention: interventionState, role: roleKind, resident, animate: shouldAnimate, launch, viewport: canvasViewport
         }} />
         <g
           ref={botRef}

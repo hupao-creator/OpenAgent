@@ -1140,9 +1140,11 @@ export const BartDock = memo(function BartDock({
             interventionState={interactionVisible ? undefined : visibleInterventionState}
             interventionKey={interactionKey || interventionKey}
             roleKind={role.kind}
+            resident={residentAvailable ? { scope: activityContext.threadKey ?? 'bart', role,
+              reply: Boolean(replyReminder), options: reasoningOptions } : undefined}
             launch={launchVisible && role.kind === 'running' ? launch?.description : undefined}
             canvasViewport={logoLayout === 'mark' ? DOCK_CHARACTER_VIEWPORT : undefined}
-            motionActive={role.kind !== 'running' || (!concealed && !threadOpen && !presentationCovered && spatiallyVisible)}
+            motionActive={!residentAvailable || (!concealed && !threadOpen && !presentationCovered && spatiallyVisible && windowVisible)}
           />
         </span>
         <span
