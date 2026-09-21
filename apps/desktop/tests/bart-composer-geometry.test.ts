@@ -4,6 +4,7 @@ import {
   BART_CAPSULE_LINE_HEIGHT,
   BART_CAPSULE_MAX_LINES,
   bartCapsuleHeight,
+  bartCapsulePlacement,
   bartCapsuleLines
 } from '../src/renderer/src/bart-composer-geometry'
 
@@ -39,5 +40,30 @@ describe('Bart input capsule geometry', () => {
   it('rounds content that lands between two rows to the nearer one', () => {
     expect(bartCapsuleLines(measured(1) + BART_CAPSULE_LINE_HEIGHT * 0.4)).toBe(1)
     expect(bartCapsuleLines(measured(1) + BART_CAPSULE_LINE_HEIGHT * 0.6)).toBe(2)
+  })
+})
+
+describe('Bart input capsule placement', () => {
+  const body = { top: 200, bottom: 300 }
+
+  it('uses the space below Bart when a single row fits', () => {
+    expect(bartCapsulePlacement(body, { top: 8, bottom: 500 }, 46))
+      .toEqual({ side: 'below', anchor: 320, room: 180 })
+  })
+
+  it('uses the space above Bart near the bottom edge', () => {
+    expect(bartCapsulePlacement(body, { top: 8, bottom: 350 }, 46))
+      .toEqual({ side: 'above', anchor: 180, room: 172 })
+  })
+
+  it('reserves the attachment row before choosing a side', () => {
+    const bounds = { top: 8, bottom: 380 }
+    expect(bartCapsulePlacement(body, bounds, 46).side).toBe('below')
+    expect(bartCapsulePlacement(body, bounds, 46 + 39).side).toBe('above')
+  })
+
+  it('keeps one editable row on the roomier side in a constrained viewport', () => {
+    expect(bartCapsulePlacement(body, { top: 170, bottom: 350 }, 46))
+      .toEqual({ side: 'below', anchor: 320, room: 46 })
   })
 })

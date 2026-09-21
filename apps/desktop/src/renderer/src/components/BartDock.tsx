@@ -34,6 +34,7 @@ import {
   BART_CAPSULE_LINE_HEIGHT,
   BART_CAPSULE_MIN_LINES,
   bartCapsuleHeight,
+  bartCapsulePlacement,
   bartCapsuleLines
 } from '../bart-composer-geometry'
 import type { BartDraftAttachment } from '../../../shared/attachments'
@@ -71,7 +72,7 @@ import { LAUNCH_DURATION } from '../bart-motion/launch-story'
 
 // One resident surface is prepared before a send. Keeping its bounds stable
 // avoids stretching the previous bitmap while the Worker accepts the launch.
-const DOCK_CHARACTER_VIEWPORT = [-360, -600, 1360, 1400] as const
+const DOCK_CHARACTER_VIEWPORT = [-360, -720, 1360, 1520] as const
 
 export interface BartDockInteractionRequest {
   threadId: string
@@ -315,8 +316,7 @@ export const BartDock = memo(function BartDock({
   const bartInputVisible = inputOpen && !threadOpen && !interactionVisible && !threadFollowUpVisible
   // The capsule collapses back into the Dock on its way out, and that collapse
   // takes longer than the state change does. The composer stays mounted, the
-  // Dock stays in its input layout and Bart rides down with it; without this
-  // the capsule would vanish mid-air.
+  // Dock keeps its input layout until the capsule has finished closing.
   //
   // The presence is worked out while rendering rather than after the fact, so
   // the composer is never unmounted and put back for the collapse — it would
@@ -401,7 +401,7 @@ export const BartDock = memo(function BartDock({
       : interventionState
   // The input owns the Dock until it closes — not until its capsule has
   // finished collapsing. Bart and his decoration go back to their own activity
-  // the moment the input is closed, and ride the capsule down with it.
+  // the moment the input is closed.
   const residentLayoutVisible = dockLayout === 'mark' || capsuleLeaving !== null
   // The character stays a mark beside the open composer. Its pending submit
   // already owns running feedback, before the composer can finish closing.
@@ -501,18 +501,9 @@ export const BartDock = memo(function BartDock({
     if (bartInputVisible) textareaRef.current?.focus()
   }, [bartInputVisible])
 
-  // The capsule is as tall as the draft is long. The field is measured at its
-  // natural height, turned into a row count, and pinned to the height that row
-  // count is allowed to occupy; the Dock's own box never changes size, so the
-  // capsule simply pushes Bart further up as it grows.
-  //
-  // The measured height is handed to the stylesheet rather than written to
-  // `height` directly: the stylesheet animates it, and it cannot animate a
-  // property the Dock keeps overwriting with `auto` to measure.
-  //
-  // It is written to the Dock, not to the field, because two things are built
-  // from it: the capsule under Bart, and Bart's own offset above it. He is the
-  // capsule's sibling, so the number has to live where both of them can read it.
+  // Measure the draft at rest, then let CSS grow the independent capsule
+  // within the available room. The character never consumes this height.
+  // The value lives on the Dock so the text field and attachment strip share it.
   //
   // The field's inset shrinks with the capsule's factor, and the row count is
   // read off the field's own height — so the measurement is taken with the
@@ -523,7 +514,7 @@ export const BartDock = memo(function BartDock({
     const dock = dockRef.current
     if (!dock) return
     // The attachments row is not measured with the field, so it is published
-    // alongside it: the capsule Bart is measured against is both of them.
+    // alongside it so the text field can reserve space for attachments.
     //
     // The row is read off the Dock rather than counted, because a draft that is
     // not the capsule on screen keeps its attachments but has no row: the Dock
@@ -532,8 +523,7 @@ export const BartDock = memo(function BartDock({
     const strip = dock.querySelector<HTMLElement>('.bart-dock-attachment-strip')
     // A row of chips that overflows is a row with a scrollbar, and a scrollbar
     // with a size of its own takes that size out of the row: the chips would be
-    // clipped inside the height they were given, and Bart would be lifted by
-    // less than the capsule actually shows. Overlay scrollbars take nothing, so
+    // clipped inside the height they were given. Overlay scrollbars take nothing, so
     // this is the design number wherever the platform draws those.
     const gutter = strip ? strip.offsetHeight - strip.clientHeight : 0
     dock.style.setProperty(
@@ -542,9 +532,7 @@ export const BartDock = memo(function BartDock({
     )
     const field = textareaRef.current
     // A follow-up is one fixed row and has no field to measure. Leaving the
-    // registered `0px` start value in place would read as a capsule of no
-    // height: Bart would wait out a whole slack and the gap above it would come
-    // out too large. Its height is known, so publish it.
+    // registered `0px` start value would collapse its row; publish its known height.
     if (!field) {
       dock.style.setProperty('--bart-dock-capsule-height', `${String(bartCapsuleHeight(BART_CAPSULE_MIN_LINES))}px`)
       return
@@ -564,6 +552,38 @@ export const BartDock = memo(function BartDock({
     measureCapsule,
     [bartInputVisible, followUpPresent, draftValue, draftAttachments.length, measureCapsule]
   )
+
+  useLayoutEffect(() => {
+    if (!inlineInputVisible) return
+    const dock = dockRef.current
+    if (!dock) return
+    const root = dock.closest<HTMLElement>('.app-shell')
+    const update = (): void => {
+      const logo = dock.querySelector<SVGSVGElement>('.bart-logo')
+      const ink = logo?.querySelector<SVGPathElement>('.bart-bot > path')?.getBoundingClientRect()
+      if (!logo || !ink?.height) return
+      const rect = dock.getBoundingClientRect()
+      const rootRect = root?.getBoundingClientRect()
+      // Reserve the settled strip height, even while its entry is animating.
+      const attachments = parseFloat(dock.style.getPropertyValue('--bart-dock-capsule-attachment-height')) || 0
+      const placement = bartCapsulePlacement(ink, {
+        top: Math.max(0, rootRect?.top ?? 0) + 8,
+        bottom: Math.min(window.innerHeight, rootRect?.bottom ?? window.innerHeight) - 8
+      }, bartCapsuleHeight(BART_CAPSULE_MIN_LINES) + attachments)
+      dock.dataset.capsuleSide = placement.side
+      dock.style.setProperty('--bart-dock-capsule-anchor', `${placement.anchor - rect.top}px`)
+      dock.style.setProperty('--bart-dock-capsule-room', `${placement.room}px`)
+    }
+    update()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(update)
+    if (root) observer?.observe(root)
+    observer?.observe(dock)
+    window.addEventListener('resize', update)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [inlineInputVisible, followUpPresent, draftAttachments.length, position])
 
   // The draft can also re-wrap without being edited: the Dock narrows with the
   // window, and a narrower field breaks the same text over more rows. Only the

@@ -3,9 +3,7 @@
    the height as its own animatable property keeps the two apart: the Dock
    measures with `auto`, then animates this.
 
-   It is measured onto the Dock rather than the field, and it inherits, because
-   Bart reads the same number: how much of the capsule stands under him decides
-   how high he sits, and he is the capsule's sibling, not one of its children. */
+   The Dock publishes the measurement for the independent input capsule. */
 @property --bart-dock-capsule-height {
   syntax: '<length>';
   inherits: true;
@@ -24,9 +22,7 @@
   initial-value: 1;
 }
 
-/* The attachments row, which the field's measurement cannot see. It is
-   registered for the same reason the other two are: Bart's offset is built from
-   it, and an unregistered custom property would not interpolate. */
+/* The attachment strip contributes to the capsule's available text height. */
 @property --bart-dock-capsule-attachment-height {
   syntax: '<length>';
   inherits: true;
@@ -37,28 +33,14 @@
   --bart-dock-logo-height: 210px;
   --bart-dock-home-right: 18px;
   --bart-dock-home-bottom: 14px;
-  /* Bart's ink ends this far above the logo box's bottom edge, so this is the
-     slack the input capsule is allowed to climb into. */
-  --bart-dock-logo-ink-drop: calc(var(--bart-dock-logo-height) * 0.2667);
-  /* The visible clearance between Bart's chin and the capsule's top edge. */
-  --bart-dock-capsule-gap: 20px;
-  /* How far the capsule can rise before it reaches Bart: the room under his ink
-     minus the clearance it owes him. The capsule fills this first, and only what
-     it has left over lifts him. */
-  --bart-dock-capsule-slack: calc(var(--bart-dock-logo-ink-drop) - var(--bart-dock-capsule-gap));
+  --bart-dock-capsule-anchor: calc(var(--bart-dock-logo-height) * .7333 + 20px);
+  --bart-dock-capsule-room: 180px;
   /* All three are republished from bart-composer-geometry.ts at render time;
      these only keep the stylesheet readable on its own. */
   --bart-dock-capsule-line-height: 20px;
   --bart-dock-capsule-inset: 13px;
   --bart-dock-capsule-attachment-height: 0px;
-  /* The transition between the ordinary Dock and the one with a capsule under
-     Bart. Coming in, the capsule springs up out of the Dock's bottom edge — it
-     passes its own height and settles back into it, and Bart is carried through
-     the same bounce — so the easing overshoots 1. Leaving is that run back, and
-     deliberately without the bounce: taking the capsule away reads best when it
-     is quick and final. Both halves of a run (the growth the Dock animates and
-     the fade the capsule does itself) take these numbers, so one motion never
-     reads as two. */
+  /* Opening and closing animate the capsule independently of the character. */
   --bart-dock-capsule-enter-duration: 340ms;
   --bart-dock-capsule-enter-ease: cubic-bezier(0.2, 1.5, 0.3, 1);
   --bart-dock-capsule-exit-duration: 240ms;
@@ -124,48 +106,8 @@
   touch-action: none;
 }
 
-/* The capsule band is off limits for dragging: selecting text in the field and
-   hitting the two round buttons must never carry the Dock away. */
-.bart-dock[data-layout='input'] .bart-dock-drag-surface {
-  left: 0;
-  top: 18%;
-  right: 0;
-  bottom: calc(var(--bart-dock-logo-ink-drop) - var(--bart-dock-capsule-gap));
-  border-radius: 999px;
-}
-
-/* The box stays 400x210 so the stored position, the avoidance maths and the
-   drag origin all keep meaning what they meant; the capsule and Bart simply
-   overflow it upward. */
-.bart-dock[data-layout='input'] {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-}
-
-/* Bart is a flex item here, so the capsule's height is what carries him — but
-   only once the capsule has filled the slack under his ink. Standing him on the
-   capsule's full height instead would drop him by that slack on the first frame
-   of every transition, before lifting him again.
-
-   The offset is therefore the smaller of the capsule's current height and the
-   slack, and the current height is the whole capsule — the measured field plus
-   the attachments row above it — scaled by the same factor the capsule is built
-   from. The Dock animates that factor, so this number moves with the capsule
-   frame by frame. At rest it is the clearance between chin and capsule exactly;
-   at the start of a transition it is 0, which is where Bart already is. */
-.bart-dock[data-layout='input'] .bart-dock-logo-motion {
-  position: relative;
-  inset: auto;
-  flex: 0 0 auto;
-  margin-bottom: calc(-1 * min(
-    calc((
-      var(--bart-dock-capsule-height) + var(--bart-dock-capsule-attachment-height)
-    ) * var(--bart-dock-capsule-open)),
-    var(--bart-dock-capsule-slack)
-  ));
-}
-
+/* The character keeps the same position and hit area while input is open. */
+.bart-dock[data-layout='input'] .bart-dock-drag-surface,
 .bart-dock.empty .bart-dock-drag-surface {
   left: 50%;
   top: 36px;
@@ -243,11 +185,13 @@
    it carries the ink, the corner radius and the shadow his body used to. */
 .bart-dock[data-layout='input'] .bart-dock-inline-composer,
 .bart-dock[data-layout='input'] .bart-dock-thread-follow-up {
-  position: relative;
+  position: absolute;
+  top: var(--bart-dock-capsule-anchor);
+  left: 5%;
+  right: 5%;
   z-index: 4;
   box-sizing: border-box;
-  flex: 0 0 auto;
-  margin: 0 5%;
+  margin: 0;
   border-radius: 26px;
   background: #10110f;
   box-shadow: 0 8px 20px rgba(16, 17, 15, 0.22);
@@ -264,13 +208,7 @@
   animation: bart-dock-capsule-fade-in var(--bart-dock-capsule-enter-duration) var(--bart-dock-capsule-enter-ease) both;
 }
 
-/* The capsule springs out of the Dock's bottom edge: the box itself grows from
-   nothing, and Bart rides up on top of it. The Dock runs that growth rather than
-   the capsule, because the factor that grows the capsule is also what decides
-   how high Bart sits — and Bart stands outside the capsule, where an animation
-   on a sibling would never reach him. The overshoot in the easing carries the
-   factor past 1, which is the whole of the bounce: the capsule stands taller
-   than its final height for a moment and Bart goes up with it. */
+/* The capsule expands from its own anchor; Bart is outside this animation. */
 .bart-dock[data-layout='input'] {
   animation: bart-dock-capsule-grow var(--bart-dock-capsule-enter-duration) var(--bart-dock-capsule-enter-ease) both;
 }
@@ -279,13 +217,7 @@
   from { --bart-dock-capsule-open: 0 }
 }
 
-/* Leaving is that same run backwards, without the bounce. Everything here is a
-   plain box in a column, so giving the height back is all it takes to put Bart
-   down again.
-   There is deliberately no `from`: closing while the entry is still running
-   starts the collapse from the factor that entry has reached, and pinning it to
-   1 would snap the capsule back up to full height on the way out. The before-
-   change style carries the running animation's value. */
+/* Closing mid-entry continues from the current height without a jump. */
 .bart-dock[data-capsule-leaving] {
   animation: bart-dock-capsule-collapse var(--bart-dock-capsule-exit-duration) var(--bart-dock-capsule-exit-ease) both;
 }
@@ -321,7 +253,7 @@
    its own contents — a line of text and a 17px remove button — and the row
    around them will not shrink past that, so the row is given its own height
    instead. It is the one part of the capsule whose composition is fixed rather
-   than measured, and the Dock publishes the number to both this rule and Bart. */
+   than measured, and the Dock publishes its height to the capsule. */
 .bart-dock-attachment-strip {
   box-sizing: border-box;
   max-width: 100%;
@@ -357,8 +289,8 @@
   resize: none;
   overflow-y: auto;
   scrollbar-width: none;
-  /* One row added is one row of growth, and the capsule and Bart above it
-     follow from this single number. */
+  /* Grow within the available room, then scroll without moving Bart. */
+  max-height: max(46px, calc(var(--bart-dock-capsule-room) - var(--bart-dock-capsule-attachment-height)));
   transition: --bart-dock-capsule-height 160ms var(--ease-emphasized);
 }
 
@@ -547,8 +479,7 @@
   border: 0;
 }
 
-/* The follow-up capsule is a flex item in the Dock's column now, so it enters
-   where it already sits; the old -50% was the absolute-position centering. */
+/* Follow-up input shares the independent capsule anchor. */
 @keyframes bart-dock-thread-follow-up-in {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
@@ -565,6 +496,7 @@
     height: var(--bart-dock-logo-height);
   }
 
+  .bart-dock[data-layout='input'] .bart-dock-drag-surface,
   .bart-dock.empty .bart-dock-drag-surface {
     top: calc(50% - 57px);
     width: 114px;
@@ -1035,3 +967,9 @@
 /* During the handoff the Worker owns Bart and the shrinking composer. */
 .bart-dock[data-launching='true'] .bart-dock-action-menu,
 .bart-dock[data-launching='true'] .bart-dock-drag-surface { visibility: hidden; }
+
+.bart-dock[data-layout='input'][data-capsule-side='above'] .bart-dock-inline-composer,
+.bart-dock[data-layout='input'][data-capsule-side='above'] .bart-dock-thread-follow-up {
+  top: auto;
+  bottom: calc(100% - var(--bart-dock-capsule-anchor));
+}
