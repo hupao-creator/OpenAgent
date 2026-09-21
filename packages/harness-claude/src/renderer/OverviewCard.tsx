@@ -3,8 +3,7 @@ import type { DeepReadonly, PublicInteraction } from '@openagent/contracts'
 import type { HarnessRendererThreadActions, HarnessRendererThreadInput } from '@openagent/contracts/renderer'
 import { isPublicExecutionActive } from '@openagent/contracts/renderer'
 import { useI18n } from '@openagent/plugin-kit/renderer'
-import { HarnessThreadCard, ThreadCardStateLabel } from '@openagent/plugin-kit/renderer'
-import { ThreadCardProviderStatus } from '@openagent/plugin-kit/renderer'
+import { HarnessThreadCard, ThreadCardStatus } from '@openagent/plugin-kit/renderer'
 import { composeThreadCard } from '@openagent/plugin-kit/renderer'
 import type { ThreadCardIdentityView, ThreadCardPresentation } from '@openagent/plugin-kit/renderer'
 import { isTemporaryWorkspacePath } from '@openagent/contracts'
@@ -21,7 +20,6 @@ import { type ClaudeThreadSettings } from '../shared/settings.js'
 import claudeCodeLogo from './claude-code.svg?inline'
 import { claudePublicInteractionsByNativeId } from './public-interactions.js'
 import { decodeClaudeRendererState } from './state.js'
-import { StatusGlyph } from './primitives.js'
 import { boundedText } from './values.js'
 
 export interface ClaudeOverviewView {
@@ -40,15 +38,6 @@ export interface ClaudeOverviewView {
 type OverviewCardProps = HarnessRendererThreadInput & {
   readonly projection: DeepReadonly<ClaudeOverviewView>
   readonly actions: HarnessRendererThreadActions & { openThread(): void }
-}
-
-const OVERVIEW_STATUS_LABELS: Record<ClaudeOverviewView['status'], string> = {
-  idle: '等待开始',
-  running: '运行中',
-  waiting: '等待你的响应',
-  completed: '已完成',
-  failed: '失败',
-  interrupted: '已中断'
 }
 
 export function projectClaudeOverview(input: HarnessRendererThreadInput & {
@@ -87,9 +76,9 @@ export function projectClaudeOverview(input: HarnessRendererThreadInput & {
       ...(cwd && !isTemporaryWorkspacePath(cwd) ? { cwd } : {}),
       usesWorktree: Boolean(input.thread.worktree),
       ...(steer ? { steer } : {}),
-      ...(turn ? { runtime: {
-        startedAt: turn.createdAt,
-        ...(turn.status === 'running' ? {} : { endedAt: turn.updatedAt })
+      ...(input.thread.observation.latestExecution ? { runtime: {
+        startedAt: input.thread.observation.latestExecution.startedAt,
+        ...('finishedAt' in input.thread.observation.latestExecution ? { endedAt: input.thread.observation.latestExecution.finishedAt } : {})
       } } : {}),
       excerpt: summary
     },
@@ -108,8 +97,6 @@ export function ClaudeOverviewCard(props: OverviewCardProps): React.JSX.Element 
   const { t } = useI18n()
   const view = props.projection
   const publicInteraction = view.pendingPublicInteraction
-  const stateClass = view.status === 'waiting' ? 'attention' :
-    view.status === 'interrupted' ? 'cancelled' : view.status
   const presentation = view.presentation.projection.kind !== 'standard' ? view.presentation : {
     ...view.presentation,
     projection: {
@@ -133,12 +120,9 @@ export function ClaudeOverviewCard(props: OverviewCardProps): React.JSX.Element 
     <HarnessThreadCard
       identity={{
         ...view.identity,
-        providerStatus: <ThreadCardProviderStatus
-          brandKey="claude" label="Claude" logoSource={claudeCodeLogo} statusClassName={stateClass}
-        />,
-        state: <ThreadCardStateLabel className={stateClass} icon={<StatusGlyph status={view.status} />}>
-          {view.statusLabel || t(OVERVIEW_STATUS_LABELS[view.status])}
-        </ThreadCardStateLabel>
+        providerStatus: <ThreadCardStatus
+          brandKey="claude" label="Claude" logoSource={claudeCodeLogo} observation={props.thread.observation}
+        />
       }}
       presentation={presentation}
       onOpenThread={props.actions.openThread}

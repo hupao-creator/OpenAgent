@@ -94,8 +94,9 @@ export function projectCodexOverview(
     model: turn?.runtimeModel?.trim() || settings.model?.trim() || '未知模型',
     ...(settings.effort?.trim() ? { effort: settings.effort.trim() } : {}),
     ...(settings.serviceTier === 'priority' ? { fastMode: true } : {}),
-    ...(turn ? {
-      runtime: { startedAt: turn.createdAt, ...(live ? {} : { endedAt: turn.finishedAt }) }
+    ...(input.thread.observation.latestExecution ? {
+      runtime: { startedAt: input.thread.observation.latestExecution.startedAt,
+        ...('finishedAt' in input.thread.observation.latestExecution ? { endedAt: input.thread.observation.latestExecution.finishedAt } : {}) }
     } : {}),
     ...(cwd && !isTemporaryWorkspacePath(cwd) ? { cwd, cwdName: threadCardCwdName(cwd) } : {}),
     ...(input.thread.worktree ? { usesWorktree: true } : {}),
@@ -354,8 +355,6 @@ function codexCardUsage(usage: {
       value: formatTokens(total),
       numericValue: total
     })
-  } else if (usage.contextWindow !== undefined) {
-    parts.push({ id: 'context-window', label: 'Context ', value: formatTokens(usage.contextWindow) })
   }
   return parts.length ? { parts } : undefined
 }

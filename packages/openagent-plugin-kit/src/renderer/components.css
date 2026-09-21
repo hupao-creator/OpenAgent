@@ -1,3 +1,5 @@
+@import './harness-card/overview-identity.css';
+
 /* Structure and interaction styles owned by the reusable renderer components.
  * Hosts supply theme custom properties; application layout stays with the host. */
 
@@ -2279,7 +2281,7 @@
   display: grid;
   place-items: center;
   transform-origin: center;
-  animation: provider-logo-tap 2.55s cubic-bezier(.2, .8, .2, 1) infinite;
+  animation: none;
 }
 
 .thread-provider-status .provider-logo {
@@ -2529,38 +2531,6 @@
 
 .thread-card-rolling-character {
   display: inline-block;
-}
-
-.thread-card-rolling-digit {
-  position: relative;
-  display: inline-grid;
-  height: 1em;
-  overflow: hidden;
-  line-height: 1;
-  vertical-align: -.06em;
-}
-
-.thread-card-rolling-digit-old,
-.thread-card-rolling-digit-new {
-  grid-area: 1 / 1;
-  display: inline-block;
-  will-change: transform;
-}
-
-.thread-card-rolling-digit[data-roll-direction='up'] .thread-card-rolling-digit-old {
-  animation: thread-card-digit-out-up 480ms cubic-bezier(.4, 0, .2, 1) both;
-}
-
-.thread-card-rolling-digit[data-roll-direction='up'] .thread-card-rolling-digit-new {
-  animation: thread-card-digit-in-up 480ms cubic-bezier(.4, 0, .2, 1) both;
-}
-
-.thread-card-rolling-digit[data-roll-direction='down'] .thread-card-rolling-digit-old {
-  animation: thread-card-digit-out-down 480ms cubic-bezier(.4, 0, .2, 1) both;
-}
-
-.thread-card-rolling-digit[data-roll-direction='down'] .thread-card-rolling-digit-new {
-  animation: thread-card-digit-in-down 480ms cubic-bezier(.4, 0, .2, 1) both;
 }
 
 .thread-overview-excerpt .markdown-body :is(p, ul, ol, blockquote, pre, table) {
@@ -3011,29 +2981,6 @@
   70%, 100% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--thread-action-accent) 0%, transparent); }
 }
 
-@keyframes provider-logo-tap {
-  0%, 38%, 100% { transform: translateY(0) scale(1); }
-  47%, 67% { transform: translateY(3px) scale(1.08, .82); }
-  55%, 75% { transform: translateY(-1.5px) scale(.96, 1.08); }
-  84% { transform: translateY(0) scale(1); }
-}
-
-@keyframes thread-card-digit-out-up {
-  to { transform: translateY(-100%); }
-}
-
-@keyframes thread-card-digit-in-up {
-  from { transform: translateY(100%); }
-}
-
-@keyframes thread-card-digit-out-down {
-  to { transform: translateY(100%); }
-}
-
-@keyframes thread-card-digit-in-down {
-  from { transform: translateY(-100%); }
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -3225,8 +3172,6 @@
   color: var(--muted);
 }
 
-.thread-card-context-usage[data-usage-suffix] > .thread-card-rolling-number { color: color-mix(in srgb, var(--ink) 78%, transparent); font-weight: 550; }
-.thread-card-context-usage[data-usage-suffix] > .thread-card-usage-suffix { color: var(--muted); }
 
 /* Keep the custom answer editor in the same row as its trigger. */
 .thread-card-layout .harness-overview-content .interaction-question-other-slot {

@@ -28,6 +28,7 @@ function fakeThread(harness: string, scenario: string, suffix = ''): AgentThread
   const interactionId = `${id}-interaction`
   const common = {
     executionId, createdAt: at, updatedAt: at + 1000, status,
+    usage: { inputTokens: 11_000, outputTokens: 1_800 },
     ...(terminal ? { finishedAt: at + 1000 } : {}),
     ...(phase === 'failed' ? { error: '模拟错误：搜索测试未通过，请检查查询条件。' } : {}),
     reasoning: '', plan: [{ step: '确认搜索范围', status: 'completed' as const },

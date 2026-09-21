@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'OpenAgent SF Mono';
+  src: local('SFMono-Regular'), local('SF Mono Regular'), url('/__lab-fonts/sf-mono-regular.otf') format('opentype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 html, body, #root { min-height: 100%; height: auto; margin: 0; overflow: visible; }
 body { overflow: auto; background: var(--canvas); color: var(--ink); }
 .single-lab { min-height: 100vh; padding: 24px; }

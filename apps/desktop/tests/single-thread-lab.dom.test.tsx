@@ -31,6 +31,20 @@ it('renders every bundled fake scene without fetching real captures', async () =
     render(<AppI18nProvider locale="zh-CN"><SingleThreadLab /></AppI18nProvider>)
     await waitFor(() => expect(document.querySelectorAll('[data-overview-card-id]')).toHaveLength(1))
     expect(document.querySelector('.single-lab-grid')).toHaveAttribute('data-snapshot', scene.snapshot)
+    const execution = scene.state.threads[0]?.observation.latestExecution
+    if (scene.harness !== 'report' && execution) {
+      const background = scene.state.threads[0]!.observation.backgroundWork?.status === 'running'
+      const settled = ['completed', 'failed', 'interrupted'].includes(execution.status) && !background
+      expect(document.querySelector('.thread-provider-status')?.getAttribute('data-terminal')).toBe(settled ? execution.status : null)
+      expect(document.querySelectorAll('.thread-card-metrics .thread-card-identity-usage')).toHaveLength(1)
+      expect(document.querySelector('.thread-card-context-usage')).toHaveAttribute('aria-label', '12,800 tokens')
+      if (execution.status === 'waiting-for-user') {
+        expect(document.querySelector('.thread-card-task-state')).toHaveTextContent(scene.scenario.endsWith('question') ? '等你回答' : '等你授权')
+      }
+      if (execution.status === 'running' || (execution.status === 'completed' && background)) {
+        expect(document.querySelector('.thread-card-task-state')).toBeNull()
+      }
+    }
     cleanup()
   }
   expect(fetch).not.toHaveBeenCalled()

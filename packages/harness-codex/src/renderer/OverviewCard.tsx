@@ -1,29 +1,19 @@
-import {
-  CheckCircle2,
-  CircleAlert,
-  CircleMinus,
-  CircleX,
-  LoaderCircle
-} from 'lucide-react'
 import type {
   HarnessRendererThreadActions,
   HarnessRendererThreadInput
 } from '@openagent/contracts/renderer'
-import { ThreadCardProviderStatus } from '@openagent/plugin-kit/renderer'
-import {
-  HarnessThreadCard,
-  ThreadCardStateLabel
-} from '@openagent/plugin-kit/renderer'
+import { HarnessThreadCard, ThreadCardStatus } from '@openagent/plugin-kit/renderer'
 import type {
   ThreadCardInterventionResponse,
   ThreadCardPresentation
 } from '@openagent/plugin-kit/renderer'
 import { useI18n } from '@openagent/plugin-kit/renderer'
 import codexLogo from './codex-glyph.svg?inline'
-import { codexActionLabel, codexModelLabel, codexStatusLabel } from './copy.js'
-import type { CodexOverviewStatus, CodexOverviewView } from './overview.js'
+import { codexActionLabel, codexModelLabel } from './copy.js'
+import type { CodexOverviewView } from './overview.js'
 
 export function CodexOverviewCard({
+  thread,
   projection,
   actions
 }: HarnessRendererThreadInput & {
@@ -58,20 +48,12 @@ export function CodexOverviewCard({
           ? { model: codexModelLabel(projection.identity.model, t) }
           : {}),
         providerStatus: (
-          <ThreadCardProviderStatus
+          <ThreadCardStatus
             brandKey="codex"
             label="Codex"
             logoSource={codexLogo}
-            statusClassName={projection.status}
+            observation={thread.observation}
           />
-        ),
-        state: (
-          <ThreadCardStateLabel
-            className={projection.status}
-            icon={statusIcon(projection.status)}
-          >
-            {codexStatusLabel(projection.status, projection.statusLabel, t)}
-          </ThreadCardStateLabel>
         )
       }}
       presentation={localizeCodexPresentation(projection.presentation, t)}
@@ -106,12 +88,4 @@ function localizeCodexPresentation(
       )
     }
   }
-}
-
-function statusIcon(status: CodexOverviewStatus): React.ReactNode {
-  if (status === 'running') return <LoaderCircle size={13} />
-  if (status === 'attention') return <CircleAlert size={13} />
-  if (status === 'failed') return <CircleX size={13} />
-  if (status === 'cancelled') return <CircleMinus size={13} />
-  return <CheckCircle2 size={13} />
 }

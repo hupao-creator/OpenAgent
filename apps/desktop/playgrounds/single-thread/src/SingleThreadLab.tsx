@@ -23,7 +23,8 @@ export function SingleThreadLab(): React.JSX.Element {
   const [navigationId, setNavigationId] = useState('')
   const [notice, setNotice] = useState('')
   const [replay, setReplay] = useState(0)
-  const [theme, setTheme] = useState('light')
+  const [theme, setTheme] = useState(() => initial.get('theme') === 'dark' ? 'dark' : 'light')
+  const [clockOrigin, setClockOrigin] = useState(Date.now)
   const stage = useRef<HTMLElement>(null)
   const [width, setWidth] = useState(0)
   const availableColumns = overviewCardAvailableColumns(width, width <= 700 ? 28 : 128)
@@ -41,7 +42,7 @@ export function SingleThreadLab(): React.JSX.Element {
     return () => observer.disconnect()
   }, [])
   useEffect(() => {
-    setLoaded(''); setNotice(''); setNavigationId('')
+    setLoaded(''); setNotice(''); setNavigationId(''); setClockOrigin(Date.now())
     if (!selected) return
     hydrateRendererStateStore(store, selected.state)
     setLoaded(selected.snapshot)
@@ -49,14 +50,24 @@ export function SingleThreadLab(): React.JSX.Element {
   useEffect(() => {
     const url = new URL(location.href)
     url.search = new URLSearchParams({ kind, harness, case: kind === 'report' ? reportScenario : scenario }).toString()
+    if (theme === 'dark') url.searchParams.set('theme', 'dark')
     history.replaceState(null, '', url)
-  }, [kind, harness, scenario, reportScenario])
+  }, [kind, harness, scenario, reportScenario, theme])
   useEffect(() => {
     document.documentElement.style.colorScheme = theme
     return () => { document.documentElement.style.removeProperty('color-scheme') }
   }, [theme])
 
-  const thread = state.agentThreads.find(({ id }) => id === (navigationId || selected?.threadId))
+  const capturedThread = state.agentThreads.find(({ id }) => id === (navigationId || selected?.threadId))
+  // Move only the preview clock to the present; the frozen source stays immutable.
+  const thread = useMemo(() => {
+    const execution = capturedThread?.observation.latestExecution
+    if (!capturedThread || !execution) return capturedThread
+    return { ...capturedThread, observation: { ...capturedThread.observation, latestExecution: {
+      ...execution, startedAt: clockOrigin - 37_000,
+      ...('finishedAt' in execution ? { finishedAt: clockOrigin } : {})
+    } } }
+  }, [capturedThread, clockOrigin])
   const report = state.reports.find(({ id }) => id === selected?.threadId)
   const source = useMemo(() => thread ? projectHarnessOverviewThread({ thread }, availableColumns) : null, [thread, availableColumns])
   const related = useMemo(() => report ? reportRelatedThreads(report,
@@ -66,7 +77,7 @@ export function SingleThreadLab(): React.JSX.Element {
 
   return <RendererCapabilitiesProvider capabilities={{ openExternal: url => log(`记录打开链接：${url}`) }}><main className="single-lab">
     <header className="single-lab-header">
-      <strong>Single Thread Lab</strong>
+      <strong>Single Thread Lab</strong><span className="single-lab-note">生产卡片 · 模拟数据</span>
       <div className="single-lab-switch" role="group" aria-label="Thread 类型">
         {['agent', 'report'].map(value => <button type="button" key={value} aria-pressed={kind === value}
           onClick={() => { setKind(value); setNavigationId(''); setNotice('') }}>{value === 'agent' ? 'Agent Thread' : 'Report Thread'}</button>)}
@@ -118,7 +129,7 @@ export function SingleThreadLab(): React.JSX.Element {
       <div className="single-lab-footer">
         <span>模拟快照 · 布局随窗口自动调整</span>
         {navigationId ? <button type="button" onClick={() => setNavigationId('')}>返回报告</button> : null}
-        <button type="button" onClick={() => { setReplay(value => value + 1); setNotice('') }}>重置交互</button>
+        <button type="button" onClick={() => { setReplay(value => value + 1); setNotice(''); setClockOrigin(Date.now()) }}>重置交互</button>
       </div>
       <output aria-live="polite">{notice}</output>
     </aside>

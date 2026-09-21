@@ -158,9 +158,6 @@ function claudeCardUsage(usage: ClaudeUsage | undefined): ThreadCardIdentityUsag
     ? fields.reduce<number>((sum, value) => sum + (value ?? 0), 0) : undefined)
   if (total !== undefined) {
     parts.push({ id: 'total', suffix: 'tokens', description: '输入与输出 token 合计，按 Harness 当前上报的统计范围显示', value: tokens(total), numericValue: total })
-  } else if (usage.contextTokens !== undefined) {
-    parts.push({ id: 'context', label: 'Context ', value: tokens(usage.contextTokens) +
-      (usage.contextWindow === undefined ? '' : ` / ${tokens(usage.contextWindow)}`), numericValue: usage.contextTokens })
   }
   return parts.length ? { parts } : undefined
 }

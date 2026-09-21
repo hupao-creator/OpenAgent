@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { HarnessOverviewCardModule } from '@openagent/contracts/renderer'
-import { composeThreadCard, HarnessThreadCard, ThreadCardProviderStatus, ThreadCardStateLabel, type ThreadCardPresentation, type ThreadCardExtensionProjection, type ThreadCardIdentityUsage } from '@openagent/plugin-kit/renderer'
+import { composeThreadCard, HarnessThreadCard, ThreadCardStatus, type ThreadCardPresentation, type ThreadCardExtensionProjection, type ThreadCardIdentityUsage } from '@openagent/plugin-kit/renderer'
 import { piState } from '../shared/state.js'
 import type { PiMessage, PiThreadSettings } from '../shared/types.js'
 import { piLogo } from './pi-logo.js'
@@ -68,6 +68,7 @@ export const piOverviewCardModule: HarnessOverviewCardModule<PiOverviewView> = {
   },
   Card: function PiOverviewCard({ thread, projection, actions }) {
     const [error, setError] = useState<string>()
+    const execution = thread.observation.latestExecution
     return <><HarnessThreadCard onInterventionResponse={async response => {
       setError(undefined)
       try {
@@ -77,7 +78,8 @@ export const piOverviewCardModule: HarnessOverviewCardModule<PiOverviewView> = {
         await actions.respond({ interactionId: interaction.id, ...response })
       } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
     }} presentation={projection.presentation} onOpenThread={actions.openThread} identity={{ title: thread.title,
-      providerStatus: <ThreadCardProviderStatus brandKey="pi" statusClassName={`provider-theme-pi ${projection.status}`} label="Pi Agent" logoSource={piLogo} />,
-      state: <ThreadCardStateLabel className={projection.status} icon={null}>{projection.status}</ThreadCardStateLabel>, model: projection.model, excerpt: projection.excerpt }} />{error ? <div role="alert">{error}</div> : null}</>
+      providerStatus: <ThreadCardStatus brandKey="pi" className="provider-theme-pi" label="Pi Agent" logoSource={piLogo} observation={thread.observation} />,
+      ...(execution ? { runtime: { startedAt: execution.startedAt, ...('finishedAt' in execution ? { endedAt: execution.finishedAt } : {}) } } : {}),
+      model: projection.model, excerpt: projection.excerpt }} />{error ? <div role="alert">{error}</div> : null}</>
   }
 }

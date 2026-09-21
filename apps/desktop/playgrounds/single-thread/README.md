@@ -28,3 +28,23 @@ The DOM regression renders all 31 scenes with network fetching forbidden.
 The older `capture-scenarios.mjs` and `import-scenarios.mjs` utilities are separate
 native diagnostic tools; their output is no longer consumed by this Lab.
 The message/detail playground remains `pnpm playground:thread` (port 4176).
+
+The Lab now renders the selected **production card**, without candidate portals or
+style overrides. Running cards keep a static Harness logo; settled executions use
+a ring with a check, pause, or cross. Waiting and unresolved failures remain explicit,
+and active background work prevents an all-done mark.
+
+Model settings occupy their own line. The next line shows `HH:MM:SS | 12.8K tokens`
+without prefix icons or a directory. Numerals use SF Mono Regular at 11 px; the unit
+uses Rockwell at 10 px. The clock rolls changed digits upward in 260 ms; its colons
+pulse from the same elapsed second. Reduced motion disables rolling and blinking.
+
+Authored Harness usage fields supply 11,000 input + 1,800 output tokens. No real
+usage is fetched. Only the preview copy of execution timestamps is shifted to begin
+at 37 seconds; terminal clocks stay at 37 seconds. Reset restarts the preview clock.
+Dark appearance survives URL reloads via `theme=dark`.
+
+On macOS the local Lab font endpoint reads the installed Terminal SF Mono Regular
+font. It exposes one fixed font file only and does not copy an Apple font binary into
+the repository or build. Electron uses its own application-only system-font protocol;
+other environments retain a consistent monospace fallback.
