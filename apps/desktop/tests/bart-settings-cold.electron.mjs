@@ -36,18 +36,28 @@ const server = createServer((request, response) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-// In this light-theme fixture Bart is the only large connected dark silhouette
-// below the toolbar and to the right of the sidebar. Work after capture finishes.
-function locateBart(frame) {
-  const { width, height } = frame.size, step = 4, scale = width / 1180
+// Retain only the sampled silhouette mask, not a full-window bitmap per frame.
+// At DPR 2 this is 230KB instead of 14.7MB; at most 256 masks are held (~59MB).
+// The native bitmap is transient. Connected-component analysis and PNG encoding
+// stay outside capture; this callback only thresholds every fourth pixel.
+function captureMask(image, at) {
+  const { width, height } = image.getSize(), step = 4, scale = width / 1180
+  const pixels = image.toBitmap()
   const columns = Math.ceil(width / step), rows = Math.ceil(height / step)
   const mask = new Uint8Array(columns * rows)
   for (let y = Math.ceil(100 * scale / step); y < rows; y++) {
     for (let x = Math.ceil(220 * scale / step); x < columns; x++) {
       const offset = (y * step * width + x * step) * 4
-      mask[y * columns + x] = Math.max(frame.pixels[offset], frame.pixels[offset + 1], frame.pixels[offset + 2]) < 65 ? 1 : 0
+      mask[y * columns + x] = Math.max(pixels[offset], pixels[offset + 1], pixels[offset + 2]) < 65 ? 1 : 0
     }
   }
+  return { at, mask, columns, rows, step, scale }
+}
+
+// In this light-theme fixture Bart is the only large connected dark silhouette
+// below the toolbar and to the right of the sidebar. Analyze after capture ends.
+function locateBart(frame) {
+  const { columns, rows, step, scale } = frame, mask = frame.mask.slice()
   let best
   for (let index = 0; index < mask.length; index++) {
     if (!mask[index]) continue
@@ -103,8 +113,10 @@ app.whenReady().then(async () => {
     await delay(1800)
     for (let round = 0; round < 3; round++) {
       const frames = [], start = performance.now()
+      let overflow = false
       contents.beginFrameSubscription(false, image => {
-        frames.push({ at: performance.now() - start, pixels: image.toBitmap(), size: image.getSize() })
+        if (frames.length >= 256) { overflow = true; return }
+        frames.push(captureMask(image, performance.now() - start))
       })
       const flight = await contents.executeJavaScript(`(async () => {
         performance.clearMarks('bart-cross-page-ready'); performance.clearMarks('bart-cross-page-skipped')
@@ -139,12 +151,17 @@ app.whenReady().then(async () => {
       if (process.env.BART_COLD_SAVE_FRAMES) {
         for (let index = 0; index < frames.length; index++) {
           const frame = frames[index]
-          await writeFile(path.join(output, `${round}-${index}.png`), nativeImage.createFromBitmap(frame.pixels, frame.size).toPNG())
+          const pixels = Buffer.alloc(frame.mask.length * 4, 255)
+          frame.mask.forEach((ink, cell) => { if (ink) pixels.fill(0, cell * 4, cell * 4 + 3) })
+          await writeFile(path.join(output, `${round}-${index}.png`), nativeImage.createFromBitmap(pixels,
+            { width: frame.columns, height: frame.rows }).toPNG())
         }
       }
       // Preserve admission/route/pixel evidence even when sampling is inadequate.
       await writeFile(path.join(output, `capture-${round}.json`), JSON.stringify({ flight,
-        frames: frames.map(frame => ({ at: frame.at, size: frame.size, body: locateBart(frame) })) }, null, 2))
+        retainedBytes: frames.reduce((sum, frame) => sum + frame.mask.byteLength, 0), overflow,
+        frames: frames.map(frame => ({ at: frame.at, body: locateBart(frame) })) }, null, 2))
+      assert.ok(!overflow, 'Native capture exceeded its bounded frame budget')
       const result = { round, flight, ...assess(frames, flight) }
       results.push(result)
       await writeFile(path.join(output, 'result.json'), JSON.stringify(results, null, 2))

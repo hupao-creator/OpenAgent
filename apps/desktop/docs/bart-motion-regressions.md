@@ -11,18 +11,22 @@ Removing it retains the circular clip, static tint cross-fade, content opacity
 tracks and Bart choreography; the underlying Overview is no longer blurred
 during the brief translucent portion of the reveal.
 
-Paired local native capture (1180×780, DPR 2, light theme, one Overview thread):
+Initial paired local native capture (1180×780, DPR 2, light theme, one Overview thread):
 the original CSS produced a 117.4ms renderer frame interval and a 123.8ms
 `IOSurfaceImageBacking::WaitForCommandsToBeScheduled::Dawn` wait. Disabling only
 the backdrop filter reduced those maxima to 9.4ms and 5.7ms. Captured Bart pixels
 fell progressively behind the authored route and then caught up with the old
 filter. A run without native capture also had a cold-only 33.2ms frame gap;
 capture amplifies GPU pressure and its callback times are not presentation times.
+These initial diagnostic traces retained full bitmaps; the final check below
+uses bounded masks to avoid accumulating their memory pressure.
 
 `bart-settings-cold.electron.mjs` measures the real Overview → settings page,
 with a disposable profile on every invocation and three opens per process. It
-reads the authored route once, then locates the connected Bart silhouette in
-native frames **after** capture. During the moving portion, pixel position gives
+reads the authored route once and retains a byte mask of every fourth pixel,
+bounded to 256 samples (59MB maximum at DPR 2; about 10.6MB observed per round).
+Full native bitmaps are transient. It locates the connected Bart silhouette
+and optionally encodes mask PNGs **after** capture. During the moving portion, pixel position gives
 the route's elapsed time. The spread of callback time minus route time detects
 accumulated lag and catch-up while ignoring constant delivery latency. Near the
 eased endpoint, pixel quantization cannot resolve time; native roster movement
@@ -35,17 +39,18 @@ node apps/desktop/tests/bart-settings-cold.electron.mjs
 ```
 
 Run alone on a desktop fitting 1180×780. `BART_COLD_OUTPUT` selects an evidence
-directory, `BART_COLD_SAVE_FRAMES=1` retains PNGs, and `BART_BENCH_ROOT` selects a
+directory, `BART_COLD_SAVE_FRAMES=1` retains sampled silhouette PNGs, and `BART_BENCH_ROOT` selects a
 previous benchmark build for paired comparisons. This is a manual performance
 check, outside the small hosted CI display. It cannot prove physical scanout or
 smoothness on every GPU. Existing 1x/2x settings compositor checks still cover
 the reveal, and #88's checks cover the roster handoff independently.
 
-The old build fails this native pixel check with a 123.5ms lag spread. Six
-complete fresh-profile runs of the fixed build pass all 18 opens; first-open
-spreads are 18.1, 6.5, 5.2, 8.1, 4.8 and 5.3ms. A separate attempt passed its
-first two opens but had insufficient moving samples on the third; it is retained
-as a failed run, not included in those six passes.
+The old build fails the bounded-mask check with a 90.4ms lag spread. Six complete
+fresh-profile runs of the fix pass all 18 opens; first-open spreads are 6.0, 9.5,
+7.4, 4.9, 9.1 and 30.5ms, retaining about 10.6MB per round. The initial diagnostic
+that retained full bitmaps measured 123.5ms on the old build; one of its fixed
+runs had insufficient samples and was counted as failed. Those heavier captures
+are not substituted for the final mask-based measurements.
 
 ## First settings landing follow-up (#88)
 
