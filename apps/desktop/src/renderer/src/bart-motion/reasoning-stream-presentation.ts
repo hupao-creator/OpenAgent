@@ -39,6 +39,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
   let trailingSpace = false
   let frame = 0, lastTime = 0
   const waiting = (): boolean => read < pending.length
+  const obsolete = (): number => Math.max(0, Math.min(glyphs.length, glyphs.length + pending.length - read - latest.length))
   const content = (items: readonly Glyph[]): string => items.map(glyph => glyph.value).join('')
   const measureGlyphs = (): number => {
     boundaries = [0]
@@ -103,17 +104,17 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
     return true
   }
   const trim = (): boolean => {
-    const obsolete = waiting() ? glyphs.length : glyphs.length - latest.length
-    if (obsolete <= 0) return false
+    const removable = obsolete()
+    if (removable <= 0) return false
     const position = (index: number): number => offset - width + boundaries[index]
     if (position(1) > 0) return false
-    let low = 0, high = obsolete + 1
+    let low = 0, high = removable + 1
     while (low < high) {
       const middle = (low + high) >>> 1
       if (position(middle) > 0) high = middle
       else low = middle + 1
     }
-    const exited = Math.max(0, Math.min(obsolete, low - 1))
+    const exited = Math.max(0, Math.min(removable, low - 1))
     if (!exited) return false
     glyphs = glyphs.slice(exited)
     width = measureGlyphs()
@@ -124,19 +125,14 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
     lastTime = now
     // Even a visible glyph followed by zero-width characters must fully leave
     // the circle, freeing a slot for the next queued glyph.
-    const destination = waiting() ? Math.min(target, width - boundaries[1]) : target
+    const destination = obsolete() > 0 ? Math.min(target, width - boundaries[1]) : target
     const distance = destination - offset
     const travel = Math.min(Math.abs(distance) * (1 - Math.exp(-dt / 72)), GLIDE_SPEED * dt / 1000)
     offset += Math.sign(distance) * travel
     if (Math.abs(destination - offset) < .02) offset = destination
     const trimmed = trim()
     const fed = feed(now)
-    if (!waiting() && offset === target) {
-      // Finish on the same whitespace-trimmed visual tail as direct mode.
-      glyphs = latest.map(value => fresh(value, -Infinity))
-      width = sourceWidth
-      draw(now)
-    } else if (trimmed || fed) draw(now)
+    if (trimmed || fed) draw(now)
     path.setAttribute('startOffset', String(offset))
     let revealing = false
     if (mode === 'soft') for (const glyph of glyphs) {
@@ -144,7 +140,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
       glyph.node?.setAttribute('opacity', String(opacity))
       revealing ||= opacity < 1
     }
-    frame = waiting() || offset !== target || revealing ? requestAnimationFrame(paint) : 0
+    frame = waiting() || obsolete() > 0 || offset !== target || revealing ? requestAnimationFrame(paint) : 0
   }
 
   return {

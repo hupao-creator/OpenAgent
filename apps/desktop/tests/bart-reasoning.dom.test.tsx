@@ -15,11 +15,13 @@ const cancelBody = vi.fn()
 const animate = vi.fn(() => ({ cancel: cancelBody }))
 let reduced = false
 let onPreference: (() => void) | undefined
-const textWidth = (value: string): number => Array.from(value).filter(character => character !== '\u200b').length * 10
+let glyphWidth = 10
+const textWidth = (value: string): number => Array.from(value).filter(character => character !== '\u200b').length * glyphWidth
 
 beforeEach(() => {
   vi.useFakeTimers()
   reduced = false
+  glyphWidth = 10
   onPreference = undefined
   vi.stubGlobal('matchMedia', () => ({
     get matches() { return reduced },
@@ -258,6 +260,29 @@ it('holds terminal whitespace without evicting and replaying the retained tail',
   f.rerender(<Fixture text={value + ' \n 下一步'} />)
   advance(2000)
   expect(displayed().textContent).toContain(' 下一步')
+})
+
+it.each([5, 10])('consumes only exited prefixes and never replays the retained tail (glyph width=%i)', (size) => {
+  glyphWidth = size
+  const points = Array.from({ length: 225 }, (_, index) => String.fromCodePoint(0x4e00 + index))
+  const f = render(<Fixture text={points.join('')} />)
+  const displayed = f.container.querySelector('[data-bart-stream-layer] textPath')!
+  let first = 0
+  for (let frame = 0; frame < 3000; frame++) {
+    const before = Array.from(displayed.textContent!)
+    const start = before[0].codePointAt(0)! - 0x4e00
+    expect(start).toBeGreaterThanOrEqual(first)
+    expect(start).toBeLessThanOrEqual(points.length - 56)
+    const left = Number(displayed.getAttribute('startOffset')) - before.length * size
+    advance(16)
+    const next = displayed.textContent!.codePointAt(0)! - 0x4e00
+    // A discarded glyph's right edge must already have crossed the exit,
+    // allowing only this frame's bounded motion.
+    if (next > start) expect(left + (next - start) * size).toBeLessThanOrEqual(120 * .016 + .001)
+    first = start
+  }
+  expect(displayed.textContent).toBe(points.slice(-56).join(''))
+  expect(displayed.getAttribute('startOffset')).toBe(f.container.querySelector('.bart-role-arc > text textPath')!.getAttribute('startOffset'))
 })
 
 it('drains a window containing one visible glyph and many zero-width glyphs', () => {

@@ -179,7 +179,8 @@ try {
   // naive jsdom measurement stub), and used to stall this queue indefinitely.
   for (const [name, firstBurst] of [
     ['initial-burst', Array.from({ length: 180 }, (_, index) => String.fromCodePoint(0x4e00 + index)).join('')],
-    ['zero-width-burst', 'W' + '\u200b'.repeat(111) + 'X']
+    ['zero-width-burst', 'W' + '\u200b'.repeat(111) + 'X'],
+    ['narrow-tail-burst', 'i'.repeat(180)]
   ]) {
     const burstPage = await browser.newPage({ viewport: { width: 1600, height: 900 } })
     burstPage.on('pageerror', error => errors.push(error.message))
@@ -203,7 +204,7 @@ try {
   }
   assert.deepEqual(errors, [], 'Lab has no runtime errors')
   await writeFile(path.join(output, 'results.json'), JSON.stringify(samples, null, 2))
-  console.log(`Passed ${samples.length} real-browser arc cases and both burst regressions. Evidence: ${output}`)
+  console.log(`Passed ${samples.length} real-browser arc cases and three burst regressions. Evidence: ${output}`)
 } finally {
   await browser.close()
 }
