@@ -10,7 +10,7 @@ function App(): React.JSX.Element {
   const [config, setConfig] = useState<LabConfig>(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('scene') !== 'running') return initialConfig
-    const variant = variants.running.find(([id]) => id === params.get('variant'))?.[0] ?? 'dots'
+    const variant = variants.running.find(([id]) => id === params.get('variant'))?.[0] ?? 'bottom'
     return { ...initialConfig, scene: 'running', variant }
   })
   const [ready, setReady] = useState(false)
@@ -40,7 +40,7 @@ function App(): React.JSX.Element {
     frameRef.current?.contentWindow?.postMessage(message, window.location.origin)
   }
   const selectScene = (next: Scene): void => {
-    setConfig((current) => ({ ...current, scene: next, variant: next === 'running' ? 'dots' : variants[next][0][0] }))
+    setConfig((current) => ({ ...current, scene: next, variant: next === 'running' ? 'bottom' : variants[next][0][0] }))
   }
 
   useEffect(() => {

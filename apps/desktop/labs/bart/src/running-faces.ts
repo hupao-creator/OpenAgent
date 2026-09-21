@@ -1,4 +1,6 @@
 export const runningFaces = [
+  { id: 'bottom', label: 'C · 底部三点（原版）', english: 'Original bottom dots',
+    description: '保留 Bart 原来的双眼与眨眼，三个小点在身体下方接力。暂停仅冻结底部三点。' },
   { id: 'dots', label: 'C1 · 三点接力', english: 'Relay dots',
     description: '原版对照。三个圆点依次抬起、拉长，轻轻传递节奏。' },
   { id: 'capsules', label: 'C2 · 胶囊波浪', english: 'Capsule wave',

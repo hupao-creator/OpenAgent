@@ -98,7 +98,7 @@ export function inputAttachmentsFor(config: LabConfig): BartDraftAttachment[] {
 
 export const scenes = [
   { id: 'resident', label: '常驻', english: 'Resident', description: '等待、思考，以及工作的反馈。', hint: '切换右侧状态，观察 Bart 的表情和动作。' },
-  { id: 'running', label: '运行中兜底', english: 'Running', description: '让运行节奏成为 Bart 的表情。', hint: '五种脸内表情，共用同一循环时长。切换待机对照，查看原来的眼睛。' },
+  { id: 'running', label: '运行中兜底', english: 'Running', description: '没有具体活动时，仍能感知任务正在继续。', hint: '默认展示原版底部三点。也可切换到之前的脸内表情作对照。' },
   { id: 'cadence', label: '展示节奏', english: 'Cadence', description: '快速发生，从容呈现。', hint: '调整展示时间与输入速度，观察哪些瞬时活动被自然吸收。设为 0ms 可对照即时切换。' },
   { id: 'input', label: '输入', english: 'Input', description: '编辑消息，查看输入与提交后的变化。', hint: '在 Bart 中输入内容，按 Enter 或点击箭头提交。' },
   { id: 'question', label: 'Question', english: 'Question', description: '选择或填写答案，然后继续。', hint: '直接选择或填写答案；提交后可重放当前场景。' },

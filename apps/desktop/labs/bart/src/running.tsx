@@ -3,10 +3,15 @@ import { createCanvasCharacter } from '../../../src/renderer/src/bart-motion/cha
 import { EYE_COLOR } from '../../../src/renderer/src/bart-motion/character-model'
 import type { LabConfig } from './scenarios'
 import { runningFaces, sampleRunningFace, type FacePoint } from './running-faces'
+import { RunningBottomPreview } from './running-bottom'
 import './running.css'
 
-/** Lab-only face study on the production silhouette and spring-eye renderer. */
 export function RunningPreview({ config }: { config: LabConfig }): React.JSX.Element {
+  return config.variant === 'bottom' ? <RunningBottomPreview config={config} /> : <RunningFacePreview config={config} />
+}
+
+/** Lab-only face study on the production silhouette and spring-eye renderer. */
+function RunningFacePreview({ config }: { config: LabConfig }): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const latest = useRef(config)
   const redraw = useRef<() => void>(() => {})

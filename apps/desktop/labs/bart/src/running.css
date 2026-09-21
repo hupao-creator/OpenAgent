@@ -8,3 +8,31 @@
 }
 .running-character canvas { display: block; width: 100%; height: 100%; }
 .running-preview[data-guides='true'] .running-character { outline: 1px dashed #718269; }
+.running-bottom .running-decoration { position: absolute; pointer-events: none; }
+.running-bottom .running-dots {
+  display: flex;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 13px);
+  justify-content: center;
+  gap: 5px;
+}
+.running-bottom .running-dots i {
+  width: 4px;
+  height: 4px;
+  background: #718269;
+  border-radius: 50%;
+  animation: running-bottom-dot calc(var(--running-cycle) * .65) ease-in-out infinite;
+}
+.running-bottom .running-dots i:nth-child(2) { animation-delay: calc(var(--running-cycle) * -.43); }
+.running-bottom .running-dots i:nth-child(3) { animation-delay: calc(var(--running-cycle) * -.22); }
+.running-bottom[data-idle='true'] .running-decoration { visibility: hidden; }
+.running-bottom[data-paused='true'] .running-dots i { animation-play-state: paused; }
+@keyframes running-bottom-dot {
+  0%, 70%, 100% { transform: translateY(0); opacity: .3; }
+  25% { transform: translateY(-3px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .running-bottom .running-dots i { animation: none; }
+}
