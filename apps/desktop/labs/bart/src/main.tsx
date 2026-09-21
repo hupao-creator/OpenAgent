@@ -190,7 +190,7 @@ function App(): React.JSX.Element {
               onClick={() => setConfig(current => ({ ...current, runningPaused: !current.runningPaused }))}>
               {config.runningPaused ? '继续候选动作' : '暂停候选动作'}
             </button>
-            <p className="control-hint">角色保留原有眨眼。候选仅用于比较；正式运行状态尚未接入。</p>
+            <p className="control-hint">三点沿用眼睛的颜色，随节奏轻轻抬起、拉长。暂停可观察表情。</p>
           </section> : null}
 
           {config.scene === 'cadence' ? <section className="control-section cadence-controls">

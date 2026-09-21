@@ -1,48 +1,84 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
-import { BartLogo } from '../../../src/renderer/src/components/BartLogo'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { createCanvasCharacter } from '../../../src/renderer/src/bart-motion/character-canvas'
+import { EYE_COLOR } from '../../../src/renderer/src/bart-motion/character-model'
 import type { LabConfig } from './scenarios'
 import './running.css'
 
-/** Lab-only signals around the production character; no new execution semantics. */
+/** Lab-only face study on the production silhouette and spring-eye renderer. */
 export function RunningPreview({ config }: { config: LabConfig }): React.JSX.Element {
-  const character = useRef<HTMLDivElement>(null)
-  const [anchor, setAnchor] = useState<CSSProperties>()
-  const [visible, setVisible] = useState(() => document.visibilityState !== 'hidden')
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const latest = useRef(config)
+  const redraw = useRef<() => void>(() => {})
+  useLayoutEffect(() => { latest.current = config; redraw.current() }, [config])
   useEffect(() => {
-    const update = (): void => setVisible(document.visibilityState !== 'hidden')
-    document.addEventListener('visibilitychange', update)
-    return () => document.removeEventListener('visibilitychange', update)
-  }, [])
-  useLayoutEffect(() => {
-    const svg = character.current?.querySelector('svg.bart-logo')
-    const body = svg?.querySelector<SVGGraphicsElement>('.bart-bot > path')
-    if (!(svg instanceof SVGSVGElement) || !body) return
-    // Measure the character's stable SVG fallback, not an animated screen rect.
-    // The decoration inherits the same carrier size as the production Worker.
-    const box = body.getBBox(), view = svg.viewBox.baseVal
-    setAnchor({
-      left: `${(box.x - view.x) / view.width * 100}%`,
-      top: `${(box.y - view.y) / view.height * 100}%`,
-      width: `${box.width / view.width * 100}%`,
-      height: `${box.height / view.height * 100}%`
-    })
+    const canvas = canvasRef.current!, ctx = canvas.getContext('2d')!
+    const texture = new OffscreenCanvas(420, 420), paint = texture.getContext('2d')!
+    const character = createCanvasCharacter({ activity: 'start', phase: 'running' })
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)')
+    let frame = 0, previous = 0, phase = 0
+    let face = latest.current.runningIdle ? 0 : 1
+    const active = (): boolean => !latest.current.runningPaused && !document.hidden && !reduced.matches
+    const draw = (now: number): void => {
+      frame = 0
+      const current = latest.current
+      const delta = previous && active() ? Math.min(64, now - previous) : 0
+      previous = now
+      phase = (phase + delta / (current.runningCycle * 1000)) % 1
+      const target = current.runningIdle ? 0 : 1
+      face = active() ? face + (target - face) * (1 - Math.exp(-delta / 75)) : target
+      if (Math.abs(target - face) < .001) face = target
+      // Scaling the native eyes to zero lets the same renderer retain Bart's
+      // body and idle expression, without changing production descriptors.
+      character.update({ activity: current.runningIdle ? 'idle' : 'start',
+        phase: current.runningIdle ? 'idle' : 'running',
+        animate: !((reduced.matches || current.runningPaused) && current.runningIdle),
+        eyeMotion: { key: 0, duration: 1, points: [{ at: 0, x: 0, y: 0,
+          scaleX: 1 - face, scaleY: 1 - face }] } })
+      const width = canvas.clientWidth, height = canvas.clientHeight, ratio = devicePixelRatio || 1
+      if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+        canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio)
+      }
+      paint.clearRect(0, 0, 420, 420)
+      character.paint(paint, now, 420, 420)
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height)
+      ctx.drawImage(texture, 0, 0, width, height)
+      ctx.scale(width / 640, height / 640)
+      ctx.fillStyle = EYE_COLOR
+      for (let index = 0; index < 3; index++) {
+        const position = ((phase * 3 - index) % 3 + 3) % 3
+        const pulse = reduced.matches ? 0 : position < 1 ? Math.sin(position * Math.PI) ** 2 : 0
+        ctx.globalAlpha = face * (.58 + .42 * pulse)
+        ctx.beginPath()
+        ctx.ellipse(320 + (index - 1) * 53, 282 - 7 * pulse,
+          15 * face, (15 + 6 * pulse) * face, 0, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.globalAlpha = 1
+      if (active()) frame = requestAnimationFrame(draw)
+    }
+    const refresh = (): void => {
+      cancelAnimationFrame(frame); previous = 0
+      if (!document.hidden) draw(performance.now())
+    }
+    redraw.current = refresh
+    const resize = new ResizeObserver(refresh)
+    resize.observe(canvas)
+    reduced.addEventListener('change', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    refresh()
+    return () => {
+      cancelAnimationFrame(frame); resize.disconnect(); redraw.current = () => {}
+      reduced.removeEventListener('change', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
   }, [])
   return <main className="app-shell bart-preview running-preview" data-guides={config.guides}
-    data-variant={config.variant} data-idle={config.runningIdle} data-paused={config.runningPaused || !visible}
-    style={{ '--running-cycle': `${config.runningCycle}s` } as CSSProperties}>
+    data-variant={config.variant} data-idle={config.runningIdle}>
     <div className="cadence-source" role="status">
       <span>{config.runningIdle ? '待机对照' : '任务运行中 · 暂无具体活动'}</span>
     </div>
-    <div className="running-character" ref={character}>
-      <div className="running-body-motion">
-        <BartLogo size={210} layout="mark" resolvedActivity="idle"
-          resolvedPhase={config.runningIdle ? 'idle' : 'running'} />
-      </div>
-      {anchor ? <div className="running-decoration" style={anchor} aria-hidden="true">
-        <span className="running-halo" />
-        <span className="running-orbit" />
-        <span className="running-dots"><i /><i /><i /></span>
-      </div> : null}
+    <div className="running-character">
+      <canvas ref={canvasRef} role="img" aria-label={config.runningIdle ? '待机的 Bart' : '三点眼睛的 Bart'} />
     </div>
   </main>
 }

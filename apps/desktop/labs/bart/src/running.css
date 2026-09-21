@@ -1,7 +1,3 @@
-.running-preview {
-  --running-ink: #718269;
-  --running-track: #d3dacd;
-}
 .running-character {
   position: absolute;
   left: 50%;
@@ -10,76 +6,5 @@
   height: 210px;
   translate: -50% -50%;
 }
-.running-body-motion { width: 100%; height: 100%; }
-.running-decoration { position: absolute; pointer-events: none; }
-.running-halo, .running-orbit, .running-dots { display: none; }
-.running-preview[data-variant='halo'] .running-halo {
-  display: block;
-  position: absolute;
-  inset: -13%;
-  border: 1.5px solid var(--running-ink);
-  border-radius: 50%;
-  animation: running-halo var(--running-cycle) ease-in-out infinite;
-}
-.running-preview[data-variant='orbit'] .running-orbit {
-  display: block;
-  position: absolute;
-  inset: -18%;
-  border: 1px solid var(--running-track);
-  border-radius: 50%;
-  animation: running-orbit var(--running-cycle) linear infinite;
-}
-.running-orbit::after {
-  content: '';
-  position: absolute;
-  left: calc(50% - 3px);
-  top: -3px;
-  width: 6px;
-  height: 6px;
-  background: var(--running-ink);
-  border-radius: 50%;
-}
-.running-preview[data-variant='dots'] .running-dots {
-  display: flex;
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 13px);
-  justify-content: center;
-  gap: 5px;
-}
-.running-dots i {
-  width: 4px;
-  height: 4px;
-  background: var(--running-ink);
-  border-radius: 50%;
-  animation: running-dot calc(var(--running-cycle) * .65) ease-in-out infinite;
-}
-.running-dots i:nth-child(2) { animation-delay: calc(var(--running-cycle) * -.43); }
-.running-dots i:nth-child(3) { animation-delay: calc(var(--running-cycle) * -.22); }
-.running-preview[data-variant='sway'] .running-body-motion {
-  transform-origin: 50% 72%;
-  animation: running-sway var(--running-cycle) ease-in-out infinite;
-}
-.running-preview[data-idle='true'] .running-decoration { visibility: hidden; }
-.running-preview[data-idle='true'] .running-body-motion { animation: none; }
-.running-preview[data-paused='true'] .running-body-motion,
-.running-preview[data-paused='true'] .running-decoration * { animation-play-state: paused; }
-.running-preview[data-guides='true'] .running-decoration { outline: 1px dashed var(--running-ink); }
-@keyframes running-halo {
-  0%, 100% { transform: scale(.97); opacity: .35; }
-  50% { transform: scale(1.06); opacity: .8; }
-}
-@keyframes running-orbit { to { transform: rotate(360deg); } }
-@keyframes running-dot {
-  0%, 70%, 100% { transform: translateY(0); opacity: .3; }
-  25% { transform: translateY(-3px); opacity: 1; }
-}
-@keyframes running-sway {
-  0%, 100% { transform: translateY(0) rotate(-3deg); }
-  50% { transform: translateY(-3px) rotate(3deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .running-preview .running-body-motion,
-  .running-preview .running-decoration * { animation: none; }
-}
+.running-character canvas { display: block; width: 100%; height: 100%; }
+.running-preview[data-guides='true'] .running-character { outline: 1px dashed #718269; }
