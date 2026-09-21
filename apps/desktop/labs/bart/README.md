@@ -50,7 +50,7 @@ Lab 直接挂载正式 BartDock 提交链路；回调只更新本地 fixture，�
 - 最终答复：静态未读红点，hover 或键盘聚焦不展开气泡、不标记已读。点击进入对应答复；Lab 只记录定位事件，生产会话打开后清除未读。
 
 - 常驻：待机、思考、工具调用、长工具名、工作与失败。思考与工具调用由本地 fixture（`residentActivityFor`）提供 Harness 表现投影，预览生产的角色解析与共享渲染模块；运行兜底由 execution 生命周期决定，思考与工具调用由前台活动决定。失败使用正式 BartLogo 单独预览动作结果，避免给已结束的执行伪造运行状态。已移除「完成」表情及预览入口，成功结果不再触发专用开心表情和弹跳。
-- 输入：空白、预填内容、单行／三行／五行／六行草稿、带附件与禁用。胶囊随草稿逐行长高并在五行封顶，Dock 底边不动、Bart 被顶得更高；多行与附件 variant 提供可直接比对的静态形态，也可以直接打字看它长。Thread 续写 variant 挂载同一个 Dock 的续写入口，用同一枚胶囊替换草稿输入框。进出的过渡是生产那一套：胶囊从 Dock 底边弹出来并越过自己的高度再回落，Bart 被同一个回弹带上带下；退出是同一段往回走但不带弹。
+- 输入：空白、预填内容、单行／三行／五行／六行草稿、带附件与禁用。Bart 始终保持原位；胶囊独立展开，优先放在角色下方，底部空间不足时放在上方。文本在可用空间内逐行长高，最多五行，之后内部滚动；附件计入所需空间。Thread 续写与草稿输入共用这个位置规则。进出时只有胶囊伸缩和淡入淡出，Bart 不再随输入框上移或回落。
 - Question：单选、多选、自由输入与连续提问，支持提交和取消。
 - Permission：文件修改与运行命令，支持本次允许、始终允许和拒绝。
 - 在状态之间切换、重放当前场景、调整预览比例、显示参考线，并查看交互结果。
@@ -92,7 +92,7 @@ Lab 直接挂载正式 BartDock 提交链路；回调只更新本地 fixture，�
 
 运行 `BART_LAB_URL=http://127.0.0.1:4177/ pnpm --dir apps/desktop exec node tests/bart-cadence.browser.mjs` 可在真实 Chromium 中检查可调节奏、连续装饰的稳定性、角色尺寸和最终答复交接；证据保存在 `apps/desktop/output/playwright/bart-cadence/`。
 
-运行 `BART_LAB_URL=http://127.0.0.1:4177/ pnpm --dir apps/desktop exec node tests/bart-input.browser.mjs` 可检查输入形态：角色始终保持常驻布局、胶囊逐行长高并在五行封顶、Dock 底边固定、附件在胶囊内部、Dock 变窄时同一草稿重新折行、Thread 续写胶囊与草稿胶囊位置一致、Esc 与点击外部收起且草稿保留；证据保存在 `apps/desktop/output/playwright/bart-input/`。
+运行 `BART_LAB_URL=http://127.0.0.1:4177/ pnpm --dir apps/desktop exec node tests/bart-input.browser.mjs` 可检查输入形态：角色始终保持常驻布局、胶囊逐行长高并在五行封顶、Bart 在输入展开、增长和收起时位置固定、附件在胶囊内部、Dock 变窄时同一草稿重新折行、Thread 续写胶囊与草稿胶囊位置一致、Esc 与点击外部收起且草稿保留；证据保存在 `apps/desktop/output/playwright/bart-input/`。
 
 ## Case 02 · 卡片生成
 

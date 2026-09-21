@@ -13,8 +13,7 @@ export const BART_CAPSULE_MAX_LINES = 5
  * The attachments row above the field. It is the one part of the capsule that
  * is not measured — a chip is as tall as its own contents — so its height is
  * fixed here and published like the rest. The measured field height alone is
- * not the capsule: Bart is lifted by the capsule, and a draft with attachments
- * is this much taller than the field he would otherwise be measured against.
+ * not the capsule: this row must also fit in the available input space.
  */
 export const BART_CAPSULE_ATTACHMENT_HEIGHT = 39
 /**
@@ -45,4 +44,21 @@ export function bartCapsuleHeight(lines: number): number {
 function boundedLines(lines: number): number {
   if (!Number.isFinite(lines)) return BART_CAPSULE_MIN_LINES
   return Math.min(Math.max(Math.floor(lines), BART_CAPSULE_MIN_LINES), BART_CAPSULE_MAX_LINES)
+}
+
+/** The composer owns its available space; opening it never displaces Bart. */
+export function bartCapsulePlacement(
+  body: { top: number; bottom: number },
+  bounds: { top: number; bottom: number },
+  minimumHeight: number
+) {
+  const gap = 20
+  const below = Math.max(0, bounds.bottom - body.bottom - gap)
+  const above = Math.max(0, body.top - gap - bounds.top)
+  const side = below >= minimumHeight || below >= above ? 'below' : 'above'
+  return {
+    side,
+    anchor: side === 'below' ? body.bottom + gap : body.top - gap,
+    room: Math.max(minimumHeight, side === 'below' ? below : above)
+  }
 }

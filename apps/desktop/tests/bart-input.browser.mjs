@@ -169,25 +169,8 @@ async function framesAcross(start, span = 900) {
   return sampling
 }
 
-/** The furthest Bart steps in `direction` (px/frame, negative means upwards). */
-function worstStep(frames, direction) {
-  let worst = 0
-  for (let index = 1; index < frames.length; index += 1) {
-    const step = (frames[index].inkTop - frames[index - 1].inkTop) * direction
-    if (step > worst) worst = step
-  }
-  return worst
-}
-
-/**
- * A frame is allowed to differ from the one before it by sub-pixel rounding —
- * the capsule's height is fractional, so Bart's position is too. The pop this
- * guards against is a whole clearance deep, tens of pixels at once.
- */
-const STEP_TOLERANCE = 1.5
-
-const lowest = (frames) => Math.max(...frames.map((frame) => frame.inkTop))
-const highest = (frames) => Math.min(...frames.map((frame) => frame.inkTop))
+// Only sub-pixel rounding may change the character's screen position.
+const displacement = (frames, top) => Math.max(...frames.map(frame => Math.abs(frame.inkTop - top)))
 
 try {
   await page.goto(url)
@@ -199,7 +182,7 @@ try {
   assertCapsuleIsMarkedUp(empty)
   assert.equal(empty.shortcutButtons, 0, 'no shortcut buttons float over the character while typing')
   assert.equal(empty.attachmentInsideCapsule, false, 'no attachment strip without attachments')
-  assert.ok(empty.capsule.height > 0 && empty.capsule.top < empty.dock.bottom, 'the capsule sits inside the Dock footprint')
+  assert.ok(empty.capsule.height > 0, 'the input capsule is visible')
   assert.ok(empty.ink.bottom < empty.capsule.top, 'Bart keeps a visible gap above the capsule')
 
   // 2. Growth: one line at a time up to the cap, then nothing more.
@@ -227,8 +210,10 @@ try {
   assert.ok(three.capsule < five.capsule, 'five lines are taller than three')
   assert.equal(six.capsule, five.capsule, 'a sixth line stops the capsule growing')
 
-  // 5. Bart rides up with the capsule instead of deforming under it.
-  assert.ok(one.inkTop > three.inkTop && three.inkTop > five.inkTop, 'Bart moves up as the capsule grows')
+  // 5. Draft growth never carries the character with it.
+  for (const entry of growth) {
+    assert.ok(Math.abs(entry.inkTop - one.inkTop) <= 1, `Bart moved at ${entry.lines} lines`)
+  }
 
   // 6. Attachments live inside the capsule, above the field.
   const attachments = await selectVariant('带附件', 1)
@@ -289,8 +274,7 @@ try {
   await page.getByRole('button', { name: '适合画布' }).click()
 
   // 11. The Thread follow-up capsule sits exactly where the draft capsule does.
-  //     Its entry animation used to finish at -50%, which was the centering of an
-  //     absolutely positioned element; as a flex item that lift lands it on Bart.
+  //     Both input surfaces use the same independent anchor.
   const gap = (reading) => reading.capsule.top - reading.ink.bottom
   await selectVariant('单行草稿', 1)
   const single = await settledCapsule('the one-line draft capsule', 1)
@@ -326,11 +310,7 @@ try {
   assert.ok(route.painted, 'the thread name is not clipped away by the capsule')
   await page.screenshot({ path: path.join(output, 'capsule-follow-up.png') })
 
-  // 12. The two states are joined by one motion, and Bart is carried by it: an
-  //     entry may only ever raise him, an exit may only ever lower him, and each
-  //     ends on the resting position of the state it arrived in. Frames moving
-  //     the other way are the pop this guards: entering used to drop him below
-  //     his mark position first and then lift him, and leaving did the reverse.
+  // 12. Opening and closing leave Bart at his mark position on every frame.
   await selectVariant('单行草稿', 1)
   await field.focus()
   await field.press('Escape')
@@ -344,15 +324,8 @@ try {
     await preview.locator('.bart-dock-inline-composer').waitFor()
   })
   const inputRest = await settledCapsule('the one-line capsule after the entry', 1)
-  assert.ok(
-    worstStep(entry, 1) <= STEP_TOLERANCE,
-    `Bart never drops during the entry (worst step ${worstStep(entry, 1).toFixed(2)}px)`
-  )
-  assert.ok(lowest(entry) <= markRest.ink.top + 1, 'the entry starts where the ordinary Dock leaves Bart')
-  assert.ok(
-    Math.abs(entry[entry.length - 1].inkTop - inputRest.ink.top) <= 1,
-    'the entry ends where the input Dock holds Bart'
-  )
+  assert.ok(displacement(entry, markRest.ink.top) <= 1, 'Bart stays fixed while input opens')
+  assert.ok(Math.abs(inputRest.ink.top - markRest.ink.top) <= 1, 'input leaves Bart at rest')
 
   const exit = await framesAcross(async () => {
     await field.press('Escape')
@@ -360,33 +333,18 @@ try {
   })
   await settledFrame()
   const markAgain = await measure()
-  assert.ok(
-    worstStep(exit, -1) <= STEP_TOLERANCE,
-    `Bart never rises during the exit (worst step ${worstStep(exit, -1).toFixed(2)}px)`
-  )
-  assert.ok(highest(exit) >= inputRest.ink.top - 1, 'the exit starts where the input Dock leaves Bart')
-  assert.ok(
-    Math.abs(exit[exit.length - 1].inkTop - markAgain.ink.top) <= 1,
-    'the exit ends on the ordinary Dock position'
-  )
+  assert.ok(displacement(exit, markRest.ink.top) <= 1, 'Bart stays fixed while input closes')
+  assert.ok(Math.abs(markAgain.ink.top - markRest.ink.top) <= 1, 'closing leaves Bart at rest')
   evidence.transition = {
     markInkTop: markRest.ink.top,
     inputInkTop: inputRest.ink.top,
     entryFrames: entry.length,
     exitFrames: exit.length,
-    entryWorstDownwardStep: worstStep(entry, 1),
-    exitWorstUpwardStep: worstStep(exit, -1),
-    // The capsule passes its own height on the way in, so Bart goes briefly
-    // above the height he settles at. That is the whole of the bounce.
-    entryOvershoot: inputRest.ink.top - highest(entry)
+    entryDisplacement: displacement(entry, markRest.ink.top),
+    exitDisplacement: displacement(exit, markRest.ink.top)
   }
 
-  // 13. The attachments row is part of the capsule but not of the field inside
-  //     it, and Bart is lifted by the capsule: from the moment he leaves his mark
-  //     position he is riding the capsule's own growth, and the clearance under
-  //     his ink is the one he rests at. Measured against the field alone he would
-  //     set off from lower down, and the gap would close as a motion of its own —
-  //     a second animation under the first, on only part of the way in.
+  // 13. The attachment strip also opens independently of Bart.
   await reopenInput()
   await selectVariant('带附件', 1)
   await field.focus()
@@ -405,19 +363,12 @@ try {
   assert.ok(attachedRest.capsule.height > one.capsule, 'the entry brought the attachments back')
 
   const attachedGap = attachedRest.capsule.top - attachedRest.ink.bottom
-  const lifted = attachedEntry.filter((frame) =>
-    frame.capsuleTop !== null && Math.abs(frame.inkTop - attachedMark.ink.top) > 1)
-  assert.ok(lifted.length > 0, 'the attachment entry lifts Bart off his mark')
-  const gapChange = lifted.map((frame) => Math.abs(frame.capsuleTop - frame.inkBottom - attachedGap))
-  assert.ok(
-    Math.max(...gapChange) <= STEP_TOLERANCE,
-    `Bart rides the capsule through the entry (worst gap change ${Math.max(...gapChange).toFixed(2)}px)`
-  )
+  assert.ok(displacement(attachedEntry, attachedMark.ink.top) <= 1, 'attachments never lift Bart')
+  assert.ok(attachedGap > 0, 'attachments keep their clearance from Bart')
   evidence.attachments = {
     restGap: attachedGap,
     entryFrames: attachedEntry.length,
-    liftedFrames: lifted.length,
-    worstGapChange: Math.max(...gapChange)
+    displacement: displacement(attachedEntry, attachedMark.ink.top)
   }
 
   assert.deepEqual(errors, [], 'Lab has no runtime errors')
