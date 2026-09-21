@@ -141,7 +141,10 @@ try {
           for (let x = 0; x < width; x++) {
             const offset = (y * width + x) * 4
             const blue = pixels[offset], green = pixels[offset + 1], red = pixels[offset + 2]
-            if (blue - red <= 4 || blue - green <= 2) continue
+            // The unblurred neutral cards vary the fade's chroma by a few
+            // quantized levels. Detect blue dominance, not a minimum strength
+            // that can split one circle at an underlying card edge.
+            if (blue <= red || blue <= green) continue
             if (start < 0 || x - last > 8 * pixelScale) start = x
             last = x
             if (last - start > best[1] - best[0]) best = [start, last]

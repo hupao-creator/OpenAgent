@@ -1,4 +1,6 @@
-.settings-page { --settings-page-surface-color: light-dark(rgba(242,245,249,.5), rgba(44, 47, 51, 0.5)); visibility: hidden; position: fixed; inset: 0; z-index: 50; isolation: isolate; backdrop-filter: blur(24px) saturate(1.15); -webkit-app-region: no-drag; color: var(--sf-text); }
+/* The opaque panels fade over a tint during reveal. Filtering the entire
+   backdrop here stalls cold GPU submissions while the circle expands. */
+.settings-page { --settings-page-surface-color: light-dark(rgba(242,245,249,.5), rgba(44, 47, 51, 0.5)); visibility: hidden; position: fixed; inset: 0; z-index: 50; isolation: isolate; -webkit-app-region: no-drag; color: var(--sf-text); }
 .settings-page-surface { position: absolute; inset: 0; background: var(--settings-page-surface-color); pointer-events: none; }
 .settings-page-content { position: absolute; inset: 0; display: grid; grid-template-columns: 220px minmax(0,1fr); overflow: hidden; }
 .settings-page[data-phase=closing] .settings-page-content { pointer-events: none; }
