@@ -1313,14 +1313,14 @@ try {
   // arrive at the copy with a frame or two left and no time to converge on it,
   // which reads here as a copy that ignored it.
   await page.waitForTimeout(270)
-  await page.evaluate(() => window.rendererBenchmark.setBartOperation('read'))
+  await page.evaluate(() => window.rendererBenchmark.setBartOperation('status'))
   await page.waitForSelector('.bart-cross-page-flight', { state: 'detached' })
   await sleep(400)
   const live = await collect()
-  const changed = live.samples.filter((sample) => sample.copy && sample.activity === 'read')
+  const changed = live.samples.filter((sample) => sample.copy && sample.activity === 'status')
   assert.ok(changed.length >= 1,
     `live-update: this says nothing unless the new operation reached the Dock while the copy was in the air (${changed.length} frames saw it)`)
-  const wearingBefore = live.samples.filter((sample) => sample.copy && sample.activity !== 'read').at(-1)
+  const wearingBefore = live.samples.filter((sample) => sample.copy && sample.activity !== 'status').at(-1)
   assert.ok(wearingBefore,
     'live-update: this says nothing unless the copy was seen in the air before the Dock picked the new operation up')
   const moved = poseGap(changed.at(-1).copyPose, live.takeoffPose)

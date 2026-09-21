@@ -1797,7 +1797,6 @@ function bartOperationLabel(
   if (operation.kind === 'list') return completed ? t('会话已刷新') : t('正在刷新')
   if (operation.kind === 'start') return completed ? t('会话已创建') : t('正在创建')
   if (operation.kind === 'send') return completed ? t('任务已追加') : t('正在追加任务')
-  if (operation.kind === 'read') return completed ? t('读取完成') : t('正在读取')
   if (operation.kind === 'status') return completed ? t('状态已更新') : t('正在检查状态')
   if (operation.kind === 'interrupt') return completed ? t('已请求停止') : t('正在停止任务')
   return completed ? t('会话已删除') : t('正在删除')

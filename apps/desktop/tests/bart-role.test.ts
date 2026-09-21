@@ -55,16 +55,16 @@ describe('Bart Dock role resolution', () => {
     expect(resolveBartRole(reasoning('e' + '\u0301'.repeat(60)), false)).toMatchObject({ kind: 'reasoning', text: '' })
   })
 
-  it('shows the generic tool signature for a call without a dedicated route', () => {
+  it.each(['mcp__github__create_issue', 'openagent_thread_read'])('shows the generic tool signature for %s', (toolName) => {
     const activity: HarnessBartActivity = {
       kind: 'tool-call',
       callId: 'call-1',
-      toolName: 'mcp__github__create_issue',
+      toolName,
       sequence: 4,
       executionId: 'execution-1'
     }
     expect(resolveBartRole(activity, false)).toEqual({
-      kind: 'tool', toolName: 'mcp__github__create_issue'
+      kind: 'tool', toolName
     })
   })
 
@@ -73,7 +73,6 @@ describe('Bart Dock role resolution', () => {
     'openagent_thread_start',
     'openagent_thread_send',
     'openagent_thread_respond',
-    'openagent_thread_read',
     'openagent_thread_status',
     'openagent_thread_interrupt',
     'openagent_thread_delete'

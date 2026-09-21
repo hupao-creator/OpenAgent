@@ -14,7 +14,6 @@ export type BartLogoExpression =
   | 'surprised'
   | 'sleepy'
   | 'curious'
-  | 'skeptical'
 
 export type BartLogoShape = 'circle' | 'drop' | 'hex' | 'triangle' | 'mark'
 export type BartAction = 'none' | 'bounce' | 'nod'
@@ -183,10 +182,6 @@ export const EXPRESSIONS: Record<BartLogoExpression, { left: BartLogoEye; right:
   curious: {
     left: { x: -53, y: 16, w: 60, h: 60, radius: 30, rotation: 0, opacity: 1 },
     right: { x: 48, y: -5, w: 78, h: 78, radius: 39, rotation: 0, opacity: 1 }
-  },
-  skeptical: {
-    left: { x: -48, y: -8, w: 34, h: 82, radius: 17, rotation: 7, opacity: 1 },
-    right: { x: 45, y: 20, w: 74, h: 19, radius: 10, rotation: 9, opacity: 1 }
   }
 }
 
@@ -210,7 +205,7 @@ export function interventionDescriptor(state: BartInterventionVisualState): Bart
     return { expression: 'happy', shape: 'circle', action: 'bounce', thought: false, orbit: false }
   }
   if (state === 'deny') {
-    return { expression: 'skeptical', shape: 'circle', action: 'nod', thought: false, orbit: false }
+    return { expression: 'idle', shape: 'circle', action: 'none', thought: false, orbit: false }
   }
   return { expression: 'curious', shape: 'circle', action: 'bounce', thought: false, orbit: false }
 }
@@ -250,11 +245,11 @@ export function seatDescriptor(
 
 export function descriptorFor(activity: BartLogoActivity, phase: BartLogoPhase): BartDescriptor {
   if (phase === 'failed' || phase === 'cancelled') {
-    return { expression: 'skeptical', shape: 'circle', action: 'nod', thought: false, orbit: false }
+    return { expression: 'idle', shape: 'circle', action: 'none', thought: false, orbit: false }
   }
   // start 的完成反馈由随后紧邻的 Thread generation 承担。若这里也 bounce，连续
   // 创建时每个快速完成的 tool operation 都会重启 1.15s 弹跳，Bart 起飞前便
-  // 在 Dock 原地抽动数次。running/completed 共用稳定的 focus pose；失败仍摇头。
+  // 在 Dock 原地抽动数次。running/completed 共用稳定的 focus pose。
   if (activity === 'start') {
     return { expression: 'focus', shape: 'circle', action: 'none', thought: false, orbit: false }
   }
@@ -274,9 +269,6 @@ export function descriptorFor(activity: BartLogoActivity, phase: BartLogoPhase):
   }
   if (activity === 'send') {
     return { expression: 'happy', shape: 'drop', action: 'bounce', thought: false, orbit: false }
-  }
-  if (activity === 'read') {
-    return { expression: 'focus', shape: 'circle', action: 'nod', thought: false, orbit: false }
   }
   if (activity === 'status') {
     return { expression: 'curious', shape: 'hex', action: 'none', thought: true, orbit: false }

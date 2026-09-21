@@ -61,10 +61,19 @@ describe('Worker character clocks and geometry', () => {
   it('gives intervention feedback priority over the activity underneath it', () => {
     const { actor, advance } = character({ activity: 'thinking', phase: 'running', intervention: 'deny' })
     advance(1500)
-    expect(actor.capture()).toMatchObject({ expression: 'skeptical', eagerBlink: false, thought: false })
+    expect(actor.capture()).toMatchObject({ expression: 'idle', eagerBlink: false, thought: false, nodStarted: -Infinity })
     actor.update({ activity: 'thinking', phase: 'running', intervention: 'allow', key: 'answer-2' })
     advance(1500)
     expect(actor.capture().expression).toBe('happy')
+  })
+
+  it.each(['failed', 'cancelled'] as const)('rests after an operation is %s without a result gesture', (phase) => {
+    const { actor, advance } = character({ activity: 'send', phase })
+    advance(1500)
+    expect(actor.capture()).toMatchObject({
+      expression: 'idle', shape: 'circle', thought: false, orbit: false,
+      nodStarted: -Infinity, bounceStarted: -Infinity
+    })
   })
 
   it('rests between gestures and schedules its own wake for the next blink or gaze', () => {

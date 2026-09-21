@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BartDock } from '../../../src/renderer/src/components/BartDock'
-import { BartLogo } from '../../../src/renderer/src/components/BartLogo'
-import type { BartVisualOperation } from '../../../src/renderer/src/bart-visual-operation'
 import type { ThreadInteractionResponseRequest } from '../../../src/shared/desktop-api'
 import { initialConfig, inputAttachmentsFor, inputDraftFor, interactionFor, residentActivityFor, residentReplyFor, threadFollowUpFor, validConfig, type LabConfig, type LabEvent, type PreviewMessage } from './scenarios'
 import type { BartDraftAttachment } from '../../../src/shared/attachments'
@@ -74,18 +72,10 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
   useEffect(() => () => { sessionKey.current = '' }, [])
 
   const request = interactionFor(config)
-  const operation: BartVisualOperation | undefined = config.scene === 'resident'
-    && ['working', 'error'].includes(config.variant)
-    ? {
-        id: `bart-work-${config.replay}`,
-        kind: 'read',
-        phase: config.variant === 'error' ? 'failed' : 'running'
-      }
-    : undefined
   const foregroundActivity = streamingActivity ?? residentActivityFor(config)
   const reply = residentReplyFor(config)
   const bartRunning = config.scene === 'resident'
-    && (foregroundActivity !== null || ['working', 'running'].includes(config.variant))
+    && (foregroundActivity !== null || config.variant === 'running')
 
   const respond = async (response: ThreadInteractionResponseRequest): Promise<void> => {
     const key = session.key
@@ -105,14 +95,6 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
     })
   }
 
-  // A failed operation is a character study, not an active execution. The
-  // production Dock correctly discards it; preview the real failure pose directly.
-  if (operation?.phase === 'failed') return (
-    <main className="app-shell bart-preview" data-guides={config.guides}>
-      <div className="bart-operation-preview"><BartLogo width={400} height={210} operation={operation} /></div>
-    </main>
-  )
-
   return (
     <main className="app-shell bart-preview" data-guides={config.guides}>
       <BartDock
@@ -128,7 +110,6 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
         inputValue={session.draft}
         inputDisabled={config.scene === 'input' && config.variant === 'disabled'}
         bartAttachments={session.attachments}
-        operations={operation ? [operation] : undefined}
         foregroundActivity={foregroundActivity}
         reply={reply}
         onReplyOpen={() => record({ title: '答复定位', detail: '本 Case 只预览形态，未接入真实会话导航。' })}
