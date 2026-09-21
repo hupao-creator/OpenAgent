@@ -3486,6 +3486,34 @@ describe('OpenAgent Service Harness dispatch', () => {
     }
   })
 
+  it('delivers ELI5 report authoring guidance to Bart for both creation and updates', async () => {
+    const checkedTools: string[] = []
+    const trace: HarnessTrace = {
+      async runBartTools(tools) {
+        for (const name of ['openagent_report_create', 'openagent_report_update']) {
+          const properties = requiredTool(tools, name).inputSchema.properties
+          const html = jsonObject(properties) ? properties.html : undefined
+          const description = jsonObject(html) ? html.description : undefined
+          expect(description).toEqual(expect.any(String))
+          expect(description).toMatch(/knows nothing about the topic/)
+          expect(description).toMatch(/big pictures and few words/)
+          expect(description).toMatch(/one dominant explanatory diagram or chart/)
+          expect(description).toMatch(/facts, numbers, caveats, and sources accurate/)
+          expect(description).toMatch(/own CSS/)
+          expect(description).toMatch(/does not inherit the host application's styles/)
+          expect(description).toMatch(/actual tags, not an entity-escaped document/)
+          checkedTools.push(name)
+        }
+      }
+    }
+    const fixture = await serviceFixture(trace, [])
+    await fixture.service.initialize()
+    await fixture.service.submitBartMessage({
+      input: { parts: [{ kind: 'text', text: 'Explain the task outcome in a report.' }] }
+    })
+    expect(checkedTools).toEqual(['openagent_report_create', 'openagent_report_update'])
+  })
+
   it('rejects escaped Report HTML through Bart tools without committing and accepts a corrected retry', async () => {
     const escaped = '&lt;h2&gt;结论摘要&lt;/h2&gt;\n&lt;p&gt;正文&lt;/p&gt;'
     const raw = '<h2>结论摘要</h2>\n<p>正文</p>'

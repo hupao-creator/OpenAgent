@@ -119,7 +119,20 @@ function reportToolBindings(
   const title: JsonObject = { type: 'string', minLength: 1, maxLength: 60, pattern: '\\S' }
   const html: JsonObject = {
     type: 'string', minLength: 1, maxLength: 1_000_000, pattern: '\\S',
-    description: 'Raw HTML rendered as a webpage, for example <h2>Summary</h2><p>Details</p>. Pass actual tags, not an entity-escaped document (&lt;h2&gt;), Markdown, or a code fence. Escape entities only inside text or code examples; do not HTML-escape the whole document.'
+    // Authoring contract shared by create/update, restored after the Harness migration.
+    // Reference: https://github.com/anthropics/claude-plugins-community/blob/main/eli5/skills/eli5/SKILL.md
+    description: [
+      'Complete HTML document (html/head/body).',
+      'Use ELI5 as the sole authoring style: assume the reader knows nothing about the topic and create a visual explanation with big pictures and few words.',
+      'Open with a plain-language question or title and a one-sentence mental model, then show an overview visual followed by a small number of numbered steps.',
+      'Center each step on one clear claim, one dominant explanatory diagram or chart, and at most a short caption.',
+      'Prefer consistent visual vocabulary, arrows, labels, and generous whitespace over long prose, dense card grids, decorative dashboards, or code dumps.',
+      'Keep essential facts, numbers, caveats, and sources accurate and visible, but express them as concisely as possible.',
+      'Make the document responsive and accessible; use JavaScript only when it directly improves the explanation.',
+      'Include the document\'s own CSS and explanatory visuals (for example inline SVG or HTML/CSS diagrams); the isolated report webpage does not inherit the host application\'s styles.',
+      'Scripts, styles and network requests run as written; OpenAgent never sanitizes or templates the document.',
+      'Pass actual tags, not an entity-escaped document (&lt;h2&gt;), Markdown, or a code fence. Escape entities only inside text or code examples; do not HTML-escape the whole document.'
+    ].join(' ')
   }
   const related: JsonObject = { type: 'array', maxItems: 256,
     description: 'Optional explicit completed Execution references. A historical completed Execution remains eligible even after a newer Execution starts. One Execution per Thread.',
