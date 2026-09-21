@@ -39,7 +39,7 @@ export class OverviewFilterMotion {
   /** Called by getSnapshotBeforeUpdate, while the outgoing React tree still exists. */
   capture(viewport: HTMLElement | null, playbackRate = 1): (() => void) | null {
     const content = viewport?.querySelector<HTMLElement>(':scope > .thread-overview-scroll-content:not(.overview-filter-exits)')
-    if (!viewport || !content || !viewport.clientWidth || !viewport.clientHeight ||
+    if (!viewport || !content || !viewport.clientWidth || !viewport.clientHeight || document.hidden ||
       typeof HTMLElement.prototype.animate !== 'function' ||
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
       this.cancel()
@@ -49,8 +49,14 @@ export class OverviewFilterMotion {
     // Sample the visible frame BEFORE cancelling an interrupted reflow. This keeps
     // a surviving card at its current screen position rather than its old destination.
     const before = cardsIn(content)
+    const contentStyle = getComputedStyle(content)
     const exits = content.cloneNode(true) as HTMLElement
     exits.classList.add('overview-filter-exits')
+    // Empty-state entry animates the content itself, so its interrupted frame
+    // must be frozen before cancelling the previous run as well.
+    exits.style.opacity = contentStyle.opacity
+    exits.style.transform = contentStyle.transform
+    exits.style.transformOrigin = contentStyle.transformOrigin
     const plane = content.querySelector<HTMLElement>('.thread-overview-plane')
     const copiedPlane = exits.querySelector<HTMLElement>('.thread-overview-plane')
     if (plane && copiedPlane) copiedPlane.style.transform = getComputedStyle(plane).transform
@@ -97,6 +103,9 @@ export class OverviewFilterMotion {
   }
 
   private async play(run: FilterMotionRun): Promise<void> {
+    // Visibility can change between the pre-commit capture and this microtask.
+    // A hidden document may suspend rAF, so never acquire the stage in that state.
+    if (document.hidden) { this.cancel(); return }
     const coordinator = getOverviewMotionCoordinator()
     const signal = run.abort.signal
     run.dispose.push(coordinator.onSceneCut(() => this.cancel()))
@@ -170,7 +179,7 @@ export class OverviewFilterMotion {
           { opacity: card.opacity, transform: card.transform }
         ], 230, 150)
       }
-      if (!run.before.size) animate(run.exits, [{ opacity: 1 }, { opacity: 0 }], 130)
+      if (!run.before.size) animate(run.exits, [{ opacity: run.exits.style.opacity || '1' }, { opacity: 0 }], 130)
       if (!after.size) animate(content, [
         { opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }
       ], 220, 100)

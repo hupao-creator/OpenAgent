@@ -146,6 +146,44 @@ it('handles empty filters and new entries, and cancels when the view becomes hid
   expect(getOverviewMotionCoordinator().stageBusy).toBe(false)
 })
 
+it.each(['capture', 'playback'])('skips motion when the document is already hidden at %s', async phase => {
+  const view = await mount()
+  const hidden = vi.spyOn(document, 'hidden', 'get')
+  if (phase === 'capture') hidden.mockReturnValue(true)
+  view.rerender(<StrictMode><ConversationOverview {...common} selectedTag="front" /></StrictMode>)
+  if (phase === 'playback') hidden.mockReturnValue(true)
+  await act(async () => { await vi.advanceTimersByTimeAsync(40) })
+  expect(liveCards().map(card => card.dataset.overviewCardId)).toEqual(['one', 'three'])
+  expect(motions).toHaveLength(0)
+  expect(document.querySelector('[data-overview-filter-motion]')).toBeNull()
+  expect(document.querySelector('.overview-filter-exits')).toBeNull()
+  expect(getOverviewMotionCoordinator().stageBusy).toBe(false)
+})
+
+it('retains the visible empty-state frame when its entry is interrupted', async () => {
+  const view = await mount()
+  await view.select('empty')
+  const emptyContent = document.querySelector<HTMLElement>('.thread-overview-scroll-content:not(.overview-filter-exits)')!
+  const computedStyle = window.getComputedStyle.bind(window)
+  // WAAPI is mocked in jsdom: expose the intermediate computed frame that a
+  // browser returns, without placing those values in the cloned inline styles.
+  vi.spyOn(window, 'getComputedStyle').mockImplementation(element => {
+    const style = computedStyle(element)
+    if (element !== emptyContent) return style
+    return new Proxy(style, { get(target, key) {
+      if (key === 'opacity') return '0.4'
+      if (key === 'transform') return 'matrix(1, 0, 0, 1, 0, 6)'
+      return Reflect.get(target, key, target)
+    } })
+  })
+  await view.select('front')
+  const exits = document.querySelector<HTMLElement>('.overview-filter-exits')!
+  expect(exits.style.opacity).toBe('0.4')
+  expect(exits.style.transform).toBe('matrix(1, 0, 0, 1, 0, 6)')
+  expect(motions.find(motion => motion.element === exits)?.frames[0]!.opacity).toBe('0.4')
+  await settle()
+})
+
 it('does not animate aliases selecting the same members or reduced-motion tag changes', async () => {
   const view = await mount()
   const tagFilters = [{ tag: 'front', aliases: ['frontend'], selectionKey: 'front-members', count: 2, isCwdTag: false }]
