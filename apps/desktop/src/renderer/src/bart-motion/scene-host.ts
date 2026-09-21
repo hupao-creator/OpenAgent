@@ -69,6 +69,13 @@ export function sealMotionScene({ root, canvas, covered, interactions = covered,
     saved.ownedValue = element.style.getPropertyValue(property)
     styles.push(saved)
   }
+  const restoreStyle = ({ element, property, value, priority, ownedValue }: SavedStyle): void => {
+    // A newer business commit may have replaced an inline value while the
+    // scene was being aborted. Never restore its older captured value over it.
+    if (element.style.getPropertyValue(property) !== ownedValue || element.style.getPropertyPriority(property) !== 'important') return
+    if (value) element.style.setProperty(property, value, priority)
+    else element.style.removeProperty(property)
+  }
   const release = ({ restoreInteraction = true }: { restoreInteraction?: boolean } = {}): boolean => {
     if (!owned()) return false
     clearTimeout(preparationTimer)
@@ -76,13 +83,7 @@ export function sealMotionScene({ root, canvas, covered, interactions = covered,
     // before its Worker is released; a late Worker message cannot blank new UI.
     canvas.hidden = true
     root.removeAttribute('data-bart-scene')
-    for (const { element, property, value, priority, ownedValue } of styles.reverse()) {
-      // A newer business commit may have replaced an inline value while the
-      // scene was being aborted. Never restore its older captured value over it.
-      if (element.style.getPropertyValue(property) !== ownedValue || element.style.getPropertyPriority(property) !== 'important') continue
-      if (value) element.style.setProperty(property, value, priority)
-      else element.style.removeProperty(property)
-    }
+    styles.reverse().forEach(restoreStyle)
     if (restoreInteraction) previousInert.forEach(({ element, inert }) => { element.inert = inert })
     claims.forEach(element => owners.delete(element))
     closed = true
@@ -116,6 +117,11 @@ export function sealMotionScene({ root, canvas, covered, interactions = covered,
     id,
     sealedAt,
     owns: owned,
+    /** Restore native motion before a handoff commit can change its layout.
+     * The covering frame, pinned transforms and interaction locks stay owned. */
+    resumeTransitions(): void {
+      if (owned()) styles.filter(style => style.property === 'transition').forEach(restoreStyle)
+    },
     show(): boolean {
       if (expired) throw new Error('Bart scene sealing exceeded its budget')
       if (!owned() || presented || claims.some(element => !element.isConnected)) return false

@@ -18,6 +18,60 @@ const server = await createServer({
 await server.listen()
 const url = `${server.resolvedUrls.local[0]}renderer.html?mode=overview&harness=codex&threads=3&turns=1`
 const results = []
+const coldLandings = []
+
+// Keep the first installation probe cold. The isolation suite's open/close
+// warmup has already narrowed this roster and cannot catch its landing jump.
+async function coldLanding(page, scale) {
+  const result = await page.evaluate(async () => {
+    const samples = [], started = performance.now()
+    performance.clearMarks('bart-cross-page-ready')
+    performance.clearMarks('bart-cross-page-skipped')
+    const finished = new Promise(resolve => {
+      const sample = now => {
+        const canvas = document.querySelector('[data-bart-cross-page-flight]')
+        const flying = Boolean(canvas && !canvas.hidden)
+        const seat = document.querySelector('.bart-host-body .bart-logo')
+        const rect = (flying ? canvas : seat)?.getBoundingClientRect()
+        if (rect) samples.push({ at: now - started, flying, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 })
+        if (now - started < 2200) requestAnimationFrame(sample)
+        else resolve()
+      }
+      requestAnimationFrame(sample)
+    })
+    document.querySelector('[data-settings-trigger]').click()
+    await finished
+    return { samples,
+      ready: performance.getEntriesByName('bart-cross-page-ready').at(-1)?.detail,
+      skipped: performance.getEntriesByName('bart-cross-page-skipped').at(-1)?.detail,
+      sealed: document.querySelector('.app-shell').hasAttribute('data-bart-scene'),
+      open: Boolean(document.querySelector('.settings-page[data-phase=open]')) }
+  })
+  const evidence = { scale, ...result, coverage: 'incomplete' }
+  coldLandings.push(evidence)
+  assert.ok(result.open && !result.sealed, 'cold settings must restore native ownership')
+  if (result.skipped) {
+    // A slow machine may decline this optional scene within its 250ms budget.
+    // Report that explicitly; it is fallback coverage, not smooth-flight proof.
+    assert.equal(result.ready, undefined, 'an admitted scene must not fail during landing')
+    evidence.coverage = 'admission-fallback'
+    return
+  }
+  assert.ok(result.ready, 'cold flight must admit or explicitly report its fallback')
+  const firstNative = result.samples.findIndex((sample, index) => index > 0 && !sample.flying && result.samples[index - 1].flying)
+  assert.ok(firstNative > 0, 'cold flight handoff must be observed')
+  const before = result.samples[firstNative - 1], after = result.samples[firstNative], final = result.samples.at(-1)
+  const displacement = Math.hypot(final.x - before.x, final.y - before.y)
+  const jump = Math.hypot(after.x - before.x, after.y - before.y)
+  assert.ok(displacement > 80, 'the first probe must narrow the roster and move its landing seat')
+  assert.ok(jump < displacement / 2, `cold roster snapped ${jump.toFixed(1)}px at handoff`)
+  assert.ok(result.samples.slice(firstNative).some(sample => {
+    const distance = Math.hypot(sample.x - before.x, sample.y - before.y)
+    return distance > displacement * .2 && distance < displacement * .8
+  }), 'native Bart must travel through intermediate roster positions after landing')
+  Object.assign(evidence, { coverage: 'cold-flight', jump, displacement })
+}
+
 try {
   for (const scale of [2, 1]) {
     const env = { ...process.env, SETTINGS_RENDERER_URL: url }
@@ -28,6 +82,11 @@ try {
     try {
       const page = await application.firstWindow()
       await page.locator('[data-settings-trigger]').waitFor()
+      await page.locator('.bart-dock .bart-logo[data-worker-ready]').waitFor()
+      await page.waitForTimeout(400)
+      await coldLanding(page, scale)
+      await page.keyboard.press('Escape')
+      await page.locator('.settings-page').waitFor({ state: 'detached' })
       // Give even a busy CI compositor enough frames. Author longer durations
       // at creation; leave playbackRate=1 and never seek/pause the animation.
       await page.evaluate(() => {
@@ -106,6 +165,7 @@ try {
 } finally {
   await server.close()
   await writeFile(join(evidence, 'frames.json'), JSON.stringify(results, null, 2))
+  await writeFile(join(evidence, 'cold-landings.json'), JSON.stringify(coldLandings, null, 2))
 }
 for (const result of results) {
   for (const phase of ['opening', 'closing']) {
@@ -116,3 +176,4 @@ for (const result of results) {
   }
 }
 console.log(`Settings compositor pixels passed for mouse/keyboard at 1x/2x. Evidence: ${evidence}`)
+console.log('Cold settings landing:', JSON.stringify(coldLandings.map(({ samples, ...result }) => ({ ...result, samples: samples.length }))))

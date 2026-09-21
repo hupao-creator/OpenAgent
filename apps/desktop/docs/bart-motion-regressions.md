@@ -1,5 +1,37 @@
 # Bart flight / Overview regression follow-up (#257)
 
+## First settings landing follow-up (#88)
+
+The first installation probe narrows the provisional coordinator roster while
+the cross-page flight holds its geometry. At handoff, the synchronous React
+commit applies that roster and its layout effects measure the new seat. The
+scene still had `transition: none !important` installed until *after* this
+commit, so the first read committed the new position without a transition.
+Later opens already had the narrowed roster and did not jump.
+
+The scene now restores native transitions immediately before that commit,
+retaining its covering canvas, pinned transforms and interaction ownership until
+normal release. The existing 720ms seat transition can then carry the newly
+discovered roster from the exact landing position. A separate cold preparation
+cost came from converting the 48px engine icon's GPU canvas to an ImageBitmap;
+that one-shot raster now uses a software context to avoid synchronous GPU readback.
+
+Local Electron 44.4.3 evidence (1180×780, DPR 2, 24 overview threads): the original
+first handoff moved the character center from x=441.50 to x=695.50 in one frame
+(254.00px). With the fix, both sides of handoff were x=441.50 and the native seat
+subsequently travelled through intermediate positions. Warm opens retained
+x=695.50. Bitmap conversion in the paired runs dropped from 7.6–21.4ms to
+0.1–1.9ms. These measurements establish continuity and preparation cost, not a
+claim of zero dropped display frames.
+
+`settings-transition.electron.mjs` now samples the **first** opening before any
+settings warmup or slowed reveal at both 1x and 2x. It checks handoff continuity
+and intermediate native positions, saving `cold-landings.json`. Optional flight
+admission failures are explicitly reported as `admission-fallback`, never as
+smooth-flight evidence. The React scene regression deterministically checks that
+native transitions resume before the host's synchronous measurement, while the
+cover and interaction locks remain held.
+
 ## What failed
 
 - Settings opened while cross-page flight waited up to 10 seconds for installation detection. The destination was visible during this wait, then a late flight replayed the journey.

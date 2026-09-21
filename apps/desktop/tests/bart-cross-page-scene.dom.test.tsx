@@ -181,4 +181,30 @@ describe('cross-page scene through its production React adapter', () => {
     expect(f.canvas().hidden).toBe(true)
     expect(f.runs[0]!.release).toHaveBeenCalledTimes(1)
   })
+
+  it('restores native transitions before a landing commit measures its new roster', async () => {
+    const f = fixture()
+    const seat = f.root.querySelector<HTMLElement>('.bart-host-character')!
+    seat.style.transition = 'transform 720ms ease'
+    const handoff = vi.fn((active: boolean) => {
+      if (active) return
+      // Settings layout effects read the seat inside the synchronous handoff.
+      // Restoring transition only after that commit makes a new roster snap.
+      expect(seat.style.transition).toBe('transform 720ms ease')
+      expect(seat.style.visibility).toBe('hidden')
+      expect(seat.inert).toBe(true)
+      expect(f.canvas().hidden).toBe(false)
+      seat.style.transform = 'translateX(250px)'
+      expect(getComputedStyle(seat).transform).toBe('translateX(250px)')
+    })
+    render(<BartCrossPageFlight direction="to-seat" onActiveChange={handoff} />, { container: f.host })
+    await advance()
+    expect(seat.style.transition).toBe('none')
+    f.runs[0]!.done.resolve(); await advance()
+    expect(handoff.mock.calls).toEqual([[true, 'to-seat'], [false, 'to-seat']])
+    expect(seat.style.transform).toBe('translateX(250px)')
+    expect(seat.style.transition).toBe('transform 720ms ease')
+    expect(seat.style.visibility).toBe('')
+    expect(f.canvas().hidden).toBe(true)
+  })
 })

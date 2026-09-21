@@ -74,7 +74,13 @@ export function createCrossPageScene(root: HTMLElement | null | undefined, direc
     () => pool?.release(token),
     () => lease?.release()
   )
-  const finish = (): void => lifetime.handoff(() => host.handoff(targetDirection))
+  const finish = (): void => lifetime.handoff(() => {
+    // A first installation probe can change the held roster at this commit.
+    // Its layout effects measure the new seat immediately: leaving transition
+    // disabled until release would commit a jump before native motion resumes.
+    seal?.resumeTransitions()
+    host.handoff(targetDirection)
+  })
   const ownedSession: CrossPageScene = {
     settled: lifetime.settled,
     land(): void {
@@ -149,7 +155,9 @@ export function createCrossPageScene(root: HTMLElement | null | undefined, direc
         warmSignal.throwIfAborted()
         const raster = document.createElement('canvas')
         raster.width = 48; raster.height = 48
-        const context = raster.getContext('2d')
+        // This tiny, one-shot image is read back immediately by createImageBitmap.
+        // Avoid a cold GPU command buffer and synchronous GPU readback on open.
+        const context = raster.getContext('2d', { willReadFrequently: true })
         if (!context) throw new Error('Bart engine image preparation unavailable')
         context.drawImage(engine, 0, 0, 48, 48)
         const bitmap = await createImageBitmap(raster, { premultiplyAlpha: 'none' })
