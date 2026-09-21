@@ -3,8 +3,15 @@ import type { BartDockRole } from '../bart-role'
 export type BartTimedState = Exclude<BartDockRole['kind'], 'idle'>
 export type BartDisplayTiming = Readonly<Record<BartTimedState, { readonly minimumDisplayMs: number }>>
 
-/** Provisional values; each state can be tuned without changing the queue. */
+/** Minimum intervals while the real session is busy. */
 export const DEFAULT_BART_DISPLAY_TIMING: BartDisplayTiming = {
+  running: { minimumDisplayMs: 2000 },
+  reasoning: { minimumDisplayMs: 2000 },
+  tool: { minimumDisplayMs: 2000 }
+}
+
+/** Shorter intervals once the real session is idle, independent of backlog. */
+export const IDLE_SESSION_BART_DISPLAY_TIMING: BartDisplayTiming = {
   running: { minimumDisplayMs: 800 },
   reasoning: { minimumDisplayMs: 800 },
   tool: { minimumDisplayMs: 800 }

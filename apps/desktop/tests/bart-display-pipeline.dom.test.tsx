@@ -14,6 +14,7 @@ import { applyRendererStateStoreMutation, hydrateRendererStateStore, rendererApp
 import { mergeRendererStateMutations } from '../src/shared/renderer-state-patch'
 import type { RendererStateMutation } from '../src/shared/renderer-state-contracts'
 import { createBartReplyFixture } from './fixtures/bart-reply'
+import { createBartComposerStore } from '../src/renderer/src/bart-composer-store'
 
 const disposals: (() => void | Promise<void>)[] = []
 afterEach(async () => {
@@ -119,10 +120,35 @@ it('accepts every synchronous store transition even if React has not rendered in
     f.acceptEvent('batched', { type: 'reasoning-delta', delta: 'two' })
   })
   expect(view.container.querySelector('.bart-role-arc textPath')?.textContent).toBe('one')
-  act(() => vi.advanceTimersByTime(800))
+  act(() => vi.advanceTimersByTime(2000))
   expect(view.container.querySelector('.bart-role-tool-name')?.textContent).toBe('read_file')
-  act(() => vi.advanceTimersByTime(800))
+  act(() => vi.advanceTimersByTime(2000))
   expect(view.container.querySelector('.bart-role-arc textPath')?.textContent).toBe('two')
+})
+
+it('shortens the subscribed Dock interval only once the completed session is also no longer submitting', () => {
+  vi.useFakeTimers()
+  const f = createBartReplyFixture()
+  const composer = createBartComposerStore()
+  const view = render(f.element({ composer }))
+  const role = () => view.container.querySelector('.bart-dock')?.getAttribute('data-role')
+  act(() => {
+    f.startTurn('idle-cadence')
+    f.acceptEvent('idle-cadence', { type: 'reasoning-delta', delta: 'thought' })
+    f.acceptEvent('idle-cadence', { type: 'activity-start', activity: { id: 'read', kind: 'tool', toolName: 'read_file', label: 'Read', status: 'running' } })
+    composer.setState({ submitting: true })
+  })
+  act(() => vi.advanceTimersByTime(100))
+  act(() => f.finishTurn('idle-cadence', 'Answer is already stored.'))
+  act(() => vi.advanceTimersByTime(900))
+  expect(role()).toBe('reasoning')
+  act(() => composer.setState({ submitting: false }))
+  act(() => vi.advanceTimersByTime(0))
+  expect(view.container.querySelector('.bart-role-tool-name')?.textContent).toBe('read_file')
+  act(() => vi.advanceTimersByTime(799))
+  expect(role()).toBe('tool')
+  act(() => vi.advanceTimersByTime(1))
+  expect(role()).toBe('idle')
 })
 
 it('catches up across dedicated ownership even when it starts and finishes inside a batch', async () => {
