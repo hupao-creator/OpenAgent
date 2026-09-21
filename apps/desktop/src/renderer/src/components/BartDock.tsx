@@ -72,7 +72,9 @@ import { LAUNCH_DURATION } from '../bart-motion/launch-story'
 
 // One resident surface is prepared before a send. Keeping its bounds stable
 // avoids stretching the previous bitmap while the Worker accepts the launch.
-const DOCK_CHARACTER_VIEWPORT = [-360, -720, 1360, 1520] as const
+// Input grows below the fixed character as well as above it. Reserve both ends
+// for a five-line draft plus its attachment strip, including at the narrow size.
+const DOCK_CHARACTER_VIEWPORT = [-360, -720, 1360, 2080] as const
 
 export interface BartDockInteractionRequest {
   threadId: string
