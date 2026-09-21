@@ -174,12 +174,7 @@ function codexCardProjection(
         activity.kind === 'search' || activity.kind === 'tool'
       )
       .map(({ id, kind, label, status }) => ({ id, kind, label, status })),
-    inclusiveCacheIdentityUsage(turn.usage && {
-      inputTokens: turn.usage.inputTokens,
-      cachedTokens: turn.usage.cachedInputTokens,
-      outputTokens: turn.usage.outputTokens,
-      contextWindow: turn.usage.contextWindow
-    }),
+    codexCardUsage(turn.usage),
     { excludedNames }
   )
   return { kind: 'standard', identity, extensions }
@@ -344,31 +339,16 @@ function threadCardIdentityProjection(
 }
 
 /** Codex input tokens include cache reads; this is its historical usage arithmetic. */
-function inclusiveCacheIdentityUsage(usage: {
+function codexCardUsage(usage: {
   readonly inputTokens?: number
-  readonly cachedTokens?: number
   readonly outputTokens?: number
   readonly contextWindow?: number
 } | undefined): ThreadCardIdentityUsage | undefined {
   if (!usage) return undefined
-  const cachedReadTokens = usage.cachedTokens
-  const uncachedInputTokens = usage.inputTokens === undefined
-    ? undefined
-    : Math.max(0, usage.inputTokens - (cachedReadTokens ?? 0))
   const parts: ThreadCardIdentityUsage['parts'][number][] = []
-  if (cachedReadTokens !== undefined && uncachedInputTokens !== undefined) {
-    const totalInput = cachedReadTokens + uncachedInputTokens
-    const ratio = totalInput > 0 ? cachedReadTokens / totalInput : 0
-    parts.push({
-      id: 'cache',
-      suffix: 'cached', description: '缓存读取 token 占输入 token 的比例',
-      value: formatPercentOneDecimal(ratio),
-      numericValue: ratio
-    })
-  }
   if (usage.inputTokens !== undefined || usage.outputTokens !== undefined) {
     const total = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
-    parts.unshift({
+    parts.push({
       id: 'total',
       suffix: 'tokens', description: '输入与输出 token 合计，按 Harness 当前上报的统计范围显示',
       value: formatTokens(total),
@@ -387,12 +367,6 @@ function formatTokens(value: number): string {
       : [1_000, 'K'] as const
   const compact = value / scale
   return `${compact >= 100 ? Math.round(compact) : compact.toFixed(1).replace(/\.0$/, '')}${suffix}`
-}
-
-function formatPercentOneDecimal(ratio: number): string {
-  const value = Math.max(0, Math.min(1, ratio)) * 100
-  const rounded = Math.round(value * 10) / 10
-  return `${Number.isInteger(rounded) ? String(Math.round(rounded)) : rounded.toFixed(1)}%`
 }
 
 function safeTool(

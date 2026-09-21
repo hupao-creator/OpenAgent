@@ -11,7 +11,7 @@ function totalLabel(totalTokens: number): string | undefined {
     2,
     'user-1'
   )
-  state.turns[0] = { ...state.turns[0]!, usage: { inputTokens: totalTokens, outputTokens: 0 } }
+  state.turns[0] = { ...state.turns[0]!, usage: { inputTokens: totalTokens, cachedInputTokens: 100, outputTokens: 0 } }
   const thread: AgentThreadRecord<'codex'> = {
     id: 'codex-overview', harnessId: 'codex', revision: 1, archived: false, title: 'Audit',
     tags: [], cwd: '/workspace', settings: {}, sessionState: state as unknown as JsonValue,
@@ -23,11 +23,12 @@ function totalLabel(totalTokens: number): string | undefined {
   }
   const projection = projectCodexOverview({ thread, layout: { availableColumns: 2 } })
     .view.presentation.projection
+  expect(projection.identity?.usage?.parts.map(part => part.id)).toEqual(['total'])
   return projection.identity?.usage?.parts.find((part) => part.id === 'total')?.value
 }
 
 describe('Codex overview token abbreviation', () => {
-  it('abbreviates token totals with K, M and B suffixes', () => {
+  it('abbreviates token totals with K, M and B suffixes without a cache ratio', () => {
     expect([999, 18_527, 1_445_200, 2_500_000_000].map(totalLabel))
       .toEqual(['999', '18.5K', '1.4M', '2.5B'])
   })

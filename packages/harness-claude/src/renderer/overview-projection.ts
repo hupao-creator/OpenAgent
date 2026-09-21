@@ -153,16 +153,11 @@ function claudeCardIdentity(turn: ClaudeTurn | undefined): ThreadCardIdentityPro
 function claudeCardUsage(usage: ClaudeUsage | undefined): ThreadCardIdentityUsage | undefined {
   if (!usage) return undefined
   const parts: ThreadCardIdentityUsage['parts'][number][] = []
-  if (usage.cachedTokens !== undefined && usage.inputTokens !== undefined) {
-    const input = usage.inputTokens + usage.cachedTokens + (usage.cacheWriteTokens ?? 0)
-    const ratio = input > 0 ? usage.cachedTokens / input : 0
-    parts.push({ id: 'cache-read', suffix: 'cached', description: '缓存读取 token 占输入 token 的比例', value: `${(ratio * 100).toFixed(1)}%`, numericValue: ratio })
-  }
   const fields = [usage.inputTokens, usage.cachedTokens, usage.cacheWriteTokens, usage.outputTokens]
   const total = usage.totalTokens ?? (fields.some((value) => value !== undefined)
     ? fields.reduce<number>((sum, value) => sum + (value ?? 0), 0) : undefined)
   if (total !== undefined) {
-    parts.unshift({ id: 'total', suffix: 'tokens', description: '输入与输出 token 合计，按 Harness 当前上报的统计范围显示', value: tokens(total), numericValue: total })
+    parts.push({ id: 'total', suffix: 'tokens', description: '输入与输出 token 合计，按 Harness 当前上报的统计范围显示', value: tokens(total), numericValue: total })
   } else if (usage.contextTokens !== undefined) {
     parts.push({ id: 'context', label: 'Context ', value: tokens(usage.contextTokens) +
       (usage.contextWindow === undefined ? '' : ` / ${tokens(usage.contextWindow)}`), numericValue: usage.contextTokens })
