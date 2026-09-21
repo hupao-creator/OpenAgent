@@ -1,3 +1,4 @@
+import { isHarnessBartActivity, type HarnessBartActivity } from '@openagent/contracts/renderer'
 import type { AgentInput } from '@openagent/contracts'
 import { isJsonValue, parseThreadPublicObservation, type JsonValue } from '@openagent/contracts'
 import {
@@ -101,6 +102,7 @@ export interface OpenHarnessThreadInstanceOptions<
   readonly admitNativeExecution?: (signal: AbortSignal) => Promise<void>
   /** Fixed by the composition binding; direct Core tests may use the empty scope. */
   readonly telemetryLedger?: BartTelemetryLedgerCapability
+  readonly publishBartActivity?: (activity: HarnessBartActivity) => void
   readonly committed: (
     change: HarnessThreadCommitted<Id, ThreadSettings>
   ) => void
@@ -712,6 +714,16 @@ export class HarnessThreadInstance<
             }
           },
           sessionState,
+          ...(this.options.publishBartActivity ? { bartDisplay: { publish: (activity: HarnessBartActivity) => {
+            if (!this.acceptingObservations || this.disposed || this.disposing) return
+            // A visual observer may never veto execution or durable publication.
+            try {
+              if (!isHarnessBartActivity(activity)) throw new Error('Invalid Bart display activity')
+              const execution = this.currentRecord().observation.latestExecution
+              if (execution?.status !== 'running' || execution.executionId !== activity.executionId) return
+              this.options.publishBartActivity?.(structuredClone(activity))
+            } catch (error) { debugError('bart.display.publish', error) }
+          } } } : {}),
           executionClaims: { claim: () => this.claimNativeExecution() },
           executionAdmission: {
             admit: executionId => this.admitNativeExecution(executionId)

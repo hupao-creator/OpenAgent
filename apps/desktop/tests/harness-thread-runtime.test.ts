@@ -44,6 +44,39 @@ afterEach(async () => {
 })
 
 describe('HarnessThreadInstance', () => {
+  it('publishes transient display without a state commit, fences executions and isolates observer failures', async () => {
+    const store = await stateStore(true)
+    let context!: HarnessThreadOpenContext
+    const publish = vi.fn()
+    const instance = await HarnessThreadInstance.open({
+      store, threadId: 'agent-thread-1', harnessId: 'codex', sessionStateAdapter: versionedSessionState,
+      openThread: async value => { context = value; return handle() },
+      createExecutionId: () => 'display', now: () => 20, signal: new AbortController().signal,
+      committed: () => {}, publishBartActivity: publish
+    })
+    const claim = context.executionClaims.claim()
+    await context.sessionState.commit({ version: 'start', executions: [
+      { executionId: claim.executionId, status: 'running', startedAt: 10 }
+    ], tasks: [] })
+    const before = readHarnessThread(store.read(), context.thread.id)
+    expect(() => context.bartDisplay!.publish(null as never)).not.toThrow()
+    context.bartDisplay!.publish({ executionId: 'foreign', kind: 'assistant-text', sequence: 1 })
+    expect(publish).not.toHaveBeenCalled()
+    context.bartDisplay!.publish({ executionId: claim.executionId, kind: 'reasoning', text: 'first', sequence: 1 })
+    context.bartDisplay!.publish({ executionId: claim.executionId, kind: 'assistant-text', sequence: 2 })
+    expect(publish.mock.calls.map(([event]) => event.kind)).toEqual(['reasoning', 'assistant-text'])
+    expect(readHarnessThread(store.read(), context.thread.id)).toEqual(before)
+    publish.mockImplementation(() => { throw new Error('display observer failed') })
+    expect(() => context.bartDisplay!.publish({ executionId: claim.executionId, kind: 'assistant-text', sequence: 3 })).not.toThrow()
+    await context.sessionState.commit({ version: 'end', executions: [
+      { executionId: claim.executionId, status: 'completed', startedAt: 10, finishedAt: 20 }
+    ], tasks: [] })
+    publish.mockClear()
+    context.bartDisplay!.publish({ executionId: claim.executionId, kind: 'assistant-text', sequence: 4 })
+    expect(publish).not.toHaveBeenCalled()
+    await instance.dispose()
+  })
+
   it('publishes and persists the projected invocation snapshot as one Thread revision', async () => {
     const durableThreads: AgentThreadRecord[] = []
     const store = await stateStore(true, {

@@ -54,6 +54,20 @@ export type HarnessBartForeground = HarnessBartActivityBody & { readonly sequenc
 /** The published activity: the owning Execution plus its foreground snapshot. */
 export type HarnessBartActivity = HarnessBartForeground & { readonly executionId: string }
 
+/** Validate the transient Main publication independently of the durable codec. */
+export function isHarnessBartActivity(value: unknown): value is HarnessBartActivity {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  if (typeof item.executionId !== 'string' || !item.executionId ||
+    !Number.isSafeInteger(item.sequence) || (item.sequence as number) < 1) return false
+  if (item.kind === 'assistant-text') return true
+  if (item.kind === 'reasoning') return isBartReasoningSource(item.text) &&
+    (item.textOffset === undefined || Number.isSafeInteger(item.textOffset) && (item.textOffset as number) >= 0)
+  return item.kind === 'tool-call' && typeof item.callId === 'string' && item.callId.length > 0 &&
+    typeof item.toolName === 'string' && item.toolName.trim().length > 0 &&
+    !item.toolName.includes('\0') && headPoints(item.toolName, MAX_BART_TOOL_NAME_POINTS) === item.toolName
+}
+
 /**
  * The latest final answer of a successfully completed Execution. The owning
  * Harness alone decides which native message qualifies and how `target`

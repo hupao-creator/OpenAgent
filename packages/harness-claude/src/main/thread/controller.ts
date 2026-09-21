@@ -907,6 +907,7 @@ class ClaudeThreadController implements HarnessThreadHandle {
     if (!active || active.transportToken !== event.executionToken) return
     const turn = currentClaudeTurn(active.state)
     if (!turn || turn.executionId !== active.executionId) return
+    const previousForeground = turn.foreground
     const at = nextClaudeTurnTimestamp(turn)
     if ((event.type === 'text' || event.type === 'reasoning') && event.delta.trim()) {
       const first = event.type === 'text' ? active.firstTextAt : active.firstReasoningAt
@@ -1215,6 +1216,9 @@ class ClaudeThreadController implements HarnessThreadHandle {
         }
         await this.finishThreadExecution(event.outcome)
         return
+    }
+    if (turn.foreground && turn.foreground !== previousForeground) {
+      this.context.bartDisplay?.publish({ ...turn.foreground, executionId: turn.executionId })
     }
     if (event.type === 'text' || event.type === 'reasoning') {
       this.scheduleDeltaFlush()

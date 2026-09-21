@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentThreadRecord, HarnessPluginHostContext, HarnessThreadHandle, JsonValue } from '@openagent/contracts'
-import { MAX_BART_REASONING_SOURCE_POINTS } from '@openagent/contracts/renderer'
+import { MAX_BART_REASONING_SOURCE_POINTS, type HarnessBartActivity } from '@openagent/contracts/renderer'
 import { openPiThread } from '../src/main/thread/handle.js'
 import { piMainModule } from '../src/main/entry.js'
 import { piJson, piSessionAdapter, piState } from '../src/shared/state.js'
@@ -79,9 +79,10 @@ async function owner(initial: JsonValue = null, id = 'thread-1', root?: string) 
     observation: piSessionAdapter.project(initial), createdAt: 1, updatedAt: 1
   }
   const controller = new AbortController()
-  const context = createAgentOpenContext({ sessionState: piSessionAdapter, getRecord: () => record, setRecord: next => { record = next }, signal: controller.signal })
+  const display: HarnessBartActivity[] = []
+  const context = { ...createAgentOpenContext({ sessionState: piSessionAdapter, getRecord: () => record, setRecord: next => { record = next }, signal: controller.signal }), bartDisplay: { publish: (activity: HarnessBartActivity) => { display.push(structuredClone(activity)) } } }
   return {
-    host, root: directory, controller, context, record: () => record, state: () => piState(record.sessionState),
+    host, root: directory, controller, context, display, record: () => record, state: () => piState(record.sessionState),
     setWorktree(cwd: string) { record = { ...record, worktree: { baseCwd: record.cwd, cwd, native: false } } },
     setSettings(settings: PiThreadSettings) { record = { ...record, settings } },
     execution: () => record.observation.latestExecution,
@@ -258,6 +259,24 @@ describe('Pi native Thread boundary', () => {
     expect(() => piState(piJson(invalid))).toThrow('Invalid Pi session state')
     invalid.foregrounds![0]!.foreground = { kind: 'reasoning', sequence: 1, text: '推'.repeat(MAX_BART_REASONING_SOURCE_POINTS + 1) }
     expect(() => piState(piJson(invalid))).toThrow('Invalid Pi session state')
+  })
+
+  it('publishes thinking and text separately even when one native message commits only the final foreground', async () => {
+    const test = await owner(); const handle = await test.open()
+    await send(handle)
+    const native = natives.at(-1)!
+    native.emit({ type: 'message_update', message: { role: 'assistant', content: [
+      { type: 'thinking', thinking: 'thought' }, { type: 'text', text: 'answer' }
+    ] } })
+    await drain(handle)
+    expect(test.display.map(item => [item.kind, item.sequence])).toEqual([['reasoning', 1], ['assistant-text', 2]])
+    expect(projectPiBartPresentation(test.state()).activity?.kind).toBe('assistant-text')
+    native.emit({ type: 'tool_execution_start', toolCallId: 'call', toolName: 'read', args: {} })
+    native.emit({ type: 'message_update', message: { role: 'assistant', content: [{ type: 'thinking', thinking: 'new thought' }] } })
+    native.emit({ type: 'tool_execution_start', toolCallId: 'call', toolName: 'read', args: {} })
+    await drain(handle)
+    expect(test.display.at(-1)?.kind).toBe('reasoning')
+    expect(test.display.filter(item => item.kind === 'tool-call')).toHaveLength(1)
   })
 
   it('advances foreground only on new semantic events and clears it on settlement', async () => {

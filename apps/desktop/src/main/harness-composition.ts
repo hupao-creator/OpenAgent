@@ -1,3 +1,4 @@
+import type { HarnessBartActivity } from '@openagent/contracts/renderer'
 import { join } from 'node:path'
 import type {
   ErasedHarnessMainPluginModule,
@@ -116,6 +117,7 @@ interface OpenThreadInput {
   readonly signal: AbortSignal
   /** Core-owned, Thread-bound authorization before claimed native work. */
   readonly admitNativeExecution?: (signal: AbortSignal) => Promise<void>
+  readonly publishBartActivity?: (activity: HarnessBartActivity) => void
   readonly committed: (change: HarnessThreadCommitted) => void
 }
 

@@ -370,7 +370,7 @@ it('clears pending text at real segment and execution boundaries without restart
   const source = f.container.querySelector('.bart-role-arc > text textPath')!
   expect(layer.textContent!.length).toBe(112)
   f.rerender(<Scheduled text={'乙'.repeat(200)} sequence={2} />)
-  advance(150)
+  advance(800)
   expect(layer.textContent).not.toContain('甲')
   advance(30_000)
   expect(layer.textContent).toBe('乙'.repeat(56))

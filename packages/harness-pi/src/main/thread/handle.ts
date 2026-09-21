@@ -103,6 +103,7 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
     const entry = { executionId, foreground }
     if (index < 0) list.push(entry)
     else list[index] = entry
+    context.bartDisplay?.publish({ ...foreground, executionId })
   }
   async function finish(status: 'completed' | 'failed' | 'interrupted', error?: string) {
     const e = active()
@@ -215,7 +216,7 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
         // longer value by failing the whole commit.
         const callId = clean(event.toolCallId, CALL_ID_CHARACTERS)
         const toolName = string(event.toolName).trim()
-        if (type === 'tool_execution_start' && callId && toolName) {
+        if (type === 'tool_execution_start' && index < 0 && callId && toolName) {
           setForeground(execution.executionId, {
             kind: 'tool-call',
             callId,

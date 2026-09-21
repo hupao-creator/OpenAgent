@@ -1,3 +1,4 @@
+import type { HarnessBartActivity } from './renderer/bart-presentation.js'
 import type { AgentInput } from './agent-core/inputs.js'
 import type { JsonObject, JsonValue } from './agent-core/values.js'
 import type { HarnessId } from './harness-descriptor.js'
@@ -143,7 +144,9 @@ export interface HarnessThreadOpenContext<
   ThreadSettings = unknown
 > {
   readonly thread: HarnessThreadRef<Id, ThreadSettings>
-  /** Single publication path for commands and Plugin-owned native events. */
+  /** Transient presentation events, emitted before durable snapshots coalesce. */
+  readonly bartDisplay?: { publish(activity: HarnessBartActivity): void }
+  /** Single durable publication path for commands and Plugin-owned native events. */
   readonly sessionState: HarnessSessionStateStore
   /** Core-owned identity capability for unsolicited/background wake work. */
   readonly executionClaims: HarnessExecutionClaims

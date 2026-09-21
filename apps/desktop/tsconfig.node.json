@@ -32,6 +32,8 @@
     "src/renderer/src/bart-thread-transition/eye-dive.ts",
     "src/renderer/src/bart-composer-geometry.ts",
     "src/renderer/src/bart-role.ts",
+    "src/renderer/src/bart-display/queue.ts",
+    "src/renderer/src/bart-display/state-rules.ts",
     "src/renderer/src/bart-visual-operation.ts",
     "src/renderer/src/conversation-overview-layout.ts",
     "src/renderer/src/overview-layout.ts",

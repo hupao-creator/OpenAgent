@@ -662,6 +662,7 @@ class CodexThreadController implements HarnessThreadHandle {
       const next = rotation && event.type === 'session'
         ? bindRotatedSession(this.state, event.sessionId, rotation)
         : reduceCodexEvent(this.state, active.id, event, Date.now(), randomUUID())
+      this.publishForeground(this.state, next)
       await this.commit({ state: next })
       if (rotation) this.nativeRotation = undefined
       if (event.type === 'session') this.ensureActivitySubscription()
@@ -750,6 +751,7 @@ class CodexThreadController implements HarnessThreadHandle {
     let next = this.state
     try {
       for (const event of events) {
+        const previous = next
         next = reduceCodexEvent(
           next,
           active.id,
@@ -757,6 +759,7 @@ class CodexThreadController implements HarnessThreadHandle {
           Date.now(),
           randomUUID()
         )
+        this.publishForeground(previous, next)
       }
       await this.commit({ state: next })
     } catch (error) {
@@ -1065,6 +1068,12 @@ class CodexThreadController implements HarnessThreadHandle {
       }
     }
     if (this.pendingBackgroundNotifications.size === 0) this.backgroundNotificationRetries = 0
+  }
+
+  private publishForeground(previous: CodexHarnessState, next: CodexHarnessState): void {
+    const turn = next.turns.at(-1)
+    if (turn?.status !== 'running' || !turn.foreground || turn.foreground === previous.turns.at(-1)?.foreground) return
+    this.context.bartDisplay?.publish({ ...turn.foreground, executionId: turn.executionId })
   }
 
   private async commit(change: {

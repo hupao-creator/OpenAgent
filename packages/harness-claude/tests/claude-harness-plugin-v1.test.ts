@@ -1,3 +1,4 @@
+import type { HarnessBartActivity } from '@openagent/contracts/renderer'
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -480,12 +481,13 @@ describe('Claude Harness Plugin v1', () => {
     })
     let record = threadRecord(fixture.directory)
     const commits: TestAgentChange[] = []
-    const handle = await plugin.openThread(createAgentOpenContext({
+    const display: HarnessBartActivity[] = []
+    const handle = await plugin.openThread({ ...createAgentOpenContext({
       sessionState: plugin.sessionState,
       getRecord: () => record,
       setRecord: next => { record = next },
       changes: commits
-    }))
+    }), bartDisplay: { publish: activity => { display.push(structuredClone(activity)) } } })
     const writeCount = () => commits.filter(
       (change) => change.state !== undefined
     ).length
@@ -508,6 +510,10 @@ describe('Claude Harness Plugin v1', () => {
     await new Promise((resolve) => setTimeout(resolve, 10))
     await handle.dispose()
 
+    expect(display).toHaveLength(100)
+    expect(display.slice(0, 4).map(item => [item.kind, item.sequence])).toEqual([
+      ['assistant-text', 1], ['reasoning', 2], ['assistant-text', 3], ['reasoning', 4]
+    ])
     const writesAfterDispose = writeCount()
     expect(writesAfterDispose - writesBeforeBurst).toBeGreaterThanOrEqual(1)
     expect(writesAfterDispose - writesBeforeBurst).toBeLessThanOrEqual(2)

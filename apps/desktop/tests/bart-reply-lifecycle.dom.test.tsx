@@ -194,7 +194,7 @@ it('falls back to opening the session without a navigation target when none is a
 })
 
 
-it('follows the real turn lifecycle while pacing native activity, then shows the final answer immediately', () => {
+it('follows the real turn lifecycle while pacing native activity, then shows the final answer after the display queue drains', () => {
   const f = fixture()
   act(() => f.source.startTurn('execution-2'))
   expect(f.stage()).toBeNull()
@@ -210,6 +210,10 @@ it('follows the real turn lifecycle while pacing native activity, then shows the
     name: 'openagent_thread_status', arguments: {}, createdAt: 1, completedAt: 2
   }))
   act(() => f.source.finishTurn('execution-2', 'Latest completed answer.'))
+  expect(f.stage()).toBeNull()
+  f.advance(700)
+  expect(f.view.container.querySelector('.bart-role-tool-name')?.textContent).toBe('read_file')
+  f.advance(800)
   expect(f.stage()).not.toBeNull()
   expect(f.excerpt()).toBe('Latest completed answer.')
   expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'idle')

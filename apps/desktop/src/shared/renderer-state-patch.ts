@@ -63,6 +63,8 @@ export function mergeRendererStateMutations(
     ...previous,
     ...next,
     baseRevision: previous.baseRevision,
+    ...(previous.bartActivities || next.bartActivities
+      ? { bartActivities: [...previous.bartActivities ?? [], ...next.bartActivities ?? []] } : {}),
     ...(previous.threads || next.threads
       ? { threads: mergeCollection(previous.threads, next.threads) } : {}),
     ...(previous.reports || next.reports

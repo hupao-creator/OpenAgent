@@ -4,11 +4,13 @@ import { projectHarnessOverviewThread } from '../harness-composition'
 import { BartThreadGenerations } from './BartThreadGeneration'
 import { useStore } from 'zustand'
 import type { BartComposerStore } from '../bart-composer-store'
-import { useMemo, type ComponentProps } from 'react'
+import { useLayoutEffect, useMemo, type ComponentProps } from 'react'
 import type { PublicInteraction } from '@openagent/contracts'
 import type { NormalizedRendererState } from '../../../shared/renderer-store'
 import type { RendererBartThreadRecord, RendererThreadRecord } from '../../../shared/renderer-state-contracts'
-import { useRendererState } from '../renderer-store-context'
+import { useRendererState, useRendererStoreApi } from '../renderer-store-context'
+import { BartDisplayQueue } from '../bart-display/queue'
+import { connectBartDisplay } from '../bart-display/source'
 import { bartVisualOperations, sameVisualOperations } from '../bart-visual-state'
 import { projectBartVisualOperations, type BartVisualOperation } from '../bart-visual-operation'
 import { projectHarnessBartPresentation } from '../harness-composition'
@@ -46,8 +48,11 @@ export function SubscribedBartThreadView(
 }
 
 export function SubscribedBartDock(
-  props: Omit<ComponentProps<typeof BartDock>, 'activityContext' | 'interaction' | 'reply' | 'operations' | 'foregroundActivity' | 'bartAttachments' | 'inputValue' | 'onInputChange' | 'sessionIdle' | 'submitting'> & { readonly composer: BartComposerStore }
+  props: Omit<ComponentProps<typeof BartDock>, 'displayQueue' | 'activityContext' | 'interaction' | 'reply' | 'operations' | 'foregroundActivity' | 'bartAttachments' | 'inputValue' | 'onInputChange' | 'sessionIdle' | 'submitting'> & { readonly composer: BartComposerStore }
 ): React.JSX.Element {
+  const store = useRendererStoreApi()
+  const displayQueue = useMemo(() => new BartDisplayQueue(), [])
+  useLayoutEffect(() => connectBartDisplay(displayQueue, store), [displayQueue, store])
   const inputValue = useStore(props.composer, state => state.text)
   const bartAttachments = useStore(props.composer, state => state.attachments)
   const submitting = useStore(props.composer, state => state.submitting)
@@ -80,7 +85,7 @@ export function SubscribedBartDock(
   const executionActive = execution
     ? execution.status === 'running' || execution.status === 'waiting-for-user'
     : props.running
-  return <BartDock {...props} inputValue={inputValue} bartAttachments={bartAttachments}
+  return <BartDock {...props} displayQueue={displayQueue} inputValue={inputValue} bartAttachments={bartAttachments}
     activityContext={{ threadKey: JSON.stringify([bart?.id, bart?.harnessId]), execution }}
     submitting={submitting} sessionIdle={!executionActive && !submitting}
     onInputChange={props.composer.setText} interaction={interaction} reply={reply}
