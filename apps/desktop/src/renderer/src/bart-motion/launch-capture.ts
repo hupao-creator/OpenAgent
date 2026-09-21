@@ -1,6 +1,14 @@
 import { sampleLaunchCapsule, type CharacterLaunch } from './launch-story'
 
 let sequence = 0
+// The clone keeps the composer's CSS classes. Only these inherited values cross
+// the boundary from the Dock to the document-level compositor layer.
+const INHERITED_STYLES = [
+  '--bart-dock-capsule-height', '--bart-dock-capsule-open', '--bart-dock-capsule-attachment-height',
+  '--bart-dock-capsule-line-height', '--bart-dock-capsule-inset', '--bart-dock-capsule-room',
+  '--line-soft', '--muted', '--danger',
+  'font', 'color', 'letter-spacing', 'direction', 'color-scheme'
+] as const
 export interface PreparedLaunch {
   description: CharacterLaunch
   dispose(): void
@@ -32,22 +40,37 @@ function capture(dock: HTMLElement | null, speed: number): PreparedLaunch | unde
   }
   // Freeze the real text and attachment chips before submission clears them.
   const copy = form.cloneNode(true) as HTMLElement
-  const sources = [form, ...form.querySelectorAll<HTMLElement>('*')]
-  const copies = [copy, ...copy.querySelectorAll<HTMLElement>('*')]
-  sources.forEach((element, i) => {
-    const computed = getComputedStyle(element)
-    copies[i].style.cssText = Array.from(computed).map(name => `${name}:${computed.getPropertyValue(name)};`).join('')
-    copies[i].style.animation = 'none'; copies[i].style.transition = 'none'
-    copies[i].removeAttribute('id')
-    if (element instanceof HTMLTextAreaElement) (copies[i] as HTMLTextAreaElement).value = element.value
+  for (const name of INHERITED_STYLES) copy.style.setProperty(name, style.getPropertyValue(name))
+  for (const element of [copy, ...copy.querySelectorAll('[id]')]) element.removeAttribute('id')
+  const field = form.querySelector('textarea'), copiedField = copy.querySelector('textarea')
+  const scrollTop = field?.scrollTop ?? 0, scrollLeft = field?.scrollLeft ?? 0
+  const stripScroll = form.querySelector('.bart-dock-attachment-strip')?.scrollLeft ?? 0
+  if (field && copiedField) {
+    copiedField.value = field.value
+    // A send may interrupt a height transition or a scrolled multiline draft.
+    const fieldStyle = getComputedStyle(field)
+    for (const name of ['height', 'padding-top', 'padding-bottom']) copiedField.style.setProperty(name, fieldStyle.getPropertyValue(name))
+  }
+  // Preserve hovered/disabled controls without copying hundreds of properties
+  // from every icon path, chip and text node on the synchronous submit path.
+  const copiedButtons = copy.querySelectorAll<HTMLElement>('.bart-dock-attach, .bart-dock-send')
+  form.querySelectorAll<HTMLElement>('.bart-dock-attach, .bart-dock-send').forEach((button, i) => {
+    const buttonStyle = getComputedStyle(button)
+    for (const name of ['background-color', 'color', 'opacity']) copiedButtons[i].style.setProperty(name, buttonStyle.getPropertyValue(name))
   })
-  copy.className = 'bart-launch-content'
+  copy.classList.add('bart-launch-content')
   copy.inert = true; copy.setAttribute('aria-hidden', 'true')
   Object.assign(copy.style, { position: 'fixed', left: `${source.left}px`, top: `${source.top}px`,
     right: 'auto', bottom: 'auto', width: `${source.width}px`, height: `${source.height}px`,
+    boxSizing: 'border-box', border: '0', borderRadius: style.borderRadius,
     margin: '0', transform: 'none', translate: 'none', transformOrigin: '0 0',
     pointerEvents: 'none', background: 'transparent', boxShadow: 'none', borderColor: 'transparent', zIndex: '40' })
   document.body.append(copy)
+  // Most sends start at zero; avoid forcing the fresh clone through layout just
+  // to assign the browser's default scroll position.
+  if (copiedField && scrollTop) copiedField.scrollTop = scrollTop
+  if (copiedField && scrollLeft) copiedField.scrollLeft = scrollLeft
+  if (stripScroll) copy.querySelector('.bart-dock-attachment-strip')!.scrollLeft = stripScroll
   let animation: Animation | undefined
   const dispose = (): void => { animation?.cancel(); copy.remove() }
   try {
