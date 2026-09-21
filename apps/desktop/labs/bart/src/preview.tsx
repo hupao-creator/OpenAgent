@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BartDock } from '../../../src/renderer/src/components/BartDock'
+import { BartLogo } from '../../../src/renderer/src/components/BartLogo'
 import type { BartVisualOperation } from '../../../src/renderer/src/bart-visual-operation'
 import type { ThreadInteractionResponseRequest } from '../../../src/shared/desktop-api'
 import { initialConfig, inputAttachmentsFor, inputDraftFor, interactionFor, residentActivityFor, residentReplyFor, threadFollowUpFor, validConfig, type LabConfig, type LabEvent, type PreviewMessage } from './scenarios'
@@ -9,6 +10,7 @@ import '@fontsource-variable/inter'
 import './preview.css'
 import { CadencePreview } from './cadence'
 import { useReasoningStream } from './reasoning-stream'
+import { RunningPreview } from './running'
 
 function notify(message: PreviewMessage): void {
   if (window.parent !== window) window.parent.postMessage(message, window.location.origin)
@@ -31,7 +33,9 @@ function Preview(): React.JSX.Element {
     notify({ source: 'bart-preview', type: 'ready' })
     return () => window.removeEventListener('message', receive)
   }, [])
-  return config.scene === 'cadence'
+  return config.scene === 'running'
+    ? <RunningPreview key={config.replay} config={config} />
+    : config.scene === 'cadence'
     ? <CadencePreview key={`${config.variant}:${config.replay}`} config={config} />
     : <ScenePreview key={config.replay} config={config} />
 }
@@ -78,7 +82,7 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
   const foregroundActivity = streamingActivity ?? residentActivityFor(config)
   const reply = residentReplyFor(config)
   const bartRunning = config.scene === 'resident'
-    && (foregroundActivity !== null || config.variant === 'working')
+    && (foregroundActivity !== null || ['working', 'running'].includes(config.variant))
 
   const respond = async (response: ThreadInteractionResponseRequest): Promise<void> => {
     const key = session.key
@@ -98,17 +102,25 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
     })
   }
 
+  // A finished operation is a character study, not an active execution. The
+  // production Dock correctly discards it; preview the real result pose directly.
+  if (operation && operation.phase !== 'running') return (
+    <main className="app-shell bart-preview" data-guides={config.guides}>
+      <div className="bart-operation-preview"><BartLogo width={400} height={210} operation={operation} /></div>
+    </main>
+  )
+
   return (
     <main className="app-shell bart-preview" data-guides={config.guides}>
       <BartDock
         reasoningOptions={{ length: config.reasoningLength, tilt: config.reasoningTilt,
           gaze: config.reasoningGaze, stream: config.reasoningStreamStyle }}
         activityContext={{ threadKey: 'bart-lab', execution: {
-          executionId: 'bart-lab-execution', status: operation || bartRunning ? 'running' : 'completed'
+          executionId: 'bart-lab-execution', status: bartRunning ? 'running' : operation?.phase === 'failed' ? 'failed' : 'completed'
         } }}
         threadOpen={false}
         threadFollowUp={threadFollowUpFor(config)}
-        sessionIdle={!operation && !bartRunning}
+        sessionIdle={!bartRunning}
         inputOpen={config.scene === 'input' && !session.inputClosed}
         inputValue={session.draft}
         inputDisabled={config.scene === 'input' && config.variant === 'disabled'}

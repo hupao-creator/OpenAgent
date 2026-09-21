@@ -97,6 +97,7 @@ export function inputAttachmentsFor(config: LabConfig): BartDraftAttachment[] {
 
 export const scenes = [
   { id: 'resident', label: '常驻', english: 'Resident', description: '等待、思考，以及工作的反馈。', hint: '切换右侧状态，观察 Bart 的表情和动作。' },
+  { id: 'running', label: '运行中兜底', english: 'Running', description: '三拍接力，环绕一圈，再回到底部。', hint: 'Bart 先向下注意光点，目光跟着绕行，回到底部后轻眨一下，恢复自然。' },
   { id: 'cadence', label: '展示节奏', english: 'Cadence', description: '快速发生，从容呈现。', hint: '调整展示时间与输入速度，观察哪些瞬时活动被自然吸收。设为 0ms 可对照即时切换。' },
   { id: 'input', label: '输入', english: 'Input', description: '编辑消息，查看输入与提交后的变化。', hint: '在 Bart 中输入内容，按 Enter 或点击箭头提交。' },
   { id: 'question', label: 'Question', english: 'Question', description: '选择或填写答案，然后继续。', hint: '直接选择或填写答案；提交后可重放当前场景。' },
@@ -110,13 +111,14 @@ export const reasoningStreamStyles = [
   { id: 'soft', label: 'C · 柔和显露', description: '平滑推进，新字依次淡入' }
 ] as const
 export const variants = {
+  running: [['bottom', '原版 · 彩虹环绕', 'Rainbow orbit']],
   cadence: [
     ['burst', '快速交替', 'Burst'], ['reasoning-stream', '连续思考', 'Reasoning stream'],
     ['tool-stream', '连续工具', 'Tool stream'], ['finish', '快速完成', 'Finish'],
     ['recovery', '输入接管后恢复', 'Recovery']
   ],
   resident: [
-    ['idle', '待机', 'Idle'], ['reasoning', '思考', 'Reasoning'],
+    ['idle', '待机', 'Idle'], ['running', '运行中', 'Running'], ['reasoning', '思考', 'Reasoning'],
     ['reasoning-live', '思考 · 流式', 'Reasoning · Live'],
     ['reasoning-en', '思考 · 英文', 'Reasoning · English'],
     ['reasoning-mixed', '思考 · 混合', 'Reasoning · Mixed'],
@@ -155,13 +157,17 @@ export interface LabConfig {
   reasoningStreamSpeed: number
   reasoningStreamBursts: boolean
   reasoningStreamStyle: ReasoningStreamStyle
+  runningIdle: boolean
+  runningPaused: boolean
+  runningCycle: number
 }
 
 export const initialConfig: LabConfig = {
   scene: 'resident', variant: 'idle', replay: 0, guides: false,
   minimumMs: 800, reasoningMs: 150, eventMs: 80,
   reasoningLength: 200, reasoningTilt: -20, reasoningGaze: true,
-  reasoningStreamPaused: false, reasoningStreamSpeed: 1, reasoningStreamBursts: false, reasoningStreamStyle: 'glide'
+  reasoningStreamPaused: false, reasoningStreamSpeed: 1, reasoningStreamBursts: false, reasoningStreamStyle: 'glide',
+  runningIdle: false, runningPaused: false, runningCycle: 2.8
 }
 
 export interface LabEvent {
@@ -198,6 +204,9 @@ export function validConfig(value: unknown): value is LabConfig {
     && typeof config.reasoningStreamBursts === 'boolean'
     && reasoningStreamStyles.some(style => style.id === config.reasoningStreamStyle)
     && Number.isFinite(config.reasoningStreamSpeed) && config.reasoningStreamSpeed! >= .5 && config.reasoningStreamSpeed! <= 2
+    && typeof config.runningIdle === 'boolean'
+    && typeof config.runningPaused === 'boolean'
+    && Number.isFinite(config.runningCycle) && config.runningCycle! >= 1.5 && config.runningCycle! <= 4
 }
 
 export function interactionFor(config: LabConfig): BartDockInteractionRequest | undefined {

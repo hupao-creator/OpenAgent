@@ -12,11 +12,15 @@ class Canvas {
   width: number; height: number
   paints = 0
   scales: number[][] = []
+  arcs: number[][] = []
+  eyes: number[][] = []
   images: unknown[] = []
   listeners = new Map<string, () => void>()
   constructor(width = 1, height = 1) { this.width = width; this.height = height }
   getContext() {
-    return new Proxy({ getTransform: () => ({ a: 1, b: 0 }), clearRect: () => { this.paints++; this.scales = [] },
+    return new Proxy({ getTransform: () => ({ a: 1, b: 0 }), clearRect: () => { this.paints++; this.scales = []; this.arcs = []; this.eyes = [] },
+      arc: (...args: number[]) => this.arcs.push(args),
+      roundRect: (...args: number[]) => this.eyes.push(args),
       scale: (x: number, y: number) => this.scales.push([x, y]), drawImage: (image: unknown) => this.images.push(image) }, {
       get: (target, key) => Reflect.get(target, key) ?? (() => undefined), set: (target, key, value) => Reflect.set(target, key, value)
     })
@@ -171,4 +175,74 @@ describe('Worker surface and run ownership', () => {
     expect(messages.at(-1)).toMatchObject({ type: 'failed', surface: 'scene' })
     expect(inspect().stats).toMatchObject({ surfaces: 1, pixels: 10000 })
   })
+})
+
+
+it('keeps the running story painting beyond the normal gesture window, suspends hidden surfaces and stops in reduced motion', () => {
+  const canvas = attach('running', 'character')
+  const running = { activity: 'idle' as const, phase: 'running' as const, role: 'running' }
+  send({ type: 'character', surface: 'running', request: 1, description: running })
+  for (let at = 16; at <= 10000; at += 16) tick(at)
+  const before = canvas.paints
+  tick(10016)
+  expect(canvas.paints).toBe(before + 1)
+  send({ type: 'visibility', surface: 'running', visible: false })
+  tick(10032); tick(20000)
+  expect(canvas.paints).toBe(before + 1)
+  send({ type: 'visibility', surface: 'running', visible: true })
+  tick(20016)
+  expect(canvas.paints).toBe(before + 2)
+  send({ type: 'character', surface: 'running', request: 2, description: { ...running, animate: false } })
+  const stopped = canvas.paints
+  tick(20032); tick(24000)
+  expect(canvas.paints).toBe(stopped)
+  expect(messages.filter(message => message.type === 'failed')).toEqual([])
+})
+
+
+it('resumes the same orbit after suspension and starts fresh only for a new semantic state', () => {
+  const canvas = attach('running', 'character')
+  const running = { activity: 'idle' as const, phase: 'running' as const, role: 'running', key: 'first' }
+  send({ type: 'character', surface: 'running', request: 1, description: running })
+  const dots = () => canvas.arcs.filter(([, , radius]) => radius > 0)
+  const start = dots()
+  for (let at = 16; at <= 5008; at += 16) tick(at)
+  const orbit = dots()
+  expect(orbit).not.toEqual(start)
+  send({ type: 'character', surface: 'running', request: 2, description: { ...running, animate: false } })
+  tick(30000)
+  send({ type: 'character', surface: 'running', request: 3, description: { ...running, animate: true } })
+  expect(dots()).toEqual(orbit)
+  tick(30016)
+  expect(dots()).not.toEqual(orbit)
+  expect(dots()).not.toEqual(start)
+  send({ type: 'character', surface: 'running', request: 4, description: { ...running, key: 'second' } })
+  expect(dots()).toEqual(start)
+})
+
+it.each([false, true])('keeps reduced-motion eyes static across resize and display-scale redraws (initially animated: %s)', animated => {
+  vi.spyOn(Math, 'random').mockReturnValue(.75)
+  const canvas = attach('running', 'character')
+  const running = { activity: 'idle' as const, phase: 'running' as const, role: 'running', animate: animated }
+  send({ type: 'character', surface: 'running', request: 1, description: running })
+  if (animated) {
+    for (let at = 16; at <= 5008; at += 16) tick(at)
+    send({ type: 'character', surface: 'running', request: 2, description: { ...running, animate: false } })
+  }
+  const face = canvas.eyes
+  const suspendedAt = now
+  expect(face).toHaveLength(2)
+  expect(face.every(([, , width, height]) => width > 0 && height > 0)).toBe(true)
+  for (const [index, offset] of [3600, 3616, 3760, 8000, 8016].entries()) {
+    const before = canvas.paints
+    send({ type: 'resize', surface: 'running', width: 75 + index, height: 75, pixelRatio: 1 + index % 2 })
+    tick(suspendedAt + offset)
+    expect(canvas.paints).toBe(before + 1)
+    expect(canvas.eyes).toEqual(face)
+  }
+  expect(inspect().stats.scheduled).toBe(false)
+  send({ type: 'character', surface: 'running', request: 3, description: { ...running, animate: true } })
+  for (let at = 16; at <= 160; at += 16) tick(suspendedAt + 8016 + at)
+  expect(canvas.eyes).not.toEqual(face)
+  expect(messages.filter(message => message.type === 'failed')).toEqual([])
 })

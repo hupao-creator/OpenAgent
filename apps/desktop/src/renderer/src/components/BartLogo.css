@@ -11,6 +11,7 @@
 .bart-logo[data-worker-ready='true'] .bart-bot .bart-face,
 .bart-logo[data-worker-ready='true'] .bart-bot > circle,
 .bart-logo[data-worker-ready='true'] > .bart-orbits { visibility: hidden; }
+.bart-logo[data-worker-ready='true'] .bart-running-fallback,
 .bart-logo[data-worker-ready='true'] .bart-intervention-transit { visibility: hidden; }
 .bart-logo[data-worker-ready='true'] .bart-body-motion { animation: none !important; }
 

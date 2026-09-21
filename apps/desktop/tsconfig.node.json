@@ -27,6 +27,7 @@
     "src/generated/**/*.ts",
     "src/renderer/src/markdown/decodeNamedCharacterReference.ts",
     "src/renderer/src/bart-motion/geometry.ts",
+    "src/renderer/src/bart-motion/running-story.ts",
     "src/renderer/src/bart-thread-transition/transitions.ts",
     "src/renderer/src/bart-thread-transition/eye-dive.ts",
     "src/renderer/src/bart-composer-geometry.ts",

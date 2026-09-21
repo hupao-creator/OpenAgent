@@ -85,3 +85,13 @@ describe('Bart Dock role resolution', () => {
     expect(first).not.toEqual(resolveBartRole({ ...reasoning('想', 1), executionId: 'execution-2' }, false))
   })
 })
+
+
+it('uses running for active work without an owned expression', () => {
+  expect(resolveBartRole(null, false, true).kind).toBe('running')
+  expect(resolveBartRole({ kind: 'assistant-text', sequence: 1, executionId: 'run' }, false, true).kind).toBe('running')
+  const tool: HarnessBartActivity = { kind: 'tool-call', toolName: 'openagent_thread_start', callId: 'call', sequence: 2, executionId: 'run' }
+  expect(resolveBartRole(tool, false, true).kind).toBe('running')
+  expect(resolveBartRole(tool, true, true).kind).toBe('idle')
+  expect(resolveBartRole(reasoning('thinking'), false, true).kind).toBe('reasoning')
+})

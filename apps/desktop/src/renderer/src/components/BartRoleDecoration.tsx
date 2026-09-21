@@ -23,7 +23,7 @@ export const BartRoleDecoration = memo(function BartRoleDecoration({
   const geometry = reasoningGeometry(reasoningOptions.length, reasoningOptions.tilt)
   useBartReasoning(stage, dockRef, role.kind === 'reasoning' ? role.text : null, active, reasoningOptions,
     role.kind === 'reasoning' ? role.segmentKey : null)
-  if (role.kind === 'idle') return null
+  if (role.kind === 'idle' || role.kind === 'running') return null
   return (
     <div ref={stage} className="bart-role-stage" data-role={role.kind} aria-hidden="true">
       {role.kind === 'reasoning' ? (

@@ -38,7 +38,7 @@ import {
 } from '../bart-composer-geometry'
 import type { BartDraftAttachment } from '../../../shared/attachments'
 import type { ThreadInteractionResponseRequest } from '../../../shared/desktop-api'
-import { isDedicatedBartTool, type BartVisualOperation } from '../bart-visual-operation'
+import type { BartVisualOperation } from '../bart-visual-operation'
 import type { JsonValue } from '@openagent/contracts'
 import type { HarnessBartActivity } from '@openagent/contracts/renderer'
 import { extractPastePayload, insertTextAtSelection } from '../composer-paste'
@@ -264,15 +264,14 @@ export const BartDock = memo(function BartDock({
     ? operations?.findLast((candidate) => candidate.phase === 'running') || operations?.at(-1)
     : undefined
   const dedicatedRouteActive = operation?.phase === 'running'
-  // A Core route that is still running owns Bart's body, so the latest
-  // foreground snapshot waits behind it instead of contradicting it. Once it
-  // finishes it yields to that snapshot: a stale completed operation must not
-  // keep painting its own finished pose over the reasoning, the answer body or
-  // the reply that came after it.
-  const activeOperation = dedicatedRouteActive || foregroundActivity == null ? operation : undefined
+  // Only an active Core route owns the body. Finished routes yield even when
+  // the next foreground event has not arrived yet.
+  const activeOperation = dedicatedRouteActive ? operation : undefined
+  const displayRunning = submitting || (activityContext.execution
+    ? activityContext.execution.status === 'running' : running)
   const currentActivity = activityContext.execution?.status === 'running' &&
     foregroundActivity?.executionId === activityContext.execution.executionId ? foregroundActivity : null
-  const latestRole = resolveBartRole(currentActivity, dedicatedRouteActive)
+  const latestRole = resolveBartRole(currentActivity, dedicatedRouteActive, displayRunning)
   const actionLabel = threadOpen ? t('返回之前的 thread') : t('进入 Bart 历史对话')
   const interactionKind = interaction?.intervention.questions?.length
     ? 'question' as const
@@ -369,13 +368,14 @@ export const BartDock = memo(function BartDock({
     interventionKey === hiddenInterventionKey || interventionExpired
       ? undefined
       : interventionState
-  const dedicatedCall = currentActivity?.kind === 'tool-call' && isDedicatedBartTool(currentActivity.toolName)
   // The input owns the Dock until it closes — not until its capsule has
   // finished collapsing. Bart and his decoration go back to their own activity
   // the moment the input is closed, and ride the capsule down with it.
   const residentLayoutVisible = dockLayout === 'mark' || capsuleLeaving !== null
-  const residentAvailable = residentLayoutVisible &&
-    !activeOperation && !dedicatedCall && !visibleInterventionState
+  // The character stays a mark beside the open composer. Its pending submit
+  // already owns running feedback, before the composer can finish closing.
+  const residentAvailable = (residentLayoutVisible || (bartInputVisible && submitting)) &&
+    !activeOperation && !visibleInterventionState
   const displayedRole = useBartDisplay(
     latestRole, currentActivity != null, activityContext,
     residentAvailable && windowVisible && spatiallyVisible && !concealed && !threadOpen && !presentationCovered,
@@ -384,8 +384,7 @@ export const BartDock = memo(function BartDock({
   const role = residentAvailable ? displayedRole : { kind: 'idle' as const }
   // Running alone does not claim thinking; only the Harness activity does.
   const activity: BartLogoActivity =
-    activeOperation?.kind || (role.kind === 'reasoning' ? 'thinking' : role.kind)
-  const displayRunning = activityContext.execution ? activityContext.execution.status === 'running' : running
+    activeOperation?.kind || (role.kind === 'reasoning' ? 'thinking' : role.kind === 'running' ? 'idle' : role.kind)
   const phase: BartLogoPhase = activeOperation?.phase || (displayRunning ? 'running' : 'idle')
   const replyRead = useBartReplyRead(reply?.readKey)
   // A new turn hides the previous reminder without reading it, so a failure or
@@ -1061,6 +1060,7 @@ export const BartDock = memo(function BartDock({
             interventionState={interactionVisible ? undefined : visibleInterventionState}
             interventionKey={interactionKey || interventionKey}
             roleKind={role.kind}
+            motionActive={role.kind !== 'running' || (!concealed && !threadOpen && !presentationCovered && spatiallyVisible)}
           />
         </span>
         <span
