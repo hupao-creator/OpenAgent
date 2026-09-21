@@ -11,6 +11,8 @@ import {
   type CSSProperties
 } from 'react'
 import { flushSync } from 'react-dom'
+import { OverviewFilterTransition } from './OverviewFilterTransition'
+import { OverviewFilterMotion } from '../overview-motion/filter-motion'
 import { focusForKeyboardNavigation } from '../button-focus-visibility'
 import {
   Archive,
@@ -157,6 +159,10 @@ export interface ConversationOverviewProps {
   readonly transitionId: string | null
   readonly tagFilters?: readonly ConversationTagFilter[]
   readonly selectedTag?: string
+  /** Diagnostic override; application tag switches use spatial reflow. */
+  readonly tagTransition?: 'spatial' | 'directional' | 'none'
+  /** Playback rate for the spatial-motion playground; production defaults to 1. */
+  readonly tagTransitionPlaybackRate?: number
   // Controls the initial filter focus.
   readonly embedded?: boolean
   readonly onTagChange?: (tag: string) => void
@@ -225,6 +231,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
     direction: ''
   })
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [filterMotion] = useState(() => new OverviewFilterMotion())
   const planeRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const [viewportBox, setViewportBox] = useState<OverviewViewportBox>({
@@ -375,7 +382,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
         selectedTagIndex >= Math.max(0, previousTagIndex) ? 'tag-filter-enter-forward' : 'tag-filter-enter-backward'
     }
   }
-  const tagTransitionDirection = tagTransitionRef.current.direction
+  const tagTransitionDirection = props.tagTransition === 'directional' ? tagTransitionRef.current.direction : ''
 
   // 只响应显式的键盘请求（Cmd/Ctrl+K）。无条件聚焦会让筛选按钮在进入 overview 时就带上
   // :focus-visible 焦点环，并顺带点亮 :focus-within 的边框。
@@ -1216,6 +1223,9 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
         </div>
       )}
       <div className="thread-overview-scroll" ref={scrollRef}>
+        <OverviewFilterTransition selectionKey={selectedSelectionKey} sceneKey={sceneKey}
+          enabled={(props.tagTransition ?? 'spatial') === 'spatial' && props.cameraVisible !== false}
+          playbackRate={props.tagTransitionPlaybackRate ?? 1} viewport={scrollRef} motion={filterMotion}>
         <div className={'thread-overview-scroll-content ' + tagTransitionDirection} key={selectedSelectionKey || '__all__'}>
           {presentedItems.length === 0 ? (
             <div className="thread-overview-empty">
@@ -1318,6 +1328,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
             </div>
           )}
         </div>
+        </OverviewFilterTransition>
         {canvasPresent && overflowAttentionCount > 0 && (
           <div className="thread-overview-overflow-indicator" role="status">
             <CircleAlert size={13} />

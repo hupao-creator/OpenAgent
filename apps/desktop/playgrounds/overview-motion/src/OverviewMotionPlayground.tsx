@@ -1,12 +1,13 @@
 import type { OverviewCameraMemory } from '../../../src/renderer/src/overview-motion/camera'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Pause, Play, RotateCcw, SkipForward } from 'lucide-react'
 import { RendererCapabilitiesProvider } from '@openagent/plugin-kit/renderer'
 import type { OverviewLayoutContext } from '@openagent/contracts/renderer'
 import { ConversationOverview, type ConversationOverviewLayoutRevision } from '../../../src/renderer/src/components/ConversationOverview'
 import { getOverviewCameraCockpit, getOverviewMotionCoordinator } from '../../../src/renderer/src/overview-motion'
 import { OVERVIEW_LAYOUT_CONTEXT, type OverviewLayoutPlanningState } from '../../../src/renderer/src/overview-layout-planner'
-import { applyMotionAction, captureMotionLayout, createMotionFrame, motionActions, motionScenarios, type MotionAction, type MotionFrame } from './scenarios'
+import { applyMotionAction, captureMotionLayout, createMotionFrame, motionActions, motionScenarios, motionSceneKey, motionTagFilters, motionTagSelections, type MotionAction, type MotionFrame } from './scenarios'
+import { FilterTransitionPreview, filterTransitions, type FilterTransition } from './filter-transitions'
 
 interface PlaygroundState {
   frame: MotionFrame
@@ -17,7 +18,7 @@ interface PlaygroundState {
   events: readonly string[]
 }
 
-function MotionReadout(): React.JSX.Element {
+function MotionReadout({ filterBusy }: { filterBusy: boolean }): React.JSX.Element {
   const camera = getOverviewCameraCockpit()
   const state = useSyncExternalStore(camera.subscribe, camera.getSnapshot, camera.getSnapshot)
   const [busy, setBusy] = useState(false)
@@ -32,7 +33,7 @@ function MotionReadout(): React.JSX.Element {
     return () => { unsubscribe(); window.clearInterval(timer) }
   }, [camera])
   return <div className="motion-readout" aria-label="动画实时状态">
-    <span><i data-busy={busy} /> <output aria-label="舞台状态">{busy ? '动画播放中' : '舞台空闲'}</output></span>
+    <span><i data-busy={busy || filterBusy} /> <output aria-label="舞台状态">{busy || filterBusy ? '动画播放中' : '舞台空闲'}</output></span>
     <span><output aria-label="相机模式">{!state ? 'Canvas · 等待内容' : state.manual ? 'Canvas · 手动' : 'Canvas · 自动'}</output></span>
     <output aria-label="相机缩放" ref={scale}>100%</output>
   </div>
@@ -54,6 +55,17 @@ export function OverviewMotionPlayground(): React.JSX.Element {
   const [width, setWidth] = useState('fluid')
   const [notice, setNotice] = useState('')
   const [away, setAway] = useState(false)
+  const [filterTransition, setFilterTransition] = useState<FilterTransition>(() => {
+    const requested = new URLSearchParams(location.search).get('transition')
+    return filterTransitions.find(option => option.id === requested)?.id ?? 'reflow'
+  })
+  const [filterSpeed, setFilterSpeed] = useState(1)
+  const [filterBusy, setFilterBusy] = useState(false)
+  const [filterPreview] = useState(() => new FilterTransitionPreview(setFilterBusy))
+  const stage = useRef<HTMLDivElement>(null)
+  const modelRef = useRef(model)
+  modelRef.current = model
+  const lastFilterPair = useRef<readonly [string, string]>(['', '前端'])
   const cameraMemory = useRef<OverviewCameraMemory['current']>(null)
   const [planning, setPlanning] = useState<OverviewLayoutPlanningState | null>(null)
   const layout = useRef<OverviewLayoutContext>(OVERVIEW_LAYOUT_CONTEXT)
@@ -63,24 +75,44 @@ export function OverviewMotionPlayground(): React.JSX.Element {
   }, [])
 
   const reset = useCallback((count: number) => {
+    filterPreview.cancel()
     setPlaying(false); setCursor(0); setNotice(''); setPlanning(null); setAway(false)
     setModel(current => ({ frame: createMotionFrame(count), mount: current.mount + 1, epoch: current.epoch + 1,
       revision: current.revision, revisions: [], events: [] }))
-  }, [])
+  }, [filterPreview])
 
   const perform = useCallback((action: MotionAction) => {
+    if (action in motionTagSelections) {
+      const tag = motionTagSelections[action as keyof typeof motionTagSelections]
+      const previous = modelRef.current.frame.selectedTag
+      if (tag === previous) return
+      lastFilterPair.current = [previous, tag]
+      const order = Object.values(motionTagSelections) as readonly string[]
+      filterPreview.capture(stage.current, filterTransition, filterSpeed,
+        order.indexOf(tag) >= order.indexOf(previous) ? 1 : -1)
+    } else filterPreview.cancel()
     const context = layout.current
     setModel(current => {
       const frames = applyMotionAction(current.frame, action)
       const epoch = current.epoch + (action === 'cut' ? 1 : 0)
-      const revisions = action === 'cut' ? [] : frames.map((frame, index) => ({
-        revision: current.revision + index + 1, sceneKey: `playground:${epoch}`, snapshot: captureMotionLayout(frame, context)
+      const cutsScene = action === 'cut' || frames.at(-1)!.selectedTag !== current.frame.selectedTag
+      const revisions = cutsScene ? [] : frames.map((frame, index) => ({
+        revision: current.revision + index + 1, sceneKey: motionSceneKey(frame, epoch), snapshot: captureMotionLayout(frame, context)
       }))
       return { frame: frames.at(-1)!, mount: current.mount, epoch, revision: current.revision + frames.length,
-        revisions: action === 'cut' ? [] : [...current.revisions, ...revisions],
+        revisions: cutsScene ? [] : [...current.revisions, ...revisions],
         events: [...current.events, motionActions[action]].slice(-6) }
     })
-  }, [])
+  }, [filterPreview, filterTransition, filterSpeed])
+
+  useLayoutEffect(() => { filterPreview.play() }, [filterPreview, model.frame.selectedTag])
+  useLayoutEffect(() => () => filterPreview.cancel(), [filterPreview, scenarioId, filterTransition, filterSpeed, away, width, theme, model.mount])
+  useEffect(() => {
+    if (!stage.current || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => filterPreview.cancel())
+    observer.observe(stage.current)
+    return () => observer.disconnect()
+  }, [filterPreview])
 
   const next = useCallback(() => {
     const action = scenario.steps[cursor]
@@ -98,8 +130,10 @@ export function OverviewMotionPlayground(): React.JSX.Element {
   useEffect(() => {
     const url = new URL(location.href)
     url.searchParams.set('scene', scenarioId)
+    if (scenarioId === 'filters') url.searchParams.set('transition', filterTransition)
+    else url.searchParams.delete('transition')
     history.replaceState(null, '', url)
-  }, [scenarioId])
+  }, [scenarioId, filterTransition])
   useEffect(() => {
     const root = document.documentElement
     // color-scheme 驱动 light-dark()；生产样式里那两块 @media (prefers-color-scheme)
@@ -125,13 +159,44 @@ export function OverviewMotionPlayground(): React.JSX.Element {
         </div>
       </header>
       <div className="motion-workspace">
-        <section className="motion-preview" aria-label="Overview 动画预览">
-          <div className="motion-stage" style={{ maxWidth: width === 'fluid' ? undefined : `${width}px` }}>
+        <section className={'motion-preview' + (scenarioId === 'filters' ? ' motion-preview-with-candidates' : '')} aria-label="Overview 动画预览">
+          {scenarioId === 'filters' && <div className="motion-filter-candidates">
+            <div className="motion-filter-options" role="group" aria-label="筛选动效候选">
+              {filterTransitions.map(option => <button type="button" key={option.id} aria-pressed={filterTransition === option.id}
+                onClick={() => { setPlaying(false); setFilterTransition(option.id) }}>{option.title}</button>)}
+            </div>
+            <div className="motion-filter-tools">
+              <p>{filterTransitions.find(option => option.id === filterTransition)!.description}</p>
+              <label>动效速度<select value={filterSpeed} disabled={filterTransition === 'original'}
+                onChange={event => { setPlaying(false); setFilterSpeed(Number(event.target.value)) }}>
+                <option value={1}>1× 原速</option><option value={0.35}>0.35× 慢放</option>
+              </select></label>
+              <button type="button" onClick={() => {
+                setPlaying(false)
+                const [from, to] = lastFilterPair.current
+                const target = model.frame.selectedTag === to ? from : to
+                const action = (Object.keys(motionTagSelections) as (keyof typeof motionTagSelections)[])
+                  .find(key => motionTagSelections[key] === target)!
+                perform(action)
+              }}>重播切换</button>
+            </div>
+          </div>}
+          <div ref={stage} className="motion-stage" data-filter-transition={scenarioId === 'filters' ? filterTransition : undefined}
+            style={{ maxWidth: width === 'fluid' ? undefined : `${width}px` }}>
             {away ? <div className="thread-overview-empty"><strong>已离开 Overview</strong><span>可以在控制台改变卡片集合，再返回观察旧视角与延迟取景。</span></div> :
             <ConversationOverview key={model.mount} cameraMemory={cameraMemory} threads={model.frame.threads} reports={model.frame.reports}
               onLayoutPlanningState={setPlanning}
               canvasScaleFloor={0.05}
-              transitionId={null} embedded motionSceneKey={`playground:${model.epoch}`}
+              transitionId={null} embedded motionSceneKey={motionSceneKey(model.frame, model.epoch)}
+              selectedTag={model.frame.selectedTag}
+              tagTransition={scenarioId !== 'filters' || filterTransition === 'reflow' ? 'spatial' : filterTransition === 'original' ? 'directional' : 'none'}
+              tagTransitionPlaybackRate={filterSpeed}
+              tagFilters={scenarioId === 'filters' ? motionTagFilters(model.frame) : undefined}
+              onTagChange={tag => {
+                const action = (Object.keys(motionTagSelections) as (keyof typeof motionTagSelections)[])
+                  .find(key => motionTagSelections[key] === tag)
+                if (action) { setPlaying(false); perform(action) }
+              }}
               layoutRevisions={model.revisions} onLayoutRevisionsConsumed={onLayoutRevisionsConsumed}
               onLayoutContextChange={onLayoutContextChange}
               interrupt={async id => record(`停止 ${id}`)} respond={async () => record('回应问题')}
@@ -139,7 +204,7 @@ export function OverviewMotionPlayground(): React.JSX.Element {
               onSelect={id => record(`打开 ${id}`)} onOpenReport={id => record(`打开报告 ${id}`)}
               onOpenRelatedExecution={id => record(`打开关联 ${id}`)} />}
           </div>
-          <footer className="motion-stage-footer"><MotionReadout /><span>模拟数据 · 紧凑布局 · 串行直线</span></footer>
+          <footer className="motion-stage-footer"><MotionReadout filterBusy={filterBusy} /><span>模拟数据 · 紧凑布局 · 串行直线</span></footer>
         </section>
         <aside className="motion-inspector" aria-label="动画控制台">
           <section className="motion-section motion-layout-summary" aria-label="布局结果">
@@ -185,7 +250,8 @@ export function OverviewMotionPlayground(): React.JSX.Element {
           <section className="motion-section">
             <h2>自由触发</h2>
             <button type="button" onClick={() => { setPlaying(false); setAway(!away) }}>{away ? '返回 Overview' : '离开 Overview'}</button>
-            <div className="motion-actions">{(Object.keys(motionActions) as MotionAction[]).map(action => <button type="button" key={action}
+            <div className="motion-actions">{(Object.keys(motionActions) as MotionAction[])
+              .filter(action => scenarioId === 'filters' || !(action in motionTagSelections)).map(action => <button type="button" key={action}
               onClick={() => { setPlaying(false); perform(action) }}>{motionActions[action]}</button>)}</div>
           </section>
           <section className="motion-section motion-events">

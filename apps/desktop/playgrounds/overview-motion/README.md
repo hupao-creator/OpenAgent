@@ -10,15 +10,36 @@ validated fake snapshots. It uses the production default layout planner and owns
 scenario inputs and trigger timers. Card actions
 record preview intent; they never call the Desktop bridge, fetch captures or execute a Report.
 
-Seven repeatable scenes cover 24-card compact packing, entry/exit and reordering,
+Eight repeatable scenes cover tag-filter switching, 24-card compact packing, entry/exit and reordering,
 question growth/shrink, a four-revision burst, Canvas framing, Report
 consolidation, and scene-cut cancellation. Link directly with
-`/?scene=packing|lifecycle|resize|queue|camera|report|cut` (choose one value).
+`/?scene=filters|packing|lifecycle|resize|queue|camera|report|cut` (choose one value).
 Use the next-step button or automatic playback; the interval changes **input timing**, not
 production animation duration. Pausing stops future inputs and lets queued motion settle.
 Reset or selecting another scene remounts Overview to clean up pending work and manual camera
 state. The explicit cut action keeps Overview mounted and changes its production scene key.
 The free controls can interrupt a running demonstration and queue more input during motion.
+
+The [tag-filter scene](http://127.0.0.1:4179/?scene=filters) starts with eight cards:
+four frontend, four backend, and two also tagged testing. An intentionally empty
+filter exercises the empty state. Click the production toolbar directly, step
+through the sequence, or play it automatically to inspect forward/backward entry,
+returning to all cards, and rapid switching. Filter changes use the production
+scene-cut behavior without remounting Overview. The toolbar above Canvas compares
+the original 220ms transition with production spatial reflow and three local
+alternatives: depth, staggered cards, and directional push. Use the speed selector for 0.35× playback
+or “重播切换” to alternate the last two filters. Deep-link the choice with
+`/?scene=filters&transition=original|reflow|depth|stagger|push` (choose one value).
+
+Spatial reflow uses the production transition: surviving live cards move between
+old/new screen geometry, with inert snapshots only for outgoing cards. The other
+candidates animate inert DOM snapshots and remain playground experiments. All
+choices preserve the production final layout planner.
+Filtering commits immediately. Production spatial reflow retargets live cards from
+the visible interrupted frame; alternative candidates restart from the committed
+view. Changing the candidate, speed, viewport, scene, or leaving Overview cancels
+the transition. Reduced-motion preferences
+skip candidates. The original option preserves production animation timing.
 
 The planner uses real Harness footprints (running fixtures are 2×1) with no
 viewport column cap. Grid starts come from its placements. The existing FIFO
