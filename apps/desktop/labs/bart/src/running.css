@@ -24,19 +24,38 @@
   background: #718269;
   border-radius: 50%;
 }
+.running-bottom .running-dots { gap: 6px; }
 .running-bottom .running-dots i {
-  animation: running-bottom-dot calc(var(--running-cycle) * .65) ease-in-out infinite;
+  width: 7px;
+  height: 7px;
+  background: #e78086;
+  animation: running-bottom-dot calc(var(--running-cycle) * .65) ease-in-out infinite,
+    running-bottom-rainbow calc(var(--running-cycle) * 3) linear infinite;
 }
-.running-bottom .running-dots i:nth-child(2) { animation-delay: calc(var(--running-cycle) * -.43); }
-.running-bottom .running-dots i:nth-child(3) { animation-delay: calc(var(--running-cycle) * -.22); }
+.running-bottom .running-dots i:nth-child(2) {
+  background: #80b88b;
+  animation-delay: calc(var(--running-cycle) * -.43), calc(var(--running-cycle) * -1);
+}
+.running-bottom .running-dots i:nth-child(3) {
+  background: #7f9fe1;
+  animation-delay: calc(var(--running-cycle) * -.22), calc(var(--running-cycle) * -2);
+}
 .running-bottom[data-idle='true'] .running-decoration { visibility: hidden; }
 .running-bottom[data-paused='true'] .running-dots i { animation-play-state: paused; }
 /* The production circle ends at y=464 in its 640-unit view box. */
 .running-eyes .running-dots { top: calc(72.5% + 13px); }
 .running-eyes[data-idle='true'] .running-dots { visibility: hidden; }
 @keyframes running-bottom-dot {
-  0%, 70%, 100% { transform: translateY(0); opacity: .3; }
+  0%, 70%, 100% { transform: translateY(0); opacity: .65; }
   25% { transform: translateY(-3px); opacity: 1; }
+}
+@keyframes running-bottom-rainbow {
+  0%, 100% { background-color: #e78086; }
+  16.667% { background-color: #d9aa5a; }
+  33.333% { background-color: #80b88b; }
+  50% { background-color: #69b9bf; }
+  66.667% { background-color: #7f9fe1; }
+  83.333% { background-color: #b88ace; }
 }
 @media (prefers-reduced-motion: reduce) {
   .running-bottom .running-dots i { animation: none; }

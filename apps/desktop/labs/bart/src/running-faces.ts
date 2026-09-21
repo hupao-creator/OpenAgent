@@ -1,6 +1,6 @@
 export const runningFaces = [
-  { id: 'bottom', label: '原版 · 自然双眼', english: 'Original eyes',
-    description: '原来的双眼与自然眨眼，底部三点独立接力。作为对照，暂停仅冻结三点。' },
+  { id: 'bottom', label: '原版 · 彩虹三点', english: 'Original eyes · Rainbow dots',
+    description: '原来的双眼与自然眨眼。底部三点放大，彩虹色缓缓流转，保留轻轻接力的节奏。' },
   { id: 'gaze', label: 'E1 · 追点目光', english: 'Follow the dots',
     description: '目光稍稍向下，跟随亮点从左到右移动，再柔和地回到左侧。' },
   { id: 'focus', label: 'E2 · 轻眯跟拍', english: 'Soft focus',
