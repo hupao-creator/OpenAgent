@@ -28,7 +28,8 @@ function isForeground(value: unknown): value is HarnessBartForeground {
     return hasOnlyKeys(value, ['sequence', 'kind'])
   }
   if (value.kind === 'reasoning') {
-    return hasOnlyKeys(value, ['sequence', 'kind', 'text']) &&
+    return hasOnlyKeys(value, ['sequence', 'kind', 'text', 'textOffset']) &&
+      (value.textOffset === undefined || (Number.isSafeInteger(value.textOffset) && Number(value.textOffset) >= 0)) &&
       isBoundedNonEmpty(value.text, REASONING_CHARACTERS)
   }
   if (value.kind === 'tool-call') {

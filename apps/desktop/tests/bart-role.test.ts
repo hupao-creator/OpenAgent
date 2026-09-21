@@ -20,11 +20,11 @@ describe('Bart Dock role resolution', () => {
 
   it('paints the reasoning arc from a bounded, whitespace-collapsed tail', () => {
     const role = resolveBartRole(reasoning('  先看\n\n调用链   再决定  '), false)
-    expect(role).toEqual({ kind: 'reasoning', text: '先看 调用链 再决定', segmentKey: '["execution-1",1]' })
+    expect(role).toEqual({ kind: 'reasoning', text: '先看 调用链 再决定', sourceText: '  先看\n\n调用链   再决定  ', sourceOffset: 0, segmentKey: '["execution-1",1]' })
   })
 
   it('keeps the attentive shape when a reasoning signal carries no displayable text', () => {
-    expect(resolveBartRole(reasoning(''), false)).toEqual({ kind: 'reasoning', text: '', segmentKey: '["execution-1",1]' })
+    expect(resolveBartRole(reasoning(''), false)).toEqual({ kind: 'reasoning', text: '', sourceText: '', sourceOffset: 0, segmentKey: '["execution-1",1]' })
   })
 
   it('retains the source budget for width-based clipping and never splits a code point', () => {

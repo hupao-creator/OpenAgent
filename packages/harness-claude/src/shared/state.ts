@@ -1252,11 +1252,13 @@ function parseForeground(value: unknown): HarnessBartForeground {
     return { kind: 'assistant-text', sequence }
   }
   if (value.kind === 'reasoning') {
-    assertOnlyKeys(value, ['sequence', 'kind', 'text'], 'Claude turn foreground')
-    if (!isNonEmptyBoundedString(value.text, CLAUDE_STATE_LIMITS.reasoningCharacters)) {
+    assertOnlyKeys(value, ['sequence', 'kind', 'text', 'textOffset'], 'Claude turn foreground')
+    if (!isNonEmptyBoundedString(value.text, CLAUDE_STATE_LIMITS.reasoningCharacters) ||
+      (value.textOffset !== undefined && (!Number.isSafeInteger(value.textOffset) || Number(value.textOffset) < 0))) {
       throw new Error('Claude turn foreground reasoning 无效')
     }
-    return { kind: 'reasoning', sequence, text: value.text }
+    return { kind: 'reasoning', sequence, text: value.text,
+      ...(value.textOffset === undefined ? {} : { textOffset: Number(value.textOffset) }) }
   }
   if (value.kind === 'tool-call') {
     assertOnlyKeys(value, ['sequence', 'kind', 'callId', 'toolName'], 'Claude turn foreground')

@@ -6,7 +6,6 @@ import { BartRoleDecoration } from '../src/renderer/src/components/BartRoleDecor
 import { BART_REASONING_DEFAULTS, type ReasoningStreamStyle } from '../src/renderer/src/bart-motion/reasoning-geometry'
 import { resolveBartRole, type BartDockRole } from '../src/renderer/src/bart-role'
 import { useBartDisplay } from '../src/renderer/src/use-bart-display'
-import { streamOverlap } from '../src/renderer/src/bart-motion/reasoning-stream-presentation'
 
 const eyes = vi.hoisted(() => ({ start: vi.fn(), cancel: vi.fn() }))
 vi.mock('../src/renderer/src/bart-motion/CharacterCanvas', () => ({
@@ -50,8 +49,8 @@ afterEach(() => {
   Reflect.deleteProperty(Element.prototype, 'animate')
 })
 
-function Fixture({ text, active = true, workerReady = true, stream }: { text: string; active?: boolean; workerReady?: boolean; stream?: ReasoningStreamStyle }) {
-  const role = resolveBartRole({ kind: 'reasoning', text, sequence: 1, executionId: 'execution-1' }, false)
+function Fixture({ text, active = true, workerReady = true, stream, sourceOffset = 0 }: { text: string; active?: boolean; workerReady?: boolean; stream?: ReasoningStreamStyle; sourceOffset?: number }) {
+  const role = resolveBartRole({ kind: 'reasoning', text, textOffset: sourceOffset, sequence: 1, executionId: 'execution-1' }, false)
   return <DecorationFixture role={role} active={active} workerReady={workerReady} stream={stream} />
 }
 function DecorationFixture({ role, active = true, workerReady = true, stream = BART_REASONING_DEFAULTS.stream }: { role: BartDockRole; active?: boolean; workerReady?: boolean; stream?: ReasoningStreamStyle }) {
@@ -135,12 +134,6 @@ it('keeps fallback eyes attached by stopping body motion whenever the Worker is 
   expect(vi.getTimerCount()).toBe(0)
 })
 
-it('matches Unicode graphemes through tail truncation and resets unrelated text', () => {
-  const segment = (value: string) => Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value), part => part.segment)
-  expect(streamOverlap(segment('检查👩‍💻e\u0301'), segment('👩‍💻e\u0301完成'))).toBe(2)
-  expect(streamOverlap(segment('完成上一轮。'), segment('新的思考'))).toBe(0)
-})
-
 it('paces large batches like small batches while keeping visible text in place', () => {
   const sample = (start: number, size: number) => Array.from({ length: size }, (_, index) => String.fromCodePoint(0x4e00 + start + index)).join('')
   const f = render(<Fixture text={sample(0, 56)} />)
@@ -150,19 +143,19 @@ it('paces large batches like small batches while keeping visible text in place',
     Array.from(displayed().textContent!).indexOf(character) * 10
   const marker = sample(20, 1)
   const original = position(marker)
-  f.rerender(<Fixture text={sample(2, 56)} />)
+  f.rerender(<Fixture text={sample(0, 58)} />)
   expect(position(marker)).toBeCloseTo(original)
   let before = offset()
   advance(48)
   const smallTravel = before - offset()
   const beforeBurst = position(marker)
-  f.rerender(<Fixture text={sample(22, 56)} />)
+  f.rerender(<Fixture text={sample(0, 78)} />)
   expect(position(marker)).toBeCloseTo(beforeBurst)
   before = offset()
   advance(48)
   expect(before - offset()).toBeCloseTo(smallTravel)
   expect(before - offset()).toBeLessThanOrEqual(120 * .048 + .001)
-  advance(4000)
+  advance(6000)
   expect(displayed().textContent).toBe(sample(22, 56))
   expect(offset()).toBe(452)
 })
@@ -177,7 +170,7 @@ it('rebases disjoint same-segment snapshots instead of joining missing text', ()
     advance(160)
     f.rerender(<Fixture text={sample(batch * 80)} />)
     expect(displayed().textContent).toBe(sample(batch * 80))
-    expect(Number(displayed().getAttribute('startOffset'))).toBe(452)
+    expect(Number(displayed().getAttribute('startOffset'))).toBeGreaterThanOrEqual(452)
   }
   advance(6000)
   expect(displayed().textContent).toBe(sample(50 * 80))
@@ -205,12 +198,75 @@ it.each(['glide', 'soft'] as const)('keeps %s burst frames contiguous with the o
     f.rerender(<Fixture text={received} stream={stream} />)
     for (let frame = 0; frame < 10; frame++) {
       expect(received).toContain(displayed().textContent)
-      expect(Array.from(displayed().textContent!).length).toBeLessThanOrEqual(56 + Math.ceil(452 / 10) + 1)
+      expect(Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(displayed().textContent!)).length).toBeLessThanOrEqual(112)
       advance(16)
     }
   }
-  advance(6000)
+  advance(30_000)
   expect(displayed().textContent).toBe(f.container.querySelector('.bart-role-arc > text textPath')!.textContent)
+})
+
+it.each(['glide', 'soft'] as const)('consumes every character of a large %s burst in source order', (stream) => {
+  const points = Array.from({ length: 500 }, (_, index) => String.fromCodePoint(0x4e00 + index))
+  const f = render(<Fixture text={points.slice(0, 5).join('')} stream={stream} />)
+  const displayed = () => f.container.querySelector('[data-bart-stream-layer] textPath')!
+  let seen = 5, visibleThrough = 5
+  f.rerender(<Fixture text={points.join('')} stream={stream} />)
+  // Inspect the bounded SVG front while the independent FIFO drains. Every
+  // source character must reach it, with no skipped, repeated or reordered span.
+  for (let frame = 0; frame < 3000; frame++) {
+    const window = Array.from(displayed().textContent!)
+    const start = window[0].codePointAt(0)! - 0x4e00
+    expect(start).toBeLessThanOrEqual(seen)
+    expect(window).toEqual(points.slice(start, start + window.length))
+    expect(window.length).toBeLessThanOrEqual(112)
+    seen = Math.max(seen, start + window.length)
+    const left = Number(displayed().getAttribute('startOffset')) - window.length * 10
+    const visible = window.flatMap((_, index) => left + index * 10 + 5 >= 0 && left + index * 10 + 5 <= 452 ? [start + index] : [])
+    if (visible.length) {
+      expect(visible[0]).toBeLessThanOrEqual(visibleThrough)
+      visibleThrough = Math.max(visibleThrough, visible.at(-1)! + 1)
+    }
+    advance(16)
+  }
+  expect(seen).toBe(points.length)
+  expect(visibleThrough).toBe(points.length)
+  expect(displayed().textContent).toBe(points.slice(-56).join(''))
+})
+
+it('uses source positions for repeated windows and keeps queued text across source rollover', () => {
+  const f = render(<Fixture text={'甲'.repeat(56)} />)
+  const displayed = () => f.container.querySelector('[data-bart-stream-layer] textPath')!
+  f.rerender(<Fixture text={'甲'.repeat(56)} sourceOffset={56} />)
+  expect(displayed().textContent).toBe('甲'.repeat(112))
+  // The transport window rolls, but its retained range identifies exactly
+  // which characters have already entered the FIFO.
+  f.rerender(<Fixture text={'甲'.repeat(56) + '乙'.repeat(100)} sourceOffset={56} />)
+  expect(displayed().textContent).toBe('甲'.repeat(112))
+  advance(20_000)
+  expect(displayed().textContent).toBe('乙'.repeat(56))
+})
+
+it('delivers a moved source window through the scheduler even when its text is identical', () => {
+  function Scheduled({ sourceOffset }: { sourceOffset: number }) {
+    const latest = resolveBartRole({ kind: 'reasoning', text: '甲'.repeat(56), textOffset: sourceOffset, sequence: 1, executionId: 'run' }, false)
+    const role = useBartDisplay(latest, true, { threadKey: 'test', execution: { executionId: 'run', status: 'running' } }, true)
+    return <DecorationFixture role={role} />
+  }
+  const f = render(<Scheduled sourceOffset={0} />)
+  f.rerender(<Scheduled sourceOffset={56} />)
+  advance(150)
+  expect(f.container.querySelector('[data-bart-stream-layer] textPath')!.textContent!.length).toBeGreaterThan(56)
+})
+
+it('joins split emoji and combining marks at the producer boundary', () => {
+  const f = render(<Fixture text="检查👩" stream="soft" />)
+  f.rerender(<Fixture text="检查👩‍💻e" stream="soft" />)
+  f.rerender(<Fixture text={'检查👩‍💻e\u0301 完成'} stream="soft" />)
+  const displayed = f.container.querySelector('[data-bart-stream-layer] textPath')!
+  expect(displayed.textContent).toBe('检查👩‍💻e\u0301 完成')
+  expect(Array.from(displayed.querySelectorAll('tspan'), node => node.textContent)).toContain('👩‍💻')
+  expect(Array.from(displayed.querySelectorAll('tspan'), node => node.textContent)).toContain('e\u0301')
 })
 
 
@@ -222,26 +278,24 @@ it('clears pending text at real segment and execution boundaries without restart
     }, true)
     return <DecorationFixture role={role} />
   }
-  const sample = (start: number) => Array.from({ length: 56 }, (_, index) => String.fromCodePoint(0x4e00 + start + index)).join('')
-  const f = render(<Scheduled text={sample(0)} />)
+  const f = render(<Scheduled text={'甲'.repeat(200)} />)
   const layer = f.container.querySelector('[data-bart-stream-layer] textPath')!
   const source = f.container.querySelector('.bart-role-arc > text textPath')!
-  f.rerender(<Scheduled text={sample(12)} />)
+  expect(layer.textContent!.length).toBe(112)
+  f.rerender(<Scheduled text={'乙'.repeat(200)} sequence={2} />)
   advance(150)
-  expect(layer.textContent).not.toBe(sample(12))
+  expect(layer.textContent).not.toContain('甲')
+  advance(30_000)
+  expect(layer.textContent).toBe('乙'.repeat(56))
+  // Equal text must still cross the display scheduler when identity changes.
+  f.rerender(<Scheduled text={'乙'.repeat(200)} sequence={3} />)
+  advance(150)
+  expect(layer.textContent!.length).toBe(112)
   expect(layer.getAttribute('startOffset')).not.toBe(source.getAttribute('startOffset'))
-  // Equal text must still cross the display scheduler when the identity changes.
-  f.rerender(<Scheduled text={sample(12)} sequence={2} />)
-  advance(150)
-  expect(layer.textContent).toBe(sample(12))
-  expect(layer.getAttribute('startOffset')).toBe(source.getAttribute('startOffset'))
-  f.rerender(<Scheduled text={sample(24)} sequence={2} />)
-  advance(150)
-  expect(layer.textContent).not.toBe(sample(24))
-  f.rerender(<Scheduled text={'丁'.repeat(56)} sequence={2} executionId="execution-2" />)
-  expect(layer.textContent).toBe('丁'.repeat(56))
-  expect(layer.getAttribute('startOffset')).toBe(source.getAttribute('startOffset'))
+  const cycles = eyes.start.mock.calls.length
+  f.rerender(<Scheduled text={'丁'.repeat(200)} sequence={3} executionId="execution-2" />)
+  expect(layer.textContent).not.toContain('乙')
+  expect(layer.textContent!.length).toBe(112)
   expect(f.container.querySelector('[data-bart-stream-layer] textPath')).toBe(layer)
-  expect(eyes.start).toHaveBeenCalledTimes(1)
-  expect(animate).toHaveBeenCalledTimes(2)
+  expect(eyes.start).toHaveBeenCalledTimes(cycles)
 })

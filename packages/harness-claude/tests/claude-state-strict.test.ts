@@ -5,6 +5,16 @@ import {
 } from '../src/shared/state.js'
 
 describe('Claude current state schema', () => {
+  it('preserves reasoning source positions and rejects invalid offsets', () => {
+    const state = questionState()
+    state.turns[0]!.foreground = { kind: 'reasoning', sequence: 1, text: '保留片段', textOffset: 120 }
+    expect(parseClaudeThreadState(state).turns[0]!.foreground).toEqual(state.turns[0]!.foreground)
+    for (const textOffset of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      state.turns[0]!.foreground = { kind: 'reasoning', sequence: 1, text: '保留片段', textOffset }
+      expect(() => parseClaudeThreadState(state)).toThrow(/foreground/)
+    }
+  })
+
   it('preserves a current-format question and its options', () => {
     const state = questionState()
 

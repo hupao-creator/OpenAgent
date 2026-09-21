@@ -3,6 +3,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentThreadRecord, HarnessPluginHostContext, HarnessThreadHandle, JsonValue } from '@openagent/contracts'
+import { MAX_BART_REASONING_SOURCE_POINTS } from '@openagent/contracts/renderer'
 import { openPiThread } from '../src/main/thread/handle.js'
 import { piMainModule } from '../src/main/entry.js'
 import { piJson, piSessionAdapter, piState } from '../src/shared/state.js'
@@ -240,6 +241,21 @@ describe('Pi native Thread boundary', () => {
       expect.objectContaining({ role: 'assistant', text: 'Checked', thinking: 'Check the file', usage: { input: 5, output: 8, cacheRead: 2, cacheWrite: 0, cost: 0.01 } }),
       expect.objectContaining({ role: 'tool', toolName: 'read', text: 'file contents' })
     ]))
+  })
+
+  it('persists the source position when a reasoning window rolls', async () => {
+    const test = await owner(); const handle = await test.open()
+    await send(handle); const native = natives.at(-1)!
+    native.emit({ type: 'message_update', message: { role: 'assistant', content: [
+      { type: 'thinking', thinking: '🧠'.repeat(MAX_BART_REASONING_SOURCE_POINTS + 4) }
+    ] } })
+    await drain(handle)
+    expect(projectPiBartPresentation(test.state()).activity).toMatchObject({
+      kind: 'reasoning', sequence: 1, textOffset: 8, text: '🧠'.repeat(MAX_BART_REASONING_SOURCE_POINTS)
+    })
+    const invalid = test.state()
+    invalid.foregrounds![0]!.foreground = { kind: 'reasoning', sequence: 1, text: '片段', textOffset: -1 }
+    expect(() => piState(piJson(invalid))).toThrow('Invalid Pi session state')
   })
 
   it('advances foreground only on new semantic events and clears it on settlement', async () => {

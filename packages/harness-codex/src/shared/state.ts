@@ -839,7 +839,8 @@ function isForeground(value: unknown): value is HarnessBartForeground {
   if (value.kind === 'reasoning') {
     // A provider signal with no displayable text still keeps the thinking eye
     // and blue dot; only the arc text is omitted, never invented.
-    return hasOnlyKeys(value, ['sequence', 'kind', 'text']) &&
+    return hasOnlyKeys(value, ['sequence', 'kind', 'text', 'textOffset']) &&
+      (value.textOffset === undefined || (Number.isSafeInteger(value.textOffset) && Number(value.textOffset) >= 0)) &&
       boundedString(value.text, MAX_REASONING)
   }
   if (value.kind === 'tool-call') {

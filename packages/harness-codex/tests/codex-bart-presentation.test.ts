@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_BART_REASONING_TAIL_POINTS, MAX_BART_TOOL_NAME_POINTS } from '@openagent/contracts/renderer'
+import { MAX_BART_REASONING_SOURCE_POINTS, MAX_BART_TOOL_NAME_POINTS } from '@openagent/contracts/renderer'
 import { projectCodexBartPresentation } from '../src/shared/bart-presentation.js'
 import {
   createEmptyCodexState,
@@ -141,7 +141,7 @@ describe('Codex Bart foreground activity', () => {
     expect(projectCodexBartPresentation(state).activity).toBeNull()
   })
 
-  it('bounds the reasoning tail and the canonical tool name by code point', () => {
+  it('retains reasoning bursts for consumption and bounds the canonical tool name', () => {
     let state = staged()
     for (const chunk of ['推'.repeat(60), '再推'.repeat(40)]) {
       state = send(state, { type: 'reasoning-delta', delta: chunk })
@@ -149,8 +149,8 @@ describe('Codex Bart foreground activity', () => {
     const reasoning = projectCodexBartPresentation(state).activity
     expect(reasoning?.kind).toBe('reasoning')
     const text = reasoning?.kind === 'reasoning' ? reasoning.text : ''
-    expect([...text].length).toBe(MAX_BART_REASONING_TAIL_POINTS)
-    expect(text).toBe([...'推'.repeat(60) + '再推'.repeat(40)].slice(-MAX_BART_REASONING_TAIL_POINTS).join(''))
+    expect([...text].length).toBeLessThanOrEqual(MAX_BART_REASONING_SOURCE_POINTS)
+    expect(text).toBe('推'.repeat(60) + '再推'.repeat(40))
 
     const tool = send(state, {
       type: 'activity-start',
@@ -183,6 +183,19 @@ describe('Codex Bart foreground activity', () => {
       callId: 'call-1',
       toolName: 'read_file'
     })
+  })
+
+  it('persists the absolute reasoning window position without splitting surrogate pairs', () => {
+    let state = send(staged(), { type: 'reasoning-delta', delta: '🧠'.repeat(MAX_BART_REASONING_SOURCE_POINTS + 3) })
+    state = send(state, { type: 'reasoning-delta', delta: '完成' })
+    const decoded = decodeCodexState(JSON.parse(JSON.stringify(state)))
+    expect(activityOf(decoded)).toMatchObject({
+      kind: 'reasoning', sequence: 1, textOffset: 10,
+      text: '🧠'.repeat(MAX_BART_REASONING_SOURCE_POINTS - 2) + '完成'
+    })
+    state = send(state, { type: 'text-delta', itemId: 'a', delta: '说明' })
+    state = send(state, { type: 'reasoning-delta', delta: '新的段落' })
+    expect(activityOf(state)).toEqual({ kind: 'reasoning', text: '新的段落', sequence: 3, executionId: 'execution-1' })
   })
 
   it('starts the next execution from an empty foreground', () => {

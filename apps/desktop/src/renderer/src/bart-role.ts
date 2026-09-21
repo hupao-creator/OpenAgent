@@ -10,7 +10,7 @@ import { isDedicatedBartTool } from './bart-visual-operation'
 export type BartDockRole =
   | { readonly kind: 'idle' }
   | { readonly kind: 'running' }
-  | { readonly kind: 'reasoning'; readonly text: string; readonly segmentKey: string }
+  | { readonly kind: 'reasoning'; readonly text: string; readonly segmentKey: string; readonly sourceText?: string; readonly sourceOffset?: number }
   | { readonly kind: 'tool'; readonly toolName: string }
 
 const IDLE_BART_ROLE: BartDockRole = { kind: 'idle' }
@@ -31,6 +31,7 @@ export function resolveBartRole(
   switch (activity.kind) {
     case 'reasoning':
       return { kind: 'reasoning', text: reasoningArcText(activity.text),
+        sourceText: activity.text, sourceOffset: activity.textOffset ?? 0,
         segmentKey: JSON.stringify([activity.executionId, activity.sequence]) }
     case 'tool-call':
       return isDedicatedBartTool(activity.toolName)
