@@ -20,9 +20,9 @@ export function streamOverlap(previous: readonly string[], next: readonly string
   return 0
 }
 
-/** React owns the latest bounded source. This layer keeps the visible text and
- * at most that latest tail waiting beyond the circle; obsolete, unseen batches
- * are discarded without moving any glyph already on screen. */
+/** React owns the latest bounded source. Glide only through contiguous text;
+ * if snapshots disconnect or the backlog outgrows the circle plus latest tail,
+ * rebase to that tail instead of stitching unrelated fragments together. */
 export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElement, sourcePath: SVGTextPathElement): {
   update(mode: ReasoningStreamStyle, end: number, width: number, length: number, segmentKey: string | null): void
   dispose(): void
@@ -85,14 +85,13 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
       width = measure(content(glyphs))
       obsolete -= exited
     }
-    // Replace only fully off-circle waiting text; the visible prefix keeps its
-    // position because shortening the suffix shortens the end offset equally.
+    // Removing a middle slice would splice nonadjacent words into a sentence
+    // the source never contained. Catch up with one intact latest snapshot.
     const unseen = boundary(point => point >= length)
     if (unseen < obsolete) {
-      glyphs.splice(unseen, obsolete - unseen)
-      const nextWidth = measure(content(glyphs))
-      offset += nextWidth - width
-      width = nextWidth
+      glyphs = glyphs.slice(-latest.length)
+      offset = target
+      width = sourceWidth
     }
   }
   const paint = (now: number): void => {
@@ -129,6 +128,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
       }))
       const reset = mode === 'direct' || nextMode === 'direct' ||
         segmentKey !== nextSegment ||
+        (nextValue !== value && overlap === 0) ||
         (nextValue === value && (nextWidth !== sourceWidth || end !== target))
 
       if (nextMode === 'direct') {

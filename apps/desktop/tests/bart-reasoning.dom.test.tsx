@@ -3,7 +3,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { useRef } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { BartRoleDecoration } from '../src/renderer/src/components/BartRoleDecoration'
-import { BART_REASONING_DEFAULTS } from '../src/renderer/src/bart-motion/reasoning-geometry'
+import { BART_REASONING_DEFAULTS, type ReasoningStreamStyle } from '../src/renderer/src/bart-motion/reasoning-geometry'
 import { resolveBartRole, type BartDockRole } from '../src/renderer/src/bart-role'
 import { useBartDisplay } from '../src/renderer/src/use-bart-display'
 import { streamOverlap } from '../src/renderer/src/bart-motion/reasoning-stream-presentation'
@@ -50,15 +50,15 @@ afterEach(() => {
   Reflect.deleteProperty(Element.prototype, 'animate')
 })
 
-function Fixture({ text, active = true, workerReady = true }: { text: string; active?: boolean; workerReady?: boolean }) {
+function Fixture({ text, active = true, workerReady = true, stream }: { text: string; active?: boolean; workerReady?: boolean; stream?: ReasoningStreamStyle }) {
   const role = resolveBartRole({ kind: 'reasoning', text, sequence: 1, executionId: 'execution-1' }, false)
-  return <DecorationFixture role={role} active={active} workerReady={workerReady} />
+  return <DecorationFixture role={role} active={active} workerReady={workerReady} stream={stream} />
 }
-function DecorationFixture({ role, active = true, workerReady = true }: { role: BartDockRole; active?: boolean; workerReady?: boolean }) {
+function DecorationFixture({ role, active = true, workerReady = true, stream = BART_REASONING_DEFAULTS.stream }: { role: BartDockRole; active?: boolean; workerReady?: boolean; stream?: ReasoningStreamStyle }) {
   const dock = useRef<HTMLDivElement>(null)
   return <div ref={dock} className="bart-dock">
     <span className="bart-dock-reasoning-motion"><svg className="bart-logo" data-worker-ready={workerReady ? 'true' : undefined} /></span>
-    <BartRoleDecoration role={role} dockRef={dock} active={active} />
+    <BartRoleDecoration role={role} dockRef={dock} active={active} reasoningOptions={{ ...BART_REASONING_DEFAULTS, stream }} />
   </div>
 }
 const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms))
@@ -167,32 +167,50 @@ it('paces large batches like small batches while keeping visible text in place',
   expect(offset()).toBe(452)
 })
 
-it('bounds continuous burst backlog outside the circle and settles on the latest tail', () => {
+it('rebases disjoint same-segment snapshots instead of joining missing text', () => {
   const sample = (start: number) => Array.from({ length: 56 }, (_, index) => String.fromCodePoint(0x4e00 + start + index)).join('')
   const f = render(<Fixture text={sample(0)} />)
   const displayed = () => f.container.querySelector('[data-bart-stream-layer] textPath')!
-  // Each batch replaces the entire capped source, as a real provider can do.
+  // Each burst skips more than a source window. The missing characters cannot
+  // be reconstructed by joining the previous visible text to the latest tail.
   for (let batch = 1; batch <= 50; batch++) {
     advance(160)
-    const oldText = Array.from(displayed().textContent!)
-    const oldOffset = Number(displayed().getAttribute('startOffset'))
-    const oldStart = oldOffset - oldText.length * 10
-    const visible = oldText.findIndex((_, index) => oldStart + index * 10 >= 100)
-    const marker = oldText[visible]
-    f.rerender(<Fixture text={sample(batch * 56)} />)
-    const next = Array.from(displayed().textContent!)
-    const newOffset = Number(displayed().getAttribute('startOffset'))
-    expect(next).toContain(marker)
-    expect(newOffset - next.length * 10 + next.indexOf(marker) * 10).toBeCloseTo(oldStart + visible * 10)
-    expect(next.length).toBeLessThanOrEqual(56 + Math.ceil(452 / 10) + 1)
-    expect(displayed().textContent).toMatch(new RegExp(`${sample(batch * 56)}$`, 'u'))
+    f.rerender(<Fixture text={sample(batch * 80)} />)
+    expect(displayed().textContent).toBe(sample(batch * 80))
+    expect(Number(displayed().getAttribute('startOffset'))).toBe(452)
   }
   advance(6000)
-  expect(displayed().textContent).toBe(sample(50 * 56))
+  expect(displayed().textContent).toBe(sample(50 * 80))
   expect(Number(displayed().getAttribute('startOffset'))).toBe(452)
-  f.rerender(<Fixture text={sample(51 * 56)} active={false} />)
+  f.rerender(<Fixture text={sample(51 * 80)} active={false} />)
   expect(f.container.querySelector('[data-bart-stream-layer]')).toBeNull()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it.each(['glide', 'soft'] as const)('keeps %s burst frames contiguous with the original reasoning', (stream) => {
+  const transcript = [
+    '先确认当前的问题，再沿着调用链检查上下文，找到真正影响结果的部分。',
+    'Checking the latest reasoning delta and comparing the original input with its output. ',
+    '接下来检查边界情况：短句、标点、中英文混排，以及 emoji 👩‍💻 和组合字符 e\u0301。',
+    'Read the configuration, inspect the implementation, then verify each change against the source. ',
+    '确认这些细节之后，再整理结论，给出清晰的下一步，并记录已经完成的验证。'
+  ].join('')
+  const points = Array.from(transcript)
+  const f = render(<Fixture text={points.slice(0, 56).join('')} stream={stream} />)
+  const displayed = () => f.container.querySelector('[data-bart-stream-layer] textPath')!
+  // Overlapping windows still accumulate faster than the readable glide. Do
+  // not silently delete the middle to stitch visible text to the latest tail.
+  for (let end = 68; end < points.length + 12; end += 12) {
+    const received = points.slice(0, end).join('')
+    f.rerender(<Fixture text={received} stream={stream} />)
+    for (let frame = 0; frame < 10; frame++) {
+      expect(received).toContain(displayed().textContent)
+      expect(Array.from(displayed().textContent!).length).toBeLessThanOrEqual(56 + Math.ceil(452 / 10) + 1)
+      advance(16)
+    }
+  }
+  advance(6000)
+  expect(displayed().textContent).toBe(f.container.querySelector('.bart-role-arc > text textPath')!.textContent)
 })
 
 
@@ -204,21 +222,22 @@ it('clears pending text at real segment and execution boundaries without restart
     }, true)
     return <DecorationFixture role={role} />
   }
-  const f = render(<Scheduled text={'甲'.repeat(56)} />)
+  const sample = (start: number) => Array.from({ length: 56 }, (_, index) => String.fromCodePoint(0x4e00 + start + index)).join('')
+  const f = render(<Scheduled text={sample(0)} />)
   const layer = f.container.querySelector('[data-bart-stream-layer] textPath')!
   const source = f.container.querySelector('.bart-role-arc > text textPath')!
-  f.rerender(<Scheduled text={'乙'.repeat(56)} />)
+  f.rerender(<Scheduled text={sample(12)} />)
   advance(150)
-  expect(layer.textContent).toContain('甲')
+  expect(layer.textContent).not.toBe(sample(12))
   expect(layer.getAttribute('startOffset')).not.toBe(source.getAttribute('startOffset'))
   // Equal text must still cross the display scheduler when the identity changes.
-  f.rerender(<Scheduled text={'乙'.repeat(56)} sequence={2} />)
+  f.rerender(<Scheduled text={sample(12)} sequence={2} />)
   advance(150)
-  expect(layer.textContent).toBe('乙'.repeat(56))
+  expect(layer.textContent).toBe(sample(12))
   expect(layer.getAttribute('startOffset')).toBe(source.getAttribute('startOffset'))
-  f.rerender(<Scheduled text={'丙'.repeat(56)} sequence={2} />)
+  f.rerender(<Scheduled text={sample(24)} sequence={2} />)
   advance(150)
-  expect(layer.textContent).toContain('乙')
+  expect(layer.textContent).not.toBe(sample(24))
   f.rerender(<Scheduled text={'丁'.repeat(56)} sequence={2} executionId="execution-2" />)
   expect(layer.textContent).toBe('丁'.repeat(56))
   expect(layer.getAttribute('startOffset')).toBe(source.getAttribute('startOffset'))
