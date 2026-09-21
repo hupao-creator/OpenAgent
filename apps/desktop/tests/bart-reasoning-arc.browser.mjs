@@ -177,10 +177,11 @@ try {
   // Start with a whole burst, rather than growing from the Lab's one-character
   // live fixture. Detached SVG probes have no layout in Chromium (unlike a
   // naive jsdom measurement stub), and used to stall this queue indefinitely.
-  for (const [name, firstBurst] of [
+  for (const [name, firstBurst, expected = firstBurst.slice(-56)] of [
     ['initial-burst', Array.from({ length: 180 }, (_, index) => String.fromCodePoint(0x4e00 + index)).join('')],
     ['zero-width-burst', 'W' + '\u200b'.repeat(111) + 'X'],
-    ['narrow-tail-burst', 'i'.repeat(180)]
+    ['narrow-tail-burst', 'i'.repeat(180)],
+    ['grapheme-boundary', 'Ae\u0301' + 'B'.repeat(55), 'B'.repeat(55)]
   ]) {
     const burstPage = await browser.newPage({ viewport: { width: 1600, height: 900 } })
     burstPage.on('pageerror', error => errors.push(error.message))
@@ -198,13 +199,13 @@ try {
       const svg = document.querySelector('iframe').contentDocument.querySelector('.bart-role-arc')
       const source = svg?.querySelector('textPath'), layer = svg?.querySelector('[data-bart-stream-layer] textPath')
       return layer?.textContent === expected && source?.getAttribute('startOffset') === layer.getAttribute('startOffset')
-    }, firstBurst.slice(-56))
+    }, expected)
     await burstPage.screenshot({ path: path.join(output, `${name}-settled.png`) })
     await burstPage.close()
   }
   assert.deepEqual(errors, [], 'Lab has no runtime errors')
   await writeFile(path.join(output, 'results.json'), JSON.stringify(samples, null, 2))
-  console.log(`Passed ${samples.length} real-browser arc cases and three burst regressions. Evidence: ${output}`)
+  console.log(`Passed ${samples.length} real-browser arc cases and four stream boundary regressions. Evidence: ${output}`)
 } finally {
   await browser.close()
 }

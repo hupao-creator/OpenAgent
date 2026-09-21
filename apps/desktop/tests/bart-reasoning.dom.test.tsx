@@ -346,6 +346,16 @@ it('joins split emoji and combining marks at the producer boundary', () => {
   expect(Array.from(displayed.querySelectorAll('tspan'), node => node.textContent)).toContain('e\u0301')
 })
 
+it.each(['e\u0301', '👩‍💻', '🇨🇳'])('settles on the same complete-grapheme tail as direct mode: %s', (cluster) => {
+  const f = render(<Fixture text={'A' + cluster + 'B'.repeat(55)} />)
+  advance(10_000)
+  const source = f.container.querySelector('.bart-role-arc > text textPath')!
+  const displayed = f.container.querySelector('[data-bart-stream-layer] textPath')!
+  expect(source.textContent).toBe('B'.repeat(55))
+  expect(displayed.textContent).toBe(source.textContent)
+  expect(displayed.getAttribute('startOffset')).toBe(source.getAttribute('startOffset'))
+})
+
 
 it('clears pending text at real segment and execution boundaries without restarting the pose', () => {
   function Scheduled({ text, sequence = 1, executionId = 'execution-1' }: { text: string; sequence?: number; executionId?: string }) {

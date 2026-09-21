@@ -41,6 +41,20 @@ describe('Bart Dock role resolution', () => {
     expect(wideRole.kind === 'reasoning' ? wideRole.text : '').toBe('🧠'.repeat(MAX_BART_REASONING_TAIL_POINTS))
   })
 
+  it.each(['e\u0301', '👩‍💻', '🇨🇳'])('starts the retained tail after a grapheme crossing the budget: %s', (cluster) => {
+    const role = resolveBartRole(reasoning('A' + cluster + 'B'.repeat(55)), false)
+    expect(role).toMatchObject({ kind: 'reasoning', text: 'B'.repeat(55) })
+  })
+
+  it('keeps a complete boundary grapheme when it fits the source budget', () => {
+    const role = resolveBartRole(reasoning('Ae\u0301' + 'B'.repeat(54)), false)
+    expect(role).toMatchObject({ kind: 'reasoning', text: 'e\u0301' + 'B'.repeat(54) })
+  })
+
+  it('omits a single oversized grapheme instead of rendering detached combining marks', () => {
+    expect(resolveBartRole(reasoning('e' + '\u0301'.repeat(60)), false)).toMatchObject({ kind: 'reasoning', text: '' })
+  })
+
   it('shows the generic tool signature for a call without a dedicated route', () => {
     const activity: HarnessBartActivity = {
       kind: 'tool-call',
