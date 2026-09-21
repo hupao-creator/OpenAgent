@@ -26,11 +26,6 @@ function cardUsage(usage: PiMessage['usage']): ThreadCardIdentityUsage | undefin
     id: 'total', suffix: 'tokens', description: '输入与输出 token 合计，按 Harness 当前上报的统计范围显示',
     value: compactTokens(prompt + usage.output), numericValue: prompt + usage.output
   }]
-  if (prompt > 0) {
-    const ratio = usage.cacheRead / prompt
-    parts.push({ id: 'cache-read', suffix: 'cached', description: '缓存读取 token 占输入 token 的比例',
-      value: `${(ratio * 100).toFixed(1)}%`, numericValue: ratio })
-  }
   return { parts }
 }
 

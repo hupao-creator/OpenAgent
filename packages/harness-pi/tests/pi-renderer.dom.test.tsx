@@ -264,10 +264,10 @@ it('leaves a short overview excerpt unmarked', () => {
   const projection = piOverviewCardModule.project({ thread: cardThread([{ id: 'a1', executionId: 'run', role: 'assistant', text: '  短  正文  ' }]), layout: { availableColumns: 2 } })
   expect(projection.excerpt).toBe('短 正文')
 })
-it('shows the latest run usage and cache ratio on the overview card', () => {
+it('shows the latest run token total without a cache ratio on the overview card', () => {
   const view = renderCard(cardThread([{ id: 'u1', executionId: 'run', role: 'user', text: '问题' },
     { id: 'a1', executionId: 'run', role: 'assistant', text: '当前回答', usage: { input: 10, output: 4, cacheRead: 5, cacheWrite: 2 } }]))
-  expect(view.container.querySelector('.thread-card-identity-usage')).toHaveTextContent('21tokens · 29.4%cached')
+  expect(view.container.querySelector('.thread-card-identity-usage')).toHaveTextContent(/^21tokens$/)
 })
 it('keeps the previous run usage off a card whose own run reported none', () => {
   const executions: PublicExecution[] = [{ executionId: 'first', status: 'completed', startedAt: 1, finishedAt: 2 },
