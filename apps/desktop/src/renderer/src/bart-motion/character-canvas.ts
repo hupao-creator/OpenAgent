@@ -118,7 +118,9 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
     },
     paint(ctx: OffscreenCanvasRenderingContext2D, now: number, width: number, height: number): void {
       if (description.animate === false) snapMotionToTargets(state)
-      renderMotionFrame(state, parts, now)
+      // Resize and density redraws must not advance a suspended face's natural
+      // blink, gaze or gesture clocks. Repaint the same model instant instead.
+      renderMotionFrame(state, parts, description.animate === false ? state.lastFrameAt : now)
       // A suspended/hidden surface resumes without skipping the light story.
       if (running() && description.animate !== false) runningElapsed += Math.max(0, Math.min(64, now - runningPaintAt))
       runningPaintAt = now
