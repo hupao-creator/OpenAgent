@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { fakeSnapshots } from '../playgrounds/single-thread/src/fake-snapshots'
@@ -71,4 +71,69 @@ it('freezes nested snapshot records so preview code cannot alter their source', 
   const captured = parseSnapshot(structuredClone(state))
   expect(() => { Object.assign(captured.reports[0]!, { title: 'changed' }) }).toThrow()
   expect(() => { Array.prototype.push.call(captured.reports, captured.reports[0]!) }).toThrow()
+})
+
+it('compares every Agent snapshot offline without altering the production card or fixture', async () => {
+  const fetch = vi.fn(() => { throw new Error('Lab must work offline') })
+  vi.stubGlobal('fetch', fetch)
+  const before = JSON.stringify(fakeSnapshots)
+  for (const scene of fakeSnapshots.filter(item => item.harness !== 'report')) {
+    window.history.replaceState(null, '', `/?kind=agent&harness=${scene.harness}&case=${scene.scenario}&view=compare`)
+    render(<AppI18nProvider locale="zh-CN"><SingleThreadLab /></AppI18nProvider>)
+    const after = await screen.findByRole('article', { name: 'After 任务卡片' })
+    expect(document.querySelectorAll('[data-overview-card-id]')).toHaveLength(1)
+    expect(document.querySelector('.single-lab-grid')).toHaveAttribute('data-snapshot', scene.snapshot)
+    expect(document.querySelector('.card-comparison')).toHaveAttribute('data-comparison-snapshot', scene.snapshot)
+    if (scene.scenario.endsWith('failed')) expect(after).toHaveAttribute('data-after-status', 'failed')
+    if (scene.scenario.startsWith('background-')) expect(within(after).getByText('另有后台工作运行中')).toBeVisible()
+    cleanup()
+  }
+  expect(fetch).not.toHaveBeenCalled()
+  expect(JSON.stringify(fakeSnapshots)).toBe(before)
+})
+
+it.each(['claude', 'codex'])('records %s After answers with native identifiers and resets both designs', async harness => {
+  window.history.replaceState(null, '', `/?kind=agent&harness=${harness}&case=question&view=compare`)
+  const user = userEvent.setup()
+  const original = JSON.stringify(fakeSnapshots)
+  render(<AppI18nProvider locale="zh-CN"><SingleThreadLab /></AppI18nProvider>)
+  let after = within(await screen.findByRole('article', { name: 'After 任务卡片' }))
+  expect(after.getByRole('button', { name: '提交回答' })).toBeDisabled()
+  await user.click(after.getByRole('radio', { name: '项目名称' }))
+  await user.click(after.getByRole('button', { name: '提交回答' }))
+  const scene = fakeSnapshots.find(item => item.harness === harness && item.scenario === 'question')!
+  const execution = scene.state.threads.find(thread => thread.id === scene.threadId)!.observation.latestExecution!
+  if (execution.status !== 'waiting-for-user') throw new Error('Expected waiting fixture')
+  const interaction = execution.interactions[0]!
+  expect(document.querySelector('output')).toHaveTextContent(JSON.stringify({ interactionId: interaction.id,
+    actionId: interaction.actions.find(action => action.intent === 'submit')!.id,
+    answers: { [interaction.questions[0]!.id]: interaction.questions[0]!.options[0]!.value } }))
+  expect(after.getByRole('status')).toHaveTextContent('已记录模拟回应')
+  await user.click(screen.getByRole('button', { name: '重置交互' }))
+  after = within(screen.getByRole('article', { name: 'After 任务卡片' }))
+  expect(after.getByRole('button', { name: '提交回答' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: '概览' }))
+  expect(after.queryByRole('radio')).not.toBeInTheDocument()
+  expect(after.getByText('等你回答')).toBeVisible()
+  await user.click(after.getByRole('button', { name: '回答问题' }))
+  expect(document.querySelector('output')).toHaveTextContent('记录打开 Agent Thread：回答问题')
+  await user.click(screen.getByRole('button', { name: '生产卡片' }))
+  expect(screen.queryByRole('article', { name: 'After 任务卡片' })).not.toBeInTheDocument()
+  expect(new URL(location.href).searchParams.has('view')).toBe(false)
+  expect(JSON.stringify(fakeSnapshots)).toBe(original)
+})
+
+it('records permission decisions and custom answers only in the comparison log', async () => {
+  window.history.replaceState(null, '', '/?kind=agent&harness=codex&case=approval&view=compare')
+  const user = userEvent.setup()
+  render(<AppI18nProvider locale="zh-CN"><SingleThreadLab /></AppI18nProvider>)
+  let after = within(await screen.findByRole('article', { name: 'After 任务卡片' }))
+  await user.click(after.getByRole('button', { name: '拒绝' }))
+  expect(document.querySelector('output')).toHaveTextContent('"actionId":"deny"')
+  await user.click(screen.getByRole('button', { name: '等待回答' }))
+  after = within(await screen.findByRole('article', { name: 'After 任务卡片' }))
+  await user.click(after.getByRole('radio', { name: '自定义回答' }))
+  await user.type(after.getByRole('textbox', { name: '自定义回答内容' }), '只搜索描述')
+  await user.click(after.getByRole('button', { name: '提交回答' }))
+  expect(document.querySelector('output')).toHaveTextContent('只搜索描述')
 })

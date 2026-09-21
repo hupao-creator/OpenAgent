@@ -21,6 +21,29 @@ Examples: `/?kind=agent&harness=claude&case=question` and
 `/?kind=report&case=overflow`. Resize the window to exercise production layout,
 and use the appearance control for light/dark.
 
+## Before / After
+
+Choose **Before / After** on Agent Thread, or open
+[`/?kind=agent&harness=claude&case=question&view=compare`](http://127.0.0.1:4178/?kind=agent&harness=claude&case=question&view=compare).
+All 26 existing Agent snapshots work in comparison mode. The Report preview and
+the default production view remain available.
+
+Before mounts the production card at its natural size. After is a playground-only
+proposal inspired by Apple's [Widgets](https://developer.apple.com/design/human-interface-guidelines/widgets)
+and [Live Activities](https://developer.apple.com/design/human-interface-guidelines/live-activities)
+guidance: visible state, a current fact or result, then a relevant action. Both
+read the same frozen snapshot; the After adapter uses public observations and
+decodes the existing Harness plan without manufacturing progress or results.
+Completed executions with live background work still disclose that activity.
+
+Use **聚焦 / 概览** below After to change its information density without scaling
+down text. Simple questions and permissions record the original interaction and
+action identifiers, with no host calls. Complex or secret questions use the
+simulated detail entry. **重置交互** resets both cards. The comparison stacks on
+narrow screens; the production card can scroll horizontally at its minimum size.
+After supports light/dark appearances and reduced motion. It does not replace
+the production card or change runtime state.
+
 Validation: `pnpm lab:thread:check`, `pnpm lab:thread:build`, and
 `pnpm --dir apps/desktop exec vitest run tests/single-thread-lab.dom.test.tsx`.
 The DOM regression renders all 31 scenes with network fetching forbidden.

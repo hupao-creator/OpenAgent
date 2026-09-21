@@ -1,0 +1,68 @@
+.card-comparison { width: 100%; max-width: 1240px; margin: 0 auto; }
+.comparison-caption { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 28px; color: var(--muted); font-size: 12px; }
+.comparison-caption > :last-child { color: var(--faint); }
+.comparison-pair { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 48px; align-items: start; }
+.comparison-side { min-width: 0; }
+.comparison-label { display: flex; align-items: baseline; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.comparison-label h2 { margin: 0; font-size: 20px; font-weight: 560; letter-spacing: -.04em; }
+.comparison-label h2 > span { margin-right: 10px; color: var(--faint); font-size: 11px; font-weight: 450; letter-spacing: 0; }
+.comparison-label p { margin: 0; color: var(--muted); font-size: 12px; }
+.comparison-before-stage { min-width: 0; overflow-x: auto; padding-bottom: 30px; }
+.comparison-before-stage > .single-lab-grid { margin: 0; }
+.comparison-density { display: flex; width: fit-content; gap: 2px; margin: 22px auto 0; padding: 3px; border: 1px solid var(--line); border-radius: 8px; }
+.comparison-density button { padding: 5px 16px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; transition: background 160ms, color 160ms; }
+.comparison-density button[aria-pressed=true] { color: var(--ink); background: var(--surface-strong); box-shadow: 0 1px 4px #0000000a; }
+.comparison-footnote { margin: 36px 0 0; color: var(--faint); font-size: 12px; }
+.after-thread-card { --after-accent: light-dark(#427456, #a2cbb0); position: relative; width: 360px; box-sizing: border-box; padding: 23px; border: 1px solid light-dark(#dedfd7, #454940); border-radius: 22px; background: light-dark(#fffefa, #262922); box-shadow: 0 10px 26px light-dark(#25332209, #00000025); color: var(--ink); animation: after-card-enter 220ms ease-out both; }
+.after-thread-card[data-after-status=question], .after-thread-card[data-after-status=permission] { --after-accent: light-dark(#8c631c, #e0ba78); }
+.after-thread-card[data-after-status=failed] { --after-accent: light-dark(#ad4a3b, #e69889); }
+.after-thread-card[data-after-status=idle], .after-thread-card[data-after-status=interrupted] { --after-accent: var(--muted); }
+.after-thread-identity { display: flex; align-items: flex-start; gap: 9px; color: var(--muted); }
+.after-thread-identity > svg { flex: none; margin-top: 2px; }
+.after-thread-identity h2 { margin: 0; font-size: 13px; font-weight: 500; line-height: 1.55; overflow-wrap: anywhere; }
+.after-thread-content { margin-top: 26px; }
+.after-thread-status { display: flex; align-items: center; gap: 6px; color: var(--after-accent); font-size: 12px; font-weight: 580; }
+.after-status-dot { width: 7px; height: 7px; margin: 0 4px; border-radius: 50%; background: currentColor; }
+.after-thread-content h3 { margin: 10px 0 0; font-size: 23px; font-weight: 570; line-height: 1.45; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.after-thread-detail { margin: 12px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.after-thread-command { margin: 14px 0 0; padding: 10px 12px; background: light-dark(#f3f2ed, #31352c); border-radius: 7px; color: var(--muted); font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.after-thread-plan { display: flex; flex-direction: column; gap: 12px; margin: 24px 0 0; padding: 0; list-style: none; }
+.after-thread-plan li { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.after-thread-plan li > span { display: grid; place-items: center; flex: none; width: 17px; height: 17px; border: 1px solid var(--line); border-radius: 50%; font-size: 10px; }
+.after-thread-plan li[data-state=inProgress] { color: var(--ink); font-weight: 550; }
+.after-thread-plan li[data-state=inProgress] > span { color: light-dark(white, #17271e); background: var(--after-accent); border-color: transparent; }
+.after-thread-plan li[data-state=completed] > span { border-color: transparent; color: var(--after-accent); }
+.after-thread-response { margin-top: 20px; }
+.after-thread-options { display: grid; gap: 3px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.after-thread-option { display: flex; align-items: center; gap: 10px; padding: 10px 9px; border: 1px solid transparent; border-radius: 9px; cursor: pointer; transition: background 150ms, border-color 150ms; }
+.after-thread-option:has(input:checked) { border-color: var(--line); background: light-dark(#f2f3ed, #34382f); }
+.after-thread-option:hover { background: light-dark(#f4f4ef, #30342b); }
+.after-thread-option input { flex: none; width: 15px; height: 15px; margin: 0; accent-color: var(--ink); }
+.after-thread-option strong { display: block; font-size: 13px; line-height: 1.5; font-weight: 500; }
+.after-thread-option small { display: block; margin-top: 3px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.after-thread-input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--surface); font: inherit; font-size: 13px; }
+.after-thread-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.after-thread-actions button { min-height: 38px; padding: 8px 15px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity 150ms, transform 150ms; }
+.after-thread-actions button:active:not(:disabled) { transform: translateY(1px); }
+.after-action-primary { background: var(--ink); color: var(--surface); }
+.after-action-secondary { background: transparent; color: var(--muted); }
+.after-thread-actions button:disabled { opacity: .38; cursor: default; }
+.after-response-recorded { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 16px 0 0; color: var(--after-accent); font-size: 13px; }
+.after-response-recorded span { width: 100%; padding-left: 23px; color: var(--muted); font-size: 12px; }
+.after-thread-background { display: flex; align-items: center; gap: 6px; margin: 20px 0 0; color: var(--muted); font-size: 12px; }
+.after-thread-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 25px; padding-top: 17px; border-top: 1px solid var(--line-soft); }
+.after-thread-open { display: inline-flex; align-items: center; flex: none; gap: 5px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 530; cursor: pointer; }
+.after-thread-open svg { transition: transform 150ms; }
+.after-thread-open:hover svg { transform: translate(2px, -2px); }
+.after-thread-location { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--faint); font-size: 11px; overflow-wrap: anywhere; }
+.after-thread-location svg { flex: none; }
+.after-thread-provider { display: block; margin-top: 15px; color: var(--faint); font-size: 11px; }
+.after-thread-card.is-compact .after-thread-content { margin-top: 20px; }
+.after-thread-card.is-compact h3 { font-size: 20px; }
+.after-thread-card.is-compact .after-thread-provider { display: none; }
+.after-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.card-comparison :is(button, input):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+@keyframes after-card-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 1199px) { .comparison-pair { grid-template-columns: 1fr; gap: 36px; } .comparison-side-after { width: 100%; } .comparison-density { margin-left: 0; } }
+@media (max-width: 600px) { .comparison-caption { flex-direction: column; gap: 6px; } .after-thread-card { width: 100%; max-width: 360px; padding: 20px; } }
+@media (prefers-reduced-motion: reduce) { .after-thread-card, .card-comparison *, .card-comparison *::before, .card-comparison *::after { animation: none !important; transition: none !important; } }

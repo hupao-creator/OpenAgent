@@ -9,6 +9,7 @@ import { projectHarnessOverviewThread } from '../../../src/renderer/src/harness-
 import { createRendererStateStore, hydrateRendererStateStore } from '../../../src/shared/renderer-store'
 import { fakeSnapshots } from './fake-snapshots'
 import { harnesses, agentScenarios, combinations, reportScenarios } from './scenarios'
+import { CardComparison } from './CardComparison'
 
 export function SingleThreadLab(): React.JSX.Element {
   const [store] = useState(() => createRendererStateStore(''))
@@ -24,6 +25,9 @@ export function SingleThreadLab(): React.JSX.Element {
   const [notice, setNotice] = useState('')
   const [replay, setReplay] = useState(0)
   const [theme, setTheme] = useState('light')
+  const [compact, setCompact] = useState(false)
+  const [view, setView] = useState(() => initial.get('view') === 'compare' ? 'compare' : 'production')
+  const comparing = kind === 'agent' && view === 'compare'
   const stage = useRef<HTMLElement>(null)
   const [width, setWidth] = useState(0)
   const availableColumns = overviewCardAvailableColumns(width, width <= 700 ? 28 : 128)
@@ -48,9 +52,10 @@ export function SingleThreadLab(): React.JSX.Element {
   }, [selected, store])
   useEffect(() => {
     const url = new URL(location.href)
-    url.search = new URLSearchParams({ kind, harness, case: kind === 'report' ? reportScenario : scenario }).toString()
+    url.search = new URLSearchParams({ kind, harness, case: kind === 'report' ? reportScenario : scenario,
+      ...(view === 'compare' ? { view } : {}) }).toString()
     history.replaceState(null, '', url)
-  }, [kind, harness, scenario, reportScenario])
+  }, [kind, harness, scenario, reportScenario, view])
   useEffect(() => {
     document.documentElement.style.colorScheme = theme
     return () => { document.documentElement.style.removeProperty('color-scheme') }
@@ -64,17 +69,58 @@ export function SingleThreadLab(): React.JSX.Element {
   const { columns, rows } = kind === 'report' && !navigationId ? { columns: REPORT_CARD_SIZE.cols, rows: REPORT_CARD_SIZE.rows } : source?.envelope.footprint ?? { columns: 1, rows: 1 }
   const log = (action: string): void => setNotice(`${action}；快照保持不变`)
 
-  return <RendererCapabilitiesProvider capabilities={{ openExternal: url => log(`记录打开链接：${url}`) }}><main className="single-lab">
+  const controls = (
+    <aside className="single-lab-controls" aria-label="实验室控制台">
+      {kind === 'agent' ? <>
+        <div className="single-lab-switch" role="group" aria-label="Harness">
+          {harnesses.map(item => <button type="button" key={item.id} aria-pressed={harness === item.id}
+            onClick={() => {
+              setHarness(item.id); setNotice('')
+            }}>{item.label}</button>)}
+        </div>
+        <div className="single-lab-switch single-lab-scenarios" role="group" aria-label="任务场景">
+          {agentScenarios.map(item => <button type="button" key={item.id} aria-pressed={scenario === item.id}
+            onClick={() => setScenario(item.id)}>{item.label}</button>)}
+        </div>
+        {comparing ? <label className="comparison-combinations">组合场景 <select aria-label="组合场景" value={scenario.startsWith('background-') ? scenario : ''}
+          onChange={event => { if (event.target.value) setScenario(event.target.value) }}>
+          <option value="">选择后台组合…</option>
+          {combinations.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select></label> : <div className="single-lab-switch single-lab-scenarios" role="group" aria-label="组合场景">
+          {combinations.filter(item => cases.some(capture => capture.harness === harness && capture.scenario === item.id)).map(item => <button type="button" key={item.id} aria-pressed={scenario === item.id}
+            onClick={() => setScenario(item.id)}>{item.label}</button>)}
+        </div>}
+      </> : <div className="single-lab-switch" role="group" aria-label="报告场景">
+        {reportScenarios.map(item => <button type="button" key={item.id} aria-pressed={reportScenario === item.id}
+          onClick={() => { setReportScenario(item.id); setNavigationId('') }}>{item.label}</button>)}
+      </div>}
+      <div className="single-lab-footer">
+        <span>模拟快照 · 布局随窗口自动调整</span>
+        {navigationId ? <button type="button" onClick={() => setNavigationId('')}>返回报告</button> : null}
+        <button type="button" onClick={() => { setReplay(value => value + 1); setNotice('') }}>重置交互</button>
+      </div>
+      <output aria-live="polite">{notice}</output>
+    </aside>
+  )
+
+  return <RendererCapabilitiesProvider capabilities={{ openExternal: url => log(`记录打开链接：${url}`) }}><main className={`single-lab${comparing ? ' is-comparing' : ''}`}>
     <header className="single-lab-header">
       <strong>Single Thread Lab</strong>
       <div className="single-lab-switch" role="group" aria-label="Thread 类型">
         {['agent', 'report'].map(value => <button type="button" key={value} aria-pressed={kind === value}
           onClick={() => { setKind(value); setNavigationId(''); setNotice('') }}>{value === 'agent' ? 'Agent Thread' : 'Report Thread'}</button>)}
       </div>
+      {kind === 'agent' && <div className="single-lab-switch" role="group" aria-label="预览模式">
+        <button type="button" aria-pressed={view === 'production'} onClick={() => setView('production')}>生产卡片</button>
+        <button type="button" aria-pressed={view === 'compare'} onClick={() => setView('compare')}>Before / After</button>
+      </div>}
       <label>外观 <select aria-label="外观" value={theme} onChange={event => setTheme(event.target.value)}><option value="light">浅色</option><option value="dark">深色</option></select></label>
     </header>
-    <section ref={stage} className="single-lab-stage" aria-label="单 Thread 生产卡片预览">
-      {!loaded || loaded !== selected?.snapshot ? <p className="single-lab-empty">{selected ? '正在加载场景…' : '未知模拟场景，请选择下方场景'}</p> : <div className="single-lab-grid" data-snapshot={loaded} role="list" style={{
+    {comparing && controls}
+    <section ref={stage} className="single-lab-stage" aria-label={comparing ? 'Thread 卡片 Before / After' : '单 Thread 生产卡片预览'}>
+      {!loaded || loaded !== selected?.snapshot ? <p className="single-lab-empty">{selected ? '正在加载场景…' : '未知模拟场景，请选择下方场景'}</p> : comparing && thread
+        ? <CardComparison thread={thread} snapshot={loaded} replay={replay} record={log} compact={compact} onCompactChange={setCompact} />
+        : <div className="single-lab-grid" data-snapshot={loaded} role="list" style={{
         '--thread-card-column-width': `${OVERVIEW_CARD_GEOMETRY.columnWidth}px`,
         '--thread-card-row-height': `${OVERVIEW_CARD_GEOMETRY.rowHeight}px`,
         '--thread-card-gap': `${OVERVIEW_CARD_GEOMETRY.gap}px`,
@@ -95,32 +141,6 @@ export function SingleThreadLab(): React.JSX.Element {
             onFollowUpOpen={(_id, draft = '') => log(`记录续写请求 ${draft}`)} /> : <p>此快照没有 Agent Thread。</p>}
       </div>}
     </section>
-    <aside className="single-lab-controls" aria-label="实验室控制台">
-      {kind === 'agent' ? <>
-        <div className="single-lab-switch" role="group" aria-label="Harness">
-          {harnesses.map(item => <button type="button" key={item.id} aria-pressed={harness === item.id}
-            onClick={() => {
-              setHarness(item.id); setNotice('')
-            }}>{item.label}</button>)}
-        </div>
-        <div className="single-lab-switch single-lab-scenarios" role="group" aria-label="任务场景">
-          {agentScenarios.map(item => <button type="button" key={item.id} aria-pressed={scenario === item.id}
-            onClick={() => setScenario(item.id)}>{item.label}</button>)}
-        </div>
-        <div className="single-lab-switch single-lab-scenarios" role="group" aria-label="组合场景">
-          {combinations.filter(item => cases.some(capture => capture.harness === harness && capture.scenario === item.id)).map(item => <button type="button" key={item.id} aria-pressed={scenario === item.id}
-            onClick={() => setScenario(item.id)}>{item.label}</button>)}
-        </div>
-      </> : <div className="single-lab-switch" role="group" aria-label="报告场景">
-        {reportScenarios.map(item => <button type="button" key={item.id} aria-pressed={reportScenario === item.id}
-          onClick={() => { setReportScenario(item.id); setNavigationId('') }}>{item.label}</button>)}
-      </div>}
-      <div className="single-lab-footer">
-        <span>模拟快照 · 布局随窗口自动调整</span>
-        {navigationId ? <button type="button" onClick={() => setNavigationId('')}>返回报告</button> : null}
-        <button type="button" onClick={() => { setReplay(value => value + 1); setNotice('') }}>重置交互</button>
-      </div>
-      <output aria-live="polite">{notice}</output>
-    </aside>
+    {!comparing && controls}
   </main></RendererCapabilitiesProvider>
 }
