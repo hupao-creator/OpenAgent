@@ -34,7 +34,7 @@ export function useBartDisplay(
     previousScope.current = scope
     const visibilityChanged = wasPresenting.current !== presenting
     wasPresenting.current = presenting
-    const immediate = !presenting || visibilityChanged || scopeChanged || !running || (!started.current && hasActivity)
+    const immediate = !presenting || visibilityChanged || scopeChanged || !running || displayed.kind === 'idle' || (!started.current && hasActivity)
     started.current = running && (started.current || hasActivity)
     if (immediate) {
       shownAt.current = textAt.current = performance.now()
@@ -56,7 +56,7 @@ export function useBartDisplay(
 
 function sameRole(left: BartDockRole, right: BartDockRole): boolean {
   return left.kind === right.kind && (
-    left.kind === 'idle' ||
+    left.kind === 'idle' || left.kind === 'running' ||
     (left.kind === 'reasoning' && right.kind === 'reasoning' && left.text === right.text && left.segmentKey === right.segmentKey) ||
     (left.kind === 'tool' && right.kind === 'tool' && left.toolName === right.toolName)
   )

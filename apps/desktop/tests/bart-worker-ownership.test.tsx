@@ -172,3 +172,25 @@ describe('Worker surface and run ownership', () => {
     expect(inspect().stats).toMatchObject({ surfaces: 1, pixels: 10000 })
   })
 })
+
+
+it('keeps the running story painting beyond the normal gesture window, suspends hidden surfaces and stops in reduced motion', () => {
+  const canvas = attach('running', 'character')
+  const running = { activity: 'idle' as const, phase: 'running' as const, role: 'running' }
+  send({ type: 'character', surface: 'running', request: 1, description: running })
+  for (let at = 16; at <= 10000; at += 16) tick(at)
+  const before = canvas.paints
+  tick(10016)
+  expect(canvas.paints).toBe(before + 1)
+  send({ type: 'visibility', surface: 'running', visible: false })
+  tick(10032); tick(20000)
+  expect(canvas.paints).toBe(before + 1)
+  send({ type: 'visibility', surface: 'running', visible: true })
+  tick(20016)
+  expect(canvas.paints).toBe(before + 2)
+  send({ type: 'character', surface: 'running', request: 2, description: { ...running, animate: false } })
+  const stopped = canvas.paints
+  tick(20032); tick(24000)
+  expect(canvas.paints).toBe(stopped)
+  expect(messages.filter(message => message.type === 'failed')).toEqual([])
+})

@@ -3,6 +3,7 @@ import { createMotionState, seatDescriptor, interactionDescriptor, renderMotionF
 import type { CharacterDescription } from './worker-types'
 import { paintInterventionTokens, transformInterventionBody } from './intervention-canvas'
 import { paintTravelTrail } from './travel-trail'
+import { RUNNING_BEAT_MS, RUNNING_DOT_RADIUS, sampleRunningStory } from './running-story'
 
 interface CharacterSeed {
   state: ReturnType<typeof createMotionState>
@@ -10,6 +11,8 @@ interface CharacterSeed {
   interventionAt: number
   eyeMotionAt: number
   travelTrailAt: number
+  runningElapsed: number
+  runningPaintAt: number
 }
 export interface CanvasCharacter {
   capture(): ReturnType<typeof poseOf>
@@ -68,12 +71,16 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
   let interventionAt = seed?.interventionAt ?? changedAt
   let eyeMotionAt = seed?.eyeMotionAt ?? changedAt
   let travelTrailAt = seed?.travelTrailAt ?? changedAt
+  let runningElapsed = seed?.runningElapsed ?? 0
+  let runningPaintAt = seed?.runningPaintAt ?? changedAt
+  const running = (): boolean => description.role === 'running' && description.phase === 'running'
+    && (description.layout ?? 'mark') === 'mark' && !description.intervention
   const parts = { body: new CanvasPart(), satellite: new CanvasPart(), leftEye: new CanvasPart(),
     rightEye: new CanvasPart(), thoughtDot: new CanvasPart(), bot: new CanvasPart(),
     orbits: new CanvasPart(), orbitEllipses: Array.from({ length: 5 }, () => new CanvasPart()) } satisfies BartElements
   return {
     capture: () => poseOf(state),
-    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt, travelTrailAt }),
+    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt, travelTrailAt, runningElapsed, runningPaintAt }),
     description: () => description,
     update(value: CharacterDescription): void {
       if (description.eyeMotion?.key !== value.eyeMotion?.key) eyeMotionAt = performance.now()
@@ -85,6 +92,8 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       description = value
       if (poseUnchanged) return
       changedAt = performance.now()
+      runningElapsed = 0
+      runningPaintAt = changedAt
       if (value.animate === false) {
         state = createMotionState(keyOf(value), descriptorFor(value), value.layout ?? 'mark')
         state.restBetweenGestures = true
@@ -93,6 +102,7 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
     },
     nextWake(now: number): number {
       if (description.animate === false) return Infinity
+      if (running()) return now
       if ((description.layout ?? 'mark') === 'mark' && description.intervention === 'processing') return now
       if (description.eyeMotion && now - eyeMotionAt < description.eyeMotion.duration) return now
       if (description.travelTrail && now - travelTrailAt < description.travelTrail.duration) return now
@@ -107,6 +117,10 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
     paint(ctx: OffscreenCanvasRenderingContext2D, now: number, width: number, height: number): void {
       if (description.animate === false) snapMotionToTargets(state)
       renderMotionFrame(state, parts, now)
+      // A suspended/hidden surface resumes without skipping the light story.
+      if (running() && description.animate !== false) runningElapsed += Math.max(0, Math.min(64, now - runningPaintAt))
+      runningPaintAt = now
+      const story = running() ? sampleRunningStory(runningElapsed / RUNNING_BEAT_MS, description.animate === false) : undefined
       ctx.save()
       const view = state.layout === 'permission' ? [20, 110, 760, 380] : state.layout === 'question' ? [20, 50, 760, 500]
         : state.layout !== 'mark' ? [20, 100, 780, 400] : [0, 0, 640, 640]
@@ -151,7 +165,10 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       ctx.shadowColor = 'transparent'
       ctx.fillStyle = EYE_COLOR
       ctx.save()
-      if (description.animate !== false && description.eyeMotion?.points.length) {
+      if (story) {
+        ctx.translate(story.eyes.x, story.eyes.y)
+        ctx.translate(320, 250); ctx.scale(story.eyes.scaleX, story.eyes.scaleY); ctx.translate(-320, -250)
+      } else if (description.animate !== false && description.eyeMotion?.points.length) {
         const points = description.eyeMotion.points, elapsed = now - eyeMotionAt
         let index = 0
         while (index + 1 < points.length && points[index + 1].at <= elapsed) index++
@@ -189,6 +206,10 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         ctx.restore()
       }
       ctx.restore()
+      for (const dot of story?.dots ?? []) {
+        ctx.save(); ctx.globalAlpha *= dot.opacity; ctx.fillStyle = dot.color
+        ctx.beginPath(); ctx.arc(dot.x, dot.y, RUNNING_DOT_RADIUS, 0, Math.PI * 2); ctx.fill(); ctx.restore()
+      }
       ctx.beginPath(); ctx.arc(477, 178, Math.max(0, parts.thoughtDot.number('r')), 0, Math.PI * 2)
       ctx.fillStyle = description.role === 'tool' ? '#34c759' : '#249cff'; ctx.fill()
       if (parts.thoughtDot.number('r') > 0.1) { ctx.strokeStyle = EYE_COLOR; ctx.lineWidth = 8; ctx.stroke() }

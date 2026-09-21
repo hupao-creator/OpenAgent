@@ -8,7 +8,7 @@ import { BartDock } from '../src/renderer/src/components/BartDock'
 import { getBartPresenceCoordinator } from '../src/renderer/src/bart-motion/presence'
 
 const noop = (): void => {}
-const context = (executionId = 'execution-1', status: 'running' | 'completed' | 'failed' | 'interrupted' = 'running', threadKey = 'bart-test') => ({
+const context = (executionId = 'execution-1', status: 'running' | 'completed' | 'failed' | 'interrupted' | 'waiting-for-user' = 'running', threadKey = 'bart-test') => ({
   threadKey, execution: { executionId, status }
 })
 const reasoning = (text: string, sequence = 1): HarnessBartActivity => ({
@@ -73,7 +73,7 @@ it('drops old pending activity as soon as the execution changes, even before the
   f.advance(100)
   f.set(tool('old_tool'))
   f.set(null, { activityContext: context('execution-2') })
-  expect(f.role()).toBe('idle')
+  expect(f.role()).toBe('running')
   f.set({ ...tool('new_tool'), executionId: 'execution-2' }, { activityContext: context('execution-2') })
   expect(f.name()).toBe('new_tool')
   f.advance(2_000)
@@ -229,11 +229,13 @@ it('catches up when the camera uncovers the Dock, even while its own layout stay
 })
 
 
-it('yields immediately to a dedicated call before its Core route arrives, then resumes the latest activity', () => {
+it('fills the gap before a dedicated Core route arrives, then yields and resumes the latest activity', () => {
   const f = fixture(reasoning('工具前'))
   f.advance(100)
   f.set(tool('openagent_thread_read'))
-  expect(f.role()).toBe('idle')
+  expect(f.role()).toBe('reasoning')
+  f.advance(700)
+  expect(f.role()).toBe('running')
   const operations = [{ id: 'read-operation', kind: 'read' as const, phase: 'running' as const }]
   f.set(reasoning('专属动画期间'), { operations })
   expect(f.role()).toBe('idle')
@@ -308,11 +310,11 @@ it('paces intermediate assistant text as a resident fragment but never implies a
   f.advance(100)
   f.set({ kind: 'assistant-text', executionId: 'execution-1', sequence: 2 })
   f.advance(700)
-  expect(f.role()).toBe('idle')
+  expect(f.role()).toBe('running')
   expect(f.view.container.querySelector('.bart-reply-stage')).toBeNull()
   f.set(tool('read_file'))
   f.advance(799)
-  expect(f.role()).toBe('idle')
+  expect(f.role()).toBe('running')
   f.advance(1)
   expect(f.name()).toBe('read_file')
 })
@@ -326,4 +328,61 @@ it('hydrates directly into the latest snapshot after unmounting with pending act
   expect(next.name()).toBe('hydrated_tool')
   next.advance(2_000)
   expect(next.name()).toBe('hydrated_tool')
+})
+
+
+it('covers submission, execution before its first event, text output and final completion without idle gaps', () => {
+  const f = fixture(null)
+  f.set(null, { activityContext: context('old', 'completed'), running: false, sessionIdle: true })
+  expect(f.role()).toBe('idle')
+  f.set(null, { activityContext: context('old', 'completed'), running: false, submitting: true })
+  expect(f.role()).toBe('running')
+  expect(f.view.container.querySelectorAll('.bart-running-fallback circle')).toHaveLength(3)
+  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-phase', 'running')
+  f.set(null)
+  expect(f.role()).toBe('running')
+  f.advance(1200)
+  f.set(reasoning('开始思考'))
+  expect(f.role()).toBe('reasoning')
+  f.advance(100)
+  f.set(null)
+  f.advance(700)
+  expect(f.role()).toBe('running')
+  f.set({ kind: 'assistant-text', executionId: 'execution-1', sequence: 3 })
+  f.advance(500)
+  expect(f.role()).toBe('running')
+  f.set(null, { activityContext: context('execution-1', 'completed'), running: false, sessionIdle: true })
+  expect(f.role()).toBe('idle')
+  expect(f.view.container.querySelectorAll('.bart-running-fallback circle')).toHaveLength(0)
+})
+
+it('covers the first submission before a session exists and clears a rejected submission', () => {
+  const f = fixture(null)
+  const activityContext = { threadKey: 'new', execution: null }
+  f.set(null, { activityContext, running: false, submitting: true })
+  expect(f.role()).toBe('running')
+  f.set(null, { activityContext, running: false, submitting: false })
+  expect(f.role()).toBe('idle')
+  f.advance(2000)
+  expect(f.role()).toBe('idle')
+})
+
+it('returns from a completed Core route to running even before the next foreground event', () => {
+  const f = fixture(null)
+  const operation = { id: 'core-route', kind: 'read' as const, phase: 'running' as const }
+  f.set(null, { operations: [operation] })
+  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'read')
+  f.set(null, { operations: [{ ...operation, phase: 'completed' }] })
+  expect(f.role()).toBe('running')
+  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'idle')
+  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-phase', 'running')
+})
+
+it.each(['completed', 'failed', 'interrupted', 'waiting-for-user'] as const)('exits the running fallback immediately on %s', status => {
+  const f = fixture(null)
+  expect(f.role()).toBe('running')
+  f.advance(100)
+  f.set(null, { activityContext: context('execution-1', status) })
+  expect(f.role()).toBe('idle')
+  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-phase', 'idle')
 })

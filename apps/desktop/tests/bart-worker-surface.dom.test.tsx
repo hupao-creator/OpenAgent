@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BartDock } from '../src/renderer/src/components/BartDock'
+import { getBartPresenceCoordinator } from '../src/renderer/src/bart-motion/presence'
 import { CharacterCanvas } from '../src/renderer/src/bart-motion/CharacterCanvas'
 import { generationSurface } from '../src/renderer/src/bart-motion/generation-surface'
 import { createMotionSurface } from '../src/renderer/src/bart-motion/worker-client'
@@ -15,7 +17,7 @@ beforeEach(() => {
     dispose: vi.fn(() => { disposed = true })
   } as unknown as ReturnType<typeof createMotionSurface>)
 })
-afterEach(() => { cleanup(); document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); getBartPresenceCoordinator().reset(); document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('native motion surface lifetime and resolution', () => {
   it('releases a detached pool safely before a new root takes ownership', async () => {
@@ -56,4 +58,54 @@ describe('native motion surface lifetime and resolution', () => {
     view.unmount()
     delete (HTMLCanvasElement.prototype as Partial<HTMLCanvasElement>).transferControlToOffscreen
   })
+})
+
+
+it('passes live reduced-motion preferences to the running Worker and removes the listener on unmount', async () => {
+  vi.stubGlobal('Worker', class {})
+  let reduced = false
+  const listeners = new Set<() => void>()
+  vi.stubGlobal('matchMedia', () => ({
+    get matches() { return reduced },
+    addEventListener: (_: string, callback: () => void) => listeners.add(callback),
+    removeEventListener: (_: string, callback: () => void) => listeners.delete(callback)
+  }))
+  Object.defineProperty(HTMLCanvasElement.prototype, 'transferControlToOffscreen', { configurable: true, value: vi.fn() })
+  const view = render(<svg><CharacterCanvas width={210} height={210}
+    description={{ activity: 'idle', phase: 'running', role: 'running' }} /></svg>)
+  const renderer = vi.mocked(createMotionSurface).mock.results.at(-1)!.value
+  await act(async () => undefined)
+  expect(renderer.character).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'running', animate: true }))
+  await act(async () => { reduced = true; listeners.forEach(listener => listener()) })
+  expect(renderer.character).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'running', animate: false }))
+  await act(async () => { reduced = false; listeners.forEach(listener => listener()) })
+  expect(renderer.character).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'running', animate: true }))
+  view.unmount()
+  expect(listeners.size).toBe(0)
+  delete (HTMLCanvasElement.prototype as Partial<HTMLCanvasElement>).transferControlToOffscreen
+})
+
+
+it('stops the running Worker when its Dock is covered, and resumes from current state when revealed', async () => {
+  vi.stubGlobal('Worker', class {})
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+  Object.defineProperty(HTMLCanvasElement.prototype, 'transferControlToOffscreen', { configurable: true, value: vi.fn() })
+  const noop = () => {}
+  const element = (covered: boolean) => <BartDock
+    activityContext={{ threadKey: 'bart', execution: { executionId: 'running', status: 'running' } }}
+    threadOpen={false} inputOpen={false} inputValue="" bartAttachments={[]}
+    running sessionIdle={false} presentationCovered={covered}
+    onThreadOpenChange={noop} onInputOpenChange={noop} onInputChange={noop}
+    onChooseFiles={noop} onRemoveBartAttachment={noop} onSubmit={noop} />
+  const view = render(element(false))
+  const renderer = vi.mocked(createMotionSurface).mock.results.at(-1)!.value
+  await act(async () => undefined)
+  expect(renderer.character).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'running', animate: true }))
+  await act(async () => view.rerender(element(true)))
+  expect(renderer.character).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'running', animate: false }))
+  await act(async () => view.rerender(element(false)))
+  expect(renderer.character).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'running', animate: true }))
+  view.unmount()
+  expect(renderer.dispose).toHaveBeenCalledOnce()
+  delete (HTMLCanvasElement.prototype as Partial<HTMLCanvasElement>).transferControlToOffscreen
 })

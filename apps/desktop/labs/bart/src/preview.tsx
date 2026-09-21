@@ -81,7 +81,7 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
   const foregroundActivity = streamingActivity ?? residentActivityFor(config)
   const reply = residentReplyFor(config)
   const bartRunning = config.scene === 'resident'
-    && (foregroundActivity !== null || config.variant === 'working')
+    && (foregroundActivity !== null || ['working', 'running'].includes(config.variant))
 
   const respond = async (response: ThreadInteractionResponseRequest): Promise<void> => {
     const key = session.key
@@ -107,11 +107,11 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
         reasoningOptions={{ length: config.reasoningLength, tilt: config.reasoningTilt,
           gaze: config.reasoningGaze, stream: config.reasoningStreamStyle }}
         activityContext={{ threadKey: 'bart-lab', execution: {
-          executionId: 'bart-lab-execution', status: operation || bartRunning ? 'running' : 'completed'
+          executionId: 'bart-lab-execution', status: bartRunning ? 'running' : operation?.phase === 'failed' ? 'failed' : 'completed'
         } }}
         threadOpen={false}
         threadFollowUp={threadFollowUpFor(config)}
-        sessionIdle={!operation && !bartRunning}
+        sessionIdle={!bartRunning}
         inputOpen={config.scene === 'input' && !session.inputClosed}
         inputValue={session.draft}
         inputDisabled={config.scene === 'input' && config.variant === 'disabled'}

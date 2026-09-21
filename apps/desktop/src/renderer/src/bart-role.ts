@@ -4,11 +4,12 @@ import { isDedicatedBartTool } from './bart-visual-operation'
 
 /**
  * The resident shape the Dock shows for the foreground semantic event Bart is
- * consuming right now. `idle` also covers assistant text and dedicated
- * choreography, which never paint a status dot or a decoration.
+ * consuming right now. `running` covers active work without a more specific
+ * expression; dedicated choreography owns its own appearance.
  */
 export type BartDockRole =
   | { readonly kind: 'idle' }
+  | { readonly kind: 'running' }
   | { readonly kind: 'reasoning'; readonly text: string; readonly segmentKey: string }
   | { readonly kind: 'tool'; readonly toolName: string }
 
@@ -21,19 +22,22 @@ const IDLE_BART_ROLE: BartDockRole = { kind: 'idle' }
  */
 export function resolveBartRole(
   activity: HarnessBartActivity | null | undefined,
-  dedicatedRouteActive: boolean
+  dedicatedRouteActive: boolean,
+  running = false
 ): BartDockRole {
-  if (!activity || dedicatedRouteActive) return IDLE_BART_ROLE
+  const fallback: BartDockRole = running ? { kind: 'running' } : IDLE_BART_ROLE
+  if (dedicatedRouteActive) return IDLE_BART_ROLE
+  if (!activity) return fallback
   switch (activity.kind) {
     case 'reasoning':
       return { kind: 'reasoning', text: reasoningArcText(activity.text),
         segmentKey: JSON.stringify([activity.executionId, activity.sequence]) }
     case 'tool-call':
       return isDedicatedBartTool(activity.toolName)
-        ? IDLE_BART_ROLE
+        ? fallback
         : { kind: 'tool', toolName: activity.toolName }
     case 'assistant-text':
-      return IDLE_BART_ROLE
+      return fallback
   }
 }
 

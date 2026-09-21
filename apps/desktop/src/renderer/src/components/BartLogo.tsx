@@ -11,6 +11,8 @@ export type { BartLogoActivity, BartLogoPhase, BartLogoLayout, BartInterventionV
   BartLogoPose, BartLogoEye, BartLogoExpression, BartLogoShape } from '../bart-motion/character-model'
 import './BartLogo.css'
 import { CharacterCanvas } from '../bart-motion/CharacterCanvas'
+import { RUNNING_DOT_RADIUS, sampleRunningStory } from '../bart-motion/running-story'
+const STILL_RUNNING_DOTS = sampleRunningStory(0, true).dots
 
 interface BartLogoProps {
   size?: number
@@ -37,6 +39,8 @@ interface BartLogoProps {
   resolvedKey?: string
   /** Role appearance; spatial transforms belong to the containing scene. */
   roleKind?: string
+  /** Covered resident surfaces retain their static appearance without repainting. */
+  motionActive?: boolean
 }
 
 /** Bart's character. Bart Lab mounts this production implementation directly. */
@@ -56,7 +60,8 @@ export const BartLogo = memo(function BartLogo({
   interventionState,
   interventionKey,
   resolvedKey,
-  roleKind
+  roleKind,
+  motionActive = true
 }: BartLogoProps): React.JSX.Element {
   const svgRef = useRef<SVGSVGElement>(null)
   const bodyRef = useRef<SVGPathElement>(null)
@@ -92,7 +97,7 @@ export const BartLogo = memo(function BartLogo({
   const motionRef = useRef<BartMotionState | null>(null)
   motionRef.current ||= createMotionState(motionKey, descriptor, layout)
   const motion = motionRef.current
-  const shouldAnimate = Math.max(renderWidth, renderHeight) >= 24 || phase === 'running'
+  const shouldAnimate = motionActive && (Math.max(renderWidth, renderHeight) >= 24 || phase === 'running')
   const filterToken = `bart-${useId().replace(/:/g, '')}`
   const softShadowId = `${filterToken}-shadow`
   const trailGlowId = `${filterToken}-trail`
@@ -209,6 +214,12 @@ export const BartLogo = memo(function BartLogo({
         </g>
       </g>
 
+      {roleKind === 'running' && phase === 'running' && layout === 'mark' && !interventionState ? (
+        <g className="bart-running-fallback">
+          {STILL_RUNNING_DOTS.map((dot, index) => <circle key={index} cx={dot.x} cy={dot.y}
+            r={RUNNING_DOT_RADIUS} fill={dot.color} opacity={dot.opacity} />)}
+        </g>
+      ) : null}
       <g className="bart-body-motion">
         <CharacterCanvas width={renderWidth} height={renderHeight} description={{
           activity, phase, key: motionKey, layout, intervention: interventionState, role: roleKind, animate: shouldAnimate

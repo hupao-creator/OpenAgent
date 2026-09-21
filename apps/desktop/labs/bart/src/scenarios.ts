@@ -118,7 +118,7 @@ export const variants = {
     ['recovery', '输入接管后恢复', 'Recovery']
   ],
   resident: [
-    ['idle', '待机', 'Idle'], ['reasoning', '思考', 'Reasoning'],
+    ['idle', '待机', 'Idle'], ['running', '运行中', 'Running'], ['reasoning', '思考', 'Reasoning'],
     ['reasoning-live', '思考 · 流式', 'Reasoning · Live'],
     ['reasoning-en', '思考 · 英文', 'Reasoning · English'],
     ['reasoning-mixed', '思考 · 混合', 'Reasoning · Mixed'],

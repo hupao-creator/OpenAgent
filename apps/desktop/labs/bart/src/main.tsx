@@ -8,9 +8,10 @@ import './styles.css'
 function App(): React.JSX.Element {
   const [config, setConfig] = useState<LabConfig>(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('scene') !== 'running') return initialConfig
-    const variant = variants.running.find(([id]) => id === params.get('variant'))?.[0] ?? 'bottom'
-    return { ...initialConfig, scene: 'running', variant }
+    const scene = scenes.find(item => item.id === params.get('scene'))?.id
+    if (!scene) return initialConfig
+    const variant = variants[scene].find(([id]) => id === params.get('variant'))?.[0] ?? variants[scene][0][0]
+    return { ...initialConfig, scene, variant }
   })
   const [ready, setReady] = useState(false)
   const [fit, setFit] = useState(true)

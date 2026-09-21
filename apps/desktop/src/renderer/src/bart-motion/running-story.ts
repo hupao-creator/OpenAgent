@@ -1,7 +1,10 @@
-/** Lab coordinates match the 210px character carrier. */
-const CENTER = { x: 105, y: 210 * 300 / 640 }
-const BASE_Y = 210 * 464 / 640 + 13 + 3.5
-const RADIUS = 78
+/** Shared by the Worker and Lab, in the character's 640-unit viewBox. */
+export const RUNNING_BEAT_MS = 2800
+export const RUNNING_DOT_RADIUS = 3.5 * 640 / 210
+const UNIT = 640 / 210
+const CENTER = { x: 320, y: 300 }
+const BASE_Y = 464 + 16.5 * UNIT
+const RADIUS = 78 * UNIT
 const TAU = Math.PI * 2
 const PALETTE = [[231, 128, 134], [217, 170, 90], [128, 184, 139],
   [105, 185, 191], [127, 159, 225], [184, 138, 206]]
@@ -46,7 +49,7 @@ export function sampleRunningStory(time: number, still = false): RunningStory {
     }
   }
   const dots = [0, 1, 2].map(index => {
-    const baseX = CENTER.x + (index - 1) * 13
+    const baseX = CENTER.x + (index - 1) * 13 * UNIT
     const beat = t * 3 - index
     const pulse = !still && t < 1 && beat >= 0 && beat < 1 ? Math.sin(Math.PI * beat) ** 2 : 0
     const dotAngle = angle + (1 - index) * .17
@@ -54,7 +57,7 @@ export function sampleRunningStory(time: number, still = false): RunningStory {
     const orbitY = CENTER.y + RADIUS * Math.sin(dotAngle)
     return {
       x: mix(baseX, orbitX, orbitWeight),
-      y: mix(BASE_Y - 3 * pulse, orbitY, orbitWeight),
+      y: mix(BASE_Y - 3 * UNIT * pulse, orbitY, orbitWeight),
       opacity: still ? .9 : mix(.65 + .35 * pulse, 1, orbitWeight),
       color: color(t / 3 + index / 3)
     }

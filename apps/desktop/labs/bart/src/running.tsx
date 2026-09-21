@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { createCanvasCharacter } from '../../../src/renderer/src/bart-motion/character-canvas'
 import type { LabConfig } from './scenarios'
-import { sampleRunningStory } from './running-motion'
+import { sampleRunningStory } from '../../../src/renderer/src/bart-motion/running-story'
 import './running.css'
 
 /** The original production face, following one shared light-and-gaze story. */
@@ -43,7 +43,7 @@ export function RunningPreview({ config }: { config: LabConfig }): React.JSX.Ele
         const point = story.dots[index]
         dot.style.opacity = String(point.opacity)
         dot.style.backgroundColor = point.color
-        dot.style.transform = `translate(${point.x - 3.5}px, ${point.y - 3.5}px)`
+        dot.style.transform = `translate(${point.x * 210 / 640 - 3.5}px, ${point.y * 210 / 640 - 3.5}px)`
       })
       const label = current.runningIdle ? '待机对照' : story.stage
       if (stageRef.current && stageRef.current.textContent !== label) stageRef.current.textContent = label
