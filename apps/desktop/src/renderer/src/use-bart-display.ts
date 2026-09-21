@@ -3,7 +3,7 @@ import type { BartDockRole } from './bart-role'
 import type { PublicExecution } from '@openagent/contracts'
 import type { HarnessBartActivity } from '@openagent/contracts/renderer'
 import { BartDisplayQueue, type BartDisplayItem } from './bart-display/queue'
-import { DEFAULT_BART_DISPLAY_TIMING, type BartDisplayTiming } from './bart-display/state-rules'
+import { DEFAULT_BART_DISPLAY_TIMING, IDLE_SESSION_BART_DISPLAY_TIMING, type BartDisplayTiming } from './bart-display/state-rules'
 export { DEFAULT_BART_DISPLAY_TIMING, type BartDisplayTiming }
 
 export interface BartActivityContext {
@@ -14,7 +14,8 @@ export interface BartActivityContext {
 /** React only supplies visibility and acknowledges what it actually painted. */
 export function useBartDisplay(
   latest: BartDockRole, hasActivity: boolean, context: BartActivityContext,
-  presenting: boolean, timing: BartDisplayTiming = DEFAULT_BART_DISPLAY_TIMING,
+  presenting: boolean, sessionIdle: boolean,
+  timing: BartDisplayTiming = sessionIdle ? IDLE_SESSION_BART_DISPLAY_TIMING : DEFAULT_BART_DISPLAY_TIMING,
   source?: BartDisplayQueue, activity?: HarnessBartActivity | null
 ): BartDockRole {
   const owned = useMemo(() => new BartDisplayQueue(), [])

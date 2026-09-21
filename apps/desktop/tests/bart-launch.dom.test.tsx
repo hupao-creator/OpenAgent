@@ -83,6 +83,7 @@ it('finishes the short launch before displaying an immediately arriving operatio
   const view = render(<Harness submit={submit} />)
   await act(async () => { fireEvent.submit(view.container.querySelector('form')!) })
   const facts: Partial<ComponentProps<typeof BartDock>> = {
+    sessionIdle: false,
     activityContext: { threadKey: 'bart', execution: { executionId: 'new', status: 'running' } },
     operations: [{ id: 'status', kind: 'status', phase: 'running' }]
   }
@@ -100,6 +101,7 @@ it('catches up after launch ownership and starts a fresh interval for the latest
   const view = render(<Harness submit={submit} />)
   await act(async () => { fireEvent.submit(view.container.querySelector('form')!) })
   const facts: Partial<ComponentProps<typeof BartDock>> = {
+    sessionIdle: false,
     activityContext: { threadKey: 'bart', execution: { executionId: 'new', status: 'running' } },
     foregroundActivity: { executionId: 'new', sequence: 1, kind: 'reasoning', text: 'hidden thought' }
   }
@@ -113,7 +115,7 @@ it('catches up after launch ownership and starts a fresh interval for the latest
   view.rerender(<Harness submit={submit} facts={{ ...facts, foregroundActivity: {
     executionId: 'new', sequence: 3, kind: 'tool-call', callId: 'write', toolName: 'write_file'
   } }} />)
-  act(() => vi.advanceTimersByTime(799))
+  act(() => vi.advanceTimersByTime(1999))
   expect(view.container.querySelector('.bart-role-tool-name')?.textContent).toBe('read_file')
   act(() => vi.advanceTimersByTime(1))
   expect(view.container.querySelector('.bart-role-tool-name')?.textContent).toBe('write_file')

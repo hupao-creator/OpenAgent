@@ -327,7 +327,7 @@ it('uses source positions for repeated windows and keeps queued text across sour
 it('delivers a moved source window through the scheduler even when its text is identical', () => {
   function Scheduled({ sourceOffset }: { sourceOffset: number }) {
     const latest = resolveBartRole({ kind: 'reasoning', text: '甲'.repeat(56), textOffset: sourceOffset, sequence: 1, executionId: 'run' }, false)
-    const role = useBartDisplay(latest, true, { threadKey: 'test', execution: { executionId: 'run', status: 'running' } }, true)
+    const role = useBartDisplay(latest, true, { threadKey: 'test', execution: { executionId: 'run', status: 'running' } }, true, false)
     return <DecorationFixture role={role} />
   }
   const f = render(<Scheduled sourceOffset={0} />)
@@ -362,7 +362,7 @@ it('clears pending text at real segment and execution boundaries without restart
     const latest = resolveBartRole({ kind: 'reasoning', text, sequence, executionId }, false)
     const role = useBartDisplay(latest, true, {
       threadKey: 'test', execution: { executionId, status: 'running' }
-    }, true)
+    }, true, false)
     return <DecorationFixture role={role} />
   }
   const f = render(<Scheduled text={'甲'.repeat(200)} />)
@@ -370,7 +370,7 @@ it('clears pending text at real segment and execution boundaries without restart
   const source = f.container.querySelector('.bart-role-arc > text textPath')!
   expect(layer.textContent!.length).toBe(112)
   f.rerender(<Scheduled text={'乙'.repeat(200)} sequence={2} />)
-  advance(800)
+  advance(2000)
   expect(layer.textContent).not.toContain('甲')
   advance(30_000)
   expect(layer.textContent).toBe('乙'.repeat(56))

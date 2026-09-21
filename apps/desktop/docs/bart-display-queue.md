@@ -12,7 +12,15 @@ preserves semantic order and enforces execution and visibility boundaries.
   events against the current thread, Harness and execution before delivery.
 - `setTiming(timing)` configures `minimumDisplayMs` separately for `running`,
   `reasoning` and `tool`. Values must be finite and non-negative. The defaults
-  live in `state-rules.ts` and are provisional.
+  live in `state-rules.ts`: 2000ms for each state while the session is busy,
+  and 800ms for each state once the real `sessionIdle` signal is true.
+  The Dock selects these defaults through the timing API; the queue does not
+  infer session idleness from execution completion or from its own backlog.
+  Explicit timing overrides (including Lab controls) take precedence.
+  Changing timing preserves the item's original presentation start: at idle,
+  an item shown for 500ms waits another 300ms; one shown for 1000ms may release
+  its successor immediately. Switching back to busy likewise uses the original
+  start against the 2000ms interval.
 - `subscribe(listener)` and `getSnapshot()` expose the current item and its
   presentation token. Receiving updates does not acknowledge presentation.
 - `presented(token)` starts the item's minimum interval **after it is rendered**.
@@ -46,7 +54,8 @@ only forwards visibility/timing and acknowledges committed presentation.
 
 ## Reset and completion rules
 
-While visible, backlog never triggers acceleration. Reasoning may yield at its
+While visible, backlog size never triggers acceleration. Session idleness alone
+selects the shorter default interval. Reasoning may yield at its
 minimum interval without finishing its source or its text animation. A natural
 completion drains the visible queue and then rests; true execution status and
 reply data advance independently.

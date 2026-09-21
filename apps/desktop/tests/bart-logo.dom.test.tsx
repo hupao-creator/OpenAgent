@@ -81,7 +81,7 @@ describe('BartLogo idle eye behavior', () => {
         kind: 'tool-call', toolName, callId: `call-${index}`,
         sequence: index + 1, executionId: 'execution-1'
       }))
-      flushFrames(800)
+      flushFrames(2000)
       // The shared CSS compacts these upright eyes. Reusing the old thinking
       // circles instead would yield two wide, unequal ovals after the squeeze.
       expect(dimensions()).toEqual(resident)
