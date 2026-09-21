@@ -1,5 +1,52 @@
 # Bart flight / Overview regression follow-up (#257)
 
+## Cold settings GPU stall follow-up (#96)
+
+The recording after #89 still showed a mid-flight catch-up jump. That fix's
+handoff checks measured DOM geometry and did not establish smooth native travel.
+In a fresh Electron profile, the settings root's full-window `blur(24px)
+saturate(1.15)` backdrop filter stalled GPU submissions during its expanding
+clip. Both settings panels are opaque, so this filter only affected the fade.
+Removing it retains the circular clip, static tint cross-fade, content opacity
+tracks and Bart choreography; the underlying Overview is no longer blurred
+during the brief translucent portion of the reveal.
+
+Paired local native capture (1180×780, DPR 2, light theme, one Overview thread):
+the original CSS produced a 117.4ms renderer frame interval and a 123.8ms
+`IOSurfaceImageBacking::WaitForCommandsToBeScheduled::Dawn` wait. Disabling only
+the backdrop filter reduced those maxima to 9.4ms and 5.7ms. Captured Bart pixels
+fell progressively behind the authored route and then caught up with the old
+filter. A run without native capture also had a cold-only 33.2ms frame gap;
+capture amplifies GPU pressure and its callback times are not presentation times.
+
+`bart-settings-cold.electron.mjs` measures the real Overview → settings page,
+with a disposable profile on every invocation and three opens per process. It
+reads the authored route once, then locates the connected Bart silhouette in
+native frames **after** capture. During the moving portion, pixel position gives
+the route's elapsed time. The spread of callback time minus route time detects
+accumulated lag and catch-up while ignoring constant delivery latency. Near the
+eased endpoint, pixel quantization cannot resolve time; native roster movement
+after landing belongs to a separate clock and is excluded. A flight skipped by
+admission, fewer than eight moving samples, or a lag spread of 60ms fails.
+
+```sh
+pnpm --dir apps/desktop perf:renderer:build
+node apps/desktop/tests/bart-settings-cold.electron.mjs
+```
+
+Run alone on a desktop fitting 1180×780. `BART_COLD_OUTPUT` selects an evidence
+directory, `BART_COLD_SAVE_FRAMES=1` retains PNGs, and `BART_BENCH_ROOT` selects a
+previous benchmark build for paired comparisons. This is a manual performance
+check, outside the small hosted CI display. It cannot prove physical scanout or
+smoothness on every GPU. Existing 1x/2x settings compositor checks still cover
+the reveal, and #88's checks cover the roster handoff independently.
+
+The old build fails this native pixel check with a 123.5ms lag spread. Six
+complete fresh-profile runs of the fixed build pass all 18 opens; first-open
+spreads are 18.1, 6.5, 5.2, 8.1, 4.8 and 5.3ms. A separate attempt passed its
+first two opens but had insufficient moving samples on the third; it is retained
+as a failed run, not included in those six passes.
+
 ## First settings landing follow-up (#88)
 
 The first installation probe narrows the provisional coordinator roster while
