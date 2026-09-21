@@ -2303,7 +2303,7 @@
   white-space: nowrap;
 }
 
-/* 第三行依次展示工作目录、cache hit 与 context window。usage 保持完整，
+/* 第三行依次展示工作目录与 token 用量。usage 保持完整，
    空间不足时先截断 cwd。worktree 用树图标标明隔离目录。 */
 
 .thread-overview-context {

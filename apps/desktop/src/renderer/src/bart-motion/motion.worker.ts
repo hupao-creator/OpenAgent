@@ -117,7 +117,7 @@ function tick(now: number): void {
     if (surface.character && surface.context && now >= surface.nextPaint) {
       surface.context.setTransform(surface.ratio, 0, 0, surface.ratio, 0, 0)
       surface.context.clearRect(0, 0, surface.width, surface.height)
-      surface.character.paint(surface.context, now, surface.width, surface.height)
+      surface.character.paint(surface.context, now, surface.width, surface.height, surface.character.description().viewport)
       draws++
       surface.nextPaint = surface.character.nextWake(now)
     }
@@ -254,7 +254,7 @@ scope.onmessage = ({ data }: MessageEvent<MotionWorkerRequest>): void => {
       if (!surface.heldBy) {
         surface.context.setTransform(surface.ratio, 0, 0, surface.ratio, 0, 0)
         surface.context.clearRect(0, 0, surface.width, surface.height)
-        surface.character.paint(surface.context, performance.now(), surface.width, surface.height)
+        surface.character.paint(surface.context, performance.now(), surface.width, surface.height, surface.character.description().viewport)
         draws++
       }
       surface.nextPaint = surface.character.nextWake(performance.now())
@@ -297,7 +297,7 @@ scope.onmessage = ({ data }: MessageEvent<MotionWorkerRequest>): void => {
         }
         destination.context.setTransform(destination.ratio, 0, 0, destination.ratio, 0, 0)
         destination.context.clearRect(0, 0, destination.width, destination.height)
-        destination.character.paint(destination.context, performance.now(), destination.width, destination.height)
+        destination.character.paint(destination.context, performance.now(), destination.width, destination.height, destination.character.description().viewport)
         draws++
       }
       send({ type: 'loaded', surface: data.surface, request: data.request })

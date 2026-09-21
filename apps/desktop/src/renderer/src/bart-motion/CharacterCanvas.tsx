@@ -34,8 +34,9 @@ export function CharacterCanvas({ width, height, description }: {
   const latest = useRef(description)
   const eyeMotion = useRef<CharacterDescription['eyeMotion']>(undefined)
   latest.current = description
-  const [x, y, w, h] = characterViewBox(description.layout)
-  const scale = Math.min(width / w, height / h)
+  const base = characterViewBox(description.layout)
+  const [x, y, w, h] = description.viewport ?? base
+  const scale = Math.min(width / base[2], height / base[3])
   const dimensions = useRef({ width: w * scale, height: h * scale })
   dimensions.current = { width: w * scale, height: h * scale }
   useLayoutEffect(() => {
@@ -100,7 +101,7 @@ export function CharacterCanvas({ width, height, description }: {
   useLayoutEffect(() => {
     refresh.current?.()
   }, [width, height, description.activity, description.phase, description.key, description.layout,
-    description.intervention, description.role, description.animate])
+    description.intervention, description.role, description.animate, description.launch, description.viewport])
   return <foreignObject className="bart-worker-character" x={x} y={y} width={w} height={h} pointerEvents="none">
     <canvas ref={canvas} style={{ display: 'block', width: '100%', height: '100%' }} />
   </foreignObject>

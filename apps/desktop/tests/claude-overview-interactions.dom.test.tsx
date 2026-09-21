@@ -22,7 +22,7 @@ describe('Claude overview interactions', () => {
       questions: [{ header: 'Target', question: 'Where?', multiSelect: false, options: [{ label: 'Here' }] }]
     }))
   })
-  it('refreshes token totals and cached percentage from running usage snapshots', () => {
+  it('refreshes token totals without cached percentages from running usage snapshots', () => {
     const thread = {
       ...waitingClaudeThread(),
       observation: {
@@ -37,19 +37,20 @@ describe('Claude overview interactions', () => {
       actions={{ ...overviewActions(), openThread: vi.fn() }}
     />
     const view = render(card())
-    for (const [input, output, cached, cacheWrite, total, percentage] of [
-      [10, 1, 3, 2, 16, '20.0%'],
-      [10, 2, 3, 2, 17, '20.0%'],
-      [10, 4, 3, 2, 19, '20.0%'],
-      [30, 5, 6, 4, 45, '15.0%'],
-      [30, 6, 6, 4, 46, '15.0%']
+    for (const [input, output, cached, cacheWrite, total] of [
+      [10, 1, 3, 2, 16],
+      [10, 2, 3, 2, 17],
+      [10, 4, 3, 2, 19],
+      [30, 5, 6, 4, 45],
+      [30, 6, 6, 4, 46]
     ] as const) {
       thread.sessionState.turns[0]!.usage = {
         inputTokens: input, outputTokens: output, cachedTokens: cached, cacheWriteTokens: cacheWrite
       }
       view.rerender(card())
       const numbers = view.container.querySelectorAll('.thread-card-identity-usage .thread-card-rolling-number')
-      expect([...numbers].map(number => number.getAttribute('aria-label'))).toEqual([String(total), percentage])
+      expect([...numbers].map(number => number.getAttribute('aria-label'))).toEqual([String(total)])
+      expect(view.container.querySelector('.thread-card-identity-usage')).not.toHaveTextContent('cached')
     }
   })
 

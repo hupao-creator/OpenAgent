@@ -34,6 +34,7 @@ import {
   BART_CAPSULE_LINE_HEIGHT,
   BART_CAPSULE_MIN_LINES,
   bartCapsuleHeight,
+  bartCapsulePlacement,
   bartCapsuleLines
 } from '../bart-composer-geometry'
 import type { BartDraftAttachment } from '../../../shared/attachments'
@@ -66,6 +67,12 @@ import { useBartDisplay, type BartActivityContext, type BartDisplayTiming } from
 import { ProviderLogo } from './ProviderLogo'
 import { useI18n } from '@openagent/plugin-kit/renderer'
 import './BartDock.css'
+import { prepareBartLaunch, type PreparedLaunch } from '../bart-motion/launch-capture'
+import { LAUNCH_DURATION } from '../bart-motion/launch-story'
+
+// One resident surface is prepared before a send. Keeping its bounds stable
+// avoids stretching the previous bitmap while the Worker accepts the launch.
+const DOCK_CHARACTER_VIEWPORT = [-360, -720, 1360, 1520] as const
 
 export interface BartDockInteractionRequest {
   threadId: string
@@ -126,6 +133,8 @@ interface BartDockProps {
   displayTiming?: BartDisplayTiming
   /** Lab comparison overrides; the application uses the locked defaults. */
   reasoningOptions?: BartReasoningOptions
+  /** Lab slow playback; production always uses the default speed. */
+  launchSpeed?: number
   threadOpen: boolean
   passiveVisible?: boolean
   /** The parent camera currently covers the mounted Dock. */
@@ -204,6 +213,7 @@ export const BartDock = memo(function BartDock({
   activityContext,
   displayTiming,
   reasoningOptions,
+  launchSpeed = 1,
   threadOpen,
   passiveVisible = true,
   presentationCovered = false,
@@ -237,6 +247,28 @@ export const BartDock = memo(function BartDock({
   const spatiallyVisible = useSyncExternalStore(subscribeDockPresence, dockIsVisible)
   const dockRef = useRef<HTMLElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [submitPending, setSubmitPending] = useState(false)
+  const submitInFlight = useRef(false)
+  const mounted = useRef(true)
+  const [launch, setLaunch] = useState<PreparedLaunch>()
+  const [launchIntro, setLaunchIntro] = useState(false)
+  const launchExecution = useRef(activityContext.execution)
+  const recovery = useRef({ threadOpen, threadKey: activityContext.threadKey })
+  recovery.current = { threadOpen, threadKey: activityContext.threadKey }
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  useEffect(() => {
+    if (!launch) return
+    const timer = window.setTimeout(() => setLaunchIntro(false), LAUNCH_DURATION / launch.description.speed)
+    const stop = (): void => { setLaunch(undefined); setLaunchIntro(false) }
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    window.addEventListener('resize', stop)
+    reduced?.addEventListener('change', stop)
+    return () => {
+      window.clearTimeout(timer); launch.dispose()
+      window.removeEventListener('resize', stop)
+      reduced?.removeEventListener('change', stop)
+    }
+  }, [launch])
   const dragRef = useRef<DockDrag | null>(null)
   const composingRef = useRef(false)
   // null means the CSS default is still the dynamic home; only a persisted or dragged
@@ -266,8 +298,8 @@ export const BartDock = memo(function BartDock({
   const dedicatedRouteActive = operation?.phase === 'running'
   // Only an active Core route owns the body. Finished routes yield even when
   // the next foreground event has not arrived yet.
-  const activeOperation = dedicatedRouteActive ? operation : undefined
-  const displayRunning = submitting || (activityContext.execution
+  const activeOperation = dedicatedRouteActive && !launchIntro ? operation : undefined
+  const displayRunning = submitPending || submitting || (activityContext.execution
     ? activityContext.execution.status === 'running' : running)
   const currentActivity = activityContext.execution?.status === 'running' &&
     foregroundActivity?.executionId === activityContext.execution.executionId ? foregroundActivity : null
@@ -284,8 +316,7 @@ export const BartDock = memo(function BartDock({
   const bartInputVisible = inputOpen && !threadOpen && !interactionVisible && !threadFollowUpVisible
   // The capsule collapses back into the Dock on its way out, and that collapse
   // takes longer than the state change does. The composer stays mounted, the
-  // Dock stays in its input layout and Bart rides down with it; without this
-  // the capsule would vanish mid-air.
+  // Dock keeps its input layout until the capsule has finished closing.
   //
   // The presence is worked out while rendering rather than after the fact, so
   // the composer is never unmounted and put back for the collapse — it would
@@ -321,7 +352,7 @@ export const BartDock = memo(function BartDock({
     }
     // A card taking the Dock over is not the input closing: it replaces the
     // capsule, so there is nothing left to collapse into.
-    else if (!interactionVisible) setCapsuleLeaving(lastCapsuleRequest)
+    else if (!interactionVisible && !launch) setCapsuleLeaving(lastCapsuleRequest)
   }
   // A card arriving while the capsule is on its way out takes the Dock away
   // from it, and that has to be decided before this render commits: the panel
@@ -370,7 +401,7 @@ export const BartDock = memo(function BartDock({
       : interventionState
   // The input owns the Dock until it closes — not until its capsule has
   // finished collapsing. Bart and his decoration go back to their own activity
-  // the moment the input is closed, and ride the capsule down with it.
+  // the moment the input is closed.
   const residentLayoutVisible = dockLayout === 'mark' || capsuleLeaving !== null
   // The character stays a mark beside the open composer. Its pending submit
   // already owns running feedback, before the composer can finish closing.
@@ -381,11 +412,21 @@ export const BartDock = memo(function BartDock({
     residentAvailable && windowVisible && spatiallyVisible && !concealed && !threadOpen && !presentationCovered,
     displayTiming
   )
-  const role = residentAvailable ? displayedRole : { kind: 'idle' as const }
+  const launchVisible = Boolean(launch && !bartInputVisible && !activeOperation && !visibleInterventionState &&
+    !interactionVisible && !threadOpen && !presentationCovered && !concealed && spatiallyVisible && windowVisible)
+  const role = launchVisible && launchIntro ? { kind: 'running' as const } : residentAvailable ? displayedRole : { kind: 'idle' as const }
   // Running alone does not claim thinking; only the Harness activity does.
   const activity: BartLogoActivity =
     activeOperation?.kind || (role.kind === 'reasoning' ? 'thinking' : role.kind === 'running' ? 'idle' : role.kind)
-  const phase: BartLogoPhase = activeOperation?.phase || (displayRunning ? 'running' : 'idle')
+  const phase: BartLogoPhase = activeOperation?.phase || (displayRunning || (launchVisible && launchIntro) ? 'running' : 'idle')
+  useEffect(() => {
+    if (!launch) return
+    const execution = activityContext.execution
+    const terminal = execution && execution !== launchExecution.current &&
+      execution.status !== 'running' &&
+      (execution.executionId !== launchExecution.current?.executionId || execution.status !== launchExecution.current?.status)
+    if (!launchVisible || terminal || (!launchIntro && !displayRunning)) { setLaunch(undefined); setLaunchIntro(false) }
+  }, [launch, launchVisible, launchIntro, displayRunning, activityContext.execution])
   const replyRead = useBartReplyRead(reply?.readKey)
   // A new turn hides the previous reminder without reading it, so a failure or
   // a cancel brings the same identity back; a successful turn replaces it.
@@ -460,18 +501,9 @@ export const BartDock = memo(function BartDock({
     if (bartInputVisible) textareaRef.current?.focus()
   }, [bartInputVisible])
 
-  // The capsule is as tall as the draft is long. The field is measured at its
-  // natural height, turned into a row count, and pinned to the height that row
-  // count is allowed to occupy; the Dock's own box never changes size, so the
-  // capsule simply pushes Bart further up as it grows.
-  //
-  // The measured height is handed to the stylesheet rather than written to
-  // `height` directly: the stylesheet animates it, and it cannot animate a
-  // property the Dock keeps overwriting with `auto` to measure.
-  //
-  // It is written to the Dock, not to the field, because two things are built
-  // from it: the capsule under Bart, and Bart's own offset above it. He is the
-  // capsule's sibling, so the number has to live where both of them can read it.
+  // Measure the draft at rest, then let CSS grow the independent capsule
+  // within the available room. The character never consumes this height.
+  // The value lives on the Dock so the text field and attachment strip share it.
   //
   // The field's inset shrinks with the capsule's factor, and the row count is
   // read off the field's own height — so the measurement is taken with the
@@ -482,7 +514,7 @@ export const BartDock = memo(function BartDock({
     const dock = dockRef.current
     if (!dock) return
     // The attachments row is not measured with the field, so it is published
-    // alongside it: the capsule Bart is measured against is both of them.
+    // alongside it so the text field can reserve space for attachments.
     //
     // The row is read off the Dock rather than counted, because a draft that is
     // not the capsule on screen keeps its attachments but has no row: the Dock
@@ -491,8 +523,7 @@ export const BartDock = memo(function BartDock({
     const strip = dock.querySelector<HTMLElement>('.bart-dock-attachment-strip')
     // A row of chips that overflows is a row with a scrollbar, and a scrollbar
     // with a size of its own takes that size out of the row: the chips would be
-    // clipped inside the height they were given, and Bart would be lifted by
-    // less than the capsule actually shows. Overlay scrollbars take nothing, so
+    // clipped inside the height they were given. Overlay scrollbars take nothing, so
     // this is the design number wherever the platform draws those.
     const gutter = strip ? strip.offsetHeight - strip.clientHeight : 0
     dock.style.setProperty(
@@ -501,9 +532,7 @@ export const BartDock = memo(function BartDock({
     )
     const field = textareaRef.current
     // A follow-up is one fixed row and has no field to measure. Leaving the
-    // registered `0px` start value in place would read as a capsule of no
-    // height: Bart would wait out a whole slack and the gap above it would come
-    // out too large. Its height is known, so publish it.
+    // registered `0px` start value would collapse its row; publish its known height.
     if (!field) {
       dock.style.setProperty('--bart-dock-capsule-height', `${String(bartCapsuleHeight(BART_CAPSULE_MIN_LINES))}px`)
       return
@@ -523,6 +552,38 @@ export const BartDock = memo(function BartDock({
     measureCapsule,
     [bartInputVisible, followUpPresent, draftValue, draftAttachments.length, measureCapsule]
   )
+
+  useLayoutEffect(() => {
+    if (!inlineInputVisible) return
+    const dock = dockRef.current
+    if (!dock) return
+    const root = dock.closest<HTMLElement>('.app-shell')
+    const update = (): void => {
+      const logo = dock.querySelector<SVGSVGElement>('.bart-logo')
+      const ink = logo?.querySelector<SVGPathElement>('.bart-bot > path')?.getBoundingClientRect()
+      if (!logo || !ink?.height) return
+      const rect = dock.getBoundingClientRect()
+      const rootRect = root?.getBoundingClientRect()
+      // Reserve the settled strip height, even while its entry is animating.
+      const attachments = parseFloat(dock.style.getPropertyValue('--bart-dock-capsule-attachment-height')) || 0
+      const placement = bartCapsulePlacement(ink, {
+        top: Math.max(0, rootRect?.top ?? 0) + 8,
+        bottom: Math.min(window.innerHeight, rootRect?.bottom ?? window.innerHeight) - 8
+      }, bartCapsuleHeight(BART_CAPSULE_MIN_LINES) + attachments)
+      dock.dataset.capsuleSide = placement.side
+      dock.style.setProperty('--bart-dock-capsule-anchor', `${placement.anchor - rect.top}px`)
+      dock.style.setProperty('--bart-dock-capsule-room', `${placement.room}px`)
+    }
+    update()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(update)
+    if (root) observer?.observe(root)
+    observer?.observe(dock)
+    window.addEventListener('resize', update)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [inlineInputVisible, followUpPresent, draftAttachments.length, position])
 
   // The draft can also re-wrap without being edited: the Dock narrows with the
   // window, and a narrower field breaks the same text over more rows. Only the
@@ -998,19 +1059,32 @@ export const BartDock = memo(function BartDock({
     event.preventDefault()
     // The form outlives the input while the capsule collapses, and Enter still
     // reaches it from the field's own key handler.
-    if (capsuleLeaving || inputDisabled || submitting || !draftSubmittable) return
+    if (submitInFlight.current || capsuleLeaving || inputDisabled || submitting || !draftSubmittable) return
     // Submitting empties the draft before the input closes, so what the capsule
     // collapses from is taken here, while it is still on screen, and the copy
     // above is sealed against that clearing until the next capsule opens.
     retainedCapsule.current = { value: inputValue, attachments: bartAttachments, followUp: threadFollowUp }
     setCapsuleSealed(true)
+    submitInFlight.current = true
+    setSubmitPending(true)
+    launchExecution.current = activityContext.execution
+    const prepared = prepareBartLaunch(dockRef.current, launchSpeed)
+    setLaunch(prepared)
+    setLaunchIntro(Boolean(prepared))
+    onInputOpenChange(false)
     try {
       await onSubmit()
     } catch {
-      setCapsuleSealed(false)
-      return
+      if (mounted.current) {
+        setLaunch(undefined)
+        setLaunchIntro(false)
+        setCapsuleSealed(false)
+        if (!recovery.current.threadOpen && recovery.current.threadKey === activityContext.threadKey) onInputOpenChange(true)
+      }
+    } finally {
+      submitInFlight.current = false
+      if (mounted.current) setSubmitPending(false)
     }
-    onInputOpenChange(false)
   }
 
   const positionedStyle: React.CSSProperties | undefined = position
@@ -1041,6 +1115,7 @@ export const BartDock = memo(function BartDock({
       data-phase={phase}
       data-layout={dockLayout}
       data-capsule-leaving={capsuleLeaving ?? undefined}
+      data-launching={launchVisible && launchIntro ? 'true' : undefined}
       data-role={role.kind}
       data-intervention-state={interactionVisible ? undefined : visibleInterventionState}
       data-interaction-kind={interactionVisible ? interactionKind : undefined}
@@ -1060,6 +1135,8 @@ export const BartDock = memo(function BartDock({
             interventionState={interactionVisible ? undefined : visibleInterventionState}
             interventionKey={interactionKey || interventionKey}
             roleKind={role.kind}
+            launch={launchVisible && role.kind === 'running' ? launch?.description : undefined}
+            canvasViewport={logoLayout === 'mark' ? DOCK_CHARACTER_VIEWPORT : undefined}
             motionActive={role.kind !== 'running' || (!concealed && !threadOpen && !presentationCovered && spatiallyVisible)}
           />
         </span>

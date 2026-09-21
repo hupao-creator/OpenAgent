@@ -98,7 +98,7 @@ describe('historical Harness card presentation primitives', () => {
         usage: {
           parts: [
             { id: 'total', suffix: 'tokens', description: 'Reported input and output', value: '18.5k', numericValue: 18_527 },
-            { id: 'cache', suffix: 'cached', value: '58.6%', numericValue: 0.586 }
+            { id: 'context-window', label: 'Context ', value: '128K', numericValue: 128_000 }
           ]
         }
       },
@@ -155,7 +155,7 @@ describe('historical Harness card presentation primitives', () => {
     expect(container.querySelector('.thread-card-layout')).toBeInTheDocument()
     expect(container.querySelector('.thread-card-identity')).toHaveAttribute('data-identity-size', '1x2')
     expect(container.querySelector('.thread-card-extension.extension-intervention')).toBeInTheDocument()
-    expect(container.querySelector('.thread-card-identity-usage')).toHaveTextContent('18.5ktokens · 58.6%cached')
+    expect(container.querySelector('.thread-card-identity-usage')).toHaveTextContent('18.5ktokens · Context 128K')
     expect(screen.getByTitle('Reported input and output')).toHaveTextContent('18.5ktokens')
     expect(container.querySelector('.thread-card-identity-tool')).toHaveTextContent('pnpm test')
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))

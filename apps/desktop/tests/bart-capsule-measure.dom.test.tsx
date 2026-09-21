@@ -85,8 +85,7 @@ function renderDock(inputValue: string, attachments: readonly BartDraftAttachmen
   return view.container
 }
 
-// The measurement lands on the Dock, not on the field: the capsule is built from
-// it, and so is Bart's own offset above the capsule, and he is outside it.
+// The Dock publishes the field measurement for the independent capsule.
 function capsuleHeight(container: HTMLElement): string {
   return dockProperty(container, '--bart-dock-capsule-height')
 }
@@ -157,9 +156,7 @@ describe('capsule measurement', () => {
   })
 
   // The follow-up has no field of its own — it is one fixed row — so nothing is
-  // measured. Left alone, the capsule would keep the registered `0px` start
-  // value, which Bart reads as a capsule of no height: he would wait out the
-  // whole slack and the gap above the capsule would come out too large.
+  // measured. Publish its known height instead of retaining the `0px` start.
   it('publishes the one-line height for a follow-up, which has no field to measure', () => {
     const { container } = render(
       <BartDock
@@ -212,9 +209,7 @@ describe('capsule measurement', () => {
   })
 
   // The attachments row sits above the field and is not in the field's own
-  // measurement, but it is part of the capsule: Bart's offset is built from the
-  // capsule, so a draft with attachments is this much taller than the box he
-  // would otherwise be measured against.
+  // measurement, but still consumes space in the capsule.
   it('publishes the attachment row alongside the measured field', () => {
     fieldHeight = 20 + 26
     const container = renderDock('一段话', [])
@@ -235,9 +230,7 @@ describe('capsule measurement', () => {
   })
 
   // The attachments belong to the draft, and a follow-up is not the draft: it is
-  // its own single row. Published from the draft's own list, the row would be
-  // counted into Bart's offset while nothing on screen is that tall, and he would
-  // set off into the entry against a capsule that is not the one arriving.
+  // its own single row. Only visible attachments consume input space.
   it('publishes no attachment row for a follow-up, which has none of its own', () => {
     fieldHeight = 20 + 26
     const { container } = render(
@@ -259,8 +252,8 @@ describe('capsule measurement', () => {
 
   // A chip row that overflows is a row with a scrollbar wherever the platform
   // draws one with a size, and that size comes out of the height the row was
-  // given: the chips would be clipped inside it, and Bart would be lifted by less
-  // than the capsule shows. Overlay scrollbars take nothing, so the platforms
+  // given: the chips would be clipped inside it. Overlay scrollbars take nothing,
+  // so the platforms
   // that draw those keep the design number.
   it('adds the platform scrollbar to the attachment row', () => {
     fieldHeight = 20 + 26
