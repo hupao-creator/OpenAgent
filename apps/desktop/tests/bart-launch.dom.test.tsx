@@ -84,13 +84,13 @@ it('finishes the short launch before displaying an immediately arriving operatio
   await act(async () => { fireEvent.submit(view.container.querySelector('form')!) })
   const facts: Partial<ComponentProps<typeof BartDock>> = {
     activityContext: { threadKey: 'bart', execution: { executionId: 'new', status: 'running' } },
-    operations: [{ id: 'read', kind: 'read', phase: 'running' }]
+    operations: [{ id: 'status', kind: 'status', phase: 'running' }]
   }
   view.rerender(<Harness submit={submit} facts={facts} />)
   expect(view.container.querySelector('.bart-dock')).toHaveAttribute('data-launching', 'true')
   expect(view.container.querySelector('.bart-dock')).toHaveAttribute('data-activity', 'idle')
   await act(async () => { await vi.advanceTimersByTimeAsync(721) })
-  expect(view.container.querySelector('.bart-dock')).toHaveAttribute('data-activity', 'read')
+  expect(view.container.querySelector('.bart-dock')).toHaveAttribute('data-activity', 'status')
   expect(view.container.querySelector('.bart-dock')).not.toHaveAttribute('data-launching')
 })
 it.each(['completed', 'failed', 'interrupted', 'waiting-for-user'] as const)('%s interrupts the intro immediately', async (status) => {

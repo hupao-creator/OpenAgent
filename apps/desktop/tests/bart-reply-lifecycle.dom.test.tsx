@@ -206,8 +206,8 @@ it('follows the real turn lifecycle while pacing native activity, then shows the
   }))
   expect(f.view.container.querySelector('.bart-dock')).toHaveAttribute('data-role', 'reasoning')
   act(() => f.source.recordOperation({
-    type: 'tool-operation', id: 'old-read', executionId: 'execution-2', callId: 'read',
-    name: 'openagent_thread_read', arguments: {}, createdAt: 1, completedAt: 2
+    type: 'tool-operation', id: 'old-status', executionId: 'execution-2', callId: 'status',
+    name: 'openagent_thread_status', arguments: {}, createdAt: 1, completedAt: 2
   }))
   act(() => f.source.finishTurn('execution-2', 'Latest completed answer.'))
   expect(f.stage()).not.toBeNull()
@@ -227,11 +227,31 @@ it('follows the real turn lifecycle while pacing native activity, then shows the
 })
 
 
+it('shows thread reads as generic tool calls even while their Core audit is running', () => {
+  const f = fixture()
+  act(() => f.source.startTurn('execution-read'))
+  act(() => f.source.recordOperation({
+    type: 'tool-operation', id: 'read-operation', executionId: 'execution-read', callId: 'read-call',
+    name: 'openagent_thread_read', arguments: { threadId: 'another-thread' }, createdAt: 1
+  }))
+  act(() => f.source.acceptEvent('execution-read', {
+    type: 'activity-start', activity: {
+      id: 'read-call', kind: 'tool', label: 'Read thread', status: 'running', toolName: 'openagent_thread_read'
+    }
+  }))
+  expect(f.view.container.querySelector('.bart-dock')).toHaveAttribute('data-role', 'tool')
+  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'tool')
+  expect(f.view.container.querySelector('.bart-role-tool-name')).toHaveTextContent('openagent_thread_read')
+  act(() => f.source.failTurn('execution-read', 'Read failed'))
+  expect(f.view.container.querySelector('.bart-dock')).toHaveAttribute('data-role', 'idle')
+  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-phase', 'idle')
+})
+
 it('does not carry an old dedicated result into a new turn before its first activity arrives', () => {
   const f = fixture()
   act(() => f.source.recordOperation({
-    type: 'tool-operation', id: 'old-read', executionId: BART_REPLY_EXECUTION_ID, callId: 'read',
-    name: 'openagent_thread_read', arguments: {}, createdAt: 1, completedAt: 2
+    type: 'tool-operation', id: 'old-status', executionId: BART_REPLY_EXECUTION_ID, callId: 'status',
+    name: 'openagent_thread_status', arguments: {}, createdAt: 1, completedAt: 2
   }))
   act(() => f.source.startTurn('execution-2'))
   expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'idle')

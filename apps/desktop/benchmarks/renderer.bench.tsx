@@ -46,7 +46,7 @@ const threads: AgentThreadRecord[] = Array.from({ length: count }, (_, index) =>
  */
 const BART_TOOL_NAMES: Record<string, string> = {
   list: 'openagent_thread_list', start: 'openagent_thread_start',
-  send: 'openagent_thread_send', read: 'openagent_thread_read'
+  send: 'openagent_thread_send', status: 'openagent_thread_status'
 }
 const bartOperation = (kind: string): BartTranscriptItem => ({
   type: 'tool-operation', id: `benchmark-bart-op-${kind}`, executionId: 'benchmark-bart-execution',

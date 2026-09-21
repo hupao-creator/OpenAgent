@@ -86,7 +86,7 @@ it.each(['completed', 'failed', 'interrupted'] as const)('lets %s clear the disp
   f.set(tool('read_file'))
   f.set(reasoning('迟到的旧活动'), {
     activityContext: context('execution-1', status), running: false, sessionIdle: true,
-    operations: [{ id: 'old-operation', kind: 'read', phase: 'completed' }]
+    operations: [{ id: 'old-operation', kind: 'status', phase: 'completed' }]
   })
   expect(f.role()).toBe('idle')
   expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'idle')
@@ -232,14 +232,14 @@ it('catches up when the camera uncovers the Dock, even while its own layout stay
 it('fills the gap before a dedicated Core route arrives, then yields and resumes the latest activity', () => {
   const f = fixture(reasoning('工具前'))
   f.advance(100)
-  f.set(tool('openagent_thread_read'))
+  f.set(tool('openagent_thread_status'))
   expect(f.role()).toBe('reasoning')
   f.advance(700)
   expect(f.role()).toBe('running')
-  const operations = [{ id: 'read-operation', kind: 'read' as const, phase: 'running' as const }]
+  const operations = [{ id: 'status-operation', kind: 'status' as const, phase: 'running' as const }]
   f.set(reasoning('专属动画期间'), { operations })
   expect(f.role()).toBe('idle')
-  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'read')
+  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'status')
   f.advance(100)
   f.set(tool('write_file'), { operations })
   f.set(tool('write_file'), { operations: [{ ...operations[0]!, phase: 'completed' }] })
@@ -369,9 +369,9 @@ it('covers the first submission before a session exists and clears a rejected su
 
 it('returns from a completed Core route to running even before the next foreground event', () => {
   const f = fixture(null)
-  const operation = { id: 'core-route', kind: 'read' as const, phase: 'running' as const }
+  const operation = { id: 'core-route', kind: 'status' as const, phase: 'running' as const }
   f.set(null, { operations: [operation] })
-  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'read')
+  expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'status')
   f.set(null, { operations: [{ ...operation, phase: 'completed' }] })
   expect(f.role()).toBe('running')
   expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-activity', 'idle')

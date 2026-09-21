@@ -126,8 +126,7 @@ export const variants = {
     ['reasoning-mixed', '思考 · 混合', 'Reasoning · Mixed'],
     ['reasoning-short', '思考 · 短文本', 'Reasoning · Short'],
     ['tool', '工具调用', 'Tool call'],
-    ['tool-long', '长工具名', 'Long tool name'], ['working', '工作中', 'Working'],
-    ['error', '失败', 'Error'],
+    ['tool-long', '长工具名', 'Long tool name'],
     ['reply', '最终答复', 'Final reply']
   ],
   input: [
