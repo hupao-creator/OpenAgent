@@ -259,7 +259,7 @@ export function descriptorFor(activity: BartLogoActivity, phase: BartLogoPhase):
     return { expression: 'focus', shape: 'circle', action: 'none', thought: false, orbit: false }
   }
   if (phase === 'completed') {
-    return { expression: 'happy', shape: 'circle', action: 'bounce', thought: false, orbit: false }
+    return { expression: 'idle', shape: 'circle', action: 'none', thought: false, orbit: false }
   }
   if (activity === 'tool') {
     // The locked tool pose compacts the resident eyes in CSS and keeps their
