@@ -32,6 +32,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
   let input = '', inputOffset = 0, initialized = false
   let sourceWidth = 0, width = 0, offset = 0, target = 0, length = 0
   let latest: string[] = [], glyphs: Glyph[] = []
+  let boundaries = [0]
   // The producer never edits this queue's unread middle. Repeated text is new
   // input when its absolute source position advances, even if snapshots match.
   let pending: string[] = [], read = 0
@@ -39,13 +40,21 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
   let frame = 0, lastTime = 0
   const waiting = (): boolean => read < pending.length
   const content = (items: readonly Glyph[]): string => items.map(glyph => glyph.value).join('')
-  const measure = (content: string): number => {
-    if (!content) return 0
+  const measureGlyphs = (): number => {
+    boundaries = [0]
+    if (!glyphs.length) return 0
     const probe = source.cloneNode(false) as SVGTextElement
     probe.style.visibility = 'hidden'
-    probe.textContent = content
+    probe.textContent = content(glyphs)
     layer.append(probe)
     const measured = probe.getComputedTextLength()
+    // All reads share one unchanged layout tree. Animation frames use cached
+    // prefix geometry until the glyphs or their font/shape actually change.
+    let characters = 0
+    for (const glyph of glyphs) {
+      characters += glyph.value.length
+      boundaries.push(probe.getSubStringLength(0, characters))
+    }
     probe.remove()
     return measured
   }
@@ -78,7 +87,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
       const [first, ...rest] = graphemes(previous.value + addition)
       previous.value = first
       pending.push(...rest)
-      const nextWidth = measure(content(glyphs))
+      const nextWidth = measureGlyphs()
       offset += nextWidth - width
       width = nextWidth
     } else pending.push(...graphemes(addition.trimStart()))
@@ -88,7 +97,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
     if (count <= 0) return false
     for (let index = 0; index < count; index++) glyphs.push(fresh(pending[read++], now))
     if (read === pending.length || read > 1024) { pending = pending.slice(read); read = 0 }
-    const nextWidth = measure(content(glyphs))
+    const nextWidth = measureGlyphs()
     offset += nextWidth - width
     width = nextWidth
     return true
@@ -96,7 +105,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
   const trim = (): boolean => {
     const obsolete = waiting() ? glyphs.length : glyphs.length - latest.length
     if (obsolete <= 0) return false
-    const position = (index: number): number => offset - width + measure(content(glyphs.slice(0, index)))
+    const position = (index: number): number => offset - width + boundaries[index]
     if (position(1) > 0) return false
     let low = 0, high = obsolete + 1
     while (low < high) {
@@ -107,14 +116,15 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
     const exited = Math.max(0, Math.min(obsolete, low - 1))
     if (!exited) return false
     glyphs = glyphs.slice(exited)
-    width = measure(content(glyphs))
+    width = measureGlyphs()
     return true
   }
   const paint = (now: number): void => {
     const dt = Math.min(64, Math.max(0, now - lastTime))
     lastTime = now
-    // Very narrow glyphs must still leave the circle while input is waiting.
-    const destination = waiting() ? Math.min(target, width / 2) : target
+    // Even a visible glyph followed by zero-width characters must fully leave
+    // the circle, freeing a slot for the next queued glyph.
+    const destination = waiting() ? Math.min(target, width - boundaries[1]) : target
     const distance = destination - offset
     const travel = Math.min(Math.abs(distance) * (1 - Math.exp(-dt / 72)), GLIDE_SPEED * dt / 1000)
     offset += Math.sign(distance) * travel
@@ -171,7 +181,7 @@ export function createStreamPresentation(arc: SVGSVGElement, source: SVGTextElem
         offset = Math.max(width, (length + width) / 2)
         feed(now)
       } else {
-        const nextLayerWidth = measure(content(glyphs))
+        const nextLayerWidth = measureGlyphs()
         offset += nextLayerWidth - width
         width = nextLayerWidth
         append(nextInput.slice(inputEnd - nextInputOffset))

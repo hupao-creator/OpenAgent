@@ -15,6 +15,7 @@ const cancelBody = vi.fn()
 const animate = vi.fn(() => ({ cancel: cancelBody }))
 let reduced = false
 let onPreference: (() => void) | undefined
+const textWidth = (value: string): number => Array.from(value).filter(character => character !== '\u200b').length * 10
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -31,7 +32,10 @@ beforeEach(() => {
   // browser acceptance checks actual shaped glyphs and geometry separately.
   Object.defineProperties(SVGElement.prototype, {
     getTotalLength: { configurable: true, value: () => 452 },
-    getComputedTextLength: { configurable: true, value: function(this: SVGElement) { return this.isConnected ? Array.from(this.textContent ?? '').length * 10 : 0 } },
+    getComputedTextLength: { configurable: true, value: function(this: SVGElement) { return this.isConnected ? textWidth(this.textContent ?? '') : 0 } },
+    getSubStringLength: { configurable: true, value: function(this: SVGElement, start: number, count: number) {
+      return this.isConnected ? textWidth((this.textContent ?? '').slice(start, start + count)) : 0
+    } },
     getPointAtLength: { configurable: true, value: (distance: number) => {
       const angle = (-254 + distance / 452 * 288) * Math.PI / 180
       return { x: 200 + 90 * Math.cos(angle), y: 160 + 90 * Math.sin(angle) }
@@ -45,7 +49,7 @@ afterEach(() => {
   vi.clearAllMocks()
   vi.unstubAllGlobals()
   vi.useRealTimers()
-  for (const name of ['getTotalLength', 'getComputedTextLength', 'getPointAtLength']) Reflect.deleteProperty(SVGElement.prototype, name)
+  for (const name of ['getTotalLength', 'getComputedTextLength', 'getSubStringLength', 'getPointAtLength']) Reflect.deleteProperty(SVGElement.prototype, name)
   Reflect.deleteProperty(Element.prototype, 'animate')
 })
 
@@ -254,6 +258,32 @@ it('holds terminal whitespace without evicting and replaying the retained tail',
   f.rerender(<Fixture text={value + ' \n 下一步'} />)
   advance(2000)
   expect(displayed().textContent).toContain(' 下一步')
+})
+
+it('drains a window containing one visible glyph and many zero-width glyphs', () => {
+  const f = render(<Fixture text={'W' + '\u200b'.repeat(111) + 'X'} />)
+  const displayed = f.container.querySelector('[data-bart-stream-layer] textPath')!
+  expect(displayed.textContent).not.toContain('X')
+  advance(10_000)
+  expect(displayed.textContent).toBe('\u200b'.repeat(55) + 'X')
+  expect(displayed.getAttribute('startOffset')).toBe(f.container.querySelector('.bart-role-arc > text textPath')!.getAttribute('startOffset'))
+})
+
+it('reuses prefix geometry across animation frames until glyphs change', () => {
+  const measure = vi.spyOn(SVGElement.prototype as SVGTextElement, 'getComputedTextLength')
+  const prefix = vi.spyOn(SVGElement.prototype as SVGTextElement, 'getSubStringLength')
+  render(<Fixture text={'推'.repeat(180)} />)
+  measure.mockClear()
+  prefix.mockClear()
+  // The front moves by less than one glyph, so no geometry changed.
+  advance(48)
+  expect(measure).not.toHaveBeenCalled()
+  expect(prefix).not.toHaveBeenCalled()
+  advance(64)
+  expect(measure).toHaveBeenCalled()
+  expect(prefix).toHaveBeenCalled()
+  measure.mockRestore()
+  prefix.mockRestore()
 })
 
 it('uses source positions for repeated windows and keeps queued text across source rollover', () => {
