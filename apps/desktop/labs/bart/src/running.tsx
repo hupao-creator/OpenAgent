@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { createCanvasCharacter } from '../../../src/renderer/src/bart-motion/character-canvas'
 import { EYE_COLOR } from '../../../src/renderer/src/bart-motion/character-model'
 import type { LabConfig } from './scenarios'
+import { runningFaces, sampleRunningFace, type FacePoint } from './running-faces'
 import './running.css'
 
 /** Lab-only face study on the production silhouette and spring-eye renderer. */
@@ -17,6 +18,7 @@ export function RunningPreview({ config }: { config: LabConfig }): React.JSX.Ele
     const reduced = matchMedia('(prefers-reduced-motion: reduce)')
     let frame = 0, previous = 0, phase = 0
     let face = latest.current.runningIdle ? 0 : 1
+    let points = sampleRunningFace(latest.current.variant, phase, reduced.matches)
     const active = (): boolean => !latest.current.runningPaused && !document.hidden && !reduced.matches
     const draw = (now: number): void => {
       frame = 0
@@ -27,6 +29,16 @@ export function RunningPreview({ config }: { config: LabConfig }): React.JSX.Ele
       const target = current.runningIdle ? 0 : 1
       face = active() ? face + (target - face) * (1 - Math.exp(-delta / 75)) : target
       if (Math.abs(target - face) < .001) face = target
+      const targetPoints = sampleRunningFace(current.variant, phase, reduced.matches)
+      if (!active()) points = targetPoints
+      else {
+        const blend = 1 - Math.exp(-delta / 45)
+        points.forEach((point, index) => {
+          for (const key of Object.keys(point) as (keyof FacePoint)[]) {
+            point[key] += (targetPoints[index][key] - point[key]) * blend
+          }
+        })
+      }
       // Scaling the native eyes to zero lets the same renderer retain Bart's
       // body and idle expression, without changing production descriptors.
       character.update({ activity: current.runningIdle ? 'idle' : 'start',
@@ -44,13 +56,10 @@ export function RunningPreview({ config }: { config: LabConfig }): React.JSX.Ele
       ctx.drawImage(texture, 0, 0, width, height)
       ctx.scale(width / 640, height / 640)
       ctx.fillStyle = EYE_COLOR
-      for (let index = 0; index < 3; index++) {
-        const position = ((phase * 3 - index) % 3 + 3) % 3
-        const pulse = reduced.matches ? 0 : position < 1 ? Math.sin(position * Math.PI) ** 2 : 0
-        ctx.globalAlpha = face * (.58 + .42 * pulse)
+      for (const point of points) {
+        ctx.globalAlpha = face * point.opacity
         ctx.beginPath()
-        ctx.ellipse(320 + (index - 1) * 53, 282 - 7 * pulse,
-          15 * face, (15 + 6 * pulse) * face, 0, 0, Math.PI * 2)
+        ctx.ellipse(point.x, point.y, point.rx * face, point.ry * face, 0, 0, Math.PI * 2)
         ctx.fill()
       }
       ctx.globalAlpha = 1
@@ -78,7 +87,7 @@ export function RunningPreview({ config }: { config: LabConfig }): React.JSX.Ele
       <span>{config.runningIdle ? '待机对照' : '任务运行中 · 暂无具体活动'}</span>
     </div>
     <div className="running-character">
-      <canvas ref={canvasRef} role="img" aria-label={config.runningIdle ? '待机的 Bart' : '三点眼睛的 Bart'} />
+      <canvas ref={canvasRef} role="img" aria-label={config.runningIdle ? '待机的 Bart' : `Bart · ${runningFaces.find(item => item.id === config.variant)?.label}`} />
     </div>
   </main>
 }

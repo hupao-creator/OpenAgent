@@ -4,6 +4,7 @@ import { ArrowDownLeft, ArrowUpRight, Check, Maximize2, RotateCcw } from 'lucide
 import { initialConfig, reasoningStreamStyles, scenes, variants, type ConfigMessage, type LabConfig, type LabEvent, type PreviewMessage, type Scene } from './scenarios'
 import '@fontsource-variable/inter'
 import './styles.css'
+import { runningFaces } from './running-faces'
 
 function App(): React.JSX.Element {
   const [config, setConfig] = useState<LabConfig>(() => {
@@ -190,7 +191,7 @@ function App(): React.JSX.Element {
               onClick={() => setConfig(current => ({ ...current, runningPaused: !current.runningPaused }))}>
               {config.runningPaused ? '继续候选动作' : '暂停候选动作'}
             </button>
-            <p className="control-hint">三点沿用眼睛的颜色，随节奏轻轻抬起、拉长。暂停可观察表情。</p>
+            <p className="control-hint">{runningFaces.find(face => face.id === config.variant)?.description}</p>
           </section> : null}
 
           {config.scene === 'cadence' ? <section className="control-section cadence-controls">
