@@ -4,7 +4,6 @@ import { ArrowDownLeft, ArrowUpRight, Check, Maximize2, RotateCcw } from 'lucide
 import { initialConfig, reasoningStreamStyles, scenes, variants, type ConfigMessage, type LabConfig, type LabEvent, type PreviewMessage, type Scene } from './scenarios'
 import '@fontsource-variable/inter'
 import './styles.css'
-import { runningFaces } from './running-faces'
 
 function App(): React.JSX.Element {
   const [config, setConfig] = useState<LabConfig>(() => {
@@ -166,7 +165,7 @@ function App(): React.JSX.Element {
             <p className="control-hint">已锁定：顺滑推进 · 200% · 左 20° · 眼球放大 10% · 自然扫读与身体跟随。</p>
           </section> : null}
           <section className="control-section">
-            <h2>{config.scene === 'running' ? '眼睛表情' : config.scene === 'cadence' ? '输入序列' : config.scene === 'resident' ? '当前状态' : config.scene === 'input' ? '输入场景' : config.scene === 'question' ? '回答方式' : '请求类型'}</h2>
+            <h2>{config.scene === 'running' ? '运行动画' : config.scene === 'cadence' ? '输入序列' : config.scene === 'resident' ? '当前状态' : config.scene === 'input' ? '输入场景' : config.scene === 'question' ? '回答方式' : '请求类型'}</h2>
             <div className="variant-list">
               {variants[config.scene].map(([id, label]) => (
                 <button type="button" key={id} className={`variant-button ${config.variant === id ? 'selected' : ''}`}
@@ -183,15 +182,15 @@ function App(): React.JSX.Element {
             <label className="toggle-row"><span>待机对照</span><input type="checkbox" checked={config.runningIdle}
               onChange={(event) => setConfig(current => ({ ...current, runningIdle: event.target.checked }))} /><span className="switch" aria-hidden="true" /></label>
             <label className="range-control">
-              <span>循环时长<output>{config.runningCycle.toFixed(1)}s</output></span>
-              <input aria-label="循环时长" type="range" min={1.5} max={4} step={.1} value={config.runningCycle}
+              <span>三拍时长<output>{config.runningCycle.toFixed(1)}s</output></span>
+              <input aria-label="三拍时长" type="range" min={1.5} max={4} step={.1} value={config.runningCycle}
                 onChange={(event) => setConfig(current => ({ ...current, runningCycle: Number(event.target.value) }))} />
             </label>
             <button type="button" className="icon-button" aria-pressed={config.runningPaused}
               onClick={() => setConfig(current => ({ ...current, runningPaused: !current.runningPaused }))}>
               {config.runningPaused ? '继续候选动作' : '暂停候选动作'}
             </button>
-            <p className="control-hint">{runningFaces.find(face => face.id === config.variant)?.description}</p>
+            <p className="control-hint">完整循环 {(config.runningCycle * 3).toFixed(1)}s。三拍后起飞，绕一圈再落回原位。暂停会同时停住光点与表情。</p>
           </section> : null}
 
           {config.scene === 'cadence' ? <section className="control-section cadence-controls">
