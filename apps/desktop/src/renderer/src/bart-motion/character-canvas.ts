@@ -89,10 +89,12 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       // An eye-track update is not a new semantic state: restamping the clock
       // would re-arm nextWake's follow window and repaint at frame rate for it.
       const poseUnchanged = samePose(description, value)
+      // Suspension changes paint cadence, not the identity of this light story.
+      const sameRunningStory = running() && samePose({ ...description, animate: value.animate }, value)
       description = value
       if (poseUnchanged) return
       changedAt = performance.now()
-      runningElapsed = 0
+      if (!sameRunningStory) runningElapsed = 0
       runningPaintAt = changedAt
       if (value.animate === false) {
         state = createMotionState(keyOf(value), descriptorFor(value), value.layout ?? 'mark')

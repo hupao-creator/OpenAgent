@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { ComponentProps } from 'react'
+import { useState, type ComponentProps } from 'react'
 import type { HarnessBartActivity } from '@openagent/contracts/renderer'
 import { BartDock } from '../src/renderer/src/components/BartDock'
 import { getBartPresenceCoordinator } from '../src/renderer/src/bart-motion/presence'
@@ -385,4 +385,40 @@ it.each(['completed', 'failed', 'interrupted', 'waiting-for-user'] as const)('ex
   f.set(null, { activityContext: context('execution-1', status) })
   expect(f.role()).toBe('idle')
   expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-phase', 'idle')
+})
+
+
+it.each([true, false])('shows running during an open composer submission and settles success=%s', async succeeds => {
+  let resolve!: () => void, reject!: (error: Error) => void
+  const submission = new Promise<void>((done, fail) => { resolve = done; reject = fail })
+  function SubmitFixture() {
+    const [inputOpen, setInputOpen] = useState(true)
+    const [submitting, setSubmitting] = useState(false)
+    const [activityContext, setContext] = useState(context('previous', 'completed'))
+    return <BartDock threadOpen={false} sessionIdle={!submitting} running={false}
+      inputOpen={inputOpen} inputValue="开始任务" bartAttachments={[]} submitting={submitting}
+      activityContext={activityContext}
+      onThreadOpenChange={noop} onInputOpenChange={setInputOpen} onInputChange={noop}
+      onChooseFiles={noop} onRemoveBartAttachment={noop} onSubmit={async () => {
+        setSubmitting(true)
+        try { await submission; setContext(context()) }
+        finally { setSubmitting(false) }
+      }} />
+  }
+  const view = render(<SubmitFixture />)
+  const dock = view.container.querySelector('.bart-dock')!
+  expect(dock).toHaveAttribute('data-role', 'idle')
+  fireEvent.submit(view.container.querySelector('form')!)
+  expect(dock).toHaveAttribute('data-layout', 'input')
+  expect(dock).toHaveAttribute('data-role', 'running')
+  expect(view.container.querySelectorAll('.bart-running-fallback circle')).toHaveLength(3)
+  act(() => vi.advanceTimersByTime(1200))
+  expect(dock).toHaveAttribute('data-role', 'running')
+  await act(async () => { if (succeeds) resolve(); else reject(new Error('submission failed')) })
+  expect(dock).toHaveAttribute('data-role', succeeds ? 'running' : 'idle')
+  if (!succeeds) {
+    expect(dock).toHaveAttribute('data-layout', 'input')
+    expect(view.getByDisplayValue('开始任务')).toBeInTheDocument()
+    expect(view.container.querySelectorAll('.bart-running-fallback circle')).toHaveLength(0)
+  }
 })

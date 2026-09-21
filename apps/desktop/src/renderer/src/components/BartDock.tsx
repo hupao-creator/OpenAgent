@@ -372,7 +372,9 @@ export const BartDock = memo(function BartDock({
   // finished collapsing. Bart and his decoration go back to their own activity
   // the moment the input is closed, and ride the capsule down with it.
   const residentLayoutVisible = dockLayout === 'mark' || capsuleLeaving !== null
-  const residentAvailable = residentLayoutVisible &&
+  // The character stays a mark beside the open composer. Its pending submit
+  // already owns running feedback, before the composer can finish closing.
+  const residentAvailable = (residentLayoutVisible || (bartInputVisible && submitting)) &&
     !activeOperation && !visibleInterventionState
   const displayedRole = useBartDisplay(
     latestRole, currentActivity != null, activityContext,

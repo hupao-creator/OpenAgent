@@ -12,11 +12,13 @@ class Canvas {
   width: number; height: number
   paints = 0
   scales: number[][] = []
+  arcs: number[][] = []
   images: unknown[] = []
   listeners = new Map<string, () => void>()
   constructor(width = 1, height = 1) { this.width = width; this.height = height }
   getContext() {
-    return new Proxy({ getTransform: () => ({ a: 1, b: 0 }), clearRect: () => { this.paints++; this.scales = [] },
+    return new Proxy({ getTransform: () => ({ a: 1, b: 0 }), clearRect: () => { this.paints++; this.scales = []; this.arcs = [] },
+      arc: (...args: number[]) => this.arcs.push(args),
       scale: (x: number, y: number) => this.scales.push([x, y]), drawImage: (image: unknown) => this.images.push(image) }, {
       get: (target, key) => Reflect.get(target, key) ?? (() => undefined), set: (target, key, value) => Reflect.set(target, key, value)
     })
@@ -193,4 +195,25 @@ it('keeps the running story painting beyond the normal gesture window, suspends 
   tick(20032); tick(24000)
   expect(canvas.paints).toBe(stopped)
   expect(messages.filter(message => message.type === 'failed')).toEqual([])
+})
+
+
+it('resumes the same orbit after suspension and starts fresh only for a new semantic state', () => {
+  const canvas = attach('running', 'character')
+  const running = { activity: 'idle' as const, phase: 'running' as const, role: 'running', key: 'first' }
+  send({ type: 'character', surface: 'running', request: 1, description: running })
+  const dots = () => canvas.arcs.filter(([, , radius]) => radius > 0)
+  const start = dots()
+  for (let at = 16; at <= 5008; at += 16) tick(at)
+  const orbit = dots()
+  expect(orbit).not.toEqual(start)
+  send({ type: 'character', surface: 'running', request: 2, description: { ...running, animate: false } })
+  tick(30000)
+  send({ type: 'character', surface: 'running', request: 3, description: { ...running, animate: true } })
+  expect(dots()).toEqual(orbit)
+  tick(30016)
+  expect(dots()).not.toEqual(orbit)
+  expect(dots()).not.toEqual(start)
+  send({ type: 'character', surface: 'running', request: 4, description: { ...running, key: 'second' } })
+  expect(dots()).toEqual(start)
 })
