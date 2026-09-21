@@ -99,7 +99,7 @@ export const scenes = [
   { id: 'resident', label: '常驻', english: 'Resident', description: '等待、思考，以及工作的反馈。', hint: '切换右侧状态，观察 Bart 的表情和动作。' },
   { id: 'launch', label: '发起任务', english: 'Input → Running', description: '输入框化为一个光点，三点接上运行。', hint: '按 Enter 或点击发送：输入框收缩成中间光点，左右两点随后出现。重放回到输入态，慢放可检查动作衔接。' },
   { id: 'running', label: '运行中兜底', english: 'Running', description: '三拍接力，环绕一圈，再回到底部。', hint: 'Bart 先向下注意光点，目光跟着绕行，回到底部后轻眨一下，恢复自然。' },
-  { id: 'cadence', label: '展示节奏', english: 'Cadence', description: '快速发生，从容呈现。', hint: '调整展示时间与输入速度，观察哪些瞬时活动被自然吸收。设为 0ms 可对照即时切换。' },
+  { id: 'cadence', label: '展示节奏', english: 'Cadence', description: '快速发生，从容呈现。', hint: '调整展示时间与输入速度，观察状态如何按顺序展示。设为 0ms 可对照即时切换。' },
   { id: 'input', label: '输入', english: 'Input', description: '编辑消息，查看输入与提交后的变化。', hint: '在 Bart 中输入内容，按 Enter 或点击箭头提交。' },
   { id: 'question', label: 'Question', english: 'Question', description: '选择或填写答案，然后继续。', hint: '直接选择或填写答案；提交后可重放当前场景。' },
   { id: 'permission', label: 'Permission', english: 'Permission', description: '查看请求，决定允许或拒绝。', hint: '允许或拒绝请求，观察 Bart 的结果反馈。' }

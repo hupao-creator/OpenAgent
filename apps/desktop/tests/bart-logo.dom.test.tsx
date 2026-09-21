@@ -59,7 +59,6 @@ afterEach(() => {
 
 describe('BartLogo idle eye behavior', () => {
   it('keeps the resident eye proportions beneath the tool pose for both short and long names', () => {
-    vi.spyOn(performance, 'now').mockImplementation(() => frameTime)
     const noop = (): void => {}
     const element = (foregroundActivity?: HarnessBartActivity): React.JSX.Element => (
       <BartDock
