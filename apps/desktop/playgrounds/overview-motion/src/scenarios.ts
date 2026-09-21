@@ -8,7 +8,16 @@ export interface MotionFrame {
   readonly threads: readonly HarnessOverviewThreadInput[]
   readonly reports: readonly RendererReport[]
   readonly nextId: number
+  readonly selectedTag: string
 }
+
+export const motionTagSelections = {
+  'filter-all': '',
+  'filter-frontend': '前端',
+  'filter-backend': '后端',
+  'filter-testing': '测试',
+  'filter-empty': '空结果'
+} as const
 
 export const motionActions = {
   add: '新增卡片',
@@ -21,13 +30,19 @@ export const motionActions = {
   compact: '保留一张',
   report: '生成收纳报告',
   'remove-report': '移除报告',
-  cut: '立即切幕'
+  cut: '立即切幕',
+  'filter-all': '筛选：全部',
+  'filter-frontend': '筛选：前端',
+  'filter-backend': '筛选：后端',
+  'filter-testing': '筛选：测试',
+  'filter-empty': '筛选：空结果'
 } as const
 export type MotionAction = keyof typeof motionActions
 
 export const motionScenarios: readonly {
   id: string; title: string; description: string; count: number; steps: readonly MotionAction[]
 }[] = [
+  { id: 'filters', title: '标签切换', description: '在画布上方选择动效候选，再点击标签或自动播放。覆盖不同集合、交叉标签、空结果与返回全部；可慢放和连续切换。', count: 8, steps: ['filter-frontend', 'filter-testing', 'filter-backend', 'filter-empty', 'filter-backend', 'filter-frontend', 'filter-all'] },
   { id: 'packing', title: '紧凑布局', description: '24 张真实卡片按各自占地紧凑排布。反转数据顺序保留格位，展开、收起和增删按直线依次移动。', count: 24, steps: ['reorder', 'question', 'complete', 'remove', 'add'] },
   { id: 'lifecycle', title: '入场与退场', description: '新卡入场、旧卡退场，观察邻居如何依次让位。', count: 3, steps: ['add', 'add', 'remove', 'reorder'] },
   { id: 'resize', title: '展开与收起', description: '提问展开为组合卡片，完成后收起，观察换形与重排。', count: 4, steps: ['question', 'complete', 'question', 'complete'] },
@@ -46,13 +61,14 @@ function sampleThread(index: number, phase: Phase = 'running'): HarnessOverviewT
   const fixture = fakeSnapshots.find(scene => scene.harness === harness && scene.scenario === phase)!
   const thread = fixture.state.threads[0]!
   if (thread.bart) throw new Error('Motion fixtures must contain an Agent Thread')
-  // Only the public identity changes. Frozen Harness-owned payloads are reused as authored.
+  // Only public identity and tag metadata change. Frozen Harness-owned payloads are reused as authored.
   return { thread: { ...thread, id: `motion-thread-${index}`, title: `${String(index).padStart(2, '0')} · ${titles[(index - 1) % titles.length]}`,
-    createdAt: 1_789_000_000_000 + index, archived: false, tags: ['模拟'], cwd: '/demo/overview-motion' } }
+    createdAt: 1_789_000_000_000 + index, archived: false,
+    tags: ['模拟', index % 2 ? '前端' : '后端', ...(index % 3 === 0 ? ['测试'] : [])], cwd: '/demo/overview-motion' } }
 }
 
 export function createMotionFrame(count: number): MotionFrame {
-  return { threads: Array.from({ length: count }, (_, index) => sampleThread(index + 1)), reports: [], nextId: count + 1 }
+  return { threads: Array.from({ length: count }, (_, index) => sampleThread(index + 1)), reports: [], nextId: count + 1, selectedTag: '' }
 }
 
 function changeFirst(frame: MotionFrame, phase: Phase): MotionFrame {
@@ -101,10 +117,26 @@ export function applyMotionAction(frame: MotionFrame, action: MotionAction): rea
     }
     case 'remove-report': return [{ ...frame, reports: [] }]
     case 'cut': return [createMotionFrame(2)]
+    case 'filter-all':
+    case 'filter-frontend':
+    case 'filter-backend':
+    case 'filter-testing':
+    case 'filter-empty': return [{ ...frame, selectedTag: motionTagSelections[action] }]
   }
 }
 
+export function motionSceneKey(frame: MotionFrame, epoch: number): string {
+  return `playground:${epoch}\u0000${frame.selectedTag}`
+}
+
+export function motionTagFilters(frame: MotionFrame) {
+  return Object.values(motionTagSelections).filter(Boolean).map(tag => ({
+    tag, isCwdTag: false,
+    count: selectOverviewItems(frame.threads, frame.reports, 'default', [tag]).count
+  }))
+}
+
 export function captureMotionLayout(frame: MotionFrame, context: OverviewLayoutContext) {
-  const selected = selectOverviewItems(frame.threads.map(source => projectHarnessOverviewThread(source, context.availableCols)), frame.reports, 'default')
+  const selected = selectOverviewItems(frame.threads.map(source => projectHarnessOverviewThread(source, context.availableCols)), frame.reports, 'default', frame.selectedTag ? [frame.selectedTag] : [])
   return overviewLayoutSnapshot(deriveOverviewItems({ threads: selected.threads, reports: selected.reports, transitionId: null, layoutContext: context }))
 }

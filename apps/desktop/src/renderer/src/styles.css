@@ -726,6 +726,11 @@
   animation: tag-filter-enter-backward 220ms var(--ease-emphasized) both;
 }
 
+.thread-overview-scroll[data-overview-filter-motion='pending'] > .thread-overview-scroll-content:not(.overview-filter-exits) { visibility: hidden; }
+.thread-overview-scroll[data-overview-filter-motion] { pointer-events: none; }
+.overview-filter-exits { position: absolute; inset: 0; z-index: 5; overflow: clip; pointer-events: none; visibility: visible; }
+.overview-filter-exits, .overview-filter-exits * { animation: none !important; transition: none !important; }
+
 @property --bart-refresh-angle {
   syntax: '<angle>';
   inherits: false;

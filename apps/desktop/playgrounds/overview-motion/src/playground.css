@@ -30,6 +30,27 @@
 .motion-preview { display: grid; grid-template-rows: minmax(0, 1fr) 44px; min-width: 0; min-height: 0; background: light-dark(#f0f1ec, #191c18); }
 .motion-stage { width: 100%; height: 100%; min-height: 0; margin: 0 auto; }
 .motion-stage .thread-overview { border: 0; box-shadow: none; }
+.motion-stage[data-filter-transition] { container-type: inline-size; }
+/* The playground inspector narrows Canvas without changing the window breakpoint. */
+@container (max-width: 680px) {
+  .motion-stage[data-filter-transition] .thread-overview-header { top: 10px; right: 14px; left: 14px; flex-direction: column; align-items: stretch; gap: 8px; }
+  .motion-stage[data-filter-transition] .thread-tag-filter-bar { position: static; width: auto; max-width: 100%; margin-inline: 0; }
+  .motion-stage[data-filter-transition] .thread-overview-floating-chrome { align-self: flex-end; }
+}
+.motion-preview-with-candidates { grid-template-rows: auto minmax(0, 1fr) 44px; }
+.motion-filter-candidates { padding: 12px 18px; border-bottom: 1px solid var(--motion-line); background: var(--motion-surface); }
+.motion-filter-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.motion-filter-options button, .motion-filter-tools > button { padding: 7px 10px; border: 1px solid var(--motion-line); border-radius: 5px; background: transparent; font-size: 11px; }
+.motion-filter-options button[aria-pressed='true'] { color: var(--motion-accent); background: light-dark(#e8ede3, #30382b); border-color: var(--motion-accent); }
+.motion-filter-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.motion-filter-tools p { flex: 1 1 240px; margin: 0; color: var(--motion-muted); font-size: 11px; }
+.motion-filter-tools label { display: flex; align-items: center; gap: 7px; color: var(--motion-muted); font-size: 11px; }
+.motion-stage[data-filter-transition]:not([data-filter-transition='original']) .thread-overview-scroll > .thread-overview-scroll-content { animation: none; }
+.motion-stage[data-filter-transition-active] .thread-overview-scroll > .thread-overview-scroll-content { visibility: hidden; }
+.motion-stage[data-filter-transition-active] .thread-overview-scroll { pointer-events: none; }
+.motion-filter-overlay { position: absolute; inset: 0; z-index: 5; overflow: clip; pointer-events: none; }
+.motion-filter-snapshot { position: absolute; inset: 0; transform-origin: center; }
+.motion-filter-snapshot, .motion-filter-snapshot * { animation: none !important; transition: none !important; }
 .motion-stage-footer { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 0 20px; border-top: 1px solid var(--motion-line); background: var(--motion-surface); color: var(--motion-muted); font-size: 10px; }
 .motion-readout { display: flex; align-items: center; gap: 20px; font-variant-numeric: tabular-nums; }
 .motion-readout > span { display: flex; align-items: center; gap: 6px; }
