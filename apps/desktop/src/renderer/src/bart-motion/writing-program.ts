@@ -190,7 +190,7 @@ function writeCard(program: MotionProgram, card: PreparedMotionCard, index: numb
       from: time(texture.from, texture.from >= oldEnd), until: texture.until === undefined ? undefined : time(texture.until, true),
       reveal: texture.reveal && (softReveal && textIds.has(texture.id) ? softenWritingReveal(retime(texture.reveal), 18) : retime(texture.reveal)) })),
     character: { ...character, aimAt: 0,
-      description: { ...character.description,
+      description: { ...character.description, resident: undefined,
         eyeMotion: { key: motionKey, duration, points: preserve(character.description.eyeMotion?.points, eyes) },
         travelTrail: trailStyle ? { key: motionKey, duration, style: trailStyle,
           points: preserve(character.description.travelTrail?.points, trail) } : undefined },

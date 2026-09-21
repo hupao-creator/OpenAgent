@@ -288,7 +288,7 @@ scope.onmessage = ({ data }: MessageEvent<MotionWorkerRequest>): void => {
       const destination = surfaces.get(playback.program.character.destination)
       if (destination?.character && destination.context && destination.heldBy === surface) {
         const description = destination.character.description(), planned = playback.program.character.description
-        const identity = (value: typeof description): string => JSON.stringify([value.key, value.activity, value.phase, value.layout, value.intervention, value.role])
+        const identity = (value: typeof description): string => JSON.stringify([value.key, value.activity, value.phase, value.layout, value.intervention, value.role, value.resident?.scope, value.resident?.reply])
         if (identity(description) === identity(planned)) {
           // A Host redirect can race the landing acknowledgement. Preserve the
           // exact pose/clocks without sharing mutable state with the live actor.

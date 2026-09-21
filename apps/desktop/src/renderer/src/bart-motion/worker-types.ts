@@ -1,3 +1,4 @@
+import type { ResidentDescription } from './resident-character'
 import type { CharacterLaunch } from './launch-story'
 import type { MotionTimeline } from './motion-timeline'
 import type { DispatchDescription } from './dispatch-canvas'
@@ -13,6 +14,7 @@ export interface CharacterDescription {
   layout?: BartLogoLayout
   intervention?: BartInterventionVisualState
   role?: string
+  resident?: ResidentDescription
   animate?: boolean
   launch?: CharacterLaunch
   /** Resident surface extent only; borrowed characters use their own 640-unit scene. */

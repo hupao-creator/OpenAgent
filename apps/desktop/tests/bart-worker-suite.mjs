@@ -18,6 +18,7 @@ function run(command, args, env = process.env) {
 // Real visible Electron windows run serially. Never overlap measurement with
 // bundling, unit tests, PNG encoding from another case, or another native test.
 run('pnpm', ['exec', 'vite', 'build', '--config', 'labs/bart/vite.config.ts'])
+run(process.execPath, ['tests/bart-resident-transition.electron.mjs'])
 run(process.execPath, ['tests/bart-generation-visuals.electron.mjs'])
 run(process.execPath, ['tests/bart-regressions.electron.mjs'])
 run(process.execPath, ['tests/bart-handoff.electron.mjs'])

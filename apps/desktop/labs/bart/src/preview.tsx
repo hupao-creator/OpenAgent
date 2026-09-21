@@ -72,7 +72,11 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
   useEffect(() => () => { sessionKey.current = '' }, [])
 
   const request = interactionFor(config)
-  const foregroundActivity = streamingActivity ?? residentActivityFor(config)
+  // Manual selections are independent snapshots, not late events reopening
+  // the same completed execution. The cadence case covers one real sequence.
+  const executionId = `bart-lab-execution:${config.variant}`
+  const rawActivity = streamingActivity ?? residentActivityFor(config)
+  const foregroundActivity = rawActivity ? { ...rawActivity, executionId } : null
   const reply = residentReplyFor(config)
   const bartRunning = config.scene === 'resident'
     && (foregroundActivity !== null || config.variant === 'running')
@@ -101,7 +105,7 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
         reasoningOptions={{ length: config.reasoningLength, tilt: config.reasoningTilt,
           gaze: config.reasoningGaze, stream: config.reasoningStreamStyle }}
         activityContext={{ threadKey: 'bart-lab', execution: {
-          executionId: 'bart-lab-execution', status: bartRunning ? 'running' : 'completed'
+          executionId, status: bartRunning ? 'running' : 'completed'
         } }}
         threadOpen={false}
         threadFollowUp={threadFollowUpFor(config)}
