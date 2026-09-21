@@ -19,6 +19,7 @@ export function RunningPreview({ config }: { config: LabConfig }): React.JSX.Ele
     const dots = Array.from(dotsRef.current!.children) as HTMLElement[]
     const reduced = matchMedia('(prefers-reduced-motion: reduce)')
     let frame = 0, previous = 0, elapsed = 0
+    let paintedState: string | undefined
     const active = (): boolean => !latest.current.runningPaused && !document.hidden && !reduced.matches
     const draw = (now: number): void => {
       frame = 0
@@ -28,15 +29,21 @@ export function RunningPreview({ config }: { config: LabConfig }): React.JSX.Ele
       // Idle comparison holds the story, so returning to running continues it.
       if (!current.runningIdle) elapsed += delta / (current.runningCycle * 1000)
       const story = sampleRunningStory(elapsed, reduced.matches || current.runningIdle)
-      character.update({ activity: 'idle', phase: current.runningIdle ? 'idle' : 'running',
-        animate: !((reduced.matches || current.runningPaused) && current.runningIdle),
-        eyeMotion: { key: 0, duration: 1, points: [{ at: 0, ...story.eyes }] } })
       const width = canvas.clientWidth, height = canvas.clientHeight, ratio = devicePixelRatio || 1
       if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
         canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio)
       }
-      paint.clearRect(0, 0, 420, 420)
-      character.paint(paint, now, 420, 420)
+      const paintState = `${current.runningIdle}:${reduced.matches}`
+      // A resize or inspector refresh redraws the cached texture while paused.
+      // Advancing the native blink clock here would change a frozen expression.
+      if (active() || paintedState !== paintState) {
+        character.update({ activity: 'idle', phase: current.runningIdle ? 'idle' : 'running',
+          animate: !reduced.matches && !current.runningPaused,
+          eyeMotion: { key: 0, duration: 1, points: [{ at: 0, ...story.eyes }] } })
+        paint.clearRect(0, 0, 420, 420)
+        character.paint(paint, now, 420, 420)
+        paintedState = paintState
+      }
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height)
       ctx.drawImage(texture, 0, 0, width, height)
       dots.forEach((dot, index) => {

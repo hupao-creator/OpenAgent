@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BartDock } from '../../../src/renderer/src/components/BartDock'
+import { BartLogo } from '../../../src/renderer/src/components/BartLogo'
 import type { BartVisualOperation } from '../../../src/renderer/src/bart-visual-operation'
 import type { ThreadInteractionResponseRequest } from '../../../src/shared/desktop-api'
 import { initialConfig, inputAttachmentsFor, inputDraftFor, interactionFor, residentActivityFor, residentReplyFor, threadFollowUpFor, validConfig, type LabConfig, type LabEvent, type PreviewMessage } from './scenarios'
@@ -100,6 +101,14 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
       payload: response
     })
   }
+
+  // A finished operation is a character study, not an active execution. The
+  // production Dock correctly discards it; preview the real result pose directly.
+  if (operation && operation.phase !== 'running') return (
+    <main className="app-shell bart-preview" data-guides={config.guides}>
+      <div className="bart-operation-preview"><BartLogo width={400} height={210} operation={operation} /></div>
+    </main>
+  )
 
   return (
     <main className="app-shell bart-preview" data-guides={config.guides}>
