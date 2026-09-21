@@ -3,6 +3,7 @@ import { createMotionState, seatDescriptor, interactionDescriptor, renderMotionF
 import type { CharacterDescription } from './worker-types'
 import { paintInterventionTokens, transformInterventionBody } from './intervention-canvas'
 import { paintTravelTrail } from './travel-trail'
+import { CAPSULE_DOT_AT, LAUNCH_DURATION, launchBodyOffset, sampleLaunch, sampleLaunchCapsule } from './launch-story'
 import { RUNNING_BEAT_MS, RUNNING_DOT_RADIUS, sampleRunningStory } from './running-story'
 
 interface CharacterSeed {
@@ -21,7 +22,7 @@ export interface CanvasCharacter {
   description(): CharacterDescription
   update(value: CharacterDescription): void
   nextWake(now: number): number
-  paint(ctx: OffscreenCanvasRenderingContext2D, now: number, width: number, height: number): void
+  paint(ctx: OffscreenCanvasRenderingContext2D, now: number, width: number, height: number, viewport?: CharacterDescription['viewport']): void
 }
 
 class CanvasPart implements MotionPart {
@@ -59,7 +60,7 @@ const keyOf = (value: CharacterDescription): string => value.key ?? `${value.act
 function samePose(left: CharacterDescription, right: CharacterDescription): boolean {
   return left.key === right.key && left.activity === right.activity && left.phase === right.phase
     && left.layout === right.layout && left.intervention === right.intervention
-    && left.animate === right.animate && left.role === right.role
+    && left.animate === right.animate && left.role === right.role && left.launch?.key === right.launch?.key
 }
 
 /** Draws the production 36-point silhouette, spring eyes, gestures and orbit. */
@@ -94,7 +95,8 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       description = value
       if (poseUnchanged) return
       changedAt = performance.now()
-      if (!sameRunningStory) runningElapsed = 0
+      if (!sameRunningStory) runningElapsed = value.launch
+        ? Math.max(0, (performance.timeOrigin + changedAt - value.launch.startedAt) * value.launch.speed) : 0
       runningPaintAt = changedAt
       if (value.animate === false) {
         state = createMotionState(keyOf(value), descriptorFor(value), value.layout ?? 'mark')
@@ -116,18 +118,24 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       return Math.min(state.shape === 'mark' ? Infinity : state.nextNaturalBlink,
         state.expression === 'idle' ? state.eyeSaccade.nextSweepAt : Infinity)
     },
-    paint(ctx: OffscreenCanvasRenderingContext2D, now: number, width: number, height: number): void {
+    paint(ctx: OffscreenCanvasRenderingContext2D, now: number, width: number, height: number, viewport?: CharacterDescription['viewport']): void {
       if (description.animate === false) snapMotionToTargets(state)
       // Resize and density redraws must not advance a suspended face's natural
       // blink, gaze or gesture clocks. Repaint the same model instant instead.
       renderMotionFrame(state, parts, description.animate === false ? state.lastFrameAt : now)
       // A suspended/hidden surface resumes without skipping the light story.
-      if (running() && description.animate !== false) runningElapsed += Math.max(0, Math.min(64, now - runningPaintAt))
+      if (running() && description.animate !== false) runningElapsed += Math.max(0, Math.min(64, now - runningPaintAt)) * (description.launch?.speed ?? 1)
       runningPaintAt = now
-      const story = running() ? sampleRunningStory(runningElapsed / RUNNING_BEAT_MS, description.animate === false) : undefined
+      const launch = running() ? description.launch : undefined
+      // The first short handoff shares an absolute epoch with the compositor text fade.
+      if (launch && description.animate !== false && runningElapsed < LAUNCH_DURATION) {
+        runningElapsed = Math.max(runningElapsed, (performance.timeOrigin + now - launch.startedAt) * launch.speed)
+      }
+      const intro = launch ? sampleLaunch(runningElapsed, description.animate === false) : undefined
+      const story = running() ? intro ?? sampleRunningStory(runningElapsed / RUNNING_BEAT_MS, description.animate === false) : undefined
       ctx.save()
-      const view = state.layout === 'permission' ? [20, 110, 760, 380] : state.layout === 'question' ? [20, 50, 760, 500]
-        : state.layout !== 'mark' ? [20, 100, 780, 400] : [0, 0, 640, 640]
+      const view = viewport ?? (state.layout === 'permission' ? [20, 110, 760, 380] : state.layout === 'question' ? [20, 50, 760, 500]
+        : state.layout !== 'mark' ? [20, 100, 780, 400] : [0, 0, 640, 640])
       const scale = Math.min(width / view[2], height / view[3])
       ctx.translate((width - scale * view[2]) / 2, (height - scale * view[3]) / 2)
       ctx.scale(scale, scale)
@@ -152,6 +160,12 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         const elapsed = description.animate === false ? (description.intervention === 'processing' ? 0 : 2000) : now - interventionAt
         paintInterventionTokens(ctx, description.intervention, elapsed)
         if (description.animate !== false) transformInterventionBody(ctx, description.intervention, elapsed)
+      }
+      ctx.save()
+      if (launch && intro && !intro.running) {
+        const offset = launchBodyOffset(launch, runningElapsed)
+        ctx.translate(offset.x, offset.y)
+        ctx.translate(320, 450 + intro.body.drop); ctx.scale(intro.body.x, intro.body.y); ctx.translate(-320, -450)
       }
       transform(ctx, parts.bot.getAttribute('transform'))
       if (description.animate !== false && description.travelTrail && state.layout === 'mark') {
@@ -210,13 +224,21 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         ctx.restore()
       }
       ctx.restore()
-      for (const dot of story?.dots ?? []) {
-        ctx.save(); ctx.globalAlpha *= dot.opacity; ctx.fillStyle = dot.color
-        ctx.beginPath(); ctx.arc(dot.x, dot.y, RUNNING_DOT_RADIUS, 0, Math.PI * 2); ctx.fill(); ctx.restore()
-      }
       ctx.beginPath(); ctx.arc(477, 178, Math.max(0, parts.thoughtDot.number('r')), 0, Math.PI * 2)
       ctx.fillStyle = description.role === 'tool' ? '#34c759' : '#249cff'; ctx.fill()
       if (parts.thoughtDot.number('r') > 0.1) { ctx.strokeStyle = EYE_COLOR; ctx.lineWidth = 8; ctx.stroke() }
+      ctx.restore()
+      if (launch && description.animate !== false && runningElapsed < CAPSULE_DOT_AT) {
+        const capsule = sampleLaunchCapsule(launch, runningElapsed)
+        ctx.save(); ctx.globalAlpha *= capsule.opacity; ctx.fillStyle = capsule.color
+        ctx.shadowColor = `rgba(16,17,15,${.22 * (1 - capsule.tint)})`
+        ctx.shadowBlur = 20 * scale * (1 - capsule.tint); ctx.shadowOffsetY = 8 * scale * (1 - capsule.tint)
+        ctx.beginPath(); ctx.roundRect(capsule.x, capsule.y, capsule.width, capsule.height, capsule.radius); ctx.fill(); ctx.restore()
+      }
+      for (const [index, dot] of (story?.dots ?? []).entries()) {
+        ctx.save(); ctx.globalAlpha *= dot.opacity; ctx.fillStyle = dot.color
+        ctx.beginPath(); ctx.arc(dot.x, dot.y, RUNNING_DOT_RADIUS * (intro?.dots[index].scale ?? 1), 0, Math.PI * 2); ctx.fill(); ctx.restore()
+      }
       ctx.restore()
     }
   }

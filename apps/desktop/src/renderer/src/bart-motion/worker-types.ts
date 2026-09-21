@@ -1,3 +1,4 @@
+import type { CharacterLaunch } from './launch-story'
 import type { MotionTimeline } from './motion-timeline'
 import type { DispatchDescription } from './dispatch-canvas'
 import type { BartWebGLPose } from './webgl-renderer'
@@ -13,6 +14,9 @@ export interface CharacterDescription {
   intervention?: BartInterventionVisualState
   role?: string
   animate?: boolean
+  launch?: CharacterLaunch
+  /** Resident surface extent only; borrowed characters use their own 640-unit scene. */
+  viewport?: readonly [number, number, number, number]
   eyeMotion?: { key: number; duration: number; points: readonly { at: number; x: number; y: number; scaleX?: number; scaleY?: number }[] }
   travelTrail?: { key: number; duration: number; style: 'streaks' | 'wake';
     points: readonly { at: number; direction: number; strength: number }[] }

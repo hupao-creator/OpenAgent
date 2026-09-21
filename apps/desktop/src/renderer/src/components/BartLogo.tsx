@@ -10,6 +10,7 @@ import {
 export type { BartLogoActivity, BartLogoPhase, BartLogoLayout, BartInterventionVisualState,
   BartLogoPose, BartLogoEye, BartLogoExpression, BartLogoShape } from '../bart-motion/character-model'
 import './BartLogo.css'
+import type { CharacterDescription } from '../bart-motion/worker-types'
 import { CharacterCanvas } from '../bart-motion/CharacterCanvas'
 import { RUNNING_DOT_RADIUS, sampleRunningStory } from '../bart-motion/running-story'
 const STILL_RUNNING_DOTS = sampleRunningStory(0, true).dots
@@ -41,6 +42,8 @@ interface BartLogoProps {
   roleKind?: string
   /** Covered resident surfaces retain their static appearance without repainting. */
   motionActive?: boolean
+  launch?: CharacterDescription['launch']
+  canvasViewport?: CharacterDescription['viewport']
 }
 
 /** Bart's character. Bart Lab mounts this production implementation directly. */
@@ -61,7 +64,9 @@ export const BartLogo = memo(function BartLogo({
   interventionKey,
   resolvedKey,
   roleKind,
-  motionActive = true
+  motionActive = true,
+  launch,
+  canvasViewport
 }: BartLogoProps): React.JSX.Element {
   const svgRef = useRef<SVGSVGElement>(null)
   const bodyRef = useRef<SVGPathElement>(null)
@@ -222,7 +227,7 @@ export const BartLogo = memo(function BartLogo({
       ) : null}
       <g className="bart-body-motion">
         <CharacterCanvas width={renderWidth} height={renderHeight} description={{
-          activity, phase, key: motionKey, layout, intervention: interventionState, role: roleKind, animate: shouldAnimate
+          activity, phase, key: motionKey, layout, intervention: interventionState, role: roleKind, animate: shouldAnimate, launch, viewport: canvasViewport
         }} />
         <g
           ref={botRef}

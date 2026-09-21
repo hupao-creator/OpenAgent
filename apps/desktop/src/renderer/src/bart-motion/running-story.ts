@@ -1,5 +1,9 @@
 /** Shared by the Worker and Lab, in the character's 640-unit viewBox. */
 export const RUNNING_BEAT_MS = 2800
+export const RUNNING_ORBIT_BEATS = 3000 / RUNNING_BEAT_MS
+export const RUNNING_CYCLE_BEATS = 1.22 + RUNNING_ORBIT_BEATS + .45
+const LAND_AT = 1.22 + RUNNING_ORBIT_BEATS
+const RECOVER_AT = LAND_AT + .23
 export const RUNNING_DOT_RADIUS = 3.5 * 640 / 210
 const UNIT = 640 / 210
 const CENTER = { x: 320, y: 300 }
@@ -28,12 +32,13 @@ export interface RunningStory {
 
 /** One loop: three beats, launch, exactly one revolution, land, recover. */
 export function sampleRunningStory(time: number, still = false): RunningStory {
-  const t = still ? 0 : ((time % 3) + 3) % 3
-  const orbit = smooth((t - 1.22) / 1.33)
+  const t = still ? 0 : ((time % RUNNING_CYCLE_BEATS) + RUNNING_CYCLE_BEATS) % RUNNING_CYCLE_BEATS
+  const lap = Math.max(0, Math.min(1, (t - 1.22) / RUNNING_ORBIT_BEATS))
+  const orbit = lap ** 3 * (lap * (lap * 6 - 15) + 10)
   const angle = Math.PI / 2 + TAU * orbit
   const departure = smooth((t - 1) / .22)
-  const arrival = smooth((t - 2.55) / .23)
-  const recover = smooth((t - 2.78) / .22)
+  const arrival = smooth((t - LAND_AT) / .23)
+  const recover = smooth((t - RECOVER_AT) / .22)
   const orbitWeight = departure * (1 - arrival)
   let eyes = { x: 0, y: 0, scaleX: 1, scaleY: 1 }
   if (!still) {
@@ -45,7 +50,7 @@ export function sampleRunningStory(time: number, still = false): RunningStory {
       y: mix(anticipate, y, departure) * (1 - arrival) + 26 * arrival * (1 - recover),
       scaleX: 1,
       scaleY: 1 + .055 * Math.sin(Math.PI * orbit) * orbitWeight
-        - (t > 2.78 ? .78 * Math.sin(Math.PI * recover) ** 8 : 0)
+        - (t > RECOVER_AT ? .78 * Math.sin(Math.PI * recover) ** 8 : 0)
     }
   }
   const dots = [0, 1, 2].map(index => {
@@ -59,9 +64,9 @@ export function sampleRunningStory(time: number, still = false): RunningStory {
       x: mix(baseX, orbitX, orbitWeight),
       y: mix(BASE_Y - 3 * UNIT * pulse, orbitY, orbitWeight),
       opacity: still ? .9 : mix(.65 + .35 * pulse, 1, orbitWeight),
-      color: color(t / 3 + index / 3)
+      color: color(t / RUNNING_CYCLE_BEATS + index / 3)
     }
   })
   return { stage: still ? '静态预览' : t < 1 ? '三拍接力' : t < 1.22 ? '准备起飞'
-    : t < 2.55 ? '环绕一圈' : t < 2.78 ? '回到底部' : '恢复自然', eyes, dots }
+    : t < LAND_AT ? '环绕一圈' : t < RECOVER_AT ? '回到底部' : '恢复自然', eyes, dots }
 }

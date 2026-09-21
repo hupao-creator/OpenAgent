@@ -11,6 +11,7 @@ import './preview.css'
 import { CadencePreview } from './cadence'
 import { useReasoningStream } from './reasoning-stream'
 import { RunningPreview } from './running'
+import { LaunchPreview } from './launch'
 
 function notify(message: PreviewMessage): void {
   if (window.parent !== window) window.parent.postMessage(message, window.location.origin)
@@ -35,6 +36,8 @@ function Preview(): React.JSX.Element {
   }, [])
   return config.scene === 'running'
     ? <RunningPreview key={config.replay} config={config} />
+    : config.scene === 'launch'
+    ? <LaunchPreview key={`${config.variant}:${config.replay}`} config={config} record={record} />
     : config.scene === 'cadence'
     ? <CadencePreview key={`${config.variant}:${config.replay}`} config={config} />
     : <ScenePreview key={config.replay} config={config} />
@@ -72,11 +75,11 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
 
   const request = interactionFor(config)
   const operation: BartVisualOperation | undefined = config.scene === 'resident'
-    && ['working', 'success', 'error'].includes(config.variant)
+    && ['working', 'error'].includes(config.variant)
     ? {
         id: `bart-work-${config.replay}`,
         kind: 'read',
-        phase: config.variant === 'success' ? 'completed' : config.variant === 'error' ? 'failed' : 'running'
+        phase: config.variant === 'error' ? 'failed' : 'running'
       }
     : undefined
   const foregroundActivity = streamingActivity ?? residentActivityFor(config)
@@ -102,9 +105,9 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
     })
   }
 
-  // A finished operation is a character study, not an active execution. The
-  // production Dock correctly discards it; preview the real result pose directly.
-  if (operation && operation.phase !== 'running') return (
+  // A failed operation is a character study, not an active execution. The
+  // production Dock correctly discards it; preview the real failure pose directly.
+  if (operation?.phase === 'failed') return (
     <main className="app-shell bart-preview" data-guides={config.guides}>
       <div className="bart-operation-preview"><BartLogo width={400} height={210} operation={operation} /></div>
     </main>
@@ -116,7 +119,7 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
         reasoningOptions={{ length: config.reasoningLength, tilt: config.reasoningTilt,
           gaze: config.reasoningGaze, stream: config.reasoningStreamStyle }}
         activityContext={{ threadKey: 'bart-lab', execution: {
-          executionId: 'bart-lab-execution', status: bartRunning ? 'running' : operation?.phase === 'failed' ? 'failed' : 'completed'
+          executionId: 'bart-lab-execution', status: bartRunning ? 'running' : 'completed'
         } }}
         threadOpen={false}
         threadFollowUp={threadFollowUpFor(config)}
