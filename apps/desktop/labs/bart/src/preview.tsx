@@ -9,6 +9,7 @@ import '@fontsource-variable/inter'
 import './preview.css'
 import { CadencePreview } from './cadence'
 import { useReasoningStream } from './reasoning-stream'
+import { RunningPreview } from './running'
 
 function notify(message: PreviewMessage): void {
   if (window.parent !== window) window.parent.postMessage(message, window.location.origin)
@@ -31,7 +32,9 @@ function Preview(): React.JSX.Element {
     notify({ source: 'bart-preview', type: 'ready' })
     return () => window.removeEventListener('message', receive)
   }, [])
-  return config.scene === 'cadence'
+  return config.scene === 'running'
+    ? <RunningPreview key={config.replay} config={config} />
+    : config.scene === 'cadence'
     ? <CadencePreview key={`${config.variant}:${config.replay}`} config={config} />
     : <ScenePreview key={config.replay} config={config} />
 }

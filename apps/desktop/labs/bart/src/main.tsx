@@ -6,7 +6,12 @@ import '@fontsource-variable/inter'
 import './styles.css'
 
 function App(): React.JSX.Element {
-  const [config, setConfig] = useState(initialConfig)
+  const [config, setConfig] = useState<LabConfig>(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('scene') !== 'running') return initialConfig
+    const variant = variants.running.find(([id]) => id === params.get('variant'))?.[0] ?? 'dots'
+    return { ...initialConfig, scene: 'running', variant }
+  })
   const [ready, setReady] = useState(false)
   const [fit, setFit] = useState(true)
   const [events, setEvents] = useState<Array<LabEvent & { id: number; time: string }>>([])
@@ -34,7 +39,7 @@ function App(): React.JSX.Element {
     frameRef.current?.contentWindow?.postMessage(message, window.location.origin)
   }
   const selectScene = (next: Scene): void => {
-    setConfig((current) => ({ ...current, scene: next, variant: variants[next][0][0] }))
+    setConfig((current) => ({ ...current, scene: next, variant: next === 'running' ? 'dots' : variants[next][0][0] }))
   }
 
   useEffect(() => {
@@ -106,7 +111,7 @@ function App(): React.JSX.Element {
             <div className="specimen-caption"><span className="eyebrow">0{index + 1} — {variant[2].toUpperCase()}</span><p>{scene.description}</p></div>
             <div className="canvas-tools">
               <button type="button" className="icon-button" aria-label="重放当前场景" title="重放当前场景"
-                onClick={() => setConfig((current) => ({ ...current, replay: current.replay + 1, reasoningStreamPaused: false }))}><RotateCcw size={15} /><span>重放</span></button>
+                onClick={() => setConfig((current) => ({ ...current, replay: current.replay + 1, reasoningStreamPaused: false, runningPaused: false }))}><RotateCcw size={15} /><span>重放</span></button>
               <button type="button" className={`icon-button ${fit ? 'is-active' : ''}`} aria-label="适合画布" aria-pressed={fit}
                 title={fit ? '切换到原始比例' : '适合画布'} onClick={() => setFit((current) => !current)}><Maximize2 size={17} /></button>
               <span className="scale-label">{Math.round(scale * 100)}%</span>
@@ -160,7 +165,7 @@ function App(): React.JSX.Element {
             <p className="control-hint">已锁定：顺滑推进 · 200% · 左 20° · 眼球放大 10% · 自然扫读与身体跟随。</p>
           </section> : null}
           <section className="control-section">
-            <h2>{config.scene === 'cadence' ? '输入序列' : config.scene === 'resident' ? '当前状态' : config.scene === 'input' ? '输入场景' : config.scene === 'question' ? '回答方式' : '请求类型'}</h2>
+            <h2>{config.scene === 'running' ? '兜底候选' : config.scene === 'cadence' ? '输入序列' : config.scene === 'resident' ? '当前状态' : config.scene === 'input' ? '输入场景' : config.scene === 'question' ? '回答方式' : '请求类型'}</h2>
             <div className="variant-list">
               {variants[config.scene].map(([id, label]) => (
                 <button type="button" key={id} className={`variant-button ${config.variant === id ? 'selected' : ''}`}
@@ -171,6 +176,22 @@ function App(): React.JSX.Element {
             </div>
             <p className="control-hint">{scene.hint}</p>
           </section>
+
+          {config.scene === 'running' ? <section className="control-section reasoning-controls">
+            <h2>运行对照</h2>
+            <label className="toggle-row"><span>待机对照</span><input type="checkbox" checked={config.runningIdle}
+              onChange={(event) => setConfig(current => ({ ...current, runningIdle: event.target.checked }))} /><span className="switch" aria-hidden="true" /></label>
+            <label className="range-control">
+              <span>循环时长<output>{config.runningCycle.toFixed(1)}s</output></span>
+              <input aria-label="循环时长" type="range" min={1.5} max={4} step={.1} value={config.runningCycle}
+                onChange={(event) => setConfig(current => ({ ...current, runningCycle: Number(event.target.value) }))} />
+            </label>
+            <button type="button" className="icon-button" aria-pressed={config.runningPaused}
+              onClick={() => setConfig(current => ({ ...current, runningPaused: !current.runningPaused }))}>
+              {config.runningPaused ? '继续候选动作' : '暂停候选动作'}
+            </button>
+            <p className="control-hint">角色保留原有眨眼。候选仅用于比较；正式运行状态尚未接入。</p>
+          </section> : null}
 
           {config.scene === 'cadence' ? <section className="control-section cadence-controls">
             <h2>节奏参数</h2>
