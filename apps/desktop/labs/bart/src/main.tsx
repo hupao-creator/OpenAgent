@@ -166,7 +166,7 @@ function App(): React.JSX.Element {
             <p className="control-hint">已锁定：顺滑推进 · 200% · 左 20° · 眼球放大 10% · 自然扫读与身体跟随。</p>
           </section> : null}
           <section className="control-section">
-            <h2>{config.scene === 'running' ? '兜底候选' : config.scene === 'cadence' ? '输入序列' : config.scene === 'resident' ? '当前状态' : config.scene === 'input' ? '输入场景' : config.scene === 'question' ? '回答方式' : '请求类型'}</h2>
+            <h2>{config.scene === 'running' ? '眼睛表情' : config.scene === 'cadence' ? '输入序列' : config.scene === 'resident' ? '当前状态' : config.scene === 'input' ? '输入场景' : config.scene === 'question' ? '回答方式' : '请求类型'}</h2>
             <div className="variant-list">
               {variants[config.scene].map(([id, label]) => (
                 <button type="button" key={id} className={`variant-button ${config.variant === id ? 'selected' : ''}`}
