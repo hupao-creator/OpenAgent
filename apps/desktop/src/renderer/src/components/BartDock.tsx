@@ -414,7 +414,7 @@ export const BartDock = memo(function BartDock({
     !activeOperation && !visibleInterventionState
   const displayedRole = useBartDisplay(
     latestRole, currentActivity != null, activityContext,
-    residentAvailable && !bartInputVisible && !threadFollowUpVisible && windowVisible && spatiallyVisible && !concealed && !threadOpen && !presentationCovered,
+    residentAvailable && !launchIntro && !bartInputVisible && !threadFollowUpVisible && windowVisible && spatiallyVisible && !concealed && !threadOpen && !presentationCovered,
     displayTiming, displayQueue, currentActivity
   )
   const launchVisible = Boolean(launch && !bartInputVisible && !activeOperation && !visibleInterventionState &&
