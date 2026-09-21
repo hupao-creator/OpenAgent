@@ -39,6 +39,7 @@ export interface PiMessage {
   todos?: PiTodo[]
   model?: string
   provider?: string
+  /** Last-call usage accepted when the native assistant message ends, never a streaming placeholder. */
   usage?: { input: number; output: number; cacheRead: number; cacheWrite: number; cost?: number }
 }
 export interface PiTodo {
