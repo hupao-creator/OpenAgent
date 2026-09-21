@@ -38,7 +38,7 @@ export function CadencePreview({ config }: { config: LabConfig }): React.JSX.Ele
       activityContext={{ threadKey: 'bart-cadence-lab', execution: {
         executionId: EXECUTION, status: finished ? 'completed' : 'running'
       } }}
-      displayTiming={{ minimumMs: config.minimumMs, reasoningMs: config.reasoningMs }}
+      displayTiming={{ running: { minimumDisplayMs: config.minimumMs }, reasoning: { minimumDisplayMs: config.reasoningMs }, tool: { minimumDisplayMs: config.minimumMs } }}
       foregroundActivity={finished ? null : activity}
       running={!finished} sessionIdle={finished} threadOpen={false}
       inputOpen={covered} inputValue={covered ? '输入接管期间，真实活动仍继续前进' : ''}

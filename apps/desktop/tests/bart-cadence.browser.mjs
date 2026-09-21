@@ -34,13 +34,13 @@ async function restartWith(label) {
 }
 
 async function sample(duration) {
-  return page.frameLocator('iframe').locator('main').evaluate(async (main, duration) => {
+  return page.frameLocator('iframe').locator('main').evaluate((main, duration) => new Promise((resolve) => {
     const start = performance.now()
     const entries = []
     const decorations = new Set()
     const sizes = new Set()
     let previous
-    while (performance.now() - start < duration) {
+    const observe = () => {
       const dock = main.querySelector('.bart-dock')
       const name = main.querySelector('.bart-role-tool-name')?.textContent ?? ''
       const text = main.querySelector('textPath')?.textContent.trim() ?? ''
@@ -55,17 +55,23 @@ async function sample(duration) {
           source: main.querySelector('.cadence-source')?.textContent })
         previous = key
       }
-      await new Promise(requestAnimationFrame)
     }
-    return { entries, decorationCount: decorations.size, bodySizes: [...sizes] }
-  }, duration)
+    const observer = new MutationObserver(observe)
+    observer.observe(main, { subtree: true, childList: true, characterData: true,
+      attributes: true, attributeFilter: ['data-role', 'data-layout'] })
+    observe()
+    setTimeout(() => {
+      observer.disconnect()
+      resolve({ entries, decorationCount: decorations.size, bodySizes: [...sizes] })
+    }, duration)
+  }), duration)
 }
 
 function assertCadence(trace, minimum, message) {
-  // The first sample can start partway through the first interval. Frame
-  // observation can vary by one or two refreshes, so leave a 50ms margin.
+  // The first sample can start partway through the first interval. Observe DOM
+  // replacements directly so a delayed animation frame cannot shorten a hold.
   for (let i = 2; i < trace.entries.length; i++) {
-    assert.ok(trace.entries[i].at - trace.entries[i - 1].at >= minimum - 50, message)
+    assert.ok(trace.entries[i].at - trace.entries[i - 1].at >= (typeof minimum === 'function' ? minimum(trace.entries[i - 1]) : minimum) - 50, message)
   }
   assert.equal(trace.bodySizes.length, 1, 'Bart keeps its body geometry')
 }
@@ -82,14 +88,15 @@ try {
   await preview.locator('.cadence-source').waitFor()
   await page.getByRole('button', { name: '适合画布', exact: true }).click()
   assert.equal(await page.getByRole('slider', { name: '最短展示时间' }).inputValue(), '800')
-  assert.equal(await page.getByRole('slider', { name: '思考文字刷新' }).inputValue(), '150')
+  assert.equal(await page.getByRole('slider', { name: '思考最短展示' }).inputValue(), '150')
 
   evidence.smoothed = fragments(await sample(2700))
-  assert.ok(evidence.smoothed.entries.length >= 2 && evidence.smoothed.entries.length <= 5,
+  assert.ok(evidence.smoothed.entries.length >= 2 && evidence.smoothed.entries.length <= 8,
     'fast source events produce only a few visible replacements')
-  assertCadence(evidence.smoothed, 800, 'ordinary fragments keep their minimum visible interval')
+  assertCadence(evidence.smoothed, entry => entry.role === 'reasoning' ? 150 : 800, 'ordinary fragments keep their minimum visible interval')
 
   await slider('最短展示时间', 0)
+  await slider('思考最短展示', 0)
   await restartWith('重放当前场景')
   evidence.immediate = fragments(await sample(2700))
   assert.ok(evidence.immediate.entries.length > evidence.smoothed.entries.length * 3,
@@ -102,6 +109,7 @@ try {
   assert.ok(evidence.tools.entries.length >= 3, 'new tool names continue to arrive')
   assert.equal(evidence.tools.decorationCount, 1, 'consecutive tools keep their decoration instance')
 
+  await slider('思考最短展示', 150)
   await slider('事件输入间隔', 20)
   await restartWith('连续思考')
   evidence.reasoning = await sample(1200)
@@ -110,12 +118,12 @@ try {
   assert.equal(evidence.reasoning.decorationCount, 1, 'reasoning segments keep one decoration')
   await page.screenshot({ path: path.join(output, 'reasoning-controls.png') })
 
-  await slider('最短展示时间', 2000)
+  await slider('最短展示时间', 300)
   await restartWith('快速完成')
   const started = Date.now()
-  await preview.locator('.bart-reply-stage').waitFor({ timeout: 1500 })
+  await preview.locator('.bart-reply-stage').waitFor({ timeout: 5000 })
   evidence.finalReplyMs = Date.now() - started
-  assert.ok(evidence.finalReplyMs < 1000, 'final answer bypasses even a 2000ms display hold')
+  assert.ok(evidence.finalReplyMs >= 800, 'natural completion lets the queued fragments finish')
   assert.equal(await preview.locator('.bart-dock').getAttribute('data-role'), 'idle')
   await page.screenshot({ path: path.join(output, 'final-reply.png') })
 
@@ -125,13 +133,15 @@ try {
   evidence.recovery = await preview.locator('main').evaluate((main) => new Promise((resolve, reject) => {
     const dock = main.querySelector('.bart-dock')
     const observer = new MutationObserver(() => {
-      if (dock.dataset.layout !== 'mark') return
+      // The resident decoration returns when the composer closes; the capsule
+      // keeps its input layout for its independent collapse animation.
+      if (!dock.dataset.capsuleLeaving && dock.dataset.layout !== 'mark') return
       clearTimeout(timeout)
       observer.disconnect()
       resolve({ role: dock.dataset.role, text: main.querySelector('textPath')?.textContent.trim() })
     })
     const timeout = setTimeout(() => { observer.disconnect(); reject(new Error('Input never yielded')) }, 5000)
-    observer.observe(dock, { attributes: true, attributeFilter: ['data-layout'] })
+    observer.observe(dock, { attributes: true, attributeFilter: ['data-layout', 'data-capsule-leaving'] })
   }))
   assert.equal(evidence.recovery.role, 'reasoning', 'return uses the current reasoning snapshot')
   assert.match(evidence.recovery.text, /第 25 段/, 'return skips everything covered by the input')

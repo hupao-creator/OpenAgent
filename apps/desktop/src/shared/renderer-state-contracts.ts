@@ -1,3 +1,4 @@
+import type { HarnessBartActivity } from '@openagent/contracts/renderer'
 import type { AgentThreadRecord, BartThreadRecord } from '@openagent/contracts'
 import type { ReportExecutionReference } from './report-thread'
 import type { OpenAgentSettings } from './openagent-settings'
@@ -50,9 +51,17 @@ export interface RendererCollectionPatch<T> {
   readonly order?: readonly string[]
 }
 
+/** Ordered, transient semantic input; never a durable Thread field. */
+export interface RendererBartActivity {
+  readonly threadId: string
+  readonly harnessId: string
+  readonly activity: HarnessBartActivity
+}
+
 /** Initial/recovery hydration uses RendererAppState; daily delivery is incremental. */
 export interface RendererStateMutation {
   readonly type: 'state-patched'
+  readonly bartActivities?: readonly RendererBartActivity[]
   readonly baseRevision: number
   readonly revision: number
   readonly threads?: RendererCollectionPatch<RendererThreadRecord>

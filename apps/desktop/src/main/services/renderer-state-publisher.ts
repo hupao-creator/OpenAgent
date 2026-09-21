@@ -3,6 +3,7 @@ import type { OpenAgentState } from '../../shared/openagent-state'
 import { reportHtmlPreview, type ReportThreadRecord } from '../../shared/report-thread'
 import type {
   RendererAppState,
+  RendererBartActivity,
   RendererBartExecution,
   RendererReport,
   RendererStateMutation
@@ -23,6 +24,7 @@ export class RendererStatePublisher {
   private timer: NodeJS.Timeout | undefined
   private closed = false
   private delivering = false
+  private readonly activities: RendererBartActivity[] = []
   private readonly pending = new Array<RendererStateMutation>()
   private readonly listeners = new Set<(mutation: RendererStateMutation) => void>()
   private readonly executionKeys = new Map<string, string | null>()
@@ -59,7 +61,10 @@ export class RendererStatePublisher {
     if (!this.previous || this.closed) return
     this.cancelPending()
     const next = this.project(this.previous.revision + 1)
-    const mutation = structuredClone(createRendererStateMutation(this.previous, next, effect))
+    const mutation = structuredClone({
+      ...createRendererStateMutation(this.previous, next, effect),
+      ...(this.activities.length ? { bartActivities: this.activities.splice(0) } : {})
+    })
     this.previous = next
     this.rememberExecutionKeys(next)
     this.pending.push(mutation)
@@ -72,6 +77,24 @@ export class RendererStatePublisher {
         }
       }
     } finally { this.delivering = false }
+  }
+
+  bartActivity(event: RendererBartActivity): void {
+    if (!this.previous || this.closed) return
+    const captured = structuredClone(event)
+    const last = this.activities.at(-1)
+    // Coalesce only updates to the same semantic item, never an A → B → A.
+    if (last && last.threadId === event.threadId && last.harnessId === event.harnessId &&
+      last.activity.executionId === event.activity.executionId && last.activity.sequence === event.activity.sequence) {
+      this.activities[this.activities.length - 1] = captured
+    } else this.activities.push(captured)
+    this.schedule()
+  }
+
+  private schedule(): void {
+    if (this.timer) return
+    this.timer = setTimeout(() => { this.timer = undefined; this.publish() }, RENDERER_PUBLISH_WINDOW_MS)
+    this.timer.unref()
   }
 
   threadCommitted(change: {
@@ -89,8 +112,7 @@ export class RendererStatePublisher {
     if (this.timer) return
     // The first detail event fixes the deadline; sustained streaming cannot
     // postpone visibility. Structural/terminal/effect publications absorb it.
-    this.timer = setTimeout(() => { this.timer = undefined; this.publish() }, RENDERER_PUBLISH_WINDOW_MS)
-    this.timer.unref()
+    this.schedule()
   }
 
   cancelPending(): void {
@@ -103,6 +125,7 @@ export class RendererStatePublisher {
     this.cancelPending()
     this.listeners.clear()
     this.pending.length = 0
+    this.activities.length = 0
     this.previous = undefined
     this.executionKeys.clear()
     this.reportCache.clear()

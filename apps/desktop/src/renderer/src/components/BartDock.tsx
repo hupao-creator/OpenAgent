@@ -1,3 +1,4 @@
+import type { BartDisplayQueue } from '../bart-display/queue'
 import {
   memo,
   useCallback,
@@ -132,6 +133,7 @@ interface BartInterventionMeta {
 
 interface BartDockProps {
   activityContext: BartActivityContext
+  displayQueue?: BartDisplayQueue
   displayTiming?: BartDisplayTiming
   /** Lab comparison overrides; the application uses the locked defaults. */
   reasoningOptions?: BartReasoningOptions
@@ -214,6 +216,7 @@ const dockIsVisible = (): boolean => !getBartPresenceCoordinator().isDockHidden
 export const BartDock = memo(function BartDock({
   activityContext,
   displayTiming,
+  displayQueue,
   reasoningOptions,
   launchSpeed = 1,
   threadOpen,
@@ -305,7 +308,7 @@ export const BartDock = memo(function BartDock({
     ? activityContext.execution.status === 'running' : running)
   const currentActivity = activityContext.execution?.status === 'running' &&
     foregroundActivity?.executionId === activityContext.execution.executionId ? foregroundActivity : null
-  const latestRole = resolveBartRole(currentActivity, dedicatedRouteActive, displayRunning)
+  const latestRole = resolveBartRole(currentActivity, false, displayRunning)
   const actionLabel = threadOpen ? t('返回之前的 thread') : t('进入 Bart 历史对话')
   const interactionKind = interaction?.intervention.questions?.length
     ? 'question' as const
@@ -411,16 +414,16 @@ export const BartDock = memo(function BartDock({
     !activeOperation && !visibleInterventionState
   const displayedRole = useBartDisplay(
     latestRole, currentActivity != null, activityContext,
-    residentAvailable && windowVisible && spatiallyVisible && !concealed && !threadOpen && !presentationCovered,
-    displayTiming
+    residentAvailable && !launchIntro && !bartInputVisible && !threadFollowUpVisible && windowVisible && spatiallyVisible && !concealed && !threadOpen && !presentationCovered,
+    displayTiming, displayQueue, currentActivity
   )
   const launchVisible = Boolean(launch && !bartInputVisible && !activeOperation && !visibleInterventionState &&
     !interactionVisible && !threadOpen && !presentationCovered && !concealed && spatiallyVisible && windowVisible)
-  const role = launchVisible && launchIntro ? { kind: 'running' as const } : residentAvailable ? displayedRole : { kind: 'idle' as const }
+  const role = (launchVisible && launchIntro || (submitPending || submitting) && displayedRole.kind === 'idle') ? { kind: 'running' as const } : residentAvailable ? displayedRole : { kind: 'idle' as const }
   // Running alone does not claim thinking; only the Harness activity does.
   const activity: BartLogoActivity =
     activeOperation?.kind || (role.kind === 'reasoning' ? 'thinking' : role.kind === 'running' ? 'idle' : role.kind)
-  const phase: BartLogoPhase = activeOperation?.phase || (displayRunning || (launchVisible && launchIntro) ? 'running' : 'idle')
+  const phase: BartLogoPhase = activeOperation?.phase || (displayRunning || role.kind !== 'idle' || (launchVisible && launchIntro) ? 'running' : 'idle')
   useEffect(() => {
     if (!launch) return
     const execution = activityContext.execution

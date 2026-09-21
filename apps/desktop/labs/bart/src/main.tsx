@@ -199,7 +199,7 @@ function App(): React.JSX.Element {
             <h2>节奏参数</h2>
             {([
               ['minimumMs', '最短展示时间', 0, 2000, 50],
-              ['reasoningMs', '思考文字刷新', 0, 500, 25],
+              ['reasoningMs', '思考最短展示', 0, 500, 25],
               ['eventMs', '事件输入间隔', 20, 1000, 20]
             ] as const).map(([field, label, min, max, step]) => <label key={field}>
               <span>{label}<output>{config[field]}ms</output></span>

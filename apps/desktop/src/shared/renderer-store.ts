@@ -29,12 +29,30 @@ export interface NormalizedRendererState {
   readonly settings: RendererAppState['settings']
 }
 
-export type RendererStateStore = StoreApi<NormalizedRendererState>
+export type RendererStateObserver = (state: NormalizedRendererState, mutation: RendererStateMutation | null) => void
+export type RendererStateStore = StoreApi<NormalizedRendererState> & {
+  /** Synchronous delivery before React can coalesce renders; null means recovery. */
+  observe: (listener: RendererStateObserver) => () => void
+}
+const observers = new WeakMap<RendererStateStore, Set<RendererStateObserver>>()
+function notifyObservers(store: RendererStateStore, mutation: RendererStateMutation | null): void {
+  for (const listener of observers.get(store) ?? []) {
+    try { listener(store.getState(), mutation) } catch (error) {
+      reportRendererTransitionFailure({ error, currentRevision: store.getState().revision, nextRevision: store.getState().revision })
+    }
+  }
+}
 
 export function createRendererStateStore(defaultCwd: string): RendererStateStore {
-  return createStore<NormalizedRendererState>()(() =>
+  const listeners = new Set<RendererStateObserver>()
+  const store: RendererStateStore = Object.assign(createStore<NormalizedRendererState>()(() =>
     normalizeRendererState(createInitialRendererState(defaultCwd))
-  )
+  ), { observe: (listener: RendererStateObserver) => {
+    listeners.add(listener)
+    return () => { listeners.delete(listener) }
+  } })
+  observers.set(store, listeners)
+  return store
 }
 
 /** Initial hydration is authoritative even when its revision is zero. */
@@ -43,6 +61,7 @@ export function hydrateRendererStateStore(
   snapshot: RendererAppState
 ): void {
   store.setState(normalizeRendererState(snapshot, store.getState()), true)
+  notifyObservers(store, null)
 }
 
 /**
@@ -67,6 +86,7 @@ export function applyRendererStateStoreMutation(
   // Layout capture must remain synchronous so batched A → B → A updates keep
   // both transitions, but a visual observer can never veto Main's commit.
   store.setState(next, true)
+  notifyObservers(store, mutation)
   if (failure) {
     try { transitionFailed(failure) } catch (error) {
       reportRendererTransitionFailure({ ...failure, error })

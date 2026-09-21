@@ -1652,6 +1652,9 @@ export class OpenAgentService {
             now: () => this.boundaryTimestamp(),
             signal,
             committed: change => this.onBartCommitted(change),
+            publishBartActivity: activity => this.publisher.bartActivity({
+              threadId: record.id, harnessId: record.harnessId, activity
+            }),
             injection: {
               instructions: [
                 BART_SYSTEM_PROMPT,

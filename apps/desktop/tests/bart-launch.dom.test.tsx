@@ -93,6 +93,31 @@ it('finishes the short launch before displaying an immediately arriving operatio
   expect(view.container.querySelector('.bart-dock')).toHaveAttribute('data-activity', 'status')
   expect(view.container.querySelector('.bart-dock')).not.toHaveAttribute('data-launching')
 })
+it('catches up after launch ownership and starts a fresh interval for the latest activity', async () => {
+  vi.useFakeTimers()
+  prepared()
+  const submit = vi.fn(async () => undefined)
+  const view = render(<Harness submit={submit} />)
+  await act(async () => { fireEvent.submit(view.container.querySelector('form')!) })
+  const facts: Partial<ComponentProps<typeof BartDock>> = {
+    activityContext: { threadKey: 'bart', execution: { executionId: 'new', status: 'running' } },
+    foregroundActivity: { executionId: 'new', sequence: 1, kind: 'reasoning', text: 'hidden thought' }
+  }
+  view.rerender(<Harness submit={submit} facts={facts} />)
+  act(() => vi.advanceTimersByTime(100))
+  view.rerender(<Harness submit={submit} facts={{ ...facts, foregroundActivity: {
+    executionId: 'new', sequence: 2, kind: 'tool-call', callId: 'read', toolName: 'read_file'
+  } }} />)
+  act(() => vi.advanceTimersByTime(620))
+  expect(view.container.querySelector('.bart-role-tool-name')?.textContent).toBe('read_file')
+  view.rerender(<Harness submit={submit} facts={{ ...facts, foregroundActivity: {
+    executionId: 'new', sequence: 3, kind: 'tool-call', callId: 'write', toolName: 'write_file'
+  } }} />)
+  act(() => vi.advanceTimersByTime(799))
+  expect(view.container.querySelector('.bart-role-tool-name')?.textContent).toBe('read_file')
+  act(() => vi.advanceTimersByTime(1))
+  expect(view.container.querySelector('.bart-role-tool-name')?.textContent).toBe('write_file')
+})
 it.each(['completed', 'failed', 'interrupted', 'waiting-for-user'] as const)('%s interrupts the intro immediately', async (status) => {
   prepared()
   const submit = vi.fn(async () => undefined)

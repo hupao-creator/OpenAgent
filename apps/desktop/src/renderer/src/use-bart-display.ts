@@ -1,64 +1,47 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { BartDockRole } from './bart-role'
 import type { PublicExecution } from '@openagent/contracts'
+import type { HarnessBartActivity } from '@openagent/contracts/renderer'
+import { BartDisplayQueue, type BartDisplayItem } from './bart-display/queue'
+import { DEFAULT_BART_DISPLAY_TIMING, type BartDisplayTiming } from './bart-display/state-rules'
+export { DEFAULT_BART_DISPLAY_TIMING, type BartDisplayTiming }
 
 export interface BartActivityContext {
   readonly threadKey: string
   readonly execution: Pick<PublicExecution, 'executionId' | 'status'> | null
 }
 
-export interface BartDisplayTiming {
-  readonly minimumMs: number
-  readonly reasoningMs: number
-}
-
-export const DEFAULT_BART_DISPLAY_TIMING: BartDisplayTiming = { minimumMs: 800, reasoningMs: 150 }
-
-/** Keep a visible fragment legible, then select the latest input, never a backlog. */
+/** React only supplies visibility and acknowledges what it actually painted. */
 export function useBartDisplay(
   latest: BartDockRole, hasActivity: boolean, context: BartActivityContext,
-  presenting: boolean,
-  timing: BartDisplayTiming = DEFAULT_BART_DISPLAY_TIMING
+  presenting: boolean, timing: BartDisplayTiming = DEFAULT_BART_DISPLAY_TIMING,
+  source?: BartDisplayQueue, activity?: HarnessBartActivity | null
 ): BartDockRole {
+  const owned = useMemo(() => new BartDisplayQueue(), [])
+  const queue = source ?? owned
   const scope = JSON.stringify([context.threadKey, context.execution?.executionId])
-  const running = context.execution?.status === 'running'
-  const [displayed, setDisplayed] = useState(latest)
-  const shownAt = useRef(performance.now())
-  const textAt = useRef(shownAt.current)
-  const started = useRef(hasActivity)
-  const previousScope = useRef(scope)
-  const wasPresenting = useRef(presenting)
+  const identity = activity ? String(activity.sequence) : latest.kind === 'reasoning'
+    ? latest.segmentKey : latest.kind === 'tool' ? latest.toolName : latest.kind
+  const observed = useRef({ scope, identity, sequence: hasActivity ? 1 : 0 })
+  const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot)
   useLayoutEffect(() => {
-    const scopeChanged = previousScope.current !== scope
-    if (scopeChanged) started.current = false
-    previousScope.current = scope
-    const visibilityChanged = wasPresenting.current !== presenting
-    wasPresenting.current = presenting
-    const immediate = !presenting || visibilityChanged || scopeChanged || !running || displayed.kind === 'idle' || (!started.current && hasActivity)
-    started.current = running && (started.current || hasActivity)
-    if (immediate) {
-      shownAt.current = textAt.current = performance.now()
-      if (!sameRole(displayed, latest)) setDisplayed(latest)
-      return
+    queue.setTiming(timing)
+    if (!presenting) queue.setPresenting(false)
+    if (!source) {
+      const previous = observed.current
+      if (previous.scope !== scope) observed.current = { scope, identity, sequence: hasActivity ? 1 : 0 }
+      else if (previous.identity !== identity) observed.current = { scope, identity, sequence: previous.sequence + 1 }
+      const item: BartDisplayItem = { sequence: activity?.sequence ?? observed.current.sequence, role: latest }
+      queue.receive({ scope, status: context.execution?.status ?? (latest.kind === 'idle' ? null : 'running'),
+        items: hasActivity ? [item] : [], latest: item })
     }
-    if (sameRole(displayed, latest)) return
-    const textOnly = displayed.kind === 'reasoning' && latest.kind === 'reasoning'
-    const dueAt = textOnly ? textAt.current + timing.reasoningMs : shownAt.current + timing.minimumMs
-    const timer = window.setTimeout(() => {
-      if (!textOnly) shownAt.current = performance.now()
-      textAt.current = performance.now()
-      setDisplayed(latest)
-    }, Math.max(0, dueAt - performance.now()))
-    return () => window.clearTimeout(timer)
-  }, [displayed, latest, hasActivity, running, scope, presenting, timing.minimumMs, timing.reasoningMs])
-  return displayed
-}
-
-function sameRole(left: BartDockRole, right: BartDockRole): boolean {
-  return left.kind === right.kind && (
-    left.kind === 'idle' || left.kind === 'running' ||
-    (left.kind === 'reasoning' && right.kind === 'reasoning' && left.text === right.text && left.segmentKey === right.segmentKey &&
-      left.sourceText === right.sourceText && left.sourceOffset === right.sourceOffset) ||
-    (left.kind === 'tool' && right.kind === 'tool' && left.toolName === right.toolName)
-  )
+    // A simultaneous return and activity update must catch up before becoming
+    // visible; otherwise the just-received item gets queued behind the old one.
+    queue.setPresenting(presenting)
+  }, [queue, source, scope, identity, latest, activity, hasActivity, context.execution?.status, presenting, timing])
+  useLayoutEffect(() => { if (presenting) queue.presented(snapshot.token) }, [queue, snapshot.token, presenting])
+  // React StrictMode may reconnect this same consumer. Hiding releases all
+  // timers/backlog without permanently disposing the instance before reconnect.
+  useLayoutEffect(() => () => { queue.setPresenting(false) }, [queue])
+  return snapshot.item.role
 }
