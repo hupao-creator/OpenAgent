@@ -93,13 +93,13 @@ it('finishes the short launch before displaying an immediately arriving operatio
   expect(view.container.querySelector('.bart-dock')).toHaveAttribute('data-activity', 'read')
   expect(view.container.querySelector('.bart-dock')).not.toHaveAttribute('data-launching')
 })
-it('a terminal execution interrupts the intro immediately', async () => {
+it.each(['completed', 'failed', 'interrupted', 'waiting-for-user'] as const)('%s interrupts the intro immediately', async (status) => {
   prepared()
   const submit = vi.fn(async () => undefined)
   const view = render(<Harness submit={submit} />)
   await act(async () => { fireEvent.submit(view.container.querySelector('form')!) })
   view.rerender(<Harness submit={submit} facts={{
-    activityContext: { threadKey: 'bart', execution: { executionId: 'new', status: 'completed' } }
+    activityContext: { threadKey: 'bart', execution: { executionId: 'new', status } }
   }} />)
   expect(view.container.querySelector('.bart-dock')).not.toHaveAttribute('data-launching')
   expect(view.container.querySelector('.bart-dock')).toHaveAttribute('data-role', 'idle')

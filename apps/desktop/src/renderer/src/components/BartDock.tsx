@@ -423,7 +423,7 @@ export const BartDock = memo(function BartDock({
     if (!launch) return
     const execution = activityContext.execution
     const terminal = execution && execution !== launchExecution.current &&
-      execution.status !== 'running' && execution.status !== 'waiting-for-user' &&
+      execution.status !== 'running' &&
       (execution.executionId !== launchExecution.current?.executionId || execution.status !== launchExecution.current?.status)
     if (!launchVisible || terminal || (!launchIntro && !displayRunning)) { setLaunch(undefined); setLaunchIntro(false) }
   }, [launch, launchVisible, launchIntro, displayRunning, activityContext.execution])
