@@ -29,7 +29,7 @@ Without an explicit binding, Harness adapters can report their effective native 
 
 Providers generate native configuration for a declared injection format. Harnesses validate and apply it in their own isolated runtime directories and retain control of process lifecycle. The Host contains no DeepSeek-specific injection branches.
 
-Call identifiers remain unchanged in API requests. `evaluationRelease` names the actual canonical evaluation release; null means unmeasured and suppresses name-based fallback. The same resolved identity drives both AA acquisition and final context matching. Reasoning/effort evaluation configurations remain separate facts. DeepSeek mappings include source and verification time and are updated with the plugin. V4 Pro 0813 is currently left unmeasured until an exact evaluator release association is verified.
+Call identifiers remain unchanged in API requests. `evaluationRelease` names the actual canonical evaluation release; null means unmeasured and suppresses name-based fallback. The same resolved identity drives both AA acquisition and final context matching. Reasoning/effort evaluation configurations remain separate facts. DeepSeek mappings include source and verification time and are updated with the plugin. V4 Pro 0813 maps to the AA `deepseek-v4-pro` release, distinct from the older `deepseek-v4-pro-0424` release.
 
 ## Test Provider
 

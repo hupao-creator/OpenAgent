@@ -17,11 +17,12 @@ function identity(selector: string, harnessId = ''): ProviderModelIdentity {
   if (flashAliases.has(call)) return {
     selector, displayName: 'DeepSeek V4.1 Flash', evaluationRelease: 'deepseek-v4-1-flash', source, verifiedAt
   }
+  if (call === 'deepseek-v4-pro') return {
+    selector, displayName: 'DeepSeek V4 Pro 0813', evaluationRelease: 'deepseek-v4-pro',
+    source: 'https://artificialanalysis.ai/models/deepseek-v4-pro', verifiedAt: '2026-09-23T00:00:00.000Z'
+  }
   return {
-    selector, displayName: call === 'deepseek-v4-pro' ? 'DeepSeek V4 Pro 0813' : selector,
-    // The service version is known; an exact AA release association must be
-    // verified separately instead of borrowing a similarly named old release.
-    evaluationRelease: null, source, verifiedAt
+    selector, displayName: selector, evaluationRelease: null, source, verifiedAt
   }
 }
 
