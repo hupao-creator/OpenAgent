@@ -1,11 +1,16 @@
-import { expect, it } from 'vitest'
+// @vitest-environment jsdom
+import { afterEach, expect, it, vi } from 'vitest'
+import { act, cleanup, render } from '@testing-library/react'
+import { ThreadCardExcerpt } from '../../../packages/openagent-plugin-kit/src/renderer/harness-card/excerpt'
 import type { AgentThreadRecord } from '@openagent/contracts'
 import { isJsonValue } from '@openagent/contracts'
 import { projectClaudeOverview } from '../../../packages/harness-claude/src/renderer/OverviewCard'
 import { projectCodexOverview } from '../../../packages/harness-codex/src/renderer/overview'
-import { decodeCodexState } from '../../../packages/harness-codex/src/shared/state'
+import { decodeCodexState, reduceCodexEvent } from '../../../packages/harness-codex/src/shared/state'
 import { parseClaudeThreadState } from '../../../packages/harness-claude/src/shared/state'
 import { fakeSnapshots, withPreviewMessage, withPreviewTokenUsage } from '../playgrounds/single-thread/src/fake-snapshots'
+
+afterEach(() => { cleanup(); vi.useRealTimers() })
 
 it.each(['claude', 'codex'])('keeps the full current %s message separate from the bounded envelope', harness => {
   const project = harness === 'claude' ? projectClaudeOverview : projectCodexOverview
@@ -53,4 +58,27 @@ it.each(['claude', 'codex'])('keeps %s message identity when execution status se
   const after = project({ thread: { ...preview, sessionState: done }, layout: { availableColumns: 2 } })
   expect(after.view.identity.message).toEqual(before.view.identity.message)
   expect(after.view.identity.message?.text).toBe('current reasoning')
+})
+
+it('preserves the native Codex capped window and whitespace across deltas', async () => {
+  vi.useFakeTimers()
+  const captured = fakeSnapshots.find(scene => scene.harness === 'codex' && scene.scenario === 'running')!.state.threads[0] as AgentThreadRecord
+  const initial = decodeCodexState(captured.sessionState)
+  const turn = initial.turns.at(-1)!
+  const text = 'x'.repeat(256 * 1024 - 601) + 'tail: ' + 'y'.repeat(594) + ' '
+  const first = reduceCodexEvent(initial, turn.executionId, { type: 'text-delta', itemId: 'capped', delta: text }, turn.updatedAt + 1, 'delta-1')
+  const delta = ' next delta '
+  const second = reduceCodexEvent(first, turn.executionId, { type: 'text-delta', itemId: 'capped', delta }, turn.updatedAt + 2, 'delta-2')
+  if (!isJsonValue(first) || !isJsonValue(second)) throw new Error('Expected JSON fixture')
+  const before = projectCodexOverview({ thread: { ...captured, sessionState: first }, layout: { availableColumns: 2 } }).view.identity.message!
+  const after = projectCodexOverview({ thread: { ...captured, sessionState: second }, layout: { availableColumns: 2 } }).view.identity.message!
+  expect(before.text).toHaveLength(256 * 1024)
+  expect(after.id).toBe(before.id)
+  expect(after.text === before.text.slice(delta.length + 2) + delta).toBe(true)
+  const view = render(<ThreadCardExcerpt content={before.text.slice(-600)} messageId={before.id} messageText={before.text} />)
+  view.rerender(<ThreadCardExcerpt content="bounded" messageId={after.id} messageText={after.text} />)
+  const visible = () => view.container.querySelector('.thread-card-excerpt-text')?.textContent
+  expect(visible()).toBe(before.text.slice(-600))
+  await act(async () => { await vi.advanceTimersByTimeAsync(800) })
+  expect(visible()).toBe(delta)
 })

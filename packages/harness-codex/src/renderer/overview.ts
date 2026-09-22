@@ -85,7 +85,7 @@ export function projectCodexOverview(
     headExcerpt(turn?.reasoning ?? '', 600) || headExcerpt(turn?.error ?? '', 600) ||
     headExcerpt(prompt?.content ?? '', 600) || ''
   const message = latestText?.kind === 'assistant' || latestText?.kind === 'reasoning'
-    ? { id: JSON.stringify([turn!.executionId, latestText.kind, latestText.kind === 'assistant' ? latestText.itemId : latestText.id]), text: latestText.content.trim() }
+    ? { id: JSON.stringify([turn!.executionId, latestText.kind, latestText.kind === 'assistant' ? latestText.itemId : latestText.id]), text: messageWindowText(latestText.content, latestText.kind === 'assistant' ? 256 * 1024 : 64 * 1024) }
     : (() => {
       const [kind, text] = ([['answer', turn?.answer], ['reasoning', turn?.reasoning], ['error', turn?.error],
         [`prompt:${prompt?.id ?? ''}`, prompt?.content]] as const).find(([, text]) => text?.trim()) ?? ['empty', '']
@@ -128,6 +128,12 @@ export function projectCodexOverview(
         : {})
     }
   }
+}
+
+/** tail() prefixes capped native text with a synthetic omission marker.
+ * Keep it out of the streaming coordinates so suffix overlap stays detectable. */
+function messageWindowText(content: string, limit: number): string {
+  return content.length === limit && content.startsWith('…\n') ? content.slice(2) : content
 }
 
 function codexCardProjection(
