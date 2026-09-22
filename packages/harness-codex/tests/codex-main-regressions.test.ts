@@ -1,3 +1,4 @@
+import { mockProviderAccess } from '@openagent/test-kit'
 import {
   chmod,
   mkdir,
@@ -272,7 +273,7 @@ describe('Codex Main regression coverage', () => {
     const runtime = new CodexRuntime({
       resolveExecutable: async () => fixture,
       environment: async () => ({ ...process.env, CODEX_HOME: sourceHome }),
-      providerOverride: { provider: 'deepseek', apiKey: 'test-provider-key', baseUrl: 'http://127.0.0.1:12345', model: 'deepseek-v4-pro' },
+      providers: mockProviderAccess('codex', { apiKey: 'test-provider-key', model: 'deepseek-v4-pro' }),
       dataRoot, temporaryWorkspaceRoot: directory
     })
     const acquired = await runtime.server(directory, undefined, undefined, { toolMode: 'exclusive', threadId: 'key-only' })
@@ -280,8 +281,8 @@ describe('Codex Main regression coverage', () => {
       const isolationRoot = join(dataRoot, 'application-tools-only')
       const [home] = await readdir(isolationRoot)
       await expect(stat(join(isolationRoot, home!, 'auth.json'))).rejects.toMatchObject({ code: 'ENOENT' })
-      expect(await readFile(join(isolationRoot, home!, 'config.toml'), 'utf8')).toContain('requires_openai_auth = false')
-      expect(await readFile(join(isolationRoot, home!, 'config.toml'), 'utf8')).toContain('features.shell_snapshot = false')
+      expect(await readFile(join(isolationRoot, home!, 'config.toml'), 'utf8')).toContain('"requires_openai_auth" = false')
+      expect(await readFile(join(isolationRoot, home!, 'config.toml'), 'utf8')).toContain('"shell_snapshot" = false')
     } finally { await acquired.server.dispose() }
   })
 

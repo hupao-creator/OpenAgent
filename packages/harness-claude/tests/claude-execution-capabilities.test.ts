@@ -1,3 +1,4 @@
+import { mockProviderAccess } from '@openagent/test-kit'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -128,7 +129,7 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', li
     }]) {
       const capture = join(directory, providerOverride ? 'override.json' : 'normal.json')
       const transport = new ClaudeTransport({
-        executable, cwd: directory, environment: { CLI_CAPTURE: capture }, providerOverride,
+        executable, cwd: directory, environment: { CLI_CAPTURE: capture }, providerInjection: providerOverride ? mockProviderAccess('claude', providerOverride).explicit!.injection : undefined,
         sessionId: 'host-isolation', resume: false, settings: { executablePath: executable },
         interactive: false, persistSession: false, onEvent: () => undefined
       })

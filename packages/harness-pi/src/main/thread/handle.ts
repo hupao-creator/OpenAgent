@@ -15,7 +15,7 @@ import { parsePiTodos } from '../../shared/todos.js'
 import type { PiMessage, PiThreadSettings } from '../../shared/types.js'
 import { startPiRpc, type PiRpc } from '../runtime/rpc.js'
 import { piModelArguments } from '../runtime/model-options.js'
-import { piEnvironment, piProviderSettings } from '../runtime/provider-override.js'
+import { piEnvironment, piProviderSettings } from '../runtime/provider-injection.js'
 import { piHostExtensionSource } from '../runtime/host-extension.js'
 
 /** Longest call identifier the persisted foreground accepts; see `piState`. */
@@ -272,7 +272,7 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
         nativeSignal.throwIfAborted()
         // CLI overrides are session-local; set_model/set_thinking_level RPCs
         // also write Pi's global defaults and must never configure an OpenAgent Thread.
-        const modelArgs = piModelArguments(piProviderSettings(settings, host.providerOverride))
+        const modelArgs = piModelArguments(piProviderSettings(settings, host.providers?.explicit?.injection))
         const hostArgs: string[] = []
         const hostBridge = injection ? { injection, canExecute: () => !disposed && !closing && Boolean(active()) } : undefined
         if (injection) {

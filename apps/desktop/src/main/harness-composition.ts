@@ -1,10 +1,11 @@
 import type { HarnessBartActivity } from '@openagent/contracts/renderer'
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
+import type { ProviderConnections } from '@openagent/plugin-kit/main'
 import type {
   ErasedHarnessMainPluginModule,
   HarnessAvailability,
   HarnessAvailabilityProbe,
-  HarnessProviderOverride,
   HarnessPluginHostContext
 } from '@openagent/contracts'
 import type { AgentInput } from '@openagent/contracts'
@@ -72,7 +73,8 @@ type ManagedWorkspaceWriteAuthorizer = (
 ) => ReturnType<ManagedWorkspaceWriteCapability['grant']>
 
 export interface MainHarnessCompositionContext {
-  readonly providerOverride?: HarnessProviderOverride
+  readonly providerConnections?: ProviderConnections
+  readonly providerBindings?: Readonly<Record<string, string>>
   readonly resolver: CliResolver
   readonly harnessDataRoot: string
   readonly temporaryWorkspaceRoot: string
@@ -211,11 +213,12 @@ export function createMainHarnessComposition(
       resolveExecutable: (command, cwd, configuredPath) =>
         resolver.resolve(command, configuredPath, cwd),
       environment: () => resolver.environment(),
-      providerOverride: context.providerOverride,
       harnessDataRoot: join(context.harnessDataRoot, id),
       temporaryWorkspaceRoot: context.temporaryWorkspaceRoot
     }),
     telemetryLedgerFor: context.telemetryLedgerFor,
+    providerConnections: context.providerConnections,
+    providerBindings: context.providerBindings,
     authorizeManagedWorkspaceWrite: context.authorizeManagedWorkspaceWrite
   })
   for (const binding of Object.values(composition)) {
@@ -236,6 +239,8 @@ export function createMainHarnessComposition(
 export type MainHarnessComposition = Readonly<Record<string, MainHarnessBinding>>
 
 export interface MainHarnessCompositionDeps {
+  readonly providerConnections?: ProviderConnections
+  readonly providerBindings?: Readonly<Record<string, string>>
   /** Host context derived per module id; the module factory never picks another module's root. */
   readonly hostContextFor?: (id: string) => HarnessPluginHostContext
   readonly telemetryLedgerFor?: MainHarnessCompositionContext['telemetryLedgerFor']
@@ -253,12 +258,26 @@ export function bindMainHarnessComposition(
   const telemetryLedgerFor = deps.telemetryLedgerFor ?? (() => EMPTY_TELEMETRY_LEDGER)
   const hostContextFor = deps.hostContextFor ?? unavailableHostContext
   const composition: Record<string, MainHarnessBinding> = {}
+  for (const id of Object.keys(deps.providerBindings ?? {})) {
+    if (!modules.some(module => module.id === id)) throw new Error('Provider binding targets an unregistered Harness')
+    if (!deps.providerConnections) throw new Error('Provider binding requires a connection registry')
+  }
   for (const pluginModule of modules) {
     const id = pluginModule.id
     if (Object.hasOwn(composition, id)) {
       throw new Error(`Harness Main 模块重复注册: ${id}`)
     }
-    const bundle = pluginModule.createMainPlugin(hostContextFor(id))
+    const context = hostContextFor(id)
+    const connectionId = deps.providerBindings?.[id]
+    if (connectionId && !pluginModule.providerSupport) throw new Error('Harness does not support Provider injection')
+    const providers = pluginModule.providerSupport && deps.providerConnections
+      ? deps.providerConnections.forHarness({ harnessId: id, ...pluginModule.providerSupport }, connectionId)
+      : context.providers
+    const bundle = pluginModule.createMainPlugin({ ...context, providers,
+      harnessDataRoot: providers?.explicit
+        ? join(context.harnessDataRoot, 'connections', createHash('sha256').update(providers.explicit.connectionId).digest('hex'))
+        : context.harnessDataRoot
+    })
     composition[id] = bindMainHarness(
       id,
       bundle,

@@ -1,3 +1,4 @@
+import { mockProviderAccess } from '@openagent/test-kit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HarnessExecutableNotFoundError, type HarnessPluginHostContext } from '@openagent/contracts'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -42,13 +43,23 @@ beforeEach(async () => {
 afterEach(async () => { await rm(host.harnessDataRoot, { recursive: true, force: true }) })
 
 describe('Pi settings public contract', () => {
-  it('resolves DeepSeek from the Host key/model without Pi login or global setters', async () => {
-    models.push({ provider: 'deepseek', id: 'deepseek-v4-flash', name: 'DeepSeek', reasoning: true })
+  it('scopes evaluation identities to the selected native provider even when another has the same id', async () => {
+    models.push({ provider: 'openai', id: 'reasoner', name: 'Different provider reasoner', reasoning: true })
     try {
-      const bundle = createPiSettings({ ...host, providerOverride: { provider: 'deepseek', apiKey: 'host-key', baseUrl: 'http://127.0.0.1:12345', model: 'deepseek-v4-flash' } })
+      const settings = createPiSettings(host)
+      expect(await settings.evaluationIdentities({ threadSettings: {} }, '/workspace', signal())).toEqual([
+        { selector: 'reasoner', displayName: 'Reasoner' }
+      ])
+    } finally { models.pop() }
+  })
+
+  it('resolves DeepSeek from the Host key/model without Pi login or global setters', async () => {
+    models.push({ provider: 'mock', id: 'deepseek-v4-flash', name: 'DeepSeek', reasoning: true })
+    try {
+      const bundle = createPiSettings({ ...host, providers: mockProviderAccess('pi', { apiKey: 'host-key', model: 'deepseek-v4-flash' }) })
       const settings = await bundle.settings.resolveThreadSettings({ merged: {}, sessionState: null, cwd: '/workspace', signal: signal() })
-      expect(settings).toMatchObject({ provider: 'deepseek', model: 'deepseek-v4-flash' })
-      expect(vi.mocked(startPiRpc).mock.calls[0]?.[0]).toMatchObject({ env: { OPENAGENT_PROVIDER_API_KEY: 'host-key' }, args: expect.arrayContaining(['--provider', 'deepseek', '--model', 'deepseek-v4-flash']) })
+      expect(settings).toMatchObject({ provider: 'mock', model: 'deepseek-v4-flash' })
+      expect(vi.mocked(startPiRpc).mock.calls[0]?.[0]).toMatchObject({ env: { OPENAGENT_PROVIDER_API_KEY: 'host-key' }, args: expect.arrayContaining(['--provider', 'mock', '--model', 'deepseek-v4-flash']) })
       expect(await host.environment()).toEqual({})
       expect(request.mock.calls.every(([command]) => String(command.type).startsWith('get_'))).toBe(true)
     } finally { models.pop() }
@@ -342,8 +353,8 @@ describe('Pi settings public contract', () => {
     const controller = new AbortController(); controller.abort()
     const { settingsPresentation } = createPiSettings(host)
     await expect(settingsPresentation.load({ settings: { threadSettings: {} }, cwd: '/workspace', signal: controller.signal })).rejects.toThrow()
-    const { availability } = createPiSettings({ ...host, providerOverride: { provider: 'custom', model: 'fast', apiKey: 'secret', baseUrl: 'http://127.0.0.1:12345' } })
-    await expect(availability.probe({ settings: { useDefaultThreadSettings: false, threadSettings: { provider: 'conflicting' } }, cwd: '/workspace', signal: signal() })).resolves.toMatchObject({ available: false, reason: expect.stringContaining('providerOverride') })
+    const { availability } = createPiSettings({ ...host, providers: mockProviderAccess('pi', { model: 'fast', apiKey: 'secret' }) })
+    await expect(availability.probe({ settings: { useDefaultThreadSettings: false, threadSettings: { provider: 'conflicting' } }, cwd: '/workspace', signal: signal() })).resolves.toMatchObject({ available: false, reason: expect.stringContaining('Provider connection') })
     expect(startPiRpc).not.toHaveBeenCalled()
   })
 })

@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": false, "composite": true, "declaration": true,
+    "outDir": "./dist", "rootDir": "./src", "tsBuildInfoFile": "./node_modules/.cache/tsconfig.build.tsbuildinfo" }
+}

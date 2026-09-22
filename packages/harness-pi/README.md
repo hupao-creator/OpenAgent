@@ -49,7 +49,7 @@ clears inherited thinking unless `thinkingLevel` is explicitly supplied.
 A startup probe is independent of presentation and catalog discovery. It checks
 startup and the configured model. Native catalog/auth presence is not proof that
 a remote service will accept an expired token: actual model errors remain failed
-Executions with diagnostics. An explicit Host `providerOverride` supplies an
+Executions with diagnostics. An explicit Provider Plugin binding supplies an
 isolated provider catalog, endpoint, key and model for discovery, Threads and
 metadata requests. It writes only inside `harnessDataRoot` and uses per-process
 settings; it does not require `/login` or change global Pi configuration.

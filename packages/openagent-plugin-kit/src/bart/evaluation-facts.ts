@@ -63,6 +63,8 @@ export interface BartEvaluationModelIdentity {
   readonly selector: string
   readonly displayName?: string
   readonly aliases?: readonly string[]
+  /** Provider-authoritative release. Null suppresses uncertain name-based fallback. */
+  readonly evaluationRelease?: string | null
 }
 
 /** Clone and recursively freeze the cross-Plugin facts generation. */

@@ -53,7 +53,7 @@ export async function completeClaudePrompt(
       executable,
       cwd,
       environment,
-      providerOverride: context.providerOverride,
+              providerInjection: context.providers?.explicit?.injection,
       prompt,
       ...(systemPrompt ? { systemPrompt } : {}),
       ...(request.settings?.model ? { model: request.settings.model } : {}),

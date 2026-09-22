@@ -113,6 +113,10 @@ export function matchBartEvaluationRelease(
   identity: BartEvaluationModelIdentity
 ): BartEvaluationReleaseMatch {
   if (snapshot.availability !== 'available') return { status: 'unmatched' }
+  if (identity.evaluationRelease !== undefined) {
+    const release = snapshot.releases.find(value => value.slug === identity.evaluationRelease && value.evaluations.length > 0)
+    return release ? { status: 'matched', release } : { status: 'unmatched' }
+  }
   const nativeTokens = [identity.selector, identity.displayName, ...(identity.aliases ?? [])]
     .flatMap(value => value === undefined ? [] : [modelIdentityTokens(value)])
     .filter(tokens => tokens.length > 0)

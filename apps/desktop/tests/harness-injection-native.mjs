@@ -15,6 +15,8 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { loadRunConfig, parseArguments } from './bart-headless/plan.mjs'
 import { createAcceptanceLlm } from './mock-llm/server.mjs'
+import { ProviderConnections } from '@openagent/plugin-kit/main'
+import mockProvider from '@openagent/provider-mock/main'
 import { installOrdinaryScript } from './mock-llm/ordinary.mjs'
 import { isolatedNativeEnvironment } from './bart-headless/native-environment.mjs'
 import { HOST_HARNESS_IDS, nativeAdapter, providerProfile } from './bart-headless/providers.mjs'
@@ -159,10 +161,14 @@ async function runNativeHostWithLlm(input) {
   assert.equal(capabilities.threadContext, true)
   assert.equal(capabilities.sendContext, true)
   assert.ok(capabilities.toolModes.includes('exclusive'))
+  const connections = new ProviderConnections([mockProvider], [{
+    id: 'acceptance-mock', providerId: 'mock', model: input.providerOverride.model,
+    apiKey: input.providerOverride.apiKey, baseUrl: input.providerOverride.baseUrl
+  }])
   const plugin = module.createMainPlugin({
     resolveExecutable: async () => wrapper,
     environment: async () => ({ ...environment }),
-    providerOverride: input.providerOverride,
+    providers: connections.forHarness({ harnessId: module.id, ...module.providerSupport }, 'acceptance-mock'),
     harnessDataRoot: dataRoot,
     temporaryWorkspaceRoot
   })
@@ -408,6 +414,7 @@ async function runNativeHostWithLlm(input) {
     const cleanupErrors = await collectCleanupErrors([
       { label: 'Thread.dispose', run: () => handle?.dispose() },
       { label: 'Plugin.dispose', run: () => plugin.dispose?.() },
+      { label: 'Provider.dispose', run: () => connections.dispose() },
       { label: 'native debug log flush', run: () => flushDebugLog(5_000) }
     ])
     try {

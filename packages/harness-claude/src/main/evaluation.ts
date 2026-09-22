@@ -1,3 +1,5 @@
+import { claudeBackend } from './backend.js'
+import type { ClaudeMainContext } from './types.js'
 import {
   createBartEvaluationContext,
   type BartEvaluationSource
@@ -10,10 +12,12 @@ import type { ClaudeCatalogSource } from './catalog.js'
 
 export function createClaudeEvaluationContext(
   catalogSource: ClaudeCatalogSource,
-  source: BartEvaluationSource
+  source: BartEvaluationSource,
+  context: ClaudeMainContext
 ) {
   return createBartEvaluationContext<ClaudeHarnessSettings>({
     source,
+    loadBackend: async ({ cwd, signal }) => claudeBackend({ cwd, signal, providers: context.providers, environment: await context.environment() }),
     loadIdentities: async (input) => {
       const defaults = defaultClaudeThreadSettings(input.settings)
       const catalog = await catalogSource.load({

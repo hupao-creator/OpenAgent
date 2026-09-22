@@ -18,7 +18,8 @@ describe.each(['codex', 'claude'] as const)('%s telemetry effective executable',
     const topLevelCli = await createTelemetryCli(directory, 'top-level-cli', 'top-level-account', 83)
     const environment = async () => ({
       // Keep the Claude fixture on native get_usage, independent of user settings.
-      ANTHROPIC_BASE_URL: 'https://api.anthropic.com'
+      ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
+      CLAUDE_CONFIG_DIR: directory
     })
     const context = {
       dataRoot: directory,
@@ -67,8 +68,22 @@ describe.each(['codex', 'claude'] as const)('%s telemetry effective executable',
   })
 })
 
+it('keeps Codex API-key authentication outside native subscription quota', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'openagent-codex-api-key-'))
+  directories.push(directory)
+  const executable = await createTelemetryCli(directory, 'api-key-cli', 'must-not-use', 83, 'apiKey')
+  const plugin = createCodexMainPlugin({ dataRoot: directory, temporaryWorkspaceRoot: directory,
+    environment: async () => ({}), resolveExecutable: async () => executable })
+  try {
+    const content = await plugin.bartContextEntries?.telemetry?.({ settings: { threadSettings: {} }, cwd: directory,
+      signal: AbortSignal.timeout(5_000), telemetryLedger: { record: async () => { throw new Error('Must not record native quota') }, read: () => ({ windows: [] }) } })
+    expect(JSON.parse(content || '{}')).toMatchObject({ availability: 'unknown' })
+    expect(content).not.toContain('must-not-use')
+  } finally { await plugin.dispose?.() }
+})
+
 /** An actual executable implementing both native read-only quota protocols. */
-async function createTelemetryCli(directory: string, name: string, plan: string, usedPercent: number): Promise<string> {
+async function createTelemetryCli(directory: string, name: string, plan: string, usedPercent: number, accountType = 'chatgpt'): Promise<string> {
   const executable = join(directory, `${name}.cjs`)
   await writeFile(executable, `#!${process.execPath}
 const readline = require('node:readline')
@@ -83,7 +98,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
         limitId: 'codex', planType: plan,
         primary: { usedPercent, windowDurationMins: 300, resetsAt: 1900000000 }
       }
-    } : {}
+    } : value.method === 'account/read' ? { account: { type: ${JSON.stringify(accountType)} }, requiresOpenaiAuth: true } : {}
     send({ id: value.id, result })
   } else if (value.type === 'control_request') {
     const response = value.request.subtype === 'get_usage' ? {

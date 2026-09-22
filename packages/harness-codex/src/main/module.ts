@@ -34,6 +34,7 @@ export const codexMainPluginModule: HarnessMainPluginModule<
   CodexSettingsPresentationData
 > = {
   id: 'codex',
+  providerSupport: { format: 'codex-config-v1', scopes: ['harness'] },
   descriptor: codexDescriptor,
   defaultHarnessSettings: DEFAULT_CODEX_HARNESS_SETTINGS,
   createMainPlugin(context: HarnessPluginHostContext): CodexMainPluginBundle {
@@ -45,7 +46,7 @@ export const codexMainPluginModule: HarnessMainPluginModule<
           : join(homedir(), '.local', 'bin')), process.platform === 'win32' ? 'codex.exe' : 'codex')
       ),
       environment: () => context.environment(),
-      providerOverride: context.providerOverride,
+      providers: context.providers,
       dataRoot: context.harnessDataRoot,
       temporaryWorkspaceRoot: context.temporaryWorkspaceRoot
     })

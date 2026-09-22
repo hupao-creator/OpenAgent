@@ -1,8 +1,9 @@
+import { piBackend } from './backend.js'
 import { HarnessExecutableNotFoundError, type HarnessAvailabilityProbe, type HarnessInstallation, type HarnessPluginHostContext, type HarnessSettingsApi, type HarnessSettingsPresentationSource, type JsonObject } from '@openagent/contracts'
 import type { PiHarnessSettings, PiModel, PiSettingsPresentation, PiThreadSettings, PiThreadSettingsUpdate } from '../shared/types.js'
 import { retirePiVersions, startPiRpc, type PiRpc } from './runtime/rpc.js'
 import { piModelArguments } from './runtime/model-options.js'
-import { piEnvironment, piProviderSettings } from './runtime/provider-override.js'
+import { piEnvironment, piProviderSettings } from './runtime/provider-injection.js'
 
 const keys = ['provider', 'model', 'thinkingLevel'] as const
 const internalKeys = ['executablePath', ...keys] as const
@@ -18,6 +19,7 @@ type SettingsApi = HarnessSettingsApi<PiHarnessSettings, PiThreadSettings, PiThr
 
 /** Native facts for one (executable, cwd, provider/model/thinking) configuration. */
 interface PiObservation {
+  backend: import('@openagent/contracts').HarnessBackend
   executablePath: string
   version?: string
   provider?: string
@@ -30,6 +32,8 @@ interface PiObservation {
 
 export function createPiSettings(host: HarnessPluginHostContext): {
   settings: SettingsApi
+  evaluationIdentities(settings: PiHarnessSettings, cwd: string, signal: AbortSignal): Promise<{ selector: string; displayName: string }[]>
+  backend(settings: PiHarnessSettings, cwd: string, signal: AbortSignal): Promise<import('@openagent/contracts').HarnessBackend>
   settingsPresentation: HarnessSettingsPresentationSource<PiHarnessSettings, PiSettingsPresentation>
   availability: HarnessAvailabilityProbe<PiHarnessSettings>
   detectInstallation(input: { cwd: string; signal: AbortSignal }): Promise<HarnessInstallation>
@@ -47,7 +51,7 @@ export function createPiSettings(host: HarnessPluginHostContext): {
     const env = await piEnvironment(host)
     bounded.throwIfAborted()
     let rpc: PiRpc
-    try { rpc = await startPiRpc({ executablePath, cwd, env, args: [...discoveryArgs, ...piModelArguments(piProviderSettings(settings, host.providerOverride))], signal: bounded }) }
+    try { rpc = await startPiRpc({ executablePath, cwd, env, args: [...discoveryArgs, ...piModelArguments(piProviderSettings(settings, host.providers?.explicit?.injection))], signal: bounded }) }
     catch (error) {
       bounded.throwIfAborted()
       throw new Error(`${message(error)}. Check the Pi executable and exact provider/model/thinking settings; run pi /login to configure authentication.`)
@@ -93,6 +97,7 @@ export function createPiSettings(host: HarnessPluginHostContext): {
       const state = await rpc.request({ type: 'get_state' }, bounded)
       const nativeModel = record(state.model) ? state.model : undefined
       const observation: PiObservation = {
+        backend: await piBackend(host, nativeModel ?? {}),
         executablePath,
         ...(rpc.version ? { version: rpc.version } : {}),
         ...(typeof nativeModel?.provider === 'string' ? { provider: nativeModel.provider } : {}),
@@ -118,7 +123,7 @@ export function createPiSettings(host: HarnessPluginHostContext): {
   }
 
   async function resolve(next: PiThreadSettings, cwd: string, signal: AbortSignal): Promise<PiThreadSettings> {
-    next = piProviderSettings(next, host.providerOverride)
+    next = piProviderSettings(next, host.providers?.explicit?.injection)
     const observed = await observe(next, cwd, signal, true)
     const discovery = observed.discovery
     if (!discovery) throw new Error(observed.discoveryError ?? 'Pi returned no model catalog')
@@ -137,7 +142,7 @@ export function createPiSettings(host: HarnessPluginHostContext): {
     return { executablePath: observed.executablePath, provider: selected.provider, model: selected.id, thinkingLevel }
   }
   function defaults(raw: PiHarnessSettings): PiThreadSettings {
-    return piProviderSettings(normalizeHarnessSettings(raw).threadSettings, host.providerOverride)
+    return piProviderSettings(normalizeHarnessSettings(raw).threadSettings, host.providers?.explicit?.injection)
   }
   const settings: SettingsApi = {
     normalizeHarnessSettings,
@@ -204,6 +209,16 @@ export function createPiSettings(host: HarnessPluginHostContext): {
   }
   return {
     settings, settingsPresentation,
+    async evaluationIdentities(settings, cwd, signal) {
+      const observed = await observe(defaults(settings), cwd, signal, true)
+      return (observed.discovery?.models ?? []).filter(model => model.provider === observed.provider)
+        .map(model => ({ selector: model.id, displayName: model.name }))
+    },
+    async backend(settings, cwd, signal) {
+      if (host.providers?.explicit) return host.providers.explicit
+      try { return (await observe(defaults(settings), cwd, signal, false)).backend }
+      catch { signal.throwIfAborted(); return { kind: 'unknown' } }
+    },
     // Pi proves availability by applying a configuration, not by existing on
     // disk, so the probe keeps its native session and shares the observation
     // the following resolve would otherwise boot its own session for. The

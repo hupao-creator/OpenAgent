@@ -1,3 +1,4 @@
+import { acquireBartEvaluationSource, createBartEvaluationContext, providerTelemetryContext } from '@openagent/plugin-kit/bart/main'
 import type { HarnessMainPluginModule } from '@openagent/contracts'
 import { piDescriptor } from '../shared/descriptor.js'
 import { piJson, piSessionAdapter, piState } from '../shared/state.js'
@@ -8,9 +9,21 @@ import { openPiThread } from './thread/handle.js'
 
 export const piMainModule: HarnessMainPluginModule<'pi', PiHarnessSettings, PiThreadSettings, PiThreadSettingsUpdate, PiThreadSettingsUpdate, PiThreadSettings, PiSettingsPresentation> = {
   id: 'pi', descriptor: piDescriptor, defaultHarnessSettings: { threadSettings: {} },
+  providerSupport: { format: 'pi-models-v1', scopes: ['harness'] },
   createMainPlugin(host) {
+    const settings = createPiSettings(host)
+    const source = acquireBartEvaluationSource()
     return {
-      ...createPiSettings(host), sessionState: piSessionAdapter, prompt: createPiPrompt(host),
+      ...settings,
+      dispose: () => source.dispose(),
+      bartContextEntries: {
+        telemetry: async input => providerTelemetryContext(await settings.backend(input.settings, input.cwd, input.signal), input.signal),
+        evaluation: createBartEvaluationContext<PiHarnessSettings>({
+          source,
+          loadBackend: input => settings.backend(input.settings, input.cwd, input.signal),
+          loadIdentities: input => settings.evaluationIdentities(input.settings, input.cwd, input.signal)
+        })
+      }, sessionState: piSessionAdapter, prompt: createPiPrompt(host),
       openThread: context => openPiThread(host, context),
       async forkThread({ source, request, signal }) {
         signal.throwIfAborted()

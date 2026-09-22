@@ -43,6 +43,12 @@ importers:
       '@openagent/plugin-kit':
         specifier: workspace:*
         version: link:../../packages/openagent-plugin-kit
+      '@openagent/provider-deepseek':
+        specifier: workspace:*
+        version: link:../../packages/provider-deepseek
+      '@openagent/provider-mock':
+        specifier: workspace:*
+        version: link:../../packages/provider-mock
       cross-spawn:
         specifier: ^7.0.6
         version: 7.0.6
@@ -365,11 +371,43 @@ importers:
         specifier: ^11.0.5
         version: 11.0.5
 
+  packages/provider-deepseek:
+    dependencies:
+      '@openagent/contracts':
+        specifier: workspace:*
+        version: link:../openagent-contracts
+    devDependencies:
+      '@types/node':
+        specifier: ^24.3.1
+        version: 24.13.3
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  packages/provider-mock:
+    dependencies:
+      '@openagent/contracts':
+        specifier: workspace:*
+        version: link:../openagent-contracts
+    devDependencies:
+      '@types/node':
+        specifier: ^24.3.1
+        version: 24.13.3
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   packages/test-kit:
     dependencies:
       '@openagent/contracts':
         specifier: workspace:*
         version: link:../openagent-contracts
+      '@openagent/plugin-kit':
+        specifier: workspace:*
+        version: link:../openagent-plugin-kit
+      '@openagent/provider-mock':
+        specifier: workspace:*
+        version: link:../provider-mock
     devDependencies:
       '@types/node':
         specifier: ^24.3.1

@@ -62,7 +62,7 @@ describe('Plugin-owned Bart account telemetry', () => {
     expect(first).not.toContain('native-session-1')
   })
 
-  it('formats setup failures inside every Plugin telemetry boundary', async () => {
+  it('reports unknown capacity when setup fails before backend authority is established', async () => {
     const unavailable = async (): Promise<string> => {
       throw new Error('native unavailable')
     }
@@ -95,10 +95,10 @@ describe('Plugin-owned Bart account telemetry', () => {
         signal: new AbortController().signal
       })
       expect(JSON.parse(text || '{}')).toMatchObject({
-        namespace: entry.namespace,
-        availability: 'error',
-        error: 'native unavailable'
+        namespace: 'external-provider',
+        availability: 'unknown'
       })
+      await entry.plugin.dispose?.()
     }
   })
 
