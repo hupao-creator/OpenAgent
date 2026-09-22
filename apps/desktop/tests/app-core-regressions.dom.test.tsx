@@ -62,6 +62,7 @@ vi.mock('../src/renderer/src/components/ConversationOverview', () => ({
     readonly onOpenRelatedExecution: (threadId: string, executionId: string) => void
     readonly onTagChange: (tag: string) => void
     readonly selectedTag?: string
+    readonly archivedCount?: number
     readonly tagFilters?: readonly { readonly tag: string }[]
     readonly reports?: readonly { readonly id: string }[]
     readonly threads: readonly { readonly thread: AgentThreadRecord }[]
@@ -80,6 +81,7 @@ vi.mock('../src/renderer/src/components/ConversationOverview', () => ({
         </button>
       ))}
       <span data-testid="selected-tag">{props.selectedTag || '(all)'}</span>
+      <span data-testid="archived-count">{props.archivedCount}</span>
       <span data-testid="tag-filters">{props.tagFilters?.map(({ tag }) => tag).join('|')}</span>
       <span data-testid="report-ids">{props.reports?.map(({ id }) => id).join('|')}</span>
       <span data-testid="focus-request-key">{props.focusFilterRequestKey}</span>
@@ -640,11 +642,13 @@ describe('App Renderer Core regressions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'select active tag' }))
     expect(screen.getByTestId('selected-tag')).toHaveTextContent('active-tag')
+    expect(screen.getByTestId('archived-count')).toHaveTextContent('1')
     fireEvent.click(screen.getByRole('button', { name: 'show archived' }))
     await waitFor(() => expect(screen.getByTestId('overview-view')).toHaveTextContent('archived'))
     expect(screen.getByTestId('tag-filters')).toBeEmptyDOMElement()
     expect(screen.getByTestId('selected-tag')).toHaveTextContent('(all)')
     expect(screen.getByTestId('report-ids')).toHaveTextContent('archived-untagged')
+    expect(screen.getByTestId('archived-count')).toHaveTextContent('1')
 
     fireEvent.click(screen.getByRole('button', { name: 'show default' }))
     expect(screen.getByTestId('selected-tag')).toHaveTextContent('active-tag')

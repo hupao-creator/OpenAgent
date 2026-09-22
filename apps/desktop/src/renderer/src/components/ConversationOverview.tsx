@@ -141,6 +141,8 @@ export interface ConversationOverviewProps {
   /** 报告卡片上的软归档/恢复入口；缺省即不渲染该入口。 */
   onSetReportArchived?: (reportId: string, archived: boolean) => void
   readonly view?: OverviewView
+  /** Destination view count after its own tag choices are applied. */
+  readonly archivedCount?: number
   readonly onViewChange?: (view: OverviewView) => void
   readonly onSetThreadArchived?: (threadId: string, archived: boolean) => void
   readonly onOpenRelatedExecution?: (threadId: string, executionId: string) => void
@@ -335,9 +337,9 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
   const collection = useMemo(() => selectOverviewItems(projectedThreads,
     props.reports ?? NO_OVERVIEW_REPORTS, view, selectedTags),
     [projectedThreads, props.reports, view, selectedTagsKey])
-  const archivedCount = useMemo(() => selectOverviewItems(
+  const archivedCount = useMemo(() => props.archivedCount ?? selectOverviewItems(
     projectedThreads, props.reports ?? NO_OVERVIEW_REPORTS, 'archived', selectedTags).count,
-    [projectedThreads, props.reports, selectedTagsKey])
+    [props.archivedCount, projectedThreads, props.reports, selectedTagsKey])
   const visibleThreads = collection.threads
   const visibleReports = collection.reports
   useEffect(() => {

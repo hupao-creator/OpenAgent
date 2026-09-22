@@ -239,6 +239,21 @@ function AppContent(): React.JSX.Element {
         [filter.tag, ...(filter.aliases ?? [])]).count
     }))
   }, [catalogThreadInputs, reports, overviewTaskView])
+  const archivedTagFilters = useMemo(() => {
+    if (overviewTaskView === 'archived') return tagFilters
+    const candidates = selectOverviewItems(catalogThreadInputs, reports, 'archived', [], false)
+    return buildConversationTagFilters(candidates.threads, candidates.reports)
+  }, [catalogThreadInputs, reports, overviewTaskView, tagFilters])
+  const archivedSelectedFilter = archivedTagFilters.find((filter) =>
+    selectedTag && tagFilterMatchesSelection(filter, selectedTag))
+  const archivedSelectedTags = !archivedTagFilters.length ? []
+    : archivedSelectedFilter ? [archivedSelectedFilter.tag, ...(archivedSelectedFilter.aliases ?? [])]
+      : selectedTag ? [selectedTag] : []
+  const archivedSelectedTagsKey = JSON.stringify(archivedSelectedTags)
+  const archivedCount = useMemo(() => selectOverviewItems(
+    catalogThreadInputs, reports, 'archived', archivedSelectedTags).count,
+    [catalogThreadInputs, reports, archivedSelectedTagsKey]
+  )
   // Keep the other view's selection in state, but do not apply it where there
   // are no tag choices and no visible control to clear it.
   const overviewSelectedTag = tagFilters.length ? selectedTag : ''
@@ -697,6 +712,7 @@ function AppContent(): React.JSX.Element {
                 onSelect={openThread}
                 onSetReportArchived={setReportArchived}
                 onSettings={openSettings}
+                archivedCount={archivedCount}
                 view={overviewTaskView}
                 onViewChange={setOverviewTaskView}
                 onOpenRelatedExecution={openThread}

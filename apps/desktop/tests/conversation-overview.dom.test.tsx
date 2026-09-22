@@ -432,6 +432,12 @@ describe('Harness Plugin overview Core seam', () => {
     expect(onViewChange).not.toHaveBeenCalled()
   })
 
+  it('uses the destination count for the Archived switch', () => {
+    render(<ConversationOverview threads={[]} reports={[]} archivedCount={2} onViewChange={() => {}}
+      interrupt={async () => {}} respond={async () => {}} onSelect={() => {}} transitionId={null} />)
+    expect(screen.getByRole('button', { name: '已归档，共 2 张卡片' })).toBeVisible()
+  })
+
   it('omits the tag bar when this view has no tag choices, even with a remembered selection', () => {
     render(<ConversationOverview threads={[]} view="archived" selectedTag="project" tagFilters={[]}
       interrupt={async () => {}} respond={async () => {}}
