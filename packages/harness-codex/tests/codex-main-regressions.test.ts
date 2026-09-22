@@ -142,6 +142,42 @@ describe('Codex Main regression coverage', () => {
     } finally { await plugin.dispose?.() }
   })
 
+  it('cancels a settings reader while another reader shares the pending Provider home', async () => {
+    const directory = await temporaryDirectory('codex-provider-cancel-')
+    const executable = join(directory, 'codex-probe.mjs')
+    const started = join(directory, 'started')
+    const release = join(directory, 'release')
+    await writeFile(executable, `#!/usr/bin/env node
+import { appendFileSync, existsSync } from 'node:fs'
+if (process.argv[2] === 'debug') {
+  appendFileSync(${JSON.stringify(started)}, 'probe\\n')
+  while (!existsSync(${JSON.stringify(release)})) await new Promise(resolve => setTimeout(resolve, 10))
+}
+await import(${JSON.stringify(pathToFileURL(fixture).href)})
+`, { mode: 0o755 })
+    const plugin = createCodexMainPlugin({ resolveExecutable: async () => executable,
+      environment: async () => ({ ...process.env, FAKE_CODEX_MODEL_FROM_HOME: '1' }),
+      providers: mockProviderAccess('codex', { model: 'connected-model' }), dataRoot: directory, temporaryWorkspaceRoot: directory })
+    const controller = new AbortController()
+    const first = plugin.settingsPresentation.load({ settings: { threadSettings: {} }, cwd: directory, signal: controller.signal })
+    const cancelled = expect(first).rejects.toMatchObject({ name: 'AbortError' })
+    let second: ReturnType<typeof plugin.settingsPresentation.load> | undefined
+    try {
+      await vi.waitFor(async () => expect(await readFile(started, 'utf8')).toBe('probe\n'))
+      second = plugin.settingsPresentation.load({ settings: { threadSettings: {} }, cwd: directory, signal: new AbortController().signal })
+      controller.abort()
+      await cancelled
+      await writeFile(release, '')
+      expect((await second).models.map(model => model.value)).toEqual(['connected-model'])
+      expect(await readFile(started, 'utf8')).toBe('probe\n')
+    } finally {
+      controller.abort()
+      await writeFile(release, '')
+      await Promise.allSettled([first, second, cancelled])
+      await plugin.dispose?.()
+    }
+  })
+
   it('loads a Thread presentation from its pinned executable and cwd', async () => {
     await chmod(fixture, 0o755)
     const directory = await temporaryDirectory('codex-presentation-pinned-')

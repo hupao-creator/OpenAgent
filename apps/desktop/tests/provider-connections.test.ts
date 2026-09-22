@@ -14,6 +14,8 @@ import { piMainModule } from '@openagent/harness-pi/main'
 import { claudeBackend } from '../../../packages/harness-claude/src/main/backend'
 import { createClaudeMainPlugin } from '../../../packages/harness-claude/src/main'
 import { loadProviderConnections } from '../src/main/harness-execution-environment'
+import { CodexRuntime } from '../../../packages/harness-codex/src/main/runtime'
+import { CodexAppServer } from '../../../packages/harness-codex/src/main/runtime/app-server'
 
 const cleanup: (() => unknown)[] = []
 afterEach(async () => { for (const action of cleanup.splice(0).reverse()) await action() })
@@ -128,6 +130,41 @@ describe('Provider connection authority', () => {
     if (shellCredential.kind !== 'provider') throw new Error('missing provider')
     expect(await shellCredential.readTelemetry(signal())).toMatchObject({ availability: 'error' })
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('uses the effective Codex credential for discovered default-provider telemetry', async () => {
+    const cwd = await directory()
+    const fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => balance }))
+    const connections = new ProviderConnections([deepseek], [], { fetch })
+    cleanup.push(() => connections.dispose())
+    const runtime = new CodexRuntime({ resolveExecutable: async () => '/unused',
+      environment: async () => ({ OPENAI_BASE_URL: 'https://api.deepseek.com', OPENAI_API_KEY: 'default-key', CUSTOM_KEY: 'custom-key' }),
+      providers: connections.forHarness(target('codex')), dataRoot: cwd, temporaryWorkspaceRoot: cwd })
+    const server = new CodexAppServer('/unused', {})
+    const read = vi.spyOn(server, 'readThreadConfiguration')
+    const native = vi.spyOn(server, 'hasNativeSubscription')
+    try {
+      for (const envKey of [undefined, 'CUSTOM_KEY']) {
+        read.mockResolvedValue({ model: 'deepseek-flash', model_providers: { openai: envKey ? { env_key: envKey } : {} } })
+        const backend = await runtime.backendForServer(server, cwd, signal())
+        expect(backend.kind).toBe('provider')
+        if (backend.kind !== 'provider') throw new Error('missing provider')
+        expect(await backend.readTelemetry(signal())).toMatchObject({ availability: 'available' })
+        expect(fetch).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: `Bearer ${envKey ? 'custom-key' : 'default-key'}` })
+        }))
+      }
+      expect(native).not.toHaveBeenCalled()
+    } finally { read.mockRestore(); native.mockRestore(); await server.dispose() }
+  })
+
+  it.each(['deepseek-flash', 'deepseek-v4-pro'])('maps every explicit Claude family alias to %s', model => {
+    const connections = new ProviderConnections([deepseek], [{ id: 'a', providerId: 'deepseek', apiKey: 'key', model }])
+    cleanup.push(() => connections.dispose())
+    const binding = connections.forHarness(target('claude'), 'a').explicit!
+    for (const alias of ['default', 'opusplan', 'opus', 'opus[1m]', 'sonnet', 'sonnet[1m]', 'haiku', 'haiku[1m]']) {
+      expect(binding.identify(alias)).toEqual({ ...binding.identify(model), selector: alias })
+    }
   })
 
   it('binds a Provider through the production composition and rejects unknown Harness bindings', async () => {

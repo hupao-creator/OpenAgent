@@ -68,7 +68,8 @@ export class CodexRuntime {
       const external = id !== 'openai' || baseUrl !== undefined || Boolean(environment.OPENAI_API_KEY)
       if (!external) return { kind: await server.hasNativeSubscription(signal) ? 'native' : 'unknown' }
       return this.context.providers?.resolve({ kind: 'external', baseUrl,
-        apiKey: typeof configured.env_key === 'string' ? environment[configured.env_key] : undefined,
+        apiKey: typeof configured.env_key === 'string' ? environment[configured.env_key]
+          : id === 'openai' ? environment.OPENAI_API_KEY : undefined,
         model: typeof config.model === 'string' ? config.model : undefined
       }) ?? { kind: 'unknown' }
     } catch {
@@ -129,7 +130,7 @@ export class CodexRuntime {
     throwIfAborted(signal)
     if (profile === 'standard') {
       const directory = providerInjection
-        ? await this.ensureProviderHome(executable, environment, providerInjection)
+        ? await awaitProviderHome(this.ensureProviderHome(executable, environment, providerInjection), signal)
         : undefined
       throwIfAborted(signal)
       const standardEnvironment = directory && providerInjection
@@ -197,6 +198,7 @@ export class CodexRuntime {
       createHash('sha256').update(key).digest('hex'))
     const { stdout } = await execFileAsync(executable, ['debug', 'models', '--bundled'], {
       env: environment,
+      timeout: 10_000,
       maxBuffer: 8 * 1024 * 1024
     })
     const catalog = codexProviderInjectionCatalog(jsonRecord(JSON.parse(stdout)), env)
@@ -377,6 +379,18 @@ function jsonRecord(value: unknown): Record<string, unknown> {
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new DOMException('The operation was aborted', 'AbortError')
+}
+
+/** A cancelled reader must not block on, or cancel, another reader's shared probe. */
+function awaitProviderHome(home: Promise<string>, signal?: AbortSignal): Promise<string> {
+  if (!signal) return home
+  return new Promise((resolve, reject) => {
+    const aborted = () => { signal.removeEventListener('abort', aborted); reject(new DOMException('The operation was aborted', 'AbortError')) }
+    signal.addEventListener('abort', aborted, { once: true })
+    home.then(value => { signal.removeEventListener('abort', aborted); resolve(value) },
+      error => { signal.removeEventListener('abort', aborted); reject(error) })
+    if (signal.aborted) aborted()
+  })
 }
 
 function runtimeDebugPurpose(profile: CodexRuntimeProfile): string {

@@ -65,7 +65,7 @@ const plugin: ProviderPluginModule = {
 function injection(config: ProviderConnectionConfiguration, model: string, harnessId: string): ProviderInjection {
   if (harnessId === 'claude') return {
     format: 'claude-settings-env-v1', model,
-    modelAliases: Object.fromEntries(['default', 'opus', 'opusplan', 'sonnet', 'sonnet[1m]', 'haiku'].map(alias => [alias, model])),
+    modelAliases: Object.fromEntries(['default', 'opusplan', ...['opus', 'sonnet', 'haiku'].flatMap(family => [family, `${family}[1m]`])].map(alias => [alias, model])),
     environment: {
       ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
       ANTHROPIC_AUTH_TOKEN: config.apiKey, ANTHROPIC_API_KEY: config.apiKey,
