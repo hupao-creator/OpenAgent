@@ -5,8 +5,8 @@
 .provider-theme-pi .thread-provider-logo { color: var(--thread-provider-color); }
 .pi-thread { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; color: var(--ink); }
 .pi-thread > .thread-detail { flex: 1; min-height: 0; }
-.pi-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 16px; }
-.pi-actions button, .pi-settings button { color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.pi-action-error { padding: 8px 16px; }
+.pi-settings button { color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
 .pi-thread button:disabled, .pi-settings button:disabled { opacity: .5; cursor: default; }
 .pi-thread [role="alert"], .pi-settings [role="alert"] { color: var(--danger); }
 .pi-tool-output { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-family: monospace; }

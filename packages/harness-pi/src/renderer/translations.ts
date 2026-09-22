@@ -9,7 +9,6 @@ export const piRendererTranslations = {
     'Pi Thread 配置': 'Pi Thread settings',
     'Pi 原生默认': 'Pi native default',
     'Pi 状态不可用': 'Pi status unavailable',
-    '中断': 'Interrupt',
     '正在读取 Pi 环境…': 'Loading the Pi environment…',
     '重试中…': 'Retrying…'
   }
