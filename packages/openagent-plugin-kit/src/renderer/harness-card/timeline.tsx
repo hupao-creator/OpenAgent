@@ -44,6 +44,10 @@ export function HarnessMessageTimeline(props: {
   readonly suspended?: boolean
   readonly followOutput?: boolean
   readonly followKey?: string
+  /** Keep history readable while retaining the explicit jump-to-latest action. */
+  readonly followPaused?: boolean
+  readonly onJumpToLatest?: () => void
+  readonly showOlderRows?: boolean
 }): React.JSX.Element {
   const { t } = useI18n()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -128,7 +132,11 @@ export function HarnessMessageTimeline(props: {
   }, [props.timelineKey])
 
   useLayoutEffect(() => {
-    if (props.suspended || !props.followOutput || !scrollRef.current) return
+    if (props.followPaused !== undefined) followingRef.current = !props.followPaused
+  }, [props.followPaused])
+
+  useLayoutEffect(() => {
+    if (props.suspended || props.followPaused || !props.followOutput || !scrollRef.current) return
     const scroll = scrollRef.current
     if (props.followKey) followingRef.current = true
     if (!followingRef.current) return
@@ -141,7 +149,7 @@ export function HarnessMessageTimeline(props: {
       scroll.scrollTop = scroll.scrollHeight
       setShowLatest(false)
     }
-  }, [props.timelineKey, props.followOutput, props.followKey])
+  }, [props.timelineKey, props.followOutput, props.followKey, props.followPaused])
 
   useEffect(() => {
     const scroll = scrollRef.current
@@ -149,12 +157,12 @@ export function HarnessMessageTimeline(props: {
     if (props.suspended || !props.followOutput || !scroll || !column || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(() => {
       if (prependAnchorRef.current) return
-      if (followingRef.current) scroll.scrollTop = scroll.scrollHeight
+      if (!props.followPaused && followingRef.current) scroll.scrollTop = scroll.scrollHeight
       setShowLatest(scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight >= 64)
     })
     observer.observe(column)
     return () => observer.disconnect()
-  }, [props.followOutput, props.timelineKey, props.suspended])
+  }, [props.followOutput, props.timelineKey, props.suspended, props.followPaused])
 
   return <>
     <div
@@ -165,15 +173,16 @@ export function HarnessMessageTimeline(props: {
       aria-live="off"
       onScroll={props.followOutput && !props.suspended ? (event) => {
         const scroll = event.currentTarget
-        followingRef.current = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 64
-        setShowLatest(!followingRef.current)
+        const atLatest = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 64
+        followingRef.current = !props.followPaused && atLatest
+        setShowLatest(!atLatest)
       } : undefined}
     >
       {rows.length === 0 && !props.toolbar ? (
         props.emptyState
       ) : (
         <div className="message-column">
-          {firstVisibleIndex > 0 ? (
+          {props.showOlderRows !== false && firstVisibleIndex > 0 ? (
             <button className="load-older-messages" onClick={loadOlderRows} type="button">
               {t('显示更早的 {count} 条消息', {
                 count: Math.min(OLDER_ROW_BATCH, firstVisibleIndex)
@@ -195,6 +204,7 @@ export function HarnessMessageTimeline(props: {
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
           followingRef.current = true
           setShowLatest(false)
+          props.onJumpToLatest?.()
         }}
       ><ChevronDown size={13} />{t('回到最新')}</button> : null}
   </>

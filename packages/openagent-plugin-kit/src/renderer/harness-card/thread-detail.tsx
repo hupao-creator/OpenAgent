@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
-import { ChevronLeft, Eye, EyeOff, ListFilter } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, EyeOff, ListFilter } from 'lucide-react'
 import { useI18n } from '../i18n.js'
 import { HarnessMessageTimeline, type ThreadTimelineRow } from './timeline.js'
 import { formatThreadWorkDuration } from './thread-view.js'
@@ -132,6 +132,10 @@ export function ThreadDetailSurface(props: {
 }): React.JSX.Element {
   const { t } = useI18n()
   const navigation = useContext(NavigationContext)
+  const [history, setHistory] = useState({ threadId: props.threadId, open: false })
+  const historyOpen = history.threadId === props.threadId && history.open
+  const historyCount = props.rows.filter((row) => row.subpage).length
+  if (history.threadId !== props.threadId) setHistory({ threadId: props.threadId, open: false })
   const [readingState, setReadingState] = useState<{
     threadId: string
     requestId?: string
@@ -145,6 +149,7 @@ export function ThreadDetailSurface(props: {
     ? { threadId: props.threadId, ...props.readingTarget } : readingState
   if (requestChanged) setReadingState(currentReading)
   const opener = useRef<HTMLButtonElement | null>(null)
+  const historyToggle = useRef<HTMLButtonElement | null>(null)
   const surfaceRef = useRef<HTMLDivElement | null>(null)
   const locatedRequestRef = useRef<string | undefined>(undefined)
   const selectedPage = typeof currentReading.rowId === 'string'
@@ -153,11 +158,12 @@ export function ThreadDetailSurface(props: {
   const readingPage = Boolean(selectedPage) || unavailable
   const restoreFocus = useRef(false)
   useLayoutEffect(() => {
-    if (!selectedPage && restoreFocus.current) {
-      opener.current?.focus({ preventScroll: true })
+    if (!readingPage && restoreFocus.current) {
+      const target = opener.current?.isConnected ? opener.current : historyToggle.current
+      target?.focus({ preventScroll: true })
       restoreFocus.current = false
     }
-  }, [selectedPage])
+  }, [readingPage])
   // Locate the requested message once per request. Streaming updates, state
   // refreshes and relayouts must never move the reader a second time. The
   // camera hands this surface over while it is still `inert`, where focus is
@@ -204,9 +210,11 @@ export function ThreadDetailSurface(props: {
     setReadingState({ ...currentReading, rowId: undefined })
     restoreFocus.current = true
   }
+  // Keep row identities in the window while folded, so reopening does not
+  // discard loaded history; only the summary nodes are left unmounted.
   const pageRows = props.rows.map((row, index) => row.subpage ? {
     ...row,
-    node: <button className="thread-detail-subpage-link" title={row.subpage.entryTitle ?? threadDocumentHeading(row.subpage.title).entryTitle} type="button" onClick={(event) => {
+    node: historyOpen ? <button className="thread-detail-subpage-link" title={row.subpage.entryTitle ?? threadDocumentHeading(row.subpage.title).entryTitle} type="button" onClick={(event) => {
       opener.current = event.currentTarget
       setReadingState({ ...currentReading, rowId: row.id })
     }}>
@@ -215,9 +223,9 @@ export function ThreadDetailSurface(props: {
         <span className="thread-detail-subpage-summary">{row.subpage.summary}</span>
         {row.subpage.completedAt !== undefined ? <ThreadCompletionTime at={row.subpage.completedAt} /> : null}
       </span>
-    </button>
+    </button> : null
   } : { ...row, node: <>
-    {props.rows[index - 1]?.subpage ? <hr className="thread-detail-history-divider" /> : null}
+    {historyOpen && props.rows[index - 1]?.subpage ? <hr className="thread-detail-history-divider" /> : null}
     {row.node}
   </> })
   const [userMessages, setUserMessages] = useState(false)
@@ -252,6 +260,9 @@ export function ThreadDetailSurface(props: {
           timelineKey={props.threadId}
           rows={pageRows}
           followOutput
+          followPaused={historyOpen}
+          showOlderRows={historyOpen}
+          onJumpToLatest={() => setHistory({ threadId: props.threadId, open: false })}
           suspended={readingPage}
           followKey={props.runningTurnId}
           emptyState={props.emptyState ?? <ThreadDetailEmptyState />}
@@ -263,6 +274,20 @@ export function ThreadDetailSurface(props: {
               {props.actions ? <div className="thread-detail-plugin-actions">{props.actions}</div> : null}
             </header>
             {props.rows.length ? <div className="thread-detail-toolbar" role="group" aria-label={t('消息显示')}>
+              {historyCount > 0 ? <button
+                ref={historyToggle}
+                className="thread-detail-history-toggle"
+                aria-expanded={historyOpen}
+                onClick={(event) => {
+                  const scroll = event.currentTarget.closest<HTMLElement>('.message-scroll')
+                  if (scroll) scroll.scrollTop = 0
+                  setHistory({ threadId: props.threadId, open: !historyOpen })
+                }}
+                type="button"
+              >
+                <ChevronRight size={13} aria-hidden="true" />
+                {historyCount === 1 ? t('前 1 轮对话') : t('前 {count} 轮对话', { count: historyCount })}
+              </button> : null}
               <button
                 aria-pressed={userMessages}
                 onClick={() => setUserMessages((value) => !value)}

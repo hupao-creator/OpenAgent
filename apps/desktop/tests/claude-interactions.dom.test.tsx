@@ -326,6 +326,7 @@ describe('Claude Plugin-owned interaction renderer', () => {
     expect(screen.queryByText('Ship it')).not.toBeInTheDocument()
     expect(screen.getByText('Continue working')).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('button', { name: '1 previous turn' }))
     const entry = view.container.querySelector('.thread-detail-subpage-link')!
     fireEvent.click(entry)
     const child = view.container.querySelector('.thread-detail-subpage') as HTMLElement

@@ -69,6 +69,8 @@ it('uses the official adaptive Pi mark everywhere the Renderer exposes its logo'
 it('opens full historical execution without a fork entry', async () => {
   const a = actions()
   const view = render(<I18nProvider locale="en-US"><PiThreadView thread={thread()} actions={a} /></I18nProvider>)
+  expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(0)
+  fireEvent.click(screen.getByRole('button', { name: '1 previous turn' }))
   expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(1)
   fireEvent.click(screen.getByRole('button', { name: /Earlier question/ }))
   expect(await within(view.container.querySelector('.thread-detail-subpage') as HTMLElement).findByText('Earlier full answer')).toBeVisible()

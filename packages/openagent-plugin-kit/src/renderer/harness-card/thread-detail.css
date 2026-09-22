@@ -42,6 +42,13 @@
 .thread-detail-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 10px; border-bottom: 1px solid var(--line-soft); padding-bottom: 12px; margin-bottom: 24px; font-size: 11px; color: var(--muted); }
 .thread-detail-toolbar button { display: inline-flex; gap: 5px; align-items: center; padding: 4px 6px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; }
 .thread-detail-toolbar button:hover { background: var(--surface); color: var(--ink); }
+.thread-detail-toolbar .thread-detail-history-toggle { margin-right: auto; padding-left: 0; font-size: 12px; }
+.thread-detail-toolbar:has(.thread-detail-history-toggle),
+.thread-detail-toolbar:has(.thread-detail-history-toggle) button { align-items: baseline; }
+.thread-detail-toolbar:has(.thread-detail-history-toggle) button > svg { align-self: center; }
+.thread-detail-toolbar:has(.thread-detail-history-toggle[aria-expanded=false]) { border-bottom-color: transparent; padding-bottom: 0; margin-bottom: 16px; }
+.thread-detail-history-toggle svg { transition: transform 120ms ease; }
+.thread-detail-history-toggle[aria-expanded=true] svg { transform: rotate(90deg); }
 .thread-detail-turn + .thread-detail-turn { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line-soft); }
 .thread-detail-row { margin: 0 0 16px; min-width: 0; }
 .thread-detail-user { margin-bottom: 26px; }

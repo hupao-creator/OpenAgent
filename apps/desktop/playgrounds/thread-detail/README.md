@@ -75,4 +75,6 @@ Claude runtime/MCP/remote/background/fork、Codex 后台终端与系统错误等
 
 ## Document reading (#63)
 
+正式 Thread / Bart 与 Playground 共用「最近一轮优先」布局：标题下方用一行「前 N 轮对话」默认收起历史，最新一轮直接展示；点击入口可展开摘要、加载更早轮次并进入历史详情。阅读历史时暂停自动跟随，返回详情保留位置与焦点，「回到最新」收起历史并恢复跟随。历史入口与右侧开关按文字基线对齐；收起时不显示分割线，控件与正文间距缩小。
+
 `?renderer=plugin&scenario=local-five&harness=codex&kind=agent` previews the saved five-turn Codex conversation. Both remaining Harness renderers can display this same recorded content; it is not a native Claude conversation and has no imported usage. Other scenarios use explicit fixed protocol fixtures with known token categories. Both Agent and Bart render production navigation with the preview parent label “Thread 详情”. Subpage transitions use production CSS.
