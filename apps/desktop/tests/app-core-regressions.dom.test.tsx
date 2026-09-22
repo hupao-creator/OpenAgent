@@ -62,7 +62,9 @@ vi.mock('../src/renderer/src/components/ConversationOverview', () => ({
     readonly onOpenRelatedExecution: (threadId: string, executionId: string) => void
     readonly onTagChange: (tag: string) => void
     readonly selectedTag?: string
+    readonly archivedCount?: number
     readonly tagFilters?: readonly { readonly tag: string }[]
+    readonly reports?: readonly { readonly id: string }[]
     readonly threads: readonly { readonly thread: AgentThreadRecord }[]
   }) => (
     <div>
@@ -79,7 +81,9 @@ vi.mock('../src/renderer/src/components/ConversationOverview', () => ({
         </button>
       ))}
       <span data-testid="selected-tag">{props.selectedTag || '(all)'}</span>
+      <span data-testid="archived-count">{props.archivedCount}</span>
       <span data-testid="tag-filters">{props.tagFilters?.map(({ tag }) => tag).join('|')}</span>
+      <span data-testid="report-ids">{props.reports?.map(({ id }) => id).join('|')}</span>
       <span data-testid="focus-request-key">{props.focusFilterRequestKey}</span>
     </div>
   ))
@@ -627,6 +631,30 @@ describe('App Renderer Core regressions', () => {
     expect(fixture.current().selectedThreadId).toBeNull()
   })
 
+  it('shows untagged archived reports when no tag can be chosen there, then restores the prior tag', async () => {
+    const base = appState(false)
+    installApi({ ...base, reports: [
+      report('current-tagged', false, ['active-tag']),
+      report('archived-untagged', true, [])
+    ] })
+    render(<App />)
+    await screen.findByText('overview')
+
+    fireEvent.click(screen.getByRole('button', { name: 'select active tag' }))
+    expect(screen.getByTestId('selected-tag')).toHaveTextContent('active-tag')
+    expect(screen.getByTestId('archived-count')).toHaveTextContent('1')
+    fireEvent.click(screen.getByRole('button', { name: 'show archived' }))
+    await waitFor(() => expect(screen.getByTestId('overview-view')).toHaveTextContent('archived'))
+    expect(screen.getByTestId('tag-filters')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('selected-tag')).toHaveTextContent('(all)')
+    expect(screen.getByTestId('report-ids')).toHaveTextContent('archived-untagged')
+    expect(screen.getByTestId('archived-count')).toHaveTextContent('1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'show default' }))
+    expect(screen.getByTestId('selected-tag')).toHaveTextContent('active-tag')
+    expect(screen.getByTestId('report-ids')).toHaveTextContent('current-tagged')
+  })
+
   it('refreshes catalog tags for execution status and background-work changes', async () => {
     const base = appState(false)
     const fixture = installApi({ ...base, threads: [base.threads[0]!, agentThread('agent', {
@@ -771,7 +799,7 @@ describe('App Renderer Core regressions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'back overview' }))
     await screen.findByText('overview')
     expect(screen.getByTestId('overview-view')).toHaveTextContent('archived')
-    expect(screen.getByTestId('selected-tag')).toHaveTextContent('active-tag')
+    expect(screen.getByTestId('selected-tag')).toHaveTextContent('(all)')
     const latest = (executionId: string) => act(() => fixture.emit({
       ...fixture.current(), revision: fixture.current().revision + 1,
       threads: fixture.current().threads.map(thread => thread.id === 'agent' ? {
@@ -789,6 +817,8 @@ describe('App Renderer Core regressions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'back overview' }))
     await screen.findByText('overview')
     expect(screen.getByTestId('overview-view')).toHaveTextContent('archived')
+    expect(screen.getByTestId('selected-tag')).toHaveTextContent('(all)')
+    fireEvent.click(screen.getByRole('button', { name: 'show default' }))
     expect(screen.getByTestId('selected-tag')).toHaveTextContent('active-tag')
   })
 
