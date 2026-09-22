@@ -21,7 +21,7 @@
 .entrance-duration { font-size: 36px; font-weight: 350; letter-spacing: -1.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .entrance-duration small { font-size: 11px; letter-spacing: 0; margin-left: 5px; }
 .entrance-lab .entrance-stage { display: flex; align-items: center; justify-content: center; min-height: 430px; padding: 65px 22px 145px; overflow: hidden; }
-.entrance-stage .bart-dock { translate: -50% 0 !important; bottom: -48px !important; }
+.entrance-lab .entrance-stage .bart-dock { translate: -50% 0 !important; bottom: -24px !important; }
 .entrance-stage-label { position: absolute; left: 22px; top: 22px; display: flex; align-items: center; gap: 10px; color: var(--faint); font-size: 9px; letter-spacing: 1px; }
 .entrance-stage-label i { width: 3px; height: 3px; border-radius: 50%; background: var(--faint); }
 .entrance-grid { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--thread-card-gap); width: 100%; }
