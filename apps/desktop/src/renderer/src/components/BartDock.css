@@ -348,8 +348,13 @@
   bottom: calc(100% + 6px);
   left: 35px;
   max-width: calc(100% - 64px);
+  box-sizing: border-box;
+  padding: 6px 9px;
   overflow: hidden;
-  color: rgba(247, 245, 238, 0.72);
+  border-radius: 10px;
+  background: #10110f;
+  color: #f7f5ee;
+  box-shadow: 0 4px 12px rgba(16, 17, 15, 0.18);
   font-size: 12px;
   font-weight: 720;
   letter-spacing: -0.015em;
@@ -375,7 +380,7 @@
 }
 
 .bart-dock-thread-follow-up input::placeholder {
-  color: rgba(247, 245, 238, 0.46);
+  color: rgba(247, 245, 238, 0.68);
 }
 
 .bart-dock-thread-follow-up input:focus,

@@ -142,6 +142,22 @@ function assertCapsuleIsMarkedUp(reading) {
   assert.equal(reading.views.expanded, 'false', 'the character does not expand')
 }
 
+function contrastAgainst(foreground, background) {
+  const color = (value) => value.match(/[\d.]+/g).map(Number)
+  const blend = (front, back) => {
+    const alpha = front[3] ?? 1
+    return back.map((channel, index) => front[index] * alpha + channel * (1 - alpha))
+  }
+  const lightness = (channels) => channels
+    .map((channel) => channel / 255)
+    .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+    .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0)
+  const backdrop = blend(color(background), [255, 255, 255])
+  const text = blend(color(foreground), backdrop)
+  const values = [lightness(backdrop), lightness(text)].sort((a, b) => b - a)
+  return (values[0] + 0.05) / (values[1] + 0.05)
+}
+
 /**
  * Bart's position frame by frame across one mode switch, with `start` triggering
  * it. The sampler is a rAF loop running in the page while the click arrives from
@@ -308,6 +324,20 @@ try {
   assert.ok(route.width > 0, 'the follow-up shows the thread it is writing to')
   assert.ok(route.above, 'the thread name is drawn above the capsule')
   assert.ok(route.painted, 'the thread name is not clipped away by the capsule')
+  const colors = await preview.locator('.bart-dock-thread-follow-up').evaluate((capsule) => {
+    const route = capsule.querySelector('.bart-dock-thread-follow-up-route')
+    const input = capsule.querySelector('input')
+    return {
+      routeBackground: getComputedStyle(route).backgroundColor,
+      routeText: getComputedStyle(route).color,
+      capsuleBackground: getComputedStyle(capsule).backgroundColor,
+      placeholder: getComputedStyle(input, '::placeholder').color
+    }
+  })
+  assert.ok(contrastAgainst(colors.routeText, colors.routeBackground) >= 4.5,
+    'the thread name stays legible over a light canvas')
+  assert.ok(contrastAgainst(colors.placeholder, colors.capsuleBackground) >= 4.5,
+    'the follow-up placeholder is legible on the dark capsule')
   await page.screenshot({ path: path.join(output, 'capsule-follow-up.png') })
 
   // 12. Opening and closing leave Bart at his mark position on every frame.
