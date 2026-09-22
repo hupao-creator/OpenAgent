@@ -239,13 +239,16 @@ function AppContent(): React.JSX.Element {
         [filter.tag, ...(filter.aliases ?? [])]).count
     }))
   }, [catalogThreadInputs, reports, overviewTaskView])
+  // Keep the other view's selection in state, but do not apply it where there
+  // are no tag choices and no visible control to clear it.
+  const overviewSelectedTag = tagFilters.length ? selectedTag : ''
   const selectedTagFilter = useMemo(
-    () => tagFilters.find((filter) => selectedTag && tagFilterMatchesSelection(filter, selectedTag)),
-    [selectedTag, tagFilters]
+    () => tagFilters.find((filter) => overviewSelectedTag && tagFilterMatchesSelection(filter, overviewSelectedTag)),
+    [overviewSelectedTag, tagFilters]
   )
   const selectedTagValues = useMemo(
     () => selectedTagFilter ? [selectedTagFilter.tag, ...(selectedTagFilter.aliases ?? [])]
-      : selectedTag ? [selectedTag] : [], [selectedTagFilter, selectedTag]
+      : overviewSelectedTag ? [overviewSelectedTag] : [], [selectedTagFilter, overviewSelectedTag]
   )
   const filteredThreadInputs = useMemo(
     () => filterOverviewThreadsByTag(allOverviewInputs, selectedTagValues),
@@ -269,7 +272,7 @@ function AppContent(): React.JSX.Element {
   const selectedDirectoryTag = overviewRendered && selectedTagFilter?.isCwdTag
     ? selectedTagFilter.tag
     : ''
-  const overviewSceneKey = [selectedTagFilter?.selectionKey || selectedTag, overviewTaskView].join('\0')
+  const overviewSceneKey = [selectedTagFilter?.selectionKey || overviewSelectedTag, overviewTaskView].join('\0')
   const overviewViewRef = useRef<OverviewViewSnapshot>({
     open: overviewRendered, selectedTags: selectedTagValues, view: overviewTaskView, sceneKey: overviewSceneKey
   })
@@ -702,7 +705,7 @@ function AppContent(): React.JSX.Element {
                 reportRelationThreads={allOverviewInputs}
                 reports={filteredReports}
                 respond={window.openAgent.respondToThreadInteraction}
-                selectedTag={selectedTag}
+                selectedTag={overviewSelectedTag}
                 tagFilters={tagFilters}
                 threads={filteredThreadInputs}
                 transitionId={transitionSessionId}
