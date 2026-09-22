@@ -432,15 +432,13 @@ describe('Harness Plugin overview Core seam', () => {
     expect(onViewChange).not.toHaveBeenCalled()
   })
 
-  it('retains a clear-tag control when a selected tag has no candidates in this view', async () => {
-    const user = userEvent.setup()
-    const onTagChange = vi.fn()
+  it('omits the tag bar when this view has no tag choices, even with a remembered selection', () => {
     render(<ConversationOverview threads={[]} view="archived" selectedTag="project" tagFilters={[]}
-      onTagChange={onTagChange} interrupt={async () => {}} respond={async () => {}}
+      interrupt={async () => {}} respond={async () => {}}
       onSelect={() => {}} transitionId={null} />)
     expect(screen.getByText('没有 project 会话')).toBeVisible()
-    await user.click(screen.getByRole('button', { name: '全部' }))
-    expect(onTagChange).toHaveBeenCalledWith('')
+    expect(screen.queryByRole('group', { name: '按标签筛选' })).toBeNull()
+    expect(document.querySelector('.thread-overview')).not.toHaveClass('overview-has-tag-filters')
   })
 
   it('freezes only identity and structure in layout snapshots', () => {

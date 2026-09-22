@@ -311,7 +311,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
     }
   }, [cameraCockpit, saveCameraView])
   const visibleTagFilters = props.tagFilters || []
-  const showTagFilters = visibleTagFilters.length > 0 || Boolean(props.selectedTag)
+  const showTagFilters = visibleTagFilters.length > 0
   const layoutPlanner = props.layoutPlanner ?? OVERVIEW_LAYOUT_PLANNER
   const availableCols = layoutPlanner.context.availableCols
   const layoutContext = useMemo<OverviewLayoutContext>(
