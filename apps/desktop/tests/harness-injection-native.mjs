@@ -380,6 +380,7 @@ async function runNativeHostWithLlm(input) {
       assert.ok(models.includes(qualifiedModel),
         `requested model ${qualifiedModel} was not observed in native protocol: ${bounded(models)}`)
     }
+    assert.equal(nativeSamples.length, 0, 'Independent Provider usage must not enter the native subscription ledger')
     Object.assign(facts, {
       threadId: record.id, nativeSessionId: firstNativeSession,
       executionIds: [firstExecutionId, followUpExecutionId, resumedExecutionId, schemaChangedExecutionId],

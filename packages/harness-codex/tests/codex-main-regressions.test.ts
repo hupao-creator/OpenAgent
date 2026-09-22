@@ -1487,6 +1487,7 @@ async function openBufferedDeltaHarness(suffix: string, options?: {
   } as unknown as CodexAppServer
   let serverAcquisitions = 0
   const runtime = {
+    context: {},
     server: async () => ({
       executable: '/fake/codex',
       server: serverAcquisitions++ === 0 ? primaryServer : auxiliaryServer

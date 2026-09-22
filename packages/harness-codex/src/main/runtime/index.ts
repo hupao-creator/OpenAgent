@@ -48,6 +48,17 @@ export class CodexRuntime {
     let server: CodexAppServer | undefined
     try {
       server = (await this.server(cwd, undefined, signal)).server
+      return await this.backendForServer(server, cwd, signal)
+    } catch {
+      signal.throwIfAborted()
+      return { kind: 'unknown' }
+    } finally { await server?.dispose() }
+  }
+
+  /** Resolve the authority of the same process that will execute the turn. */
+  async backendForServer(server: CodexAppServer, cwd: string, signal: AbortSignal): Promise<import('@openagent/contracts').HarnessBackend> {
+    if (this.context.providers?.explicit) return this.context.providers.explicit
+    try {
       const config = await server.readThreadConfiguration(cwd, signal)
       const environment = await this.context.environment()
       signal.throwIfAborted()
@@ -63,7 +74,7 @@ export class CodexRuntime {
     } catch {
       signal.throwIfAborted()
       return { kind: 'unknown' }
-    } finally { await server?.dispose() }
+    }
   }
 
   async server(

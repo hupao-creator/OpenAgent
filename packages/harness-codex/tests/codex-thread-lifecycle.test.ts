@@ -33,6 +33,7 @@ describe('Codex Thread lifecycle', () => {
       dispose: async () => undefined
     } as unknown as CodexAppServer
     const runtime = {
+    context: {},
       server: async () => ({ executable: '/fake/codex', server })
     } as unknown as CodexRuntime
     let record: AgentThreadRecord<'codex', CodexThreadSettings> = {

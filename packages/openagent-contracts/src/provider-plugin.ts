@@ -74,7 +74,7 @@ export interface ProviderPluginModule {
   connect(configuration: ProviderConnectionConfiguration, host: ProviderPluginHost): ProviderConnection
 }
 
-/** Bound, credential-opaque account authority shared by compatible Harnesses. */
+/** Main-only bound account authority shared by compatible Harnesses. */
 export interface ProviderBinding {
   readonly kind: 'provider'
   readonly providerId: string
