@@ -31,6 +31,7 @@ export function EntranceLab(): React.JSX.Element {
   const [reduced, setReduced] = useState(false)
   const stage = useRef<HTMLDivElement>(null)
   const animations = useRef<Animation[]>([])
+  const consumedReplay = useRef(0)
   const candidate = candidates.find(item => item.id === candidateId)!
   const sources = useMemo(() => Array.from({ length: count }, (_, index) => {
     const fixture = generationFixture(sample)
@@ -61,7 +62,9 @@ export function EntranceLab(): React.JSX.Element {
 
   useLayoutEffect(() => {
     finish()
-    if (!replay || reduced || document.hidden || !candidate.duration || !stage.current) return
+    const requested = replay !== consumedReplay.current
+    consumedReplay.current = replay
+    if (!requested || reduced || document.hidden || !candidate.duration || !stage.current) return
     let disposed = false
     const wrappers = stage.current.querySelectorAll<HTMLElement>('.entrance-card')
     for (const wrapper of wrappers) {
