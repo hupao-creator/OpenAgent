@@ -15,6 +15,7 @@ import { WritingCandidates } from './writing-candidates'
 import { writingGestures, type WritingGesture } from './writing-gestures'
 import type { GenerationPreview } from '../../../src/renderer/src/bart-motion/generation-scene'
 import { GenerationRegressions } from './generation-regressions'
+import { EntranceLab } from './entrance'
 import '@fontsource-variable/inter'
 import '../../../src/renderer/src/styles.css'
 import './generation.css'
@@ -69,7 +70,7 @@ function GenerationLab(): React.JSX.Element {
     await document.fonts.ready
     await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     if (epoch !== requestEpoch.current) return
-    setPhase(experience === 'writing' ? `${gestureName} · 播放中` : '当前效果 · 播放中')
+    setPhase(experience === 'writing' ? `${gestureName} · 播放中` : '原版效果 · 播放中')
     const controller = new AbortController()
     const target = bartGenerationThreadTarget(source)
     setWorks([{ key: Date.now(), targets: [target], controller }])
@@ -81,7 +82,7 @@ function GenerationLab(): React.JSX.Element {
     <main className="generation-lab">
       <header className="genlab-header">
         <a href="./"><ArrowLeft size={15} /> Bart <span>Lab</span></a>
-        <span className="genlab-breadcrumb">角色实验室 <i>/</i> 卡片生成</span>
+        <span className="genlab-breadcrumb"><a href="./generation.html" style={{ fontSize: 12, fontWeight: 400 }}>入场候选</a></span>
         <small>CASE 02 <i /> GENERATION</small>
       </header>
       <div className="genlab-workspace">
@@ -91,7 +92,7 @@ function GenerationLab(): React.JSX.Element {
           <p>让 Bart 朝文字前方冲刺，在停顿处收势。</p>
           <fieldset disabled={playing}><legend>效果对照</legend>
             <button className="genlab-choice" aria-pressed={experience === 'writing'} onClick={() => { setExperience('writing'); setDuration(null) }}>专注书写 <small>参数预览</small></button>
-            <button className="genlab-choice" aria-pressed={experience === 'current'} onClick={() => { setExperience('current'); setDuration(null) }}>当前效果 <small>生产版本</small></button>
+            <button className="genlab-choice" aria-pressed={experience === 'current'} onClick={() => { setExperience('current'); setDuration(null) }}>原版效果 <small>报告生成沿用</small></button>
           </fieldset>
           <fieldset disabled={playing}><legend>播放设置</legend>
             <label>示例<select aria-label="示例" value={sample} onChange={event => { setSample(event.target.value as GenerationSample); setDuration(null) }}>
@@ -115,9 +116,9 @@ function GenerationLab(): React.JSX.Element {
         </aside>
         <section className="genlab-preview" aria-label="卡片生成预览">
           {experience === 'writing' && <WritingCandidates selected={gesture} disabled={playing} punctuationPauses={punctuationPauses} onSelect={setGesture} />}
-          <div className="genlab-stage-header"><span>{experience === 'writing' ? gestureName : '当前效果'}<small> · 新任务 1 × 1</small></span>
+          <div className="genlab-stage-header"><span>{experience === 'writing' ? gestureName : '原版效果'}<small> · 新任务 1 × 1</small></span>
             {playing ? <button onClick={finish}><SkipForward size={13} />最终卡片</button>
-              : <button onClick={() => void play()} aria-label={`在卡片中播放${experience === 'writing' ? gestureName : '当前效果'}`}><Play size={13} />在卡片中播放</button>}</div>
+              : <button onClick={() => void play()} aria-label={`在卡片中播放${experience === 'writing' ? gestureName : '原版效果'}`}><Play size={13} />在卡片中播放</button>}</div>
           <div className="app-shell genlab-stage" ref={root}>
             <div className="genlab-grid" style={{
               '--thread-card-column-width': `${OVERVIEW_CARD_GEOMETRY.columnWidth}px`,
@@ -142,10 +143,10 @@ function GenerationLab(): React.JSX.Element {
               <button onClick={reset} disabled={playing} title="重置场景"><RotateCcw size={15} /></button>
               {playing && <button onClick={() => { const start = performance.now(); while (performance.now() - start < 5000) { /* Isolation check. */ } }}>阻塞主线程 5 秒</button>}
               {playing ? <button onClick={finish}><SkipForward size={15} />最终卡片</button>
-                : <button className="genlab-play" onClick={() => void play()}><Play size={15} />{experience === 'writing' ? '播放书写预览' : '播放当前效果'}</button>}
+                : <button className="genlab-play" onClick={() => void play()}><Play size={15} />{experience === 'writing' ? '播放书写预览' : '播放原版效果'}</button>}
             </nav>
           </footer>
-          <div className="genlab-caption">{experience === 'writing' ? '参数预览 · 单卡最多 8 秒，可随时查看最终卡片。' : '当前生产效果 · 生成新任务时展示初始任务说明。'}</div>
+          <div className="genlab-caption">{experience === 'writing' ? '原版书写参数预览 · 单卡最多 8 秒，可随时查看最终卡片。' : 'Thread 创建已停用此演出，报告卡片仍沿用。'}</div>
         </section>
       </div>
       <footer className="genlab-footer"><span>BART · MOTION STUDIES</span><span>Lab 单卡预览 · 真实卡片与角色</span></footer>
@@ -155,5 +156,6 @@ function GenerationLab(): React.JSX.Element {
 
 const reactRoot = createRoot(document.getElementById('root')!)
 reactRoot.render(<AppI18nProvider locale="zh-CN">{new URLSearchParams(location.search).has('regression')
-  ? <GenerationRegressions /> : <GenerationLab />}</AppI18nProvider>)
+  ? <GenerationRegressions /> : new URLSearchParams(location.search).get('study') === 'writing'
+    ? <GenerationLab /> : <EntranceLab />}</AppI18nProvider>)
 import.meta.hot?.dispose(() => reactRoot.unmount())
