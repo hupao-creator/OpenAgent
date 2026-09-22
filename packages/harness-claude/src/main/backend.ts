@@ -31,6 +31,7 @@ export async function claudeBackend(input: {
     const model = env[`ANTHROPIC_DEFAULT_${name}_MODEL`]
     if (model) { aliases[name.toLowerCase()] = model; aliases[name.toLowerCase() + '[1m]'] = model }
   }
+  if (aliases.opus) aliases.opusplan = aliases.opus
   const observation: HarnessBackendObservation = external ? {
     kind: 'external', baseUrl: env.ANTHROPIC_BASE_URL,
     apiKey: env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_API_KEY,

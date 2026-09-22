@@ -25,13 +25,15 @@ export function createBartEvaluationContext<Settings>(options: {
         ? { ...identity, ...backend.identify(identity.selector) }
         : backend?.kind === 'unknown' ? { ...identity, evaluationRelease: null } : identity))
       validateIdentities(identities)
-      const facts = await waitWithAbort(options.source.waitForBootstrap(identities.map(identity => identity.evaluationRelease !== undefined
+      const acquisitionIdentities = identities.map(identity => identity.evaluationRelease !== undefined
         ? identity.evaluationRelease === null ? [] : [identity.evaluationRelease]
         : [
         identity.selector,
         ...(identity.displayName ? [identity.displayName] : []),
         ...(identity.aliases ?? [])
-      ]), signal), signal)
+      ]).filter(identity => identity.length > 0)
+      if (acquisitionIdentities.length === 0) return undefined
+      const facts = await waitWithAbort(options.source.waitForBootstrap(acquisitionIdentities, signal), signal)
       signal.throwIfAborted()
       if (facts.availability !== 'available') return undefined
       return formatBartEvaluationFactsForNativeModels(facts, identities.map(identity => ({

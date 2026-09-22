@@ -26,7 +26,6 @@ import { CATALOG_TTL_MS, createCodexCatalogSource } from './catalog.js'
 import { normalizeCodexThreadSettings } from '../shared/settings.js'
 import { codexSessionState } from '../shared/session-state.js'
 import {
-  debugEnvironmentSummary,
   debugError,
   debugLog,
   startDebugSpan
@@ -152,24 +151,9 @@ export function createCodexMainPlugin(context: CodexMainContext): CodexMainPlugi
             presentations.clear()
             catalogSource.invalidate()
           }
-          const resolveSpan = startDebugSpan('codex.resolve-environment', {
-            harnessId: 'codex',
-            purpose: 'settings-presentation',
-            cwd,
-            ...(configuredExecutable ? { configuredExecutable } : {})
-          })
-          let resolvedExecutable: string
-          let environment: NodeJS.ProcessEnv
-          try {
-            [resolvedExecutable, environment] = await Promise.all([
-              context.resolveExecutable(cwd, configuredExecutable),
-              context.environment()
-            ])
-            resolveSpan.end({ executable: resolvedExecutable, ...debugEnvironmentSummary(environment) })
-          } catch (error) {
-            resolveSpan.fail(error)
-            throw error
-          }
+          const acquired = await runtime.server(cwd, configuredExecutable, input.signal, 'standard', 'settings-presentation')
+          presentationServer = acquired.server
+          const { executable: resolvedExecutable, environment } = acquired
           if (input.signal.aborted) throw abortError()
           executable = resolvedExecutable
           const cacheKey = `${executable}\0${cwd}`
@@ -189,9 +173,6 @@ export function createCodexMainPlugin(context: CodexMainContext): CodexMainPlugi
             })
             return cachedPresentation.value
           }
-          presentationServer = new CodexAppServer(executable, environment, {
-            debugPurpose: 'settings-presentation'
-          })
           const versionSpan = startDebugSpan('codex.cli-version.probe', {
             harnessId: 'codex',
             purpose: 'settings-presentation',

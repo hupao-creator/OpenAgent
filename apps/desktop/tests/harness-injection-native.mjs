@@ -206,6 +206,10 @@ async function runNativeHostWithLlm(input) {
       cwd,
       signal: controller.signal
     })
+    if (input.host === 'codex') {
+      const presentation = await plugin.settingsPresentation.load({ settings, cwd, signal: controller.signal })
+      assert.ok(presentation.models.some(model => model.value === input.providerOverride.model), `Settings must show the connected Provider model: ${bounded({ presentation, effective })}`)
+    }
     facts.effectiveSettings = effective
     facts.evaluation = 'Model resolution ran before evaluation context was supplied; the driver does not fetch evaluation records. The later evaluation entry contains only a random test marker.'
     record = {

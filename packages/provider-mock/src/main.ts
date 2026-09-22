@@ -71,7 +71,7 @@ function modelMetadata(model: string): JsonObject {
     supports_image_detail_original: false, context_window: 1_048_576, max_context_window: 1_048_576,
     auto_compact_token_limit: null, effective_context_window_percent: 95, tool_mode: null,
     shell_type: 'shell_command', apply_patch_tool_type: 'freeform', experimental_supported_tools: [],
-    supports_search_tool: false, upgrade: null, availability_nux: null, auto_review_model_override: null, default_service_tier: null
+    supports_search_tool: false, upgrade: null, availability_nux: null, auto_review_model_override: null, default_service_tier: null, service_tiers: [], additional_speed_tiers: []
   }
 }
 

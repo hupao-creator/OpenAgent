@@ -128,6 +128,20 @@ describe('Codex Main regression coverage', () => {
     })
   })
 
+  it('reads settings models from the explicit Provider home without a native login', async () => {
+    await chmod(fixture, 0o755)
+    const directory = await temporaryDirectory('codex-provider-presentation-')
+    const plugin = createCodexMainPlugin({ resolveExecutable: async () => fixture,
+      environment: async () => ({ ...process.env, CODEX_HOME: join(directory, 'no-native-home'), FAKE_CODEX_MODEL_FROM_HOME: '1' }),
+      providers: mockProviderAccess('codex', { model: 'connected-model' }), dataRoot: directory, temporaryWorkspaceRoot: directory })
+    try {
+      const presentation = await plugin.settingsPresentation.load({ settings: { threadSettings: {} }, cwd: directory, signal: new AbortController().signal })
+      expect(presentation.cli.available).toBe(true)
+      expect(presentation.models.map(model => model.value)).toEqual(['connected-model'])
+      expect(presentation.modelsError).toBeUndefined()
+    } finally { await plugin.dispose?.() }
+  })
+
   it('loads a Thread presentation from its pinned executable and cwd', async () => {
     await chmod(fixture, 0o755)
     const directory = await temporaryDirectory('codex-presentation-pinned-')

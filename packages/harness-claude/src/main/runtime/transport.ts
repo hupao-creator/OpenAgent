@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { execFileSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { JsonLines } from '@openagent/plugin-kit/main'
 import spawn from 'cross-spawn'
 import type { AgentInput } from '@openagent/contracts'
@@ -219,6 +221,7 @@ type ClaudeNativeTaskMutation =
 
 export class ClaudeTransport {
   private child?: ChildProcessWithoutNullStreams
+  private providerSettingsDirectory?: string
   private decoder = new JsonLines()
   private stderr = ''
   private disposed = false
@@ -624,7 +627,9 @@ export class ClaudeTransport {
   }
 
   dispose(): Promise<void> {
-    this.disposePromise ||= this.disposeUnlocked()
+    this.disposePromise ||= this.disposeUnlocked().finally(async () => {
+      if (this.providerSettingsDirectory) await rm(this.providerSettingsDirectory, { recursive: true, force: true })
+    })
     return this.disposePromise
   }
 
@@ -752,6 +757,16 @@ export class ClaudeTransport {
       input,
       environment
     )
+    if (this.options.providerInjection) {
+      // Preserve --settings precedence without putting credentials in argv.
+      // Synchronous creation keeps process acquisition atomic across callers.
+      const index = args.indexOf('--settings')
+      if (index < 0) throw new Error('Provider injection requires native settings')
+      this.providerSettingsDirectory ??= mkdtempSync(join(tmpdir(), 'openagent-claude-provider-'))
+      const path = join(this.providerSettingsDirectory, 'settings.json')
+      writeFileSync(path, args[index + 1]!, { mode: 0o600 })
+      args[index + 1] = path
+    }
     inDebugContext(this.debugContext, () => debugDetail('claude.transport.spawn', {
       harnessId: 'claude',
       purpose: this.options.debugPurpose || 'thread',

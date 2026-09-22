@@ -85,6 +85,7 @@ export class CodexRuntime {
     debugPurpose = runtimeDebugPurpose(profile)
   ): Promise<{
     readonly executable: string
+    readonly environment: NodeJS.ProcessEnv
     readonly server: CodexAppServer
   }> {
     throwIfAborted(signal)
@@ -129,7 +130,7 @@ export class CodexRuntime {
         ? { ...environment, CODEX_HOME: directory, ...providerEnvironment(providerInjection) }
         : environment
       return {
-        executable,
+        executable, environment: standardEnvironment,
         server: new CodexAppServer(executable, standardEnvironment, { debugPurpose })
       }
     }
@@ -150,7 +151,7 @@ export class CodexRuntime {
       // No caller owns its cleanup until this acquisition returns a server.
       throwIfAborted(signal)
       return {
-        executable,
+        executable, environment: launch.environment,
         server: new CodexAppServer(executable, launch.environment, {
           configOverrides: launch.configOverrides,
           dispose: launch.dispose,

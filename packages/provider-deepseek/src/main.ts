@@ -118,7 +118,7 @@ function codexModel(model: string): JsonObject {
     auto_compact_token_limit: null, effective_context_window_percent: 95,
     tool_mode: null, shell_type: 'shell_command', apply_patch_tool_type: 'freeform',
     experimental_supported_tools: [], supports_search_tool: false, upgrade: null,
-    availability_nux: null, auto_review_model_override: null, default_service_tier: null
+    availability_nux: null, auto_review_model_override: null, default_service_tier: null, service_tiers: [], additional_speed_tiers: []
   }
 }
 
