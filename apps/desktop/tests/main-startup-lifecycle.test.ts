@@ -30,7 +30,7 @@ vi.mock('electron', () => ({
   BrowserWindow: Object.assign(function (...args: unknown[]) {
     return mock.createWindow(...args)
   }, { getAllWindows: () => [] }),
-  protocol: { registerSchemesAsPrivileged: vi.fn() }
+  protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() }
 }))
 vi.mock('../src/main/debug-log', () => ({ debugLog: vi.fn(), initDebugLog: vi.fn() }))
 vi.mock('../src/main/harness-composition', () => ({

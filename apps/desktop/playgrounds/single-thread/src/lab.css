@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'OpenAgent SF Mono';
+  src: local('SFMono-Regular'), local('SF Mono Regular'), url('/__lab-fonts/sf-mono-regular.otf') format('opentype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 html, body, #root { min-height: 100%; height: auto; margin: 0; overflow: visible; }
 body { overflow: auto; background: var(--canvas); color: var(--ink); }
 .single-lab { min-height: 100vh; padding: 24px; }
@@ -14,6 +22,18 @@ body { overflow: auto; background: var(--canvas); color: var(--ink); }
 .single-lab-switch button, .single-lab-controls form button { border: 1px solid var(--line); background: var(--surface); color: var(--muted); padding: 8px 12px; border-radius: 7px; font-size: 13px; }
 .single-lab-switch button[aria-pressed=true] { color: var(--ink); background: var(--surface-strong); border-color: var(--ink); }
 .single-lab-controls output { display: block; min-height: 20px; font-size: 13px; overflow-wrap: anywhere; }
+.single-lab-usage-preview { align-items: center; margin-bottom: 20px; font-size: 13px; color: var(--muted); }
+.single-lab-usage-preview > span { margin-right: 6px; }
+.single-lab-usage-preview > small { margin-left: 6px; font-size: 12px; }
+.single-lab-message-buffer { margin-bottom: 24px; color: var(--muted); font-size: 13px; }
+.single-lab-message-buffer .single-lab-switch { align-items: center; }
+.single-lab-message-buffer .single-lab-switch > span { margin-right: 6px; }
+.single-lab-transition-description { margin: 8px 0 16px; font-size: 12px; }
+.single-lab-buffer-status { margin: 10px 0 4px; font-variant-numeric: tabular-nums; }
+.single-lab-message-buffer > small { font-size: 12px; }
+.single-lab-message-buffer details { margin-top: 10px; }
+.single-lab-message-buffer summary { cursor: pointer; width: fit-content; }
+.single-lab-message-buffer details > p { max-width: 76ch; max-height: 200px; overflow-y: auto; line-height: 1.7; }
 @media (max-width: 600px) { .single-lab { padding: 16px; } .single-lab-stage { justify-items: start; } }
 
 

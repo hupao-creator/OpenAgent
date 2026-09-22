@@ -20,6 +20,7 @@ import {
 import { registerIpc, unregisterIpc } from './ipc'
 import { OpenAgentService } from './openagent-service'
 import { REPORT_SCHEME_PRIVILEGES } from './report-runtime'
+import { registerSystemFontProtocol, SYSTEM_FONT_SCHEME_PRIVILEGES } from './system-fonts'
 import {
   DEV_PROFILE_MARKER,
   resolveDevUserDataPath,
@@ -62,7 +63,7 @@ let removeAppearanceListener: (() => void) | undefined
 const appearance = new ApplicationAppearance(nativeTheme, process.platform, () => mainWindow)
 
 app.setName('Agent Workspace')
-protocol.registerSchemesAsPrivileged([REPORT_SCHEME_PRIVILEGES])
+protocol.registerSchemesAsPrivileged([REPORT_SCHEME_PRIVILEGES, SYSTEM_FONT_SCHEME_PRIVILEGES])
 // Keep a manual headless process isolated from the GUI by default. Acceptance
 // workers supply an even narrower process-private directory through the env.
 if (headless) {
@@ -465,6 +466,7 @@ void app.whenReady().then(() => {
   // Readiness itself owns no resources and need not delay an earlier quit.
   debugLog('app.ready')
   if (quitCoordinator.phase !== 'running') return
+  if (!headless) registerSystemFontProtocol(protocol)
   startupOperation = startApplication()
   return startupOperation
 }).catch(async (error) => {

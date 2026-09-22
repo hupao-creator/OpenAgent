@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { act, cleanup, render } from '@testing-library/react'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render } from '@testing-library/react'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { ThreadCardExcerpt } from '../../../packages/openagent-plugin-kit/src/renderer/harness-card/card'
 
 /**
- * 四行裁剪是一份 DOM 契约而不是像素效果：excerpt 把裁剪交给唯一的那块元素，只有
- * 在这条规则生效时才放弃自己的 max-height 硬切。jsdom 不做排版，所以这里把随包
+ * 五行裁剪是一份 DOM 契约而不是像素效果：excerpt 把裁剪交给原始文本元素，保留
+ * Markdown 标记与换行。jsdom 不做排版，所以这里把随包
  * 发布的 CSS 注入文档，断言它对真实渲染出的 markup 生效——覆盖选择器与行为，不
  * 覆盖像素。
  *
@@ -37,18 +37,7 @@ function collectStyleRules(rules: CSSRuleList): CSSStyleRule[] {
   })
 }
 
-async function flushRendering(): Promise<void> {
-  for (let pass = 0; pass < 5; pass += 1) {
-    await act(async () => {
-      await Promise.resolve()
-      await vi.dynamicImportSettled()
-      vi.advanceTimersByTime(0)
-      await Promise.resolve()
-    })
-  }
-}
-
-async function renderExcerpt(content: string, identitySize?: '1x2'): Promise<Element> {
+function renderExcerpt(content: string, identitySize?: '1x2'): Element {
   const view = render(
     identitySize
       ? <div className="thread-card-identity" data-identity-size={identitySize}>
@@ -56,15 +45,14 @@ async function renderExcerpt(content: string, identitySize?: '1x2'): Promise<Ele
         </div>
       : <ThreadCardExcerpt content={content} />
   )
-  await flushRendering()
   const excerpt = view.container.querySelector('.thread-overview-excerpt')
   if (!excerpt) throw new Error('excerpt did not render')
   return excerpt
 }
 
-function markdownBodyOf(excerpt: Element): Element {
-  const body = excerpt.querySelector(':scope > .markdown-body')
-  if (!body) throw new Error('excerpt has no direct .markdown-body child')
+function textBodyOf(excerpt: Element): Element {
+  const body = excerpt.querySelector(':scope > .thread-card-excerpt-text')
+  if (!body) throw new Error('excerpt has no direct text body')
   return body
 }
 
@@ -95,7 +83,9 @@ const collapsedBlocks = [
   ['prose', '概览卡片的摘要截断要与其它 harness 对齐，并补上 token 用量。'],
   ['heading', '# 概览卡片的摘要截断要与其它 harness 对齐'],
   ['blockquote', '> 概览卡片的摘要截断要与其它 harness 对齐'],
-  ['list', '- 概览卡片的摘要截断要与其它 harness 对齐']
+  ['list', '- 概览卡片的摘要截断要与其它 harness 对齐'],
+  ['inline markup', '**粗体** `query` [链接](https://example.com)'],
+  ['HTML source', '<img src="example.png" onerror="alert(1)">']
 ] as const
 
 beforeAll(() => {
@@ -117,58 +107,49 @@ afterAll(() => {
   document.head.querySelectorAll('style').forEach(element => element.remove())
 })
 
-beforeEach(() => {
-  vi.useFakeTimers()
-  vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
-  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
-    window.setTimeout(() => callback(performance.now()), 0)
-  )
-  vi.stubGlobal('cancelAnimationFrame', (handle: number) => clearTimeout(handle))
-  vi.stubGlobal('openAgent', undefined)
-})
-
 afterEach(() => {
   cleanup()
-  vi.unstubAllGlobals()
-  vi.useRealTimers()
 })
 
 describe.each(collapsedBlocks)('a collapsed %s excerpt', (_kind, content) => {
-  it('line-clamps its sole block instead of hard-cutting the excerpt box', async () => {
-    const excerpt = await renderExcerpt(content)
-    const body = markdownBodyOf(excerpt)
-    expect(body.children).toHaveLength(1)
+  it('renders literal text and clamps complete lines without interpreting markup', () => {
+    const excerpt = renderExcerpt(content)
+    const body = textBodyOf(excerpt)
+    expect(body.textContent).toBe(content)
+    expect(body.children).toHaveLength(0)
     expect(escapingRules(excerpt).map(rule => rule.selectorText)).not.toHaveLength(0)
 
     const clamped = clampMatches(excerpt)
     expect(clamped).toHaveLength(1)
-    expect(clamped[0].element).toBe(body.firstElementChild)
+    expect(clamped[0].element).toBe(body)
     const declarations = clamped[0].rule.style
     expect(declarations.getPropertyValue('display').trim()).toBe('-webkit-box')
     expect(declarations.getPropertyValue('-webkit-box-orient').trim()).toBe('vertical')
     expect(declarations.getPropertyValue('overflow').trim()).toBe('hidden')
-    expect(declarations.getPropertyValue('-webkit-line-clamp').trim()).toBe('4')
+    expect(declarations.getPropertyValue('-webkit-line-clamp').trim()).toBe('5')
   })
 })
 
 describe('a multi-block excerpt', () => {
-  it('stays with the container max-height clip', async () => {
-    const excerpt = await renderExcerpt('第一段\n\n第二段')
-    expect(markdownBodyOf(excerpt).children).toHaveLength(2)
-    expect(escapingRules(excerpt)).toHaveLength(0)
-    expect(clampMatches(excerpt)).toHaveLength(0)
+  it('keeps newlines in one raw string with the same line clamp', () => {
+    const excerpt = renderExcerpt('第一段\n\n第二段')
+    const body = textBodyOf(excerpt)
+    expect(body.textContent).toBe('第一段\n\n第二段')
+    expect(body.children).toHaveLength(0)
+    expect(clampMatches(excerpt)).toHaveLength(1)
+    expect(getComputedStyle(body).whiteSpace).toBe('pre-wrap')
   })
 })
 
 describe('an excerpt whose identity grows to 1x2', () => {
-  it('widens the clamp to eight lines', async () => {
-    const excerpt = await renderExcerpt('# 概览卡片的摘要截断要与其它 harness 对齐', '1x2')
-    const body = markdownBodyOf(excerpt)
+  it('widens the clamp to eight lines', () => {
+    const excerpt = renderExcerpt('# 概览卡片的摘要截断要与其它 harness 对齐', '1x2')
+    const body = textBodyOf(excerpt)
     const clamped = clampMatches(excerpt)
-    expect(clamped.map(match => match.element)).toEqual([body.firstElementChild, body.firstElementChild])
+    expect(clamped.map(match => match.element)).toEqual([body, body])
     expect(
       clamped.map(match => match.rule.style.getPropertyValue('-webkit-line-clamp').trim())
-    ).toEqual(['4', '8'])
+    ).toEqual(['5', '8'])
     expect(escapingRules(excerpt).length).toBeGreaterThan(1)
   })
 })

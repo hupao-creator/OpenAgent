@@ -77,13 +77,13 @@ describe('Mermaid through the harness entry points', () => {
     expect(view.container.querySelector('.markdown-mermaid svg')).not.toBeNull()
   })
 
-  it('keeps the fence as code in an overview excerpt', async () => {
+  it('keeps the entire raw fence as literal text in an overview excerpt', async () => {
     const view = render(<ThreadCardExcerpt content={CHART} />)
     await settle()
 
     expect(view.container.querySelectorAll('.markdown-mermaid')).toHaveLength(0)
-    expect(view.container.querySelector('pre code')?.textContent).toBe('graph TD\n  A[Start] --> B[End]\n')
-    expect(view.container.querySelector('.markdown-body')).toHaveAttribute('aria-busy', 'false')
+    expect(view.container.querySelector('.thread-card-excerpt-text')?.textContent).toBe(CHART)
+    expect(view.container.querySelector('pre, code, .markdown-body')).toBeNull()
   })
 })
 

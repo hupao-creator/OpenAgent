@@ -1,4 +1,12 @@
 @font-face {
+  font-family: 'OpenAgent SF Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('SFMono-Regular'), local('SF Mono Regular'), url('openagent-font://system/sf-mono-regular.otf') format('opentype');
+}
+
+@font-face {
   font-family: 'Inter Variable';
   font-style: normal;
   font-display: swap;

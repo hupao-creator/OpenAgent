@@ -869,103 +869,10 @@
   outline-offset: -2px;
 }
 
-/* 卡片只提供路由入口；Bart 本体与输入始终留在唯一 Dock。 */
-.thread-overview-item:has(> .thread-follow-up) .thread-card-identity {
-  /* Reserve the footer only in the identity cell. Extension tracks retain
-     their full height and their existing row capacity. */
-  align-self: start;
-  height: calc(100% - 54px);
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 4px;
-}
-
-.thread-overview-item:has(> .thread-follow-up) .thread-card-identity > * {
-  flex-shrink: 0;
-}
-
-.thread-overview-item:has(> .thread-follow-up) .thread-overview-excerpt {
-  flex-shrink: 1;
-  min-height: 0;
-  align-self: stretch;
-}
-
-.thread-overview-item:has(> .thread-follow-up) .thread-overview-excerpt > .markdown-body {
-  /* Truncate on a complete text line when the footer reduces preview space. */
-  max-height: round(down, 100%, 1lh);
-  overflow: hidden;
-}
-
-.thread-follow-up {
-  position: absolute;
-  z-index: 18;
-  inset: -1px;
-  display: grid;
-  grid-template-columns: repeat(var(--thread-card-cols, 1), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--thread-card-rows, 1), minmax(0, 1fr));
-  gap: var(--thread-card-gap, 16px);
-  pointer-events: none;
-}
-
-.thread-overview-item:has(.thread-card-identity[data-identity-size='1x2']) > .thread-follow-up .thread-follow-up-entry {
-  grid-row: 1 / span 2;
-}
-
-.thread-follow-up-entry {
-  position: relative;
-  grid-area: 1 / 1;
-  align-self: end;
-  justify-self: end;
-  z-index: 2;
-  right: 13px;
-  bottom: 14px;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: color-mix(in srgb, var(--thread-provider-color) 46%, light-dark(#10110f, #eeeee9));
-  cursor: pointer;
-  font: inherit;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(5px) scale(.92);
-  transition: opacity 140ms ease, transform 180ms cubic-bezier(.16, 1, .3, 1);
-}
-
-.thread-overview-item:hover > .thread-follow-up .thread-follow-up-entry,
-.thread-follow-up:focus-within .thread-follow-up-entry {
-  opacity: 1;
-  pointer-events: auto;
-  transform: scale(1);
-}
-
-.thread-follow-up-entry:focus-visible {
-  border-radius: 50%;
-  outline: 1px solid color-mix(in srgb, var(--thread-provider-color) 42%, transparent);
-  outline-offset: 2px;
-}
-
-.thread-follow-up-entry > .bart-logo {
-  width: 100%;
-  height: 100%;
-  opacity: .58;
-  filter: drop-shadow(0 5px 10px rgba(16, 17, 15, .07));
-  transition: opacity 150ms ease, transform 180ms cubic-bezier(.16, 1, .3, 1);
-}
-
-.thread-follow-up-entry:hover > .bart-logo,
-.thread-follow-up-entry:focus-visible > .bart-logo {
-  opacity: 1;
-  transform: scale(1.04);
-}
-
 /* 换形节拍：identity 是卡片的视觉锚点，尺寸变化期间始终保留。临时把内部 grid
    固定为真实格子尺寸，避免目标列数提前把 identity 压窄；外框只是在它右侧/下方
    铺开新的纸面，扩展内容等几何落稳后再出现。 */
-.thread-overview-item[data-overview-motion-recomposing] .thread-card-layout,
-.thread-overview-item[data-overview-motion-recomposing] > .thread-follow-up {
+.thread-overview-item[data-overview-motion-recomposing] .thread-card-layout {
   grid-template-columns: repeat(
     var(--thread-card-cols, 1),
     var(--thread-card-column-width, 360px)

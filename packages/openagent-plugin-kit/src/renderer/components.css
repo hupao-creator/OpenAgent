@@ -1,3 +1,5 @@
+@import './harness-card/overview-identity.css';
+
 /* Structure and interaction styles owned by the reusable renderer components.
  * Hosts supply theme custom properties; application layout stays with the host. */
 
@@ -2279,7 +2281,7 @@
   display: grid;
   place-items: center;
   transform-origin: center;
-  animation: provider-logo-tap 2.55s cubic-bezier(.2, .8, .2, 1) infinite;
+  animation: none;
 }
 
 .thread-provider-status .provider-logo {
@@ -2298,7 +2300,7 @@
   margin-top: 5px;
   padding: 0;
   color: var(--faint);
-  font-size: 9.5px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2404,9 +2406,10 @@
 }
 
 .thread-overview-excerpt {
+  position: relative;
   align-self: start;
   display: block;
-  max-height: calc(4 * 1.55em);
+  max-height: calc(5 * 1.55em);
   overflow: hidden;
   margin-top: 10px;
   color: light-dark(rgba(16, 17, 15, .56), rgba(224, 229, 218, 0.56));
@@ -2414,41 +2417,41 @@
   line-height: 1.55;
 }
 
-.thread-overview-excerpt .markdown-body {
+.thread-overview-excerpt .thread-card-excerpt-text {
   color: inherit;
   font-size: inherit;
   line-height: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-/* 主消息绝大多数是单段 Markdown。让浏览器按实际行盒做四行裁剪，避免 inline
-   token、字形 ascent 等因素让理论 max-height 切到最后一行字身。唯一的那块可能
-   是标题、引用或列表，所以按“唯一块元素”而不是段落匹配。 */
+/* Render the excerpt as literal text and clip on complete browser line boxes. */
 
-.thread-overview-excerpt:has(> .markdown-body > :only-child) {
+.thread-overview-excerpt:has(> .thread-card-excerpt-text) {
   max-height: none;
 }
 
-.thread-overview-excerpt .markdown-body > :only-child {
+.thread-overview-excerpt .thread-card-excerpt-text {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 5;
 }
 
 /* Identity 的第二行空间归 Renderer 所有：Composer 只选择 footprint，不理解正文、
-   工具或 usage。1×1 保持原来的四行裁剪，1×2 才把主消息扩到八行。 */
+   工具或 usage。1×1 保持原来的五行裁剪，1×2 才把主消息扩到八行。 */
 
 .thread-card-identity[data-identity-size='1x2'] .thread-overview-excerpt {
   max-height: calc(8 * 1.55em);
 }
 
 .thread-card-identity[data-identity-size='1x2']
-  .thread-overview-excerpt:has(> .markdown-body > :only-child) {
+  .thread-overview-excerpt:has(> .thread-card-excerpt-text) {
   max-height: none;
 }
 
 .thread-card-identity[data-identity-size='1x2']
-  .thread-overview-excerpt .markdown-body > :only-child {
+  .thread-overview-excerpt .thread-card-excerpt-text {
   -webkit-line-clamp: 8;
 }
 
@@ -2529,87 +2532,6 @@
 
 .thread-card-rolling-character {
   display: inline-block;
-}
-
-.thread-card-rolling-digit {
-  position: relative;
-  display: inline-grid;
-  height: 1em;
-  overflow: hidden;
-  line-height: 1;
-  vertical-align: -.06em;
-}
-
-.thread-card-rolling-digit-old,
-.thread-card-rolling-digit-new {
-  grid-area: 1 / 1;
-  display: inline-block;
-  will-change: transform;
-}
-
-.thread-card-rolling-digit[data-roll-direction='up'] .thread-card-rolling-digit-old {
-  animation: thread-card-digit-out-up 480ms cubic-bezier(.4, 0, .2, 1) both;
-}
-
-.thread-card-rolling-digit[data-roll-direction='up'] .thread-card-rolling-digit-new {
-  animation: thread-card-digit-in-up 480ms cubic-bezier(.4, 0, .2, 1) both;
-}
-
-.thread-card-rolling-digit[data-roll-direction='down'] .thread-card-rolling-digit-old {
-  animation: thread-card-digit-out-down 480ms cubic-bezier(.4, 0, .2, 1) both;
-}
-
-.thread-card-rolling-digit[data-roll-direction='down'] .thread-card-rolling-digit-new {
-  animation: thread-card-digit-in-down 480ms cubic-bezier(.4, 0, .2, 1) both;
-}
-
-.thread-overview-excerpt .markdown-body :is(p, ul, ol, blockquote, pre, table) {
-  margin: 0 0 6px;
-}
-
-.thread-overview-excerpt .markdown-body :is(h1, h2, h3, h4) {
-  margin: 0 0 6px;
-  color: light-dark(rgba(16, 17, 15, .72), rgba(224, 229, 218, 0.72));
-  font-size: 1em;
-  line-height: inherit;
-}
-
-.thread-overview-excerpt .markdown-body :is(ul, ol) {
-  padding-left: 17px;
-}
-
-.thread-overview-excerpt .markdown-body li + li {
-  margin-top: 1px;
-}
-
-/* 卡片摘要里的 code 是排版强调，不是可点击 token：取消正文 renderer 的胶囊外观，
-   只靠等宽字形、轻微字重和颜色区分，并允许长路径随摘要自然折行。 */
-
-.thread-overview-excerpt .markdown-body :not(pre) > code {
-  display: inline;
-  max-width: none;
-  padding: 0 .04em;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: light-dark(rgba(16, 17, 15, .68), rgba(224, 229, 218, 0.68));
-  font-size: .94em;
-  font-weight: 560;
-  line-height: inherit;
-  overflow-wrap: anywhere;
-  vertical-align: baseline;
-  white-space: break-spaces;
-}
-
-.thread-overview-excerpt .markdown-body blockquote {
-  padding-left: 8px;
-}
-
-.thread-overview-excerpt .markdown-body pre {
-  padding: 6px 8px;
-  border-radius: 6px;
-  font-size: .86em;
 }
 
 .cli-settings {
@@ -3011,29 +2933,6 @@
   70%, 100% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--thread-action-accent) 0%, transparent); }
 }
 
-@keyframes provider-logo-tap {
-  0%, 38%, 100% { transform: translateY(0) scale(1); }
-  47%, 67% { transform: translateY(3px) scale(1.08, .82); }
-  55%, 75% { transform: translateY(-1.5px) scale(.96, 1.08); }
-  84% { transform: translateY(0) scale(1); }
-}
-
-@keyframes thread-card-digit-out-up {
-  to { transform: translateY(-100%); }
-}
-
-@keyframes thread-card-digit-in-up {
-  from { transform: translateY(100%); }
-}
-
-@keyframes thread-card-digit-out-down {
-  to { transform: translateY(100%); }
-}
-
-@keyframes thread-card-digit-in-down {
-  from { transform: translateY(-100%); }
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -3225,8 +3124,6 @@
   color: var(--muted);
 }
 
-.thread-card-context-usage[data-usage-suffix] > .thread-card-rolling-number { color: color-mix(in srgb, var(--ink) 78%, transparent); font-weight: 550; }
-.thread-card-context-usage[data-usage-suffix] > .thread-card-usage-suffix { color: var(--muted); }
 
 /* Keep the custom answer editor in the same row as its trigger. */
 .thread-card-layout .harness-overview-content .interaction-question-other-slot {

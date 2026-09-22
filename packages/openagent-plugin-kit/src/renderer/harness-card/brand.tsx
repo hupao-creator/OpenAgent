@@ -1,23 +1,33 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
+import { Send } from 'lucide-react'
+import { useI18n } from '../i18n.js'
+import { useThreadCardFollowUp } from './follow-up.js'
 import { useThreadCardAnchor } from './spatial-anchors.js'
+import type { ThreadCardTerminalStatus } from './status.js'
 
 /**
  * Historical card-corner brand unit without a Core provider registry. The
  * Plugin supplies its own static asset and label; failure falls back to a
  * stable inline glyph so a broken image never remains on the card.
  */
-export function ThreadCardProviderStatus(props: {
+export const ThreadCardProviderStatus = memo(function ThreadCardProviderStatus(props: {
   readonly logoSource: string
   readonly label: string
   readonly brandKey: string
   readonly statusClassName?: string
+  readonly terminal?: ThreadCardTerminalStatus
 }): React.JSX.Element {
   const anchorRef = useThreadCardAnchor('status')
+  const onFollowUp = useThreadCardFollowUp()
+  const { t } = useI18n()
   return (
     <span
       ref={anchorRef}
       className={`thread-provider-status ${props.statusClassName ?? ''}`.trim()}
       data-provider={props.brandKey}
+      data-terminal={props.terminal}
+      tabIndex={onFollowUp ? -1 : 0}
+      title={props.label}
     >
       <span
         className="thread-provider-logo"
@@ -25,11 +35,24 @@ export function ThreadCardProviderStatus(props: {
         aria-label={props.label}
         title={props.label}
       >
-        <ThreadCardBrandLogo {...props} />
+        {props.terminal ? <svg key={`ring-${props.terminal}`} className="thread-card-terminal-ring" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+          <circle className="thread-card-terminal-track" cx="22" cy="22" r="19" stroke="currentColor" strokeWidth="1.25" />
+          <circle className="thread-card-terminal-signal" cx="22" cy="22" r="19" pathLength="1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        </svg> : null}
+        <ThreadCardBrandLogo key={props.logoSource} {...props} />
+        {props.terminal ? <span key={`symbol-${props.terminal}`} className="thread-card-terminal-symbol" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path pathLength="1" d={props.terminal === 'failed' ? 'm4 4 8 8m0-8-8 8' : props.terminal === 'interrupted' ? 'M5 4v8M11 4v8' : 'm3 8 3.2 3.2L13 4.5'} />
+          </svg>
+        </span> : null}
       </span>
+      {onFollowUp ? <button type="button" className="thread-card-send" aria-label={t('发送消息')} title={t('发送消息')}
+        onClick={event => { event.stopPropagation(); onFollowUp() }}>
+        <Send size={16} strokeWidth={1.5} aria-hidden="true" />
+      </button> : null}
     </span>
   )
-}
+})
 
 function ThreadCardBrandLogo(props: {
   readonly logoSource: string

@@ -21,7 +21,7 @@ import { captureCameraAssets, createCameraScene, type CameraAssets } from '../sr
 // shot that lands at once, so opening Bart reaches the real page without a
 // captured frame. Suites that drive the camera replace both mocks themselves.
 beforeEach(() => {
-  vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
   vi.mocked(captureCameraAssets).mockReset().mockResolvedValue({} as CameraAssets)
   vi.mocked(createCameraScene).mockReset().mockReturnValue({ ready: Promise.resolve(), dispose: vi.fn(),
     play: () => ({ started: Promise.resolve(performance.timeOrigin + performance.now()),

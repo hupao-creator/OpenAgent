@@ -80,10 +80,10 @@ it('records card interactions and never changes the source snapshots', async () 
   const before = JSON.stringify(fakeSnapshots)
   const user = userEvent.setup()
   mount('resize')
-  await user.click(screen.getByRole('button', { name: '续写 01 · 梳理搜索交互' }))
+  const card = document.querySelector('[data-overview-card-id="motion-thread-1"]') as HTMLElement
+  await user.click(within(card).getByRole('button', { name: '发送消息' }))
   expect(screen.getByText('续写 motion-thread-1 · 仅记录预览请求')).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '展开提问' }))
-  const card = document.querySelector('[data-overview-card-id="motion-thread-1"]') as HTMLElement
   await waitFor(() => expect(card).toHaveAttribute('data-thread-status', 'attention'))
   await user.click(within(card).getByRole('button', { name: '项目名称' }))
   await user.click(within(card).getByRole('button', { name: '提交回答' }))

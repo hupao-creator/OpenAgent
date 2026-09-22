@@ -42,7 +42,7 @@ export function measureThreadCardExcerptEnd(element: HTMLElement): ThreadCardAnc
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
   let last: Text | null = null
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (node.textContent?.length) last = node as Text
+    if (node.textContent?.length && !(node.parentElement?.closest('[aria-hidden="true"]'))) last = node as Text
   }
   if (!last?.length) return null
   const range = document.createRange()

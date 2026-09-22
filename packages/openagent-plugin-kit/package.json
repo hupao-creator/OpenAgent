@@ -35,7 +35,7 @@
     "**/*.css"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node -e \"fs.cpSync('src/renderer/components.css', 'dist/renderer/components.css'); fs.cpSync('src/renderer/components/settings-form/settings-form.css', 'dist/renderer/components/settings-form/settings-form.css'); fs.cpSync('src/renderer/harness-card/thread-detail.css', 'dist/renderer/harness-card/thread-detail.css')\"",
+    "build": "tsc -p tsconfig.build.json && node -e \"fs.cpSync('src/renderer/components.css', 'dist/renderer/components.css'); fs.cpSync('src/renderer/harness-card/overview-identity.css', 'dist/renderer/harness-card/overview-identity.css'); fs.cpSync('src/renderer/components/settings-form/settings-form.css', 'dist/renderer/components/settings-form/settings-form.css'); fs.cpSync('src/renderer/harness-card/thread-detail.css', 'dist/renderer/harness-card/thread-detail.css')\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

@@ -9,6 +9,7 @@ import {
   ThreadActivityRow,
   ThreadCardProviderStatus,
   ThreadCardStateLabel,
+  ThreadCardStatus,
   ThreadTimelineAssistantMessage,
   composeThreadCard,
   tokenizeCommandLine,
@@ -21,6 +22,54 @@ afterEach(() => {
 })
 
 describe('historical Harness card presentation primitives', () => {
+  it('aligns ticks to elapsed second boundaries, carries minutes, and shares the colon phase', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(59_750)
+    const presentation = composeThreadCard({ kind: 'standard', identity: {}, extensions: [] }, { availableCols: 1 })
+    const { container } = render(<HarnessThreadCard identity={{ title: 'Clock', excerpt: '', runtime: { startedAt: 0 } }} presentation={presentation} />)
+    const clock = () => container.querySelector('[data-clock]')
+    expect(clock()).toHaveAttribute('aria-label', '00:00:59')
+    expect(clock()).toHaveAttribute('data-colon-dim', 'true')
+    act(() => vi.advanceTimersByTime(249))
+    expect(clock()).toHaveAttribute('aria-label', '00:00:59')
+    act(() => vi.advanceTimersByTime(1))
+    expect(clock()).toHaveAttribute('aria-label', '00:01:00')
+    expect(clock()).not.toHaveAttribute('data-colon-dim')
+    act(() => vi.advanceTimersByTime(1_000))
+    expect(clock()).toHaveAttribute('aria-label', '00:01:01')
+    expect(clock()).toHaveAttribute('data-colon-dim', 'true')
+  })
+
+  it.each(['completed', 'interrupted', 'failed'] as const)('uses a %s logo seal only after background work ends', (status) => {
+    const observation = { latestExecution: { executionId: 'run', status, startedAt: 1, finishedAt: 2, error: 'Failed' }, backgroundWork: null }
+    const props = { observation, brandKey: 'fixture', label: 'Fixture', logoSource: 'fixture.svg' }
+    const { container, rerender } = render(<ThreadCardStatus {...props} />)
+    expect(container.querySelector('.thread-provider-status')).toHaveAttribute('data-terminal', status)
+    expect(container.querySelector('.thread-card-task-state')).toBeNull()
+    expect(screen.getByRole('img')).toHaveAccessibleName(/Fixture/)
+    rerender(<ThreadCardStatus {...props} observation={{ ...observation, backgroundWork: { status: 'running' } }} />)
+    expect(container.querySelector('.thread-provider-status')).not.toHaveAttribute('data-terminal')
+    if (status === 'completed') expect(container.querySelector('.thread-card-task-state')).toBeNull()
+    else expect(screen.getByRole('status')).toHaveTextContent('后台仍在运行')
+  })
+
+  it('keeps settings separate, removes directories, and distinguishes zero usage from missing data', () => {
+    const presentation = (usage: boolean) => composeThreadCard({ kind: 'standard', identity: usage ? { usage: { parts: [
+      { id: 'total', value: '0', numericValue: 0, suffix: 'tokens' }
+    ] } } : {}, extensions: [] }, { availableCols: 1 })
+    const identity = { title: 'Metrics', excerpt: '', model: 'Model', effort: 'high', cwd: '/private/work', runtime: { startedAt: 0, endedAt: 90_061_000 } }
+    const { container, rerender } = render(<HarnessThreadCard identity={identity} presentation={presentation(true)} />)
+    expect(screen.getByLabelText('用时：25:01:01')).toBeInTheDocument()
+    expect(screen.getByLabelText('0 tokens')).toBeInTheDocument()
+    expect(container.querySelector('.thread-overview-cwd')).toBeNull()
+    expect(container.querySelector('.thread-card-identity > small')).not.toHaveTextContent('tokens')
+    expect(container.querySelector('.thread-card-identity > small .thread-card-runtime')).toBeNull()
+    expect(container.querySelector('.thread-card-metrics')).toContainElement(screen.getByLabelText('0 tokens'))
+    rerender(<HarnessThreadCard identity={identity} presentation={presentation(false)} />)
+    expect(screen.queryByLabelText('0 tokens')).toBeNull()
+    expect(screen.getByLabelText('用时：25:01:01')).toBeInTheDocument()
+  })
+
   it('updates the latest execution clock while live and freezes it at the committed end', () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
@@ -33,13 +82,13 @@ describe('historical Harness card presentation primitives', () => {
       presentation={presentation}
     />
     const { rerender } = render(card())
-    expect(screen.getByLabelText('已运行 2秒')).toBeInTheDocument()
+    expect(screen.getByLabelText('用时：00:00:02')).toBeInTheDocument()
     act(() => vi.advanceTimersByTime(2_000))
-    expect(screen.getByLabelText('已运行 4秒')).toBeInTheDocument()
+    expect(screen.getByLabelText('用时：00:00:04')).toBeInTheDocument()
     rerender(card(11_000))
     act(() => vi.advanceTimersByTime(60_000))
-    expect(screen.getByLabelText('已运行 3秒')).toBeInTheDocument()
-    expect(screen.queryByLabelText('已运行 1分04秒')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('用时：00:00:03')).toBeInTheDocument()
+    expect(screen.queryByLabelText('用时：00:01:04')).not.toBeInTheDocument()
   })
 
   it('composes a deterministic complete rectangle from structure only', () => {
@@ -155,8 +204,9 @@ describe('historical Harness card presentation primitives', () => {
     expect(container.querySelector('.thread-card-layout')).toBeInTheDocument()
     expect(container.querySelector('.thread-card-identity')).toHaveAttribute('data-identity-size', '1x2')
     expect(container.querySelector('.thread-card-extension.extension-intervention')).toBeInTheDocument()
-    expect(container.querySelector('.thread-card-identity-usage')).toHaveTextContent('18.5ktokens · Context 128K')
-    expect(screen.getByTitle('Reported input and output')).toHaveTextContent('18.5ktokens')
+    expect(container.querySelector('.thread-card-identity-usage')).toHaveTextContent('18.5k · Context 128K')
+    expect(screen.getByTitle('Reported input and output')).toHaveTextContent('18.5k')
+    expect(screen.getByTitle('Reported input and output')).toHaveAttribute('aria-label', '18,527 tokens')
     expect(container.querySelector('.thread-card-identity-tool')).toHaveTextContent('pnpm test')
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))

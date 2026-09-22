@@ -373,13 +373,13 @@ export function projectHarnessBartPresentation(
  * Plugin-private `view` data stays inside its concrete branch. Only the small
  * layout envelope crosses back into the Core overview coordinator.
  */
-export function HarnessOverviewCardHost(
+export const HarnessOverviewCardHost = memo(function HarnessOverviewCardHost(
   props: HarnessOverviewCardHostProps
 ): React.JSX.Element {
   const binding = harnessRendererPlugins[props.thread.harnessId]
   if (!binding) return <HarnessPluginFallback title={props.thread.title} />
   return binding.renderOverview(props)
-}
+})
 
 function renderOverviewBranch<View>(
   module: {

@@ -1,0 +1,241 @@
+.thread-card-identity {
+  --thread-card-numeric-font: 'OpenAgent SF Mono', 'SF Mono', 'SFMono-Regular', ui-monospace, Menlo, monospace;
+}
+
+.thread-card-identity .thread-overview-item-head { flex-wrap: wrap; gap: 0; }
+.thread-card-identity .thread-overview-item-head > strong,
+.thread-card-identity > small { max-width: calc(100% - 44px); }
+.thread-card-identity .thread-provider-status {
+  top: 12px;
+  right: 17px;
+  width: 32px;
+  height: 32px;
+  transform: none;
+  pointer-events: auto;
+  cursor: help;
+}
+.thread-card-identity .thread-provider-status .thread-provider-logo {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  animation: none;
+}
+.thread-card-identity .thread-provider-status[data-terminal] { color: light-dark(#367052, #99caaa); }
+.thread-card-identity .thread-provider-status[data-terminal='interrupted'] { color: light-dark(#76613e, #c9b68f); }
+.thread-card-identity .thread-provider-status[data-terminal='failed'] { color: light-dark(#b13c38, #f4a39a); }
+.thread-card-identity .thread-provider-status[data-terminal] .provider-logo { width: 20px; height: 20px; object-fit: contain; }
+.thread-card-terminal-ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+.thread-card-terminal-track { opacity: .2; }
+.thread-card-terminal-signal {
+  transform-origin: 22px 22px;
+  transform: rotate(45deg);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: thread-card-terminal-write 460ms ease-out backwards;
+}
+.thread-card-terminal-symbol {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--surface-strong);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.thread-card-terminal-symbol svg { width: 11px; height: 11px; }
+.thread-card-terminal-symbol path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: thread-card-terminal-write 320ms 380ms ease-out backwards;
+}
+.thread-card-task-state {
+  order: -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  margin: 0 36px 6px 0;
+  color: var(--muted);
+}
+.thread-card-task-state[data-tone='attention'] { color: light-dark(#92580a, #edbc70); }
+.thread-card-task-state[data-tone='failed'] { color: light-dark(#b13c38, #f4a39a); }
+.thread-card-task-state[data-tone='interrupted'] { color: light-dark(#76613e, #c9b68f); }
+.thread-card-task-state-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.thread-card-task-state-secondary { color: var(--muted); font-size: 11px; font-weight: 400; }
+
+.thread-card-metrics { display: flex; align-items: flex-start; margin-top: 5px; min-width: 0; }
+.thread-card-runtime { display: inline-flex; flex: none; pointer-events: auto; cursor: help; }
+.thread-card-metrics .thread-card-identity-usage { overflow: visible; }
+.thread-card-runtime + .thread-card-identity-usage { position: relative; margin-left: 10px; padding-left: 11px; }
+.thread-card-runtime + .thread-card-identity-usage::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 1px;
+  height: 10px;
+  background: var(--muted);
+  opacity: .35;
+}
+.thread-card-metrics .thread-card-context-usage {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+  pointer-events: auto;
+  cursor: help;
+}
+.thread-card-metrics .thread-card-rolling-number {
+  display: inline-flex;
+  align-items: flex-start;
+  font-family: var(--thread-card-numeric-font);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: 0;
+  line-height: 1.25;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* A zero-width font strut supplies the real baseline; clipped animation cells do not. */
+.thread-card-metrics .thread-card-rolling-number::before { content: '0'; visibility: hidden; width: 0; flex: none; }
+.thread-card-metrics .thread-card-rolling-number > span { display: inline-flex; align-items: flex-start; }
+/* The unit precedes the number; digit-count changes grow into trailing space. */
+.thread-card-metrics .thread-card-context-usage > .thread-card-rolling-number { flex: none; }
+.thread-card-metrics .thread-card-usage-unit { flex: none; font: 400 10px/1.25 Rockwell, Georgia, serif; color: var(--muted); }
+.thread-card-metrics .thread-card-usage-icon { flex: none; align-self: center; color: var(--muted); }
+.thread-card-metrics .thread-card-rolling-digit,
+.thread-card-metrics .thread-card-clock-colon { display: inline-block; flex: 0 0 1ch; width: 1ch; height: 1.25em; }
+.thread-card-metrics .thread-card-rolling-digit { position: relative; overflow: hidden; line-height: inherit; vertical-align: baseline; }
+.thread-card-metrics .thread-card-rolling-digit-frame,
+.thread-card-metrics .thread-card-rolling-digit-old,
+.thread-card-metrics .thread-card-rolling-digit-new { position: absolute; inset: 0; will-change: auto; }
+.thread-card-metrics .thread-card-rolling-digit-old { opacity: 0; }
+.thread-card-metrics [data-changed='true'] .thread-card-rolling-digit-old { animation: thread-card-number-out 260ms cubic-bezier(.2, .75, .25, 1) backwards; }
+.thread-card-metrics [data-changed='true'] .thread-card-rolling-digit-new { animation: thread-card-number-in 260ms cubic-bezier(.2, .75, .25, 1) backwards; }
+.thread-card-metrics [data-clock] [data-changed='true'] .thread-card-rolling-digit-old { animation: thread-card-number-fade-out 180ms ease-out backwards; }
+.thread-card-metrics [data-clock] [data-changed='true'] .thread-card-rolling-digit-new { animation: thread-card-number-fade-in 180ms ease-out backwards; }
+.thread-card-clock-colon { text-align: center; transform: translateY(-.08em); opacity: 1; }
+.thread-card-rolling-number[data-ticking] .thread-card-clock-colon { transition: opacity 180ms ease-out; }
+.thread-card-rolling-number[data-colon-dim] .thread-card-clock-colon { opacity: .28; }
+.thread-card-runtime:focus-visible,
+.thread-card-context-usage:focus-visible,
+.thread-provider-status:focus-visible { outline: 1px solid var(--muted); outline-offset: 3px; border-radius: 3px; }
+
+@keyframes thread-card-terminal-write { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes thread-card-number-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-100%); } }
+@keyframes thread-card-number-in { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: none; } }
+@keyframes thread-card-number-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes thread-card-number-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .thread-card-terminal-signal,
+  .thread-card-terminal-symbol path,
+  .thread-card-metrics [data-changed] .thread-card-rolling-digit-old,
+  .thread-card-metrics [data-changed] .thread-card-rolling-digit-new { animation: none; }
+  .thread-card-metrics [data-clock] [data-changed] .thread-card-rolling-digit-old,
+  .thread-card-metrics [data-clock] [data-changed] .thread-card-rolling-digit-new { animation: none; }
+  .thread-card-metrics .thread-card-clock-colon { transition: none; opacity: 1; }
+}
+
+.thread-provider-status:has(> .thread-card-send) > .thread-provider-logo {
+  transition: opacity 140ms ease;
+}
+.thread-card-send {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+.thread-overview-item:is(:hover, :focus-within) .thread-card-send {
+  opacity: 1;
+  pointer-events: auto;
+}
+.thread-overview-item:is(:hover, :focus-within) .thread-provider-status:has(> .thread-card-send) > .thread-provider-logo {
+  opacity: 0;
+}
+.thread-card-send:hover { color: var(--ink); }
+.thread-card-send:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+@media (hover: none) {
+  .thread-card-send { opacity: 1; pointer-events: auto; }
+  .thread-provider-status:has(> .thread-card-send) > .thread-provider-logo { opacity: 0; }
+}
+.thread-card-reveal-previous {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* Transitions.dev — Texts reveal. Shared message boundary transition. */
+.thread-overview-excerpt {
+  --stagger-dur: 500ms;
+  --stagger-distance: 12px;
+  --stagger-stagger: 40ms;
+  --stagger-blur: 3px;
+  --stagger-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.thread-card-text-reveal { position: absolute; inset: 0; pointer-events: none; }
+.thread-card-text-reveal .thread-card-reveal-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  display: block;
+  opacity: 0;
+  transform: translateY(var(--stagger-distance));
+  filter: blur(var(--stagger-blur));
+  transition:
+    opacity var(--stagger-dur) var(--stagger-ease),
+    transform var(--stagger-dur) var(--stagger-ease),
+    filter var(--stagger-dur) var(--stagger-ease);
+  transition-delay: calc(var(--stagger-stagger) * var(--stagger-index, 0));
+  will-change: transform, opacity, filter;
+}
+.thread-card-text-reveal.is-shown .thread-card-reveal-line {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+.thread-card-text-reveal.is-hiding .thread-card-reveal-line {
+  opacity: 0;
+  transform: translateY(0);
+  filter: blur(0);
+  transition: opacity 200ms ease, transform 0s linear, filter 0s linear;
+  transition-delay: 0s;
+}
+.thread-card-reveal-window { position: relative; height: 100%; overflow: hidden; }
+.thread-card-reveal-content { position: absolute; left: 0; width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .thread-card-text-reveal .thread-card-reveal-line { transition: none !important; }
+  .thread-card-send,
+  .thread-provider-status:has(> .thread-card-send) > .thread-provider-logo { transition: none; }
+}

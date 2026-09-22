@@ -57,9 +57,9 @@ it('uses the official adaptive Pi mark everywhere the Renderer exposes its logo'
   const Card = piOverviewCardModule.Card
   const view = render(<I18nProvider locale="en-US"><Card thread={current} projection={projection.view} actions={{ ...actions(), openThread: vi.fn() }} /></I18nProvider>)
   expect(view.container.querySelector('.thread-provider-logo img')).toHaveAttribute('src', piLogo)
-  // The shared animation selector depends on the logo's own running class,
-  // even while a tool is silent and there are no new assistant messages.
+  // Running retains the recognizable static logo without an extra status row.
   expect(view.container.querySelector('.thread-provider-status.running .thread-provider-logo')).not.toBeNull()
+  expect(view.container.querySelector('.thread-card-task-state')).toBeNull()
   expect(view.container.querySelector('.thread-provider-status')).toHaveClass('provider-theme-pi')
   const finished = thread()
   const finishedProjection = piOverviewCardModule.project({ thread: finished, layout: { availableColumns: 2 } })
@@ -260,11 +260,10 @@ it('projects waiting requests through shared overview cards and obeys interventi
   expect(screen.queryByRole('button', { name: 'Allow action' })).not.toBeInTheDocument()
 })
 
-it('collapses the overview excerpt into one paragraph and marks the cut', () => {
+it('preserves raw overview whitespace and marks the cut', () => {
   const current = cardThread([{ id: 'a1', executionId: 'run', role: 'assistant', text: `第一段。\n\n第二段   with   spaces。${'尾'.repeat(700)}` }])
   const projection = piOverviewCardModule.project({ thread: current, layout: { availableColumns: 2 } })
-  expect(projection.excerpt).not.toContain('\n')
-  expect(projection.excerpt.startsWith('第一段。 第二段 with spaces。')).toBe(true)
+  expect(projection.excerpt.startsWith('第一段。\n\n第二段   with   spaces。')).toBe(true)
   expect(projection.excerpt).toHaveLength(601)
   expect(projection.excerpt.endsWith('…')).toBe(true)
   // Splitting on code points keeps a surrogate pair whole at the cut.
@@ -272,14 +271,29 @@ it('collapses the overview excerpt into one paragraph and marks the cut', () => 
   expect(Array.from(emoji.excerpt)).toHaveLength(601)
   expect(Array.from(emoji.excerpt).at(-2)).toBe('😀')
 })
+it('projects a stable full current message without borrowing an older execution', () => {
+  const latest = { id: 'a2', executionId: 'run', role: 'assistant' as const, text: 'x'.repeat(1400) }
+  const current = cardThread([{ id: 'a1', executionId: 'first', role: 'assistant', text: 'old answer' }, latest])
+  const project = (thread: HarnessThreadRecord) => piOverviewCardModule.project({ thread, layout: { availableColumns: 2 } })
+  const initial = project(current)
+  expect(initial.view.message?.text).toBe(latest.text)
+  expect(initial.excerpt).toHaveLength(601)
+  const next = project(cardThread([{ ...latest, text: latest.text + 'tail' }]))
+  expect(next.view.message?.id).toBe(initial.view.message?.id)
+  const prompt = project(cardThread([{ id: 'a1', executionId: 'first', role: 'assistant', text: 'old answer' },
+    { id: 'u2', executionId: 'run', role: 'user', text: 'new prompt' }]))
+  expect(prompt.excerpt).toBe('new prompt')
+  expect(prompt.view.message?.text).toBe('new prompt')
+})
 it('leaves a short overview excerpt unmarked', () => {
   const projection = piOverviewCardModule.project({ thread: cardThread([{ id: 'a1', executionId: 'run', role: 'assistant', text: '  短  正文  ' }]), layout: { availableColumns: 2 } })
-  expect(projection.excerpt).toBe('短 正文')
+  expect(projection.excerpt).toBe('短  正文')
 })
 it('shows the latest run token total without a cache ratio on the overview card', () => {
   const view = renderCard(cardThread([{ id: 'u1', executionId: 'run', role: 'user', text: '问题' },
     { id: 'a1', executionId: 'run', role: 'assistant', text: '当前回答', usage: { input: 10, output: 4, cacheRead: 5, cacheWrite: 2 } }]))
-  expect(view.container.querySelector('.thread-card-identity-usage')).toHaveTextContent(/^21tokens$/)
+  expect(view.container.querySelector('.thread-card-identity-usage')).toHaveTextContent(/^21$/)
+  expect(view.container.querySelector('.thread-card-context-usage')).toHaveAttribute('aria-label', '21 tokens')
 })
 it('keeps the previous run usage off a card whose own run reported none', () => {
   const executions: PublicExecution[] = [{ executionId: 'first', status: 'completed', startedAt: 1, finishedAt: 2 },

@@ -3,8 +3,7 @@ import type { DeepReadonly, PublicInteraction } from '@openagent/contracts'
 import type { HarnessRendererThreadActions, HarnessRendererThreadInput } from '@openagent/contracts/renderer'
 import { isPublicExecutionActive } from '@openagent/contracts/renderer'
 import { useI18n } from '@openagent/plugin-kit/renderer'
-import { HarnessThreadCard, ThreadCardStateLabel } from '@openagent/plugin-kit/renderer'
-import { ThreadCardProviderStatus } from '@openagent/plugin-kit/renderer'
+import { HarnessThreadCard, ThreadCardStatus } from '@openagent/plugin-kit/renderer'
 import { composeThreadCard } from '@openagent/plugin-kit/renderer'
 import type { ThreadCardIdentityView, ThreadCardPresentation } from '@openagent/plugin-kit/renderer'
 import { isTemporaryWorkspacePath } from '@openagent/contracts'
@@ -21,7 +20,6 @@ import { type ClaudeThreadSettings } from '../shared/settings.js'
 import claudeCodeLogo from './claude-code.svg?inline'
 import { claudePublicInteractionsByNativeId } from './public-interactions.js'
 import { decodeClaudeRendererState } from './state.js'
-import { StatusGlyph } from './primitives.js'
 import { boundedText } from './values.js'
 
 export interface ClaudeOverviewView {
@@ -40,15 +38,6 @@ export interface ClaudeOverviewView {
 type OverviewCardProps = HarnessRendererThreadInput & {
   readonly projection: DeepReadonly<ClaudeOverviewView>
   readonly actions: HarnessRendererThreadActions & { openThread(): void }
-}
-
-const OVERVIEW_STATUS_LABELS: Record<ClaudeOverviewView['status'], string> = {
-  idle: '等待开始',
-  running: '运行中',
-  waiting: '等待你的响应',
-  completed: '已完成',
-  failed: '失败',
-  interrupted: '已中断'
 }
 
 export function projectClaudeOverview(input: HarnessRendererThreadInput & {
@@ -87,11 +76,12 @@ export function projectClaudeOverview(input: HarnessRendererThreadInput & {
       ...(cwd && !isTemporaryWorkspacePath(cwd) ? { cwd } : {}),
       usesWorktree: Boolean(input.thread.worktree),
       ...(steer ? { steer } : {}),
-      ...(turn ? { runtime: {
-        startedAt: turn.createdAt,
-        ...(turn.status === 'running' ? {} : { endedAt: turn.updatedAt })
+      ...(input.thread.observation.latestExecution ? { runtime: {
+        startedAt: input.thread.observation.latestExecution.startedAt,
+        ...('finishedAt' in input.thread.observation.latestExecution ? { endedAt: input.thread.observation.latestExecution.finishedAt } : {})
       } } : {}),
-      excerpt: summary
+      excerpt: summary,
+      message: overviewMessage(state, input.thread.title)
     },
     presentation,
     ...(publicInteraction ? { pendingPublicInteraction: publicInteraction } : {})
@@ -108,8 +98,6 @@ export function ClaudeOverviewCard(props: OverviewCardProps): React.JSX.Element 
   const { t } = useI18n()
   const view = props.projection
   const publicInteraction = view.pendingPublicInteraction
-  const stateClass = view.status === 'waiting' ? 'attention' :
-    view.status === 'interrupted' ? 'cancelled' : view.status
   const presentation = view.presentation.projection.kind !== 'standard' ? view.presentation : {
     ...view.presentation,
     projection: {
@@ -133,12 +121,9 @@ export function ClaudeOverviewCard(props: OverviewCardProps): React.JSX.Element 
     <HarnessThreadCard
       identity={{
         ...view.identity,
-        providerStatus: <ThreadCardProviderStatus
-          brandKey="claude" label="Claude" logoSource={claudeCodeLogo} statusClassName={stateClass}
-        />,
-        state: <ThreadCardStateLabel className={stateClass} icon={<StatusGlyph status={view.status} />}>
-          {view.statusLabel || t(OVERVIEW_STATUS_LABELS[view.status])}
-        </ThreadCardStateLabel>
+        providerStatus: <ThreadCardStatus
+          brandKey="claude" label="Claude" logoSource={claudeCodeLogo} observation={props.thread.observation}
+        />
       }}
       presentation={presentation}
       onOpenThread={props.actions.openThread}
@@ -161,15 +146,34 @@ function overviewSummary(state: ClaudeThreadState, fallback: string): string {
   const forkSummary = forkHistorySummary(state.forkHistory)
   const live = turn?.status === 'running'
   const latestText = turn?.timeline.findLast((item) =>
-    (item.kind === 'assistant' || (live && item.kind === 'reasoning')) && item.content.trim())
+    (item.kind === 'assistant' || item.kind === 'reasoning') && item.content.trim())
   const source = (latestText && 'content' in latestText ? latestText.content.trim() : '') ||
     turn?.text.trim() || turn?.reasoning.trim() || turn?.error ||
     latestVisibleClaudePrompt(turn) || turn?.statusLabel || forkSummary ||
     state.nativeNotifications.at(-1)?.summary || fallback
-  const normalized = source.replace(/\s+/g, ' ').trim()
-  const characters = Array.from(normalized)
+  const text = source.trim()
+  const characters = Array.from(text)
   const hasOutput = Boolean(latestText || turn?.text.trim() || turn?.reasoning.trim())
-  return live && hasOutput && characters.length > 600 ? `…${characters.slice(-600).join('')}` : boundedText(normalized, 600)
+  return live && hasOutput && characters.length > 600 ? `…${characters.slice(-600).join('')}` : boundedText(text, 600)
+}
+
+function overviewMessage(state: ClaudeThreadState, fallback: string): NonNullable<ThreadCardIdentityView['message']> {
+  const turn = currentClaudeTurn(state)
+  const latest = turn?.timeline.findLast(item =>
+    (item.kind === 'assistant' || item.kind === 'reasoning') && item.content.trim())
+  if (latest?.kind === 'assistant' || latest?.kind === 'reasoning') {
+    const nativeId = latest.kind === 'assistant' ? latest.messageId : undefined
+    const text = nativeId ? turn!.timeline.flatMap(item =>
+      item.kind === 'assistant' && item.messageId === nativeId ? [item.content] : []).join('') : latest.content
+    return { id: JSON.stringify([turn!.executionId, latest.kind, nativeId ?? latest.id]), text: text.trim() }
+  }
+  const candidates = [
+    ['answer', turn?.text], ['reasoning', turn?.reasoning], ['error', turn?.error],
+    [`prompt:${turn?.prompts.length ?? 0}`, latestVisibleClaudePrompt(turn)], ['status', turn?.statusLabel],
+    ['history', forkHistorySummary(state.forkHistory)], ['notice', state.nativeNotifications.at(-1)?.summary], ['title', fallback]
+  ] as const
+  const [kind, text] = candidates.find(([, text]) => text?.trim()) ?? ['title', fallback]
+  return { id: JSON.stringify([turn?.executionId ?? null, kind]), text: text?.trim() ?? '' }
 }
 
 function forkHistorySummary(history: ClaudeForkHistory | undefined): string {

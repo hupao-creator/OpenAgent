@@ -1,11 +1,5 @@
 import {
   Fragment,
-  lazy,
-  memo,
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
   type CSSProperties,
   type ReactNode
 } from 'react'
@@ -13,13 +7,12 @@ import {
   CheckCircle2,
   CircleAlert,
   CircleX,
+  Combine,
   CornerDownRight,
   FileText,
-  Folder,
   LoaderCircle,
   Search,
   Terminal,
-  TreePine,
   Wrench,
   Zap
 } from 'lucide-react'
@@ -32,6 +25,7 @@ import {
 } from './sections.js'
 import { SINGLE_CARD_SIZE } from './contracts.js'
 import { useTextSwap } from './text-swap.js'
+import { RollingNumberText, ThreadCardRuntime } from './metrics.js'
 import type {
   ThreadCardExtensionPlacement,
   ThreadCardExtensionProjection,
@@ -43,9 +37,8 @@ import type {
   ThreadCardSize
 } from './contracts.js'
 import { useI18n } from '../i18n.js'
-import { measureThreadCardExcerptEnd, useThreadCardAnchor } from './spatial-anchors.js'
-
-const MarkdownBody = lazy(() => import('../components/MarkdownBody.js'))
+import { ThreadCardExcerpt } from './excerpt.js'
+export { ThreadCardExcerpt } from './excerpt.js'
 
 /**
  * Historical provider-card content without the old Provider registry or Core
@@ -197,7 +190,7 @@ export function ThreadCardIdentity(props: {
         {identity.providerStatus}
         {identity.state}
       </span>
-      {identity.model || identity.effort || identity.fastMode || identity.runtime ? (
+      {identity.model || identity.effort || identity.fastMode ? (
         <small>
           {identity.model ? <span className="thread-overview-meta-model">{identity.model}</span> : null}
           {identity.effort || identity.fastMode ? (
@@ -209,27 +202,11 @@ export function ThreadCardIdentity(props: {
               </span>
             </>
           ) : null}
-          {identity.runtime ? (
-            <ThreadCardRuntime
-              {...identity.runtime}
-              separator={Boolean(identity.model || identity.effort || identity.fastMode)}
-            />
-          ) : null}
         </small>
       ) : null}
-      {identity.cwd || props.projection?.usage ? (
-        <div className="thread-overview-context">
-          {identity.cwd ? (
-            <span className="thread-overview-cwd" title={identity.cwd}>
-              {identity.usesWorktree
-                ? <TreePine size={11} aria-hidden="true" />
-                : <Folder size={11} aria-hidden="true" />}
-              <span className="thread-overview-cwd-label">{identity.cwdName || threadCardCwdName(identity.cwd)}</span>
-            </span>
-          ) : null}
-          {identity.cwd && props.projection?.usage ? (
-            <span className="thread-overview-context-divider">·</span>
-          ) : null}
+      {identity.runtime || props.projection?.usage?.parts.length ? (
+        <div className="thread-card-metrics">
+          {identity.runtime ? <ThreadCardRuntime {...identity.runtime} /> : null}
           {props.projection?.usage ? <ThreadCardUsage usage={props.projection.usage} /> : null}
         </div>
       ) : null}
@@ -239,47 +216,10 @@ export function ThreadCardIdentity(props: {
           <span>{identity.steer}</span>
         </span>
       ) : null}
-      <ThreadCardExcerpt content={identity.excerpt} />
+      <ThreadCardExcerpt content={identity.excerpt} messageId={identity.message?.id} messageText={identity.message?.text} />
       {expanded ? (props.projection?.recentTools ?? (props.projection?.latestTool ? [props.projection.latestTool] : []))
         .slice(-3).map((tool, index) => <ThreadCardLatestTool key={index} tool={tool} />) : null}
     </>
-  )
-}
-
-/** The baseline card clock, with explicit presentation data instead of a Conversation. */
-function ThreadCardRuntime(props: {
-  readonly startedAt: number
-  readonly endedAt?: number
-  readonly separator: boolean
-}): React.JSX.Element {
-  const { locale, t } = useI18n()
-  const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    if (props.endedAt !== undefined) return
-    setNow(Date.now())
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
-    return () => window.clearInterval(timer)
-  }, [props.startedAt, props.endedAt])
-  const milliseconds = Math.max(0, (props.endedAt ?? now) - props.startedAt)
-  const seconds = Math.floor(milliseconds / 1_000)
-  const parts = [
-    { value: Math.floor(seconds / 86400), unit: locale === 'zh-CN' ? '天' : 'd' },
-    { value: Math.floor(seconds / 3600) % 24, unit: locale === 'zh-CN' ? '小时' : 'h' },
-    { value: Math.floor(seconds / 60) % 60, unit: locale === 'zh-CN' ? '分' : 'm' },
-    { value: seconds % 60, unit: locale === 'zh-CN' ? '秒' : 's' }
-  ]
-  const first = parts.findIndex(({ value }) => value > 0)
-  const duration = parts.slice(first < 0 ? 3 : first)
-    .map(({ value, unit }, index) => `${index ? String(value).padStart(2, '0') : value}${unit}`)
-    .join(locale === 'zh-CN' ? '' : ' ')
-  return (
-    <span className="thread-overview-meta-detail">
-      {props.separator ? ' · ' : null}
-      <RollingNumberText
-        value={t('已运行 {duration}', { duration })}
-        numericValue={milliseconds}
-      />
-    </span>
   )
 }
 
@@ -333,6 +273,7 @@ export function ThreadCardLatestTool(props: {
 export function ThreadCardUsage(props: {
   readonly usage: ThreadCardIdentityUsage
 }): React.JSX.Element | null {
+  const { formatNumber, t } = useI18n()
   if (!props.usage.parts.length) return null
   return (
     <div className="thread-card-identity-usage">
@@ -341,12 +282,14 @@ export function ThreadCardUsage(props: {
           {index > 0 ? (
             <span className="thread-card-identity-usage-divider"> · </span>
           ) : null}
-          <span className="thread-card-context-usage" data-usage-suffix={part.suffix || undefined} title={part.description}>
+          <span className="thread-card-context-usage" data-usage-suffix={part.suffix || undefined} title={part.description ? t(part.description) : undefined}
+            aria-label={part.numericValue === undefined ? undefined : `${formatNumber(part.numericValue)} ${part.suffix ?? ''}`.trim()} tabIndex={0}>
             {part.label ? <span>{part.label}</span> : null}
+            {part.suffix === 'tokens' ? <Combine className="thread-card-usage-icon" size={12} aria-hidden="true" /> : null}
             {part.numericValue === undefined ? part.value : (
-              <RollingNumberText value={part.value} numericValue={part.numericValue} />
+              <RollingNumberText value={part.value} />
             )}
-            {part.suffix ? <span className="thread-card-usage-suffix">{part.suffix}</span> : null}
+            {part.suffix && part.suffix !== 'tokens' ? <span className="thread-card-usage-unit">{part.suffix}</span> : null}
           </span>
         </Fragment>
       ))}
@@ -354,67 +297,11 @@ export function ThreadCardUsage(props: {
   )
 }
 
-const RollingNumberText = memo(function RollingNumberText(props: {
-  readonly value: string
-  readonly numericValue: number
-}): React.JSX.Element {
-  const previous = useRef({ value: props.value, numericValue: props.numericValue })
-  const before = previous.current
-  useEffect(() => {
-    previous.current = { value: props.value, numericValue: props.numericValue }
-  }, [props.numericValue, props.value])
-  const direction = props.numericValue >= before.numericValue ? 'up' : 'down'
-  const previousCharacters = Array.from(before.value)
-  return (
-    <span className="thread-card-rolling-number" aria-label={props.value}>
-      <span aria-hidden="true">
-        {Array.from(props.value).map((character, index) => {
-          const previousCharacter = previousCharacters[index]
-          const rolls = character !== previousCharacter && isDigit(character) && isDigit(previousCharacter)
-          return rolls ? (
-            <span
-              className="thread-card-rolling-digit"
-              data-roll-direction={direction}
-              key={`${index}:${before.value}:${props.value}`}
-            >
-              <span className="thread-card-rolling-digit-old">{previousCharacter}</span>
-              <span className="thread-card-rolling-digit-new">{character}</span>
-            </span>
-          ) : (
-            <span className="thread-card-rolling-character" key={`${index}:${character}`}>
-              {character}
-            </span>
-          )
-        })}
-      </span>
-    </span>
-  )
-})
-
-function isDigit(value: string | undefined): value is string {
-  return value !== undefined && value >= '0' && value <= '9'
-}
-
 function activityStatusLabel(status: ThreadCardIdentityTool['status']): string {
   if (status === 'running') return '运行中'
   if (status === 'completed') return '已完成'
   if (status === 'failed') return '失败'
   return '已取消'
-}
-
-export function ThreadCardExcerpt(props: {
-  readonly content: string
-}): React.JSX.Element {
-  const anchorRef = useThreadCardAnchor('excerpt-end', measureThreadCardExcerptEnd)
-  return (
-    <div className="thread-overview-excerpt" ref={anchorRef}>
-      <Suspense fallback={<div className="markdown-body markdown-fallback" aria-busy="true">{props.content}</div>}>
-        {/* An overview excerpt is a measured card, not a reading surface: a
-            chart here would be unreadable and would perturb card height. */}
-        <MarkdownBody content={props.content} streaming={false} mermaid={false} />
-      </Suspense>
-    </div>
-  )
 }
 
 export function threadCardCwdName(path: string): string {
