@@ -83,7 +83,7 @@ function App(): React.JSX.Element {
         <a className="lab-brand" href="./" aria-label="Bart Lab 首页">Bart<span>Lab</span><i /></a>
         <div className="lab-header-context"><span>OPENAGENT</span><span className="header-slash">/</span><span>角色实验室</span></div>
         <a className="lab-edition" href="./transitions.html">状态过渡 →</a>
-        <a className="lab-edition" href="./generation.html">CASE 02 → 卡片生成</a>
+        <a className="lab-edition" href="./generation.html">CASE 02 → 卡片入场</a>
       </header>
 
       <main className="lab-workspace">

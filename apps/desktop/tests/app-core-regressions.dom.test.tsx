@@ -342,6 +342,25 @@ describe('App Renderer Core regressions', () => {
     expect(screen.getByTestId('dock-attachment-count')).toHaveTextContent('2')
   })
 
+  it('presents newly created threads without staging a Bart generation', async () => {
+    const api = installApi(appState(false))
+    render(<App />)
+    await screen.findByText('overview')
+    act(() => api.emit({
+      ...api.current(), revision: api.current().revision + 1,
+      threads: [...api.current().threads, agentThread('new-thread')]
+    }, { type: 'bart-generation', target: { kind: 'thread', id: 'new-thread' } }))
+
+    expect(await screen.findByRole('button', { name: 'open new-thread' })).toBeVisible()
+    const overview = vi.mocked(ConversationOverview).mock.calls.at(-1)![0]
+    expect(overview.layoutRevisions).toHaveLength(1)
+    expect(overview.layoutRevisions![0].generationTargets).toBeUndefined()
+    expect(overview.generationHiddenIds).toEqual([])
+    expect(vi.mocked(BartThreadGenerations).mock.calls.at(-1)![0].works).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: 'open new-thread' }))
+    expect(await screen.findByText('agent workspace new-thread')).toBeVisible()
+  })
+
   it('projects newly queued generation work with the latest resized column count', async () => {
     installApi(appState(false))
     render(<App />)
@@ -877,7 +896,7 @@ function installApi(initial: RendererAppState): {
   readonly submitBartMessage: ReturnType<typeof vi.fn<DesktopApi['submitBartMessage']>>
   readonly updateUiState: ReturnType<typeof vi.fn<DesktopApi['updateUiState']>>
   current(): RendererAppState
-  emit(state: RendererAppState): void
+  emit(state: RendererAppState, effect?: RendererStateMutation['effect']): void
 } {
   let state = initial
   let listener: ((mutation: RendererStateMutation) => void) | undefined
@@ -900,8 +919,8 @@ function installApi(initial: RendererAppState): {
     size: 1,
     kind: 'document'
   }])
-  const emit = (next: RendererAppState): void => {
-    const mutation = createRendererStateMutation(state, next)
+  const emit = (next: RendererAppState, effect?: RendererStateMutation['effect']): void => {
+    const mutation = createRendererStateMutation(state, next, effect)
     state = next
     listener?.(mutation)
   }

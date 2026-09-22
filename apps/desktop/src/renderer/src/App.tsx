@@ -33,7 +33,6 @@ import { AppShell, SubscribedAgentThreadWorkspace, SubscribedBartThreadView, Sub
 import type { BartDockReply, BartDockThreadFollowUpTarget } from './components/BartDock'
 import {
   bartGenerationReportTarget,
-  bartGenerationThreadTarget,
   type BartGenerationTarget
 } from './components/BartThreadGeneration'
 import {
@@ -63,7 +62,6 @@ import { useI18n } from '@openagent/plugin-kit/renderer'
 import { AppI18nProvider } from './i18n'
 import {
   type HarnessRendererThreadInput,
-  type HarnessOverviewThread,
   type HarnessOverviewThreadInput,
   type OverviewLayoutContext
 } from '@openagent/contracts/renderer'
@@ -84,7 +82,6 @@ interface OverviewViewSnapshot {
 
 interface ProjectedOverviewAggregate {
   readonly snapshot: OverviewLayoutSnapshot
-  readonly projectedThreads: readonly HarnessOverviewThread[]
   readonly items: ReturnType<typeof deriveOverviewItems>['items']
 }
 
@@ -842,7 +839,6 @@ function projectOverviewAggregate(
   })
   return {
     snapshot: overviewLayoutSnapshot(derived),
-    projectedThreads,
     items: derived.items
   }
 }
@@ -854,13 +850,8 @@ function newGenerationTargets(
   const target = mutation.effect?.type === 'bart-generation'
     ? mutation.effect.target
     : undefined
-  if (!target) return []
-  if (target.kind === 'thread') {
-    const source = projection.projectedThreads.find(
-      (candidate) => candidate.thread.id === target.id
-    )
-    return source ? [bartGenerationThreadTarget(source)] : []
-  }
+  // Threads use ordinary Overview entry; only reports borrow Bart for writing.
+  if (!target || target.kind === 'thread') return []
   const report = projection.items.find(
     (item) => item.kind === 'report' && item.report.id === target.id
   )

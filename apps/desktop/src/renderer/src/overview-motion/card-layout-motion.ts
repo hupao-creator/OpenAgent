@@ -10,7 +10,13 @@ const GRID_REFLOW_ANIMATION_MS = 260
 const GROWTH_REFLOW_MOVE_MS = 360
 const GROWTH_REFLOW_WAVE_STAGGER_MS = 70
 const GRID_REFLOW_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)'
-const CARD_ENTRY_ANIMATION_MS = 220
+/** Bart Lab candidate B: a short rise with the card kept at its final size. */
+export const OVERVIEW_CARD_ENTRY_MOTION = {
+  duration: 320,
+  easing: 'cubic-bezier(.2,.8,.2,1)',
+  from: { opacity: 0, transform: 'translateY(8px)' },
+  to: { opacity: 1, transform: 'none' }
+} as const
 const CARD_EXIT_ANIMATION_MS = 160
 
 interface OverviewPlaneRect {
@@ -80,7 +86,7 @@ export function stageOverviewLayoutMotion(
     if (!from) {
       markOverviewMotionElement(element)
       element.style.opacity = '0'
-      element.style.transform = 'translateY(14px) scale(0.97)'
+      element.style.transform = OVERVIEW_CARD_ENTRY_MOTION.from.transform
       cards.push({
         element,
         id,
@@ -440,17 +446,14 @@ export function settleOverviewReflow(cards: OverviewCardMotion[]): void {
 
 export function startOverviewCardEntryAnimation(card: OverviewCardMotion, clickBlockUntil: Map<string, number>): Animation[] {
   if (typeof card.element.animate !== 'function') return []
-  clickBlockUntil.set(card.id, Date.now() + CARD_ENTRY_ANIMATION_MS)
+  clickBlockUntil.set(card.id, Date.now() + OVERVIEW_CARD_ENTRY_MOTION.duration)
   return [
     card.element.animate(
-      [
-        { opacity: 0, transform: 'translateY(14px) scale(0.97)' },
-        { opacity: 1, transform: 'translateY(0) scale(1)' }
-      ],
+      [OVERVIEW_CARD_ENTRY_MOTION.from, OVERVIEW_CARD_ENTRY_MOTION.to],
       {
-        duration: CARD_ENTRY_ANIMATION_MS,
+        duration: OVERVIEW_CARD_ENTRY_MOTION.duration,
         fill: 'forwards',
-        easing: GRID_REFLOW_EASING
+        easing: OVERVIEW_CARD_ENTRY_MOTION.easing
       }
     )
   ]
