@@ -316,6 +316,7 @@ try {
     const label = capsule.querySelector('.bart-dock-thread-follow-up-route')
     const box = label.getBoundingClientRect()
     return {
+      top: box.top,
       width: box.width,
       above: box.bottom <= capsule.getBoundingClientRect().top,
       painted: document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) === label
@@ -323,6 +324,8 @@ try {
   })
   assert.ok(route.width > 0, 'the follow-up shows the thread it is writing to')
   assert.ok(route.above, 'the thread name is drawn above the capsule')
+  assert.ok(route.top >= followUp.ink.bottom - 0.5,
+    `the thread name clears Bart (label ${route.top}, Bart ${followUp.ink.bottom}, capsule ${followUp.capsule.top})`)
   assert.ok(route.painted, 'the thread name is not clipped away by the capsule')
   const colors = await preview.locator('.bart-dock-thread-follow-up').evaluate((capsule) => {
     const route = capsule.querySelector('.bart-dock-thread-follow-up-route')

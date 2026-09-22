@@ -345,20 +345,20 @@
 
 .bart-dock-thread-follow-up-route {
   position: absolute;
-  bottom: calc(100% + 6px);
+  /* Keep the label within the small gap between Bart and the capsule. */
+  bottom: 100%;
   left: 35px;
   max-width: calc(100% - 64px);
   box-sizing: border-box;
-  padding: 6px 9px;
+  padding: 0 9px;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 8px 8px 0 0;
   background: #10110f;
   color: #f7f5ee;
-  box-shadow: 0 4px 12px rgba(16, 17, 15, 0.18);
   font-size: 12px;
   font-weight: 720;
   letter-spacing: -0.015em;
-  line-height: 1;
+  line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
