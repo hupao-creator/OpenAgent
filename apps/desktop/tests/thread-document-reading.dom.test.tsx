@@ -180,6 +180,30 @@ describe('document navigation', () => {
     expect(screen.getByText('Full answer 4')).toBeVisible()
   })
 
+  it('keeps a click-time current reply in view while a newer turn streams', () => {
+    const notifications: Array<() => void> = []
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { notifications.push(callback) }
+      observe() {}
+      disconnect() {}
+    })
+    const view = render(<I18nProvider locale="en-US">
+      <ThreadDetailSurface threadId="racing" title="Racing" rows={rows(5)} running runningTurnId="turn-4"
+        readingTarget={{ requestId: 'clicked', inlineRowId: 'turn-0', anchorId: 'answer' }} />
+    </I18nProvider>)
+    const scroll = view.container.querySelector('.thread-detail-parent-page .message-scroll')!
+    expect(screen.getByText('Full answer 0')).toBeVisible()
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 500 })
+    Object.defineProperty(scroll, 'scrollHeight', { configurable: true, value: 2000 })
+    scroll.scrollTop = 123
+    act(() => notifications.at(-1)!())
+    expect(scroll.scrollTop).toBe(123)
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
+    expect(screen.queryByText('Full answer 0')).toBeNull()
+    expect(screen.getByText('Full answer 4')).toBeVisible()
+    expect(scroll.scrollTop).toBe(2000)
+  })
+
   it('offers the new live turn after returning from history without stealing the saved position', () => {
     const content = (count: number, runningTurnId?: string) => <I18nProvider locale="en-US">
       <ThreadDetailSurface threadId="live" title="Live" rows={rows(count)} running={Boolean(runningTurnId)} runningTurnId={runningTurnId} />

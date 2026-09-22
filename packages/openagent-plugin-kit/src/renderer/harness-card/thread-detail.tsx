@@ -155,6 +155,7 @@ export function ThreadDetailSurface(props: {
     ? { threadId: props.threadId, ...props.readingTarget } : readingState
   if (requestChanged) setReadingState(currentReading)
   const inlineRowId = currentReading.rowId === undefined ? currentReading.inlineRowId : undefined
+  const readingEarlierReply = props.rows.some((row) => row.id === inlineRowId && row.subpage)
   const opener = useRef<HTMLButtonElement | null>(null)
   const historyToggle = useRef<HTMLButtonElement | null>(null)
   const surfaceRef = useRef<HTMLDivElement | null>(null)
@@ -269,7 +270,7 @@ export function ThreadDetailSurface(props: {
           timelineKey={props.threadId}
           rows={pageRows}
           followOutput
-          followPaused={historyOpen}
+          followPaused={historyOpen || readingEarlierReply}
           showOlderRows={historyOpen}
           pinnedRowId={inlineRowId}
           onJumpToLatest={() => {
