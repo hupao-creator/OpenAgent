@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import spawn from 'cross-spawn'
 import { HarnessExecutableNotFoundError } from '@openagent/contracts'
 import { debugLog } from './debug.js'
-
-const execFileAsync = promisify(execFile)
 
 type ResolveExecutable = (cwd: string, configuredPath?: string) => Promise<string>
 type CodexVersion = readonly [number, number, number, readonly (string | number)[] | undefined]
@@ -68,12 +65,33 @@ export function createCodexExecutableResolver(
 
 async function codexVersion(path: string, environment: NodeJS.ProcessEnv): Promise<CodexVersion | undefined> {
   try {
-    const { stdout } = await execFileAsync(path, ['--version'], {
-      env: environment,
-      timeout: 3_000,
-      maxBuffer: 1_024
+    const output = await new Promise<string>((resolve, reject) => {
+      // cross-spawn also runs npm's codex.cmd shim on Windows. execFile does
+      // not, which would leave a working PATH CLI with an unknown version.
+      const child = spawn(path, ['--version'], {
+        env: environment,
+        stdio: ['ignore', 'pipe', 'ignore'],
+        windowsHide: true
+      })
+      let stdout = ''
+      const timer = setTimeout(() => {
+        child.kill()
+        reject(new Error('Codex version probe timed out'))
+      }, 3_000)
+      child.stdout?.on('data', (chunk: Buffer) => {
+        stdout = (stdout + chunk.toString('utf8')).slice(0, 1_024)
+      })
+      child.once('error', error => {
+        clearTimeout(timer)
+        reject(error)
+      })
+      child.once('close', code => {
+        clearTimeout(timer)
+        if (code === 0) resolve(stdout)
+        else reject(new Error(`Codex version probe exited with ${String(code)}`))
+      })
     })
-    const match = /^codex-cli\s+(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?\s*$/.exec(stdout.trim())
+    const match = /^codex-cli\s+(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?\s*$/.exec(output.trim())
     if (!match) return undefined
     return [Number(match[1]), Number(match[2]), Number(match[3]),
       match[4]?.split('.').map(part => /^\d+$/.test(part) ? Number(part) : part)]

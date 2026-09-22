@@ -62,6 +62,22 @@ describe('Codex executable selection', () => {
     await expect(selected('/workspace')).resolves.toBe(wrapper)
   })
 
+  it.skipIf(process.platform !== 'win32')('compares versions exposed by Windows command shims', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'openagent-codex-windows-shims-'))
+    fixtures.push(directory)
+    const pathCli = join(directory, 'codex.cmd')
+    const installedCli = join(directory, 'installed.cmd')
+    await writeFile(pathCli, '@echo off\r\necho codex-cli 0.153.4\r\n')
+    await writeFile(installedCli, '@echo off\r\necho codex-cli 0.155.0\r\n')
+    const selected = createCodexExecutableResolver(
+      async (_cwd, configured) => configured || pathCli,
+      async () => ({ ...process.env }),
+      [installedCli]
+    )
+
+    await expect(selected('C:\\workspace')).resolves.toBe(installedCli)
+  })
+
   it('keeps a configured path authoritative even when it is missing', async () => {
     const resolve = vi.fn(async (_cwd: string, configured?: string): Promise<string> => {
       if (configured) throw new HarnessExecutableNotFoundError(configured)
