@@ -5,13 +5,14 @@ import { OVERVIEW_CARD_GEOMETRY } from '@openagent/contracts/renderer'
 import { HarnessThreadOverviewCard } from '../../../src/renderer/src/components/ConversationOverview'
 import { BartDock } from '../../../src/renderer/src/components/BartDock'
 import { projectHarnessOverviewThread } from '../../../src/renderer/src/harness-composition'
+import { OVERVIEW_CARD_ENTRY_MOTION } from '../../../src/renderer/src/overview-motion/card-layout-motion'
 import { generationFixture, type GenerationSample } from './generation-fixtures'
 import './entrance.css'
 
 const candidates = [
   { id: 'instant', letter: '00', name: '直接出现', duration: 0, description: '完整卡片立即就位。', detail: '没有额外提示，作为对照基准。' },
   { id: 'fade', letter: 'A', name: '原位淡入', duration: 240, description: '卡片原位显露，文字一起出现。', detail: '只有透明度变化，注意力留在内容上。' },
-  { id: 'rise', letter: 'B', name: '轻抬落定', duration: 320, description: '从下方 8px 轻轻落定。', detail: '短距离上移配合淡入，强调新卡片的位置。' },
+  { id: 'rise', letter: 'B', name: '轻抬落定', duration: OVERVIEW_CARD_ENTRY_MOTION.duration, description: '从下方 8px 轻轻落定。', detail: '已采用。短距离上移配合淡入，强调新卡片的位置。' },
   { id: 'outline', letter: 'C', name: '边框提示', duration: 560, description: '内容立即可见，边缘亮起再消退。', detail: '不移动文字，以一次柔和的边框提示标记新增。' }
 ] as const
 const noAction = (): void => undefined
@@ -19,7 +20,7 @@ const noRequest = async (): Promise<void> => undefined
 
 /** Lab-only entrances. The real Overview card and resident Bart stay mounted. */
 export function EntranceLab(): React.JSX.Element {
-  const [candidateId, setCandidateId] = useState<typeof candidates[number]['id']>('fade')
+  const [candidateId, setCandidateId] = useState<typeof candidates[number]['id']>('rise')
   const [sample, setSample] = useState<GenerationSample>('short')
   const [count, setCount] = useState(1)
   const [speed, setSpeed] = useState(1)
@@ -66,11 +67,14 @@ export function EntranceLab(): React.JSX.Element {
     for (const wrapper of wrappers) {
       const element = candidate.id === 'outline' ? wrapper.querySelector<HTMLElement>('.entrance-outline')! : wrapper
       if (typeof element.animate !== 'function') continue
-      const keyframes: Keyframe[] = candidate.id === 'outline'
+      const keyframes: Keyframe[] = candidate.id === 'rise'
+        ? [OVERVIEW_CARD_ENTRY_MOTION.from, OVERVIEW_CARD_ENTRY_MOTION.to]
+        : candidate.id === 'outline'
         ? [{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 0 }]
-        : [{ opacity: 0, transform: candidate.id === 'rise' ? 'translateY(8px)' : 'none' }, { opacity: 1, transform: 'none' }]
+        : [{ opacity: 0 }, { opacity: 1 }]
       animations.current.push(element.animate(keyframes, {
-        duration: candidate.duration / speed, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both'
+        duration: candidate.duration / speed,
+        easing: candidate.id === 'rise' ? OVERVIEW_CARD_ENTRY_MOTION.easing : 'cubic-bezier(.2,.8,.2,1)', fill: 'both'
       }))
     }
     if (animations.current.length) {
@@ -125,11 +129,11 @@ export function EntranceLab(): React.JSX.Element {
             <label>外观<select aria-label="外观" value={theme} onChange={event => setTheme(event.target.value)}>
               <option value="light">浅色</option><option value="dark">深色</option></select></label>
           </fieldset>
-          <div className="genlab-note">候选仅在 Lab 预览。正式 Thread 已恢复普通概览入场。</div>
+          <div className="genlab-note">正式入场采用 B「轻抬落定」。其余候选保留作对照。</div>
         </aside>
         <section className="genlab-preview" aria-label="卡片入场预览">
           <div className="entrance-heading">
-            <div><span className="genlab-eyebrow">{candidate.letter} / {candidate.duration ? '候选效果' : '静态对照'}</span>
+            <div><span className="genlab-eyebrow">{candidate.letter} / {candidate.id === 'rise' ? '已采用' : candidate.duration ? '候选效果' : '静态对照'}</span>
               <h2>{candidate.name}</h2><p>{candidate.description}</p></div>
             <span className="entrance-duration">{candidate.duration}<small>ms</small></span>
           </div>
