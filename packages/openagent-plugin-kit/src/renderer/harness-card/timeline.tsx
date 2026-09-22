@@ -48,6 +48,8 @@ export function HarnessMessageTimeline(props: {
   readonly followPaused?: boolean
   readonly onJumpToLatest?: () => void
   readonly showOlderRows?: boolean
+  /** Include an explicitly located row without expanding the entire history window. */
+  readonly pinnedRowId?: string
 }): React.JSX.Element {
   const { t } = useI18n()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -66,10 +68,11 @@ export function HarnessMessageTimeline(props: {
     ? window.count + Math.max(0, rows.length - window.tailLength)
     : INITIAL_VISIBLE_ROWS
   const firstVisibleIndex = Math.max(0, rows.length - visibleCount)
-  const visibleRows = useMemo(
-    () => rows.slice(firstVisibleIndex),
-    [firstVisibleIndex, rows]
-  )
+  const visibleRows = useMemo(() => {
+    const visible = rows.slice(firstVisibleIndex)
+    const pinnedIndex = props.pinnedRowId === undefined ? -1 : rows.findIndex(row => row.id === props.pinnedRowId)
+    return pinnedIndex >= 0 && pinnedIndex < firstVisibleIndex ? [rows[pinnedIndex]!, ...visible] : visible
+  }, [firstVisibleIndex, rows, props.pinnedRowId])
 
   useEffect(() => {
     prependAnchorRef.current = undefined

@@ -852,6 +852,9 @@ describe('Claude Plugin-owned interaction renderer', () => {
       </I18nProvider>
     )
 
+    expect(screen.queryByRole('region', { name: 'Fork history from the source Claude session' })).toBeNull()
+    expect(await screen.findByText('New branch answer')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Past conversation', expanded: false }))
     const history = screen.getByRole('region', {
       name: 'Fork history from the source Claude session'
     })

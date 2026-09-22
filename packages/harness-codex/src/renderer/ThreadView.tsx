@@ -220,6 +220,7 @@ function CodexNativeTimeline(props: {
     <ThreadDetailSurface
       readingTarget={props.readingTarget ? {
         requestId: props.readingTarget.requestId,
+        inlineRowId: props.readingTarget.mode === 'current' ? `turn:${props.readingTarget.executionId}` : undefined,
         rowId: props.state.turns.some(turn => turn.executionId === props.readingTarget?.executionId)
           ? (props.readingTarget.mode === 'current' ? undefined : `turn:${props.readingTarget.executionId}`) : null,
         anchorId: codexBartReplyAnchor(props.state, props.readingTarget.message)

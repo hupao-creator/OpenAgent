@@ -95,6 +95,8 @@ export function ThreadDetailEmptyState(): React.JSX.Element {
 }
 
 export interface ThreadDocumentRow extends ThreadTimelineRow {
+  /** Opaque provenance history, not a countable execution or a navigable subpage. */
+  readonly history?: boolean
   /** Supplied only for historical turns by the owning Harness. */
   readonly subpage?: { readonly title: string; readonly entryTitle?: string; readonly summary: ReactNode; readonly completedAt?: number }
 }
@@ -120,6 +122,8 @@ export function ThreadDetailSurface(props: {
   readonly readingTarget?: {
     readonly requestId: string
     readonly rowId?: string | null
+    /** Keep a click-time current turn readable if a newer execution arrives. */
+    readonly inlineRowId?: string
     readonly anchorId?: string | null
   }
   readonly title: string
@@ -135,11 +139,13 @@ export function ThreadDetailSurface(props: {
   const [history, setHistory] = useState({ threadId: props.threadId, open: false })
   const historyOpen = history.threadId === props.threadId && history.open
   const historyCount = props.rows.filter((row) => row.subpage).length
+  const hasProvenance = props.rows.some((row) => row.history)
   if (history.threadId !== props.threadId) setHistory({ threadId: props.threadId, open: false })
   const [readingState, setReadingState] = useState<{
     threadId: string
     requestId?: string
     rowId?: string | null
+    inlineRowId?: string
     anchorId?: string | null
   }>(() => ({ threadId: props.threadId, ...props.readingTarget }))
   const requestChanged = readingState.threadId !== props.threadId ||
@@ -148,6 +154,7 @@ export function ThreadDetailSurface(props: {
   const currentReading = requestChanged
     ? { threadId: props.threadId, ...props.readingTarget } : readingState
   if (requestChanged) setReadingState(currentReading)
+  const inlineRowId = currentReading.rowId === undefined ? currentReading.inlineRowId : undefined
   const opener = useRef<HTMLButtonElement | null>(null)
   const historyToggle = useRef<HTMLButtonElement | null>(null)
   const surfaceRef = useRef<HTMLDivElement | null>(null)
@@ -212,7 +219,9 @@ export function ThreadDetailSurface(props: {
   }
   // Keep row identities in the window while folded, so reopening does not
   // discard loaded history; only the summary nodes are left unmounted.
-  const pageRows = props.rows.map((row, index) => row.subpage ? {
+  const pageRows = props.rows.map((row, index) => row.history ? {
+    ...row, node: historyOpen ? row.node : null
+  } : row.subpage && row.id !== inlineRowId ? {
     ...row,
     node: historyOpen ? <button className="thread-detail-subpage-link" title={row.subpage.entryTitle ?? threadDocumentHeading(row.subpage.title).entryTitle} type="button" onClick={(event) => {
       opener.current = event.currentTarget
@@ -225,7 +234,7 @@ export function ThreadDetailSurface(props: {
       </span>
     </button> : null
   } : { ...row, node: <>
-    {historyOpen && props.rows[index - 1]?.subpage ? <hr className="thread-detail-history-divider" /> : null}
+    {historyOpen && (props.rows[index - 1]?.subpage || props.rows[index - 1]?.history) ? <hr className="thread-detail-history-divider" /> : null}
     {row.node}
   </> })
   const [userMessages, setUserMessages] = useState(false)
@@ -262,7 +271,11 @@ export function ThreadDetailSurface(props: {
           followOutput
           followPaused={historyOpen}
           showOlderRows={historyOpen}
-          onJumpToLatest={() => setHistory({ threadId: props.threadId, open: false })}
+          pinnedRowId={inlineRowId}
+          onJumpToLatest={() => {
+            setHistory({ threadId: props.threadId, open: false })
+            setReadingState({ ...currentReading, inlineRowId: undefined, anchorId: undefined })
+          }}
           suspended={readingPage}
           followKey={props.runningTurnId}
           emptyState={props.emptyState ?? <ThreadDetailEmptyState />}
@@ -274,7 +287,7 @@ export function ThreadDetailSurface(props: {
               {props.actions ? <div className="thread-detail-plugin-actions">{props.actions}</div> : null}
             </header>
             {props.rows.length ? <div className="thread-detail-toolbar" role="group" aria-label={t('消息显示')}>
-              {historyCount > 0 ? <button
+              {historyCount > 0 || hasProvenance ? <button
                 ref={historyToggle}
                 className="thread-detail-history-toggle"
                 aria-expanded={historyOpen}
@@ -286,7 +299,7 @@ export function ThreadDetailSurface(props: {
                 type="button"
               >
                 <ChevronRight size={13} aria-hidden="true" />
-                {historyCount === 1 ? t('前 1 轮对话') : t('前 {count} 轮对话', { count: historyCount })}
+                {hasProvenance ? t('历史对话') : historyCount === 1 ? t('前 1 轮对话') : t('前 {count} 轮对话', { count: historyCount })}
               </button> : null}
               <button
                 aria-pressed={userMessages}
