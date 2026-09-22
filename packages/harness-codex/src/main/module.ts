@@ -1,6 +1,5 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { cliResolverWithInstallPath } from '@openagent/plugin-kit/main'
 import type {
   HarnessMainPluginModule,
   HarnessPluginHostContext
@@ -15,6 +14,7 @@ import type {
   CodexThreadSettingsUpdate
 } from '../shared/types.js'
 import { createCodexMainPlugin, type CodexMainPluginBundle } from './index.js'
+import { createCodexExecutableResolver } from './executable.js'
 
 /**
  * Plugin-owned bootstrap settings, supplied by the Host when the persisted
@@ -38,12 +38,21 @@ export const codexMainPluginModule: HarnessMainPluginModule<
   descriptor: codexDescriptor,
   defaultHarnessSettings: DEFAULT_CODEX_HARNESS_SETTINGS,
   createMainPlugin(context: HarnessPluginHostContext): CodexMainPluginBundle {
+    const installPath = join(process.env.CODEX_INSTALL_DIR || (process.platform === 'win32'
+      ? join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Programs', 'OpenAI', 'Codex', 'bin')
+      : join(homedir(), '.local', 'bin')), process.platform === 'win32' ? 'codex.exe' : 'codex')
+    const alternativePaths = [installPath]
+    if (process.platform === 'darwin') {
+      alternativePaths.push(
+        '/Applications/ChatGPT.app/Contents/Resources/codex',
+        join(homedir(), 'Applications', 'ChatGPT.app', 'Contents', 'Resources', 'codex')
+      )
+    }
     return createCodexMainPlugin({
-      resolveExecutable: cliResolverWithInstallPath(
+      resolveExecutable: createCodexExecutableResolver(
         (cwd, configuredPath) => context.resolveExecutable('codex', cwd, configuredPath),
-        join(process.env.CODEX_INSTALL_DIR || (process.platform === 'win32'
-          ? join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Programs', 'OpenAI', 'Codex', 'bin')
-          : join(homedir(), '.local', 'bin')), process.platform === 'win32' ? 'codex.exe' : 'codex')
+        () => context.environment(),
+        alternativePaths
       ),
       environment: () => context.environment(),
       providers: context.providers,
