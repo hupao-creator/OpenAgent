@@ -51,7 +51,7 @@ async function pipeline() {
       return { sessionId: 'native-bart-display', steer: async () => {}, cancel: async () => emit({ type: 'done', outcome: 'interrupted' }) }
     }, dispose: async () => {}
   } as unknown as CodexAppServer
-  const runtime = { server: async () => ({ server }) } as unknown as CodexRuntime
+  const runtime = { context: {}, server: async () => ({ server }) } as unknown as CodexRuntime
   const handle = await openCodexThread(runtime, {
     ...createAgentOpenContext({
       sessionState: codexSessionState, getRecord: () => record,
