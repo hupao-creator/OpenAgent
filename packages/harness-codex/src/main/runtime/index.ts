@@ -98,9 +98,15 @@ export class CodexRuntime {
     let executable: string
     let environment: NodeJS.ProcessEnv
     try {
-      executable = await this.context.resolveExecutable(cwd, configuredPath)
-      throwIfAborted(signal)
-      environment = await this.context.environment()
+      // Capture both parts of the launch observation at request time. A slow
+      // executable probe must not pick up a newer account environment midway.
+      ;[executable, environment] = await Promise.all([
+        this.context.resolveExecutable(cwd, configuredPath),
+        (async () => {
+          throwIfAborted(signal)
+          return this.context.environment()
+        })()
+      ])
       throwIfAborted(signal)
       resolveSpan.end({ executable, ...debugEnvironmentSummary(environment) })
     } catch (error) {
