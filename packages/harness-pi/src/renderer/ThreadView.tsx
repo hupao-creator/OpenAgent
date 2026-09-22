@@ -68,6 +68,7 @@ function PiTimeline(props: Props): React.JSX.Element {
     <ThreadDetailSurface threadId={props.thread.id} title={props.thread.title} icon={props.thread.emoji}
       running={latest?.status === 'running'} runningTurnId={active ? latest?.executionId : undefined}
       readingTarget={props.readingTarget ? { requestId: props.readingTarget.requestId,
+        inlineRowId: props.readingTarget.mode === 'current' ? props.readingTarget.executionId : undefined,
         rowId: state.executions.some(e => e.executionId === props.readingTarget!.executionId)
           ? props.readingTarget.mode === 'current' ? undefined : props.readingTarget.executionId : null,
         anchorId: piBartReplyAnchor(state, props.readingTarget.message) } : undefined}

@@ -25,6 +25,10 @@ function openExecutionProcesses(scope: HTMLElement): void {
   )) fireEvent.click(summary)
 }
 
+function expandHistory(): void {
+  fireEvent.click(screen.getByRole('button', { name: /previous turns?|前 \d+ 轮对话/, expanded: false }))
+}
+
 function rows(count: number): ThreadDocumentRow[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `turn-${index}`, createdAt: index,
@@ -46,6 +50,10 @@ describe('document navigation', () => {
   it('opens exact complete content, returns scroll/focus, and forgets pages across threads', () => {
     const back = vi.fn()
     const view = render(doc(5, 'first', back))
+    expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(0)
+    expect(screen.getByText('Full answer 4')).toBeVisible()
+    expect(view.container.querySelectorAll('hr')).toHaveLength(0)
+    expandHistory()
     expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(4)
     expect(view.container.querySelectorAll('.thread-detail-turn')).toHaveLength(1)
     expect(view.container.querySelectorAll('hr')).toHaveLength(1)
@@ -72,12 +80,15 @@ describe('document navigation', () => {
     fireEvent.click(opener)
     view.rerender(doc(5, 'second', back))
     expect(view.container.querySelector('.thread-detail-subpage')).toBeNull()
+    expect(screen.getByRole('button', { name: '4 previous turns' })).toHaveAttribute('aria-expanded', 'false')
+    expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'Overview' }))
     expect(back).toHaveBeenCalledOnce()
   })
 
   it.each([false, true])('isolates independent history toggles from parent visibility=%s and resets every visit', (parentVisible) => {
     const view = render(doc(5))
+    expandHistory()
     if (parentVisible) {
       fireEvent.click(screen.getByRole('button', { name: 'Show user messages' }))
       fireEvent.click(screen.getByRole('button', { name: 'Show work' }))
@@ -136,6 +147,9 @@ describe('document navigation', () => {
 
   it('retains windowing, loaded history and reading position across entry/return and new turns', () => {
     const view = render(doc(160))
+    expect(screen.queryByRole('button', { name: /Show .* older messages/ })).toBeNull()
+    expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(0)
+    expandHistory()
     expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(119)
     fireEvent.click(screen.getByRole('button', { name: /Show .* older messages/ }))
     expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(159)
@@ -147,6 +161,47 @@ describe('document navigation', () => {
     expect(opener).toHaveFocus()
     expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(160)
     expect(screen.getByText('Full answer 160')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '160 previous turns' }))
+    expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(0)
+    expandHistory()
+    expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(160)
+  })
+
+  it('returns an explicitly located history page to the collapsed latest document', () => {
+    const view = render(<I18nProvider locale="en-US">
+      <ThreadDetailSurface threadId="linked" title="Linked" rows={rows(5)} running={false}
+        readingTarget={{ requestId: 'report', rowId: 'turn-1' }} />
+    </I18nProvider>)
+    expect(within(view.container.querySelector('.thread-detail-subpage') as HTMLElement).getByText('Full answer 1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Linked' }))
+    expect(view.container.querySelector('.thread-detail-subpage')).toBeNull()
+    expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: '4 previous turns' })).toHaveFocus()
+    expect(screen.getByText('Full answer 4')).toBeVisible()
+  })
+
+  it('keeps a click-time current reply in view while a newer turn streams', () => {
+    const notifications: Array<() => void> = []
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { notifications.push(callback) }
+      observe() {}
+      disconnect() {}
+    })
+    const view = render(<I18nProvider locale="en-US">
+      <ThreadDetailSurface threadId="racing" title="Racing" rows={rows(5)} running runningTurnId="turn-4"
+        readingTarget={{ requestId: 'clicked', inlineRowId: 'turn-0', anchorId: 'answer' }} />
+    </I18nProvider>)
+    const scroll = view.container.querySelector('.thread-detail-parent-page .message-scroll')!
+    expect(screen.getByText('Full answer 0')).toBeVisible()
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 500 })
+    Object.defineProperty(scroll, 'scrollHeight', { configurable: true, value: 2000 })
+    scroll.scrollTop = 123
+    act(() => notifications.at(-1)!())
+    expect(scroll.scrollTop).toBe(123)
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
+    expect(screen.queryByText('Full answer 0')).toBeNull()
+    expect(screen.getByText('Full answer 4')).toBeVisible()
+    expect(scroll.scrollTop).toBe(2000)
   })
 
   it('offers the new live turn after returning from history without stealing the saved position', () => {
@@ -154,6 +209,7 @@ describe('document navigation', () => {
       <ThreadDetailSurface threadId="live" title="Live" rows={rows(count)} running={Boolean(runningTurnId)} runningTurnId={runningTurnId} />
     </I18nProvider>
     const view = render(content(5))
+    expandHistory()
     const scroll = view.container.querySelector('.thread-detail-parent-page .message-scroll')!
     Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 500 })
     Object.defineProperty(scroll, 'scrollHeight', { configurable: true, value: 500 })
@@ -165,9 +221,11 @@ describe('document navigation', () => {
     expect(scroll.scrollTop).toBe(123)
     fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
     expect(scroll.scrollTop).toBe(2000)
+    expect(screen.getByRole('button', { name: '5 previous turns' })).toHaveAttribute('aria-expanded', 'false')
+    expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(0)
   })
 
-  it.each([true, false])('restores following=%s and exposes later streamed content after return', (following) => {
+  it.each([500, 1200])('keeps expanded history paused after return at initial height %i', (initialHeight) => {
     const notifications: Array<() => void> = []
     vi.stubGlobal('ResizeObserver', class {
       constructor(callback: () => void) { notifications.push(callback) }
@@ -177,8 +235,9 @@ describe('document navigation', () => {
     const view = render(<I18nProvider locale="en-US">
       <ThreadDetailSurface threadId="stream" title="Stream" rows={rows(5)} running runningTurnId="turn-4" />
     </I18nProvider>)
+    expandHistory()
     const scroll = view.container.querySelector('.thread-detail-parent-page .message-scroll')!
-    let height = following ? 500 : 1200
+    let height = initialHeight
     Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 500 })
     Object.defineProperty(scroll, 'scrollHeight', { configurable: true, get: () => height })
     scroll.scrollTop = 0
@@ -188,26 +247,28 @@ describe('document navigation', () => {
     expect(scroll.scrollTop).toBe(0)
     height = 2000
     act(() => notifications.at(-1)!())
-    if (following) {
-      expect(scroll.scrollTop).toBe(2000)
-    } else {
-      expect(scroll.scrollTop).toBe(0)
-      fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
-      expect(scroll.scrollTop).toBe(2000)
-    }
+    expect(scroll.scrollTop).toBe(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
+    expect(scroll.scrollTop).toBe(2000)
+    expect(screen.getByRole('button', { name: '4 previous turns' })).toHaveAttribute('aria-expanded', 'false')
+    height = 2400
+    act(() => notifications.at(-1)!())
+    expect(scroll.scrollTop).toBe(2400)
   })
 
   it('renders summary content only in the loaded window and retains mounted summaries during streaming', () => {
     const seen: string[] = []
     const Summary = memo(function Summary({ id }: { id: string }) { seen.push(id); return <>Summary {id}</> })
-    const content = (answer: string) => <ThreadDetailSurface threadId="window" title="Window" running rows={
+    const content = (answer: string) => <I18nProvider locale="en-US"><ThreadDetailSurface threadId="window" title="Window" running rows={
       Array.from({ length: 1000 }, (_, index) => ({
         id: `row-${index}`, createdAt: index,
         subpage: index < 999 ? { title: `Title ${index}`, summary: <Summary id={`row-${index}`} /> } : undefined,
         node: <p>{answer}</p>
       }))
-    } />
+    } /></I18nProvider>
     const view = render(content('First token'))
+    expect(seen).toHaveLength(0)
+    expandHistory()
     expect(seen).toHaveLength(119)
     expect(seen[0]).toBe('row-880')
     view.rerender(content('First token and more streamed text'))
@@ -223,6 +284,7 @@ describe('document navigation', () => {
     const view = render(doc(count))
     expect(view.container.querySelector('hr')).toBeNull()
     expect(view.container.querySelector('.thread-detail-subpage-link')).toBeNull()
+    expect(screen.queryByRole('button', { name: /previous turns/ })).toBeNull()
   })
 
   it('converts Markdown to readable text without changing full content', () => {
@@ -237,6 +299,7 @@ describe('document navigation', () => {
       { id: 'old', createdAt: 1, subpage: { title: 'Long question', summary }, node: <article>{answer}</article> },
       { id: 'new', createdAt: 2, node: <p>Latest</p> }
     ]} />)
+    expandHistory()
     fireEvent.click(screen.getByRole('button', { name: /Long question/ }))
     expect(view.container.querySelector('.thread-detail-subpage article')?.textContent).toBe(answer)
   })
@@ -301,6 +364,7 @@ describe('shared history controls in Agent and Bart shells', () => {
         fireEvent.click(screen.getByRole('button', { name: '收起执行过程' }))
         expect(screen.queryByText('思考过程')).toBeNull()
       }
+      expandHistory()
       fireEvent.click(view.container.querySelector('.thread-detail-subpage-link')!)
       const element = view.container.querySelector('.thread-detail-subpage') as HTMLElement
       const page = within(element)
@@ -392,6 +456,7 @@ for (const [harnessId, fixture, View] of adapters) {
       const content = (requestId: string) => <I18nProvider locale="en-US"><View thread={{ ...thread, sessionState: JSON.parse(JSON.stringify(state)) }} actions={actions} readingTarget={{ requestId, executionId, mode: 'current' }} /></I18nProvider>
       const view = render(content('latest'))
       expect(view.container.querySelector('.thread-detail-subpage')).toBeNull()
+      expandHistory()
       fireEvent.click(view.container.querySelector('.thread-detail-subpage-link')!)
       const oldPage = view.container.querySelector('.thread-detail-subpage [data-turn-id]')!.getAttribute('data-turn-id')
       view.rerender(content('latest'))
@@ -408,6 +473,7 @@ for (const [harnessId, fixture, View] of adapters) {
       else state.turns[0].messages.find((message: { role: string }) => message.role === 'user').content = prompt
       const thread: AgentThreadRecord = { archived: false, id: 'large-prompt', harnessId, title: 'Long prompt', cwd: '/workspace', tags: [], settings: {}, revision: 1, createdAt: 1, updatedAt: 2, ...input, sessionState: state }
       const view = render(<I18nProvider locale="en-US"><View thread={thread} actions={actions} /></I18nProvider>)
+      expandHistory()
       const entry = view.container.querySelector('.thread-detail-subpage-link')!
       expect(entry.querySelector('.thread-detail-subpage-title')!.textContent!.length).toBeLessThan(300)
       expect(entry.getAttribute('title')!.length).toBeLessThan(300)
@@ -421,6 +487,8 @@ for (const [harnessId, fixture, View] of adapters) {
       const input = fixture({ threadId: 'recorded', phase: 'completed', history: false, localFive: true, answer: '' })
       const thread: AgentThreadRecord = { archived: false, id: 'recorded', harnessId, title: 'Recorded', cwd: '/workspace', tags: [], settings: {}, revision: 1, createdAt: 1, updatedAt: 2, ...input }
       const view = render(<I18nProvider locale="en-US"><View thread={thread} actions={actions} /></I18nProvider>)
+      expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(0)
+      expandHistory()
       expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(4)
       expect(view.container.querySelector('.thread-detail-token-usage')).toBeNull()
     })
@@ -447,6 +515,7 @@ for (const [harnessId, fixture, View] of adapters) {
       state.turns = state.turns.slice(-5)
       const thread: AgentThreadRecord = { archived: false, id: 'active', harnessId, title: 'Live document', cwd: '/workspace', tags: [], settings: {}, revision: 1, createdAt: 1, updatedAt: 2, ...input, sessionState: state }
       const view = render(<I18nProvider locale="en-US"><View thread={thread} actions={actions} /></I18nProvider>)
+      expandHistory()
       expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(4)
       expect(view.container.querySelectorAll('.thread-detail-turn')).toHaveLength(1)
       if (phase === 'approval' || phase === 'question') expect(view.container.querySelector('[data-timeline-focus]')).not.toBeNull()
@@ -468,6 +537,7 @@ for (const [harnessId, fixture, View] of adapters) {
       if (state.updatedAt !== undefined) state.updatedAt = Math.max(state.updatedAt, historical.updatedAt)
       const thread: AgentThreadRecord = { archived: false, id: 'native', harnessId, title: 'Native document', cwd: '/workspace', tags: [], settings: {}, revision: 1, createdAt: 1, updatedAt: 2, ...input, sessionState: state }
       const view = render(<I18nProvider locale="en-US"><View thread={thread} actions={actions} /></I18nProvider>)
+      expandHistory()
       const entries = view.container.querySelectorAll('.thread-detail-subpage-link')
       expect(entries).toHaveLength(4)
       expect(entries[0]!.querySelector('time')).toHaveAttribute('datetime', new Date(finishedAt).toISOString())

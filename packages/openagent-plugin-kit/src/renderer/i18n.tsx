@@ -53,6 +53,8 @@ const EN_US: Readonly<Record<string, string>> = {
   正在工作: 'Working',
   '页面路径': 'Page path',
   '历史对话': 'Past conversation',
+  '前 {count} 轮对话': '{count} previous turns',
+  '前 1 轮对话': '1 previous turn',
   '历史执行不可用': 'Historical execution unavailable',
   '无法找到报告关联的历史执行。': 'The historical execution linked by this report could not be found.',
   '完成时间：': 'Completion time:',

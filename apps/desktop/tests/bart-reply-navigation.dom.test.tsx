@@ -168,6 +168,44 @@ const piThread = (): AgentThreadRecord => ({
 })
 
 describe('each Harness resolves its own opaque target to a rendered row', () => {
+  for (const [harnessId, createThread, View, project, resolveAnchor] of [
+    ['codex', () => codexThread('Latest answer', true), CodexThreadView, projectCodexBartPresentation, codexBartReplyAnchor],
+    ['claude', () => claudeThread('Latest answer', true), ClaudeThreadView, projectClaudeBartPresentation, claudeBartReplyAnchor],
+    ['pi', piThread, PiThreadView, projectPiBartPresentation, piBartReplyAnchor]
+  ] as const) {
+    it(`${harnessId} retains a click-time current reply after it becomes collapsed history`, () => {
+      const thread = createThread()
+      const state = JSON.parse(JSON.stringify(thread.sessionState))
+      // Project the reply from the older snapshot that the user clicked. The
+      // renderer already has newer turns, beyond the initial window in Codex/Claude.
+      const prior = harnessId === 'pi'
+        ? { ...state, executions: [state.executions[0]], latestExecutionId: state.executions[0].executionId }
+        : { ...state, turns: [state.turns[0]] }
+      const reply = project(prior as never).reply!
+      const anchor = resolveAnchor(state as never, reply.target)!
+      expect(anchor).toBeTruthy()
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        const top = this.getAttribute('data-thread-row-id') === anchor ? 500 : 100
+        return { top, left: 0, right: 0, bottom: top, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) }
+      })
+      const renderTarget = (requestId: string, executionId = reply.executionId) => <AppI18nProvider locale="zh-CN">
+        <View thread={thread} actions={actions} readingTarget={{ requestId, executionId, mode: 'current', message: executionId === reply.executionId ? reply.target : undefined }} />
+      </AppI18nProvider>
+      const view = render(renderTarget('clicked-reply'))
+      const parent = view.container.querySelector('.thread-detail-parent-page')!
+      const scroll = parent.querySelector('.message-scroll')!
+      expect(parent.querySelector(`[data-thread-row-id="${anchor}"]`)).not.toBeNull()
+      expect(view.container.querySelector('.thread-detail-subpage')).toBeNull()
+      expect(view.container.querySelector('.thread-detail-subpage-link')).toBeNull()
+      expect(scroll.scrollTop).toBe(384)
+      scroll.scrollTop = 123
+      view.rerender(renderTarget('clicked-reply'))
+      expect(scroll.scrollTop).toBe(123)
+      view.rerender(renderTarget('open-latest', thread.observation.latestExecution!.executionId))
+      expect(parent.querySelector(`[data-thread-row-id="${anchor}"]`)).toBeNull()
+    })
+  }
+
   it('locates the Codex native assistant item', () => {
     const thread = codexThread('Latest answer', false)
     const state = thread.sessionState as never

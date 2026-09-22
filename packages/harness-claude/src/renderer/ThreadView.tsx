@@ -77,6 +77,7 @@ export function ClaudeThreadView(props: ThreadViewProps): React.JSX.Element {
     if (decoded.state.forkHistory?.items.length) {
       rows.push({
         id: 'fork-history',
+        history: true,
         createdAt: 0,
         node: <ClaudeForkHistoryView history={decoded.state.forkHistory} />
       })
@@ -118,6 +119,7 @@ export function ClaudeThreadView(props: ThreadViewProps): React.JSX.Element {
       <ThreadDetailSurface
         readingTarget={props.readingTarget ? {
           requestId: props.readingTarget.requestId,
+          inlineRowId: props.readingTarget.mode === 'current' ? props.readingTarget.executionId : undefined,
           rowId: state?.turns.some(turn => turn.executionId === props.readingTarget?.executionId)
             ? (props.readingTarget.mode === 'current' ? undefined : props.readingTarget.executionId) : null,
           anchorId: state ? claudeBartReplyAnchor(state, props.readingTarget.message) : undefined
