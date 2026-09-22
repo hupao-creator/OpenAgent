@@ -345,15 +345,20 @@
 
 .bart-dock-thread-follow-up-route {
   position: absolute;
-  bottom: calc(100% + 6px);
+  /* Keep the label within the small gap between Bart and the capsule. */
+  bottom: 100%;
   left: 35px;
   max-width: calc(100% - 64px);
+  box-sizing: border-box;
+  padding: 0 9px;
   overflow: hidden;
-  color: rgba(247, 245, 238, 0.72);
+  border-radius: 8px 8px 0 0;
+  background: #10110f;
+  color: #f7f5ee;
   font-size: 12px;
   font-weight: 720;
   letter-spacing: -0.015em;
-  line-height: 1;
+  line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -375,7 +380,7 @@
 }
 
 .bart-dock-thread-follow-up input::placeholder {
-  color: rgba(247, 245, 238, 0.46);
+  color: rgba(247, 245, 238, 0.68);
 }
 
 .bart-dock-thread-follow-up input:focus,
