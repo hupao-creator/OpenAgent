@@ -49,7 +49,10 @@ describe('Codex execution capabilities', () => {
         settings: { threadSettings: {} },
         cwd: tmpdir(), signal: new AbortController().signal
       })).resolves.toEqual({ available: true })
-      expect(resolveExecutable.mock.calls).toEqual([[codexMainPluginModule.id, tmpdir(), undefined]])
+      expect(resolveExecutable.mock.calls[0]).toEqual([codexMainPluginModule.id, tmpdir(), undefined])
+      expect(resolveExecutable.mock.calls.every(([command, cwd]) =>
+        command === codexMainPluginModule.id && cwd === tmpdir()
+      )).toBe(true)
     } finally {
       await bundle.dispose?.()
     }
