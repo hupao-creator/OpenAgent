@@ -246,3 +246,34 @@ it('resolves moving API aliases before AA acquisition and final context matching
   expect(fetch.mock.calls.map(([url]) => String(url))).not.toContain('https://artificialanalysis.ai/models/deepseek-v4-flash-max')
   expect(provider.injection?.model).toBe('deepseek-flash')
 })
+
+it('loads V4 Pro 0813 AA facts without selecting the older 0424 release', async () => {
+  const current = { slug: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro 0813 (Reasoning, Max Effort)',
+    isReasoning: true, effort: { slug: 'max' },
+    release: { slug: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro 0813' } }
+  const old = { ...current, slug: 'deepseek-v4-pro-0424',
+    release: { slug: 'deepseek-v4-pro-0424', name: 'DeepSeek V4 Pro 0424' } }
+  const embed = (value: unknown) => JSON.stringify(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  const fetch = vi.fn(async input => String(input).endsWith('/models/')
+    ? new Response(`<script>self.__next_f.push([1,"c:\\"models\\":${embed([old, current])}"])</script>`)
+    : new Response(`<script>self.__next_f.push([1,"c:\\"currentModel\\":${embed({ ...current,
+      intelligenceIndex: 36, timescaleData: { medianOutputSpeed: 73.7 },
+      intelligenceIndexCostPerTask: { cost: { total: 0.67 } } })}"])</script>`))
+  const facts = new ArtificialAnalysisModelFacts({ fetchImplementation: fetch as typeof globalThis.fetch,
+    store: { load: async () => null, save: async () => undefined } })
+  cleanup.push(() => facts.dispose())
+  const connections = new ProviderConnections([deepseek], [{
+    id: 'pro', providerId: 'deepseek', apiKey: 'key', model: 'deepseek-v4-pro'
+  }])
+  cleanup.push(() => connections.dispose())
+  const provider = connections.forHarness(target('claude'), 'pro').explicit!
+  const context = createBartEvaluationContext({ source: facts, loadBackend: async () => provider,
+    loadIdentities: async () => [{ selector: 'opus' }] })
+  const result = await context({ settings: {}, cwd: '/repo', signal: signal(),
+    telemetryLedger: { record: async () => undefined, read: () => ({ windows: [] }) } })
+  expect(result).toContain('Canonical evaluation release: deepseek-v4-pro')
+  expect(result).toContain('configuration=reasoning:true,effort:max')
+  expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
+    'https://artificialanalysis.ai/models/', 'https://artificialanalysis.ai/models/deepseek-v4-pro'
+  ])
+})
