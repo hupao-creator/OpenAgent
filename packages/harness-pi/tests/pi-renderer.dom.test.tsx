@@ -109,12 +109,13 @@ it.each(['current', 'history'] as const)('merges adjacent tools after visibility
   fireEvent.click(page.getByRole('button', { name: 'Hide work' }))
   expect(page.queryByRole('button', { name: 'Execution process' })).toBeNull()
 })
-it('interrupts running execution and displays action failures', async () => {
-  const a = actions(); a.interrupt.mockRejectedValue(new Error('abort failed'))
-  render(<I18nProvider locale="en-US"><PiThreadView thread={thread({ executionId: 'second', startedAt: 3, status: 'running' })} actions={a} /></I18nProvider>)
-  fireEvent.click(screen.getByRole('button', { name: '中断' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('abort failed')
-  expect(a.interrupt).toHaveBeenCalledOnce()
+it('shows a running Pi thread without a top-left interrupt toolbar', () => {
+  const a = actions()
+  const view = render(<I18nProvider locale="en-US"><PiThreadView thread={thread({ executionId: 'second', startedAt: 3, status: 'running' })} actions={a} /></I18nProvider>)
+  expect(screen.queryByRole('button', { name: /中断|Interrupt/ })).not.toBeInTheDocument()
+  expect(view.container.querySelector('.pi-actions')).toBeNull()
+  expect(view.container.querySelector('.pi-thread')?.firstElementChild).toHaveClass('thread-detail')
+  expect(a.interrupt).not.toHaveBeenCalled()
 })
 it.each(['current', 'history'] as const)('folds failed tools in %s reading', (mode) => {
   const current = thread()

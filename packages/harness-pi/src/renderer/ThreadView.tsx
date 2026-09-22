@@ -61,10 +61,7 @@ function PiTimeline(props: Props): React.JSX.Element {
     })
   }, [state, t])
   return <div className="pi-thread provider-theme-pi">
-    <div className="pi-actions">
-      {active ? <button disabled={busy} onClick={() => void run(props.actions.interrupt)}>{t('中断')}</button> : null}
-      {error ? <div role="alert">{error}</div> : null}
-    </div>
+    {error ? <div className="pi-action-error" role="alert">{error}</div> : null}
     <ThreadDetailSurface threadId={props.thread.id} title={props.thread.title} icon={props.thread.emoji}
       running={latest?.status === 'running'} runningTurnId={active ? latest?.executionId : undefined}
       readingTarget={props.readingTarget ? { requestId: props.readingTarget.requestId,
