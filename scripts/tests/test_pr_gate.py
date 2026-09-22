@@ -764,6 +764,12 @@ class CliTests(unittest.TestCase):
             self.assertEqual(merge.call_args.kwargs["method"], method)
             self.assertTrue(merge.call_args.kwargs["check"])
 
+    def test_github_cli_wrapper_preserves_arguments(self):
+        with patch.dict(os.environ, {"OPENAGENT_GITHUB_CLI": "/tmp/ghw-wrapper"}), patch.object(lib.subprocess, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, '{"ok": true}', '')
+            self.assertEqual(lib.gh(["api", "repos/owner/repo"]), {"ok": True})
+            self.assertEqual(run.call_args.args[0], ["/tmp/ghw-wrapper", "api", "repos/owner/repo"])
+
     def test_subprocess_gh_adapter_and_real_cli_without_network(self):
         with tempfile.TemporaryDirectory(prefix="pr-gate-test-") as directory:
             fake = Path(directory) / "gh"

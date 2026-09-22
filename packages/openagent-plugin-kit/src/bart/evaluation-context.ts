@@ -1,4 +1,4 @@
-import type { DeepReadonly, HarnessBartContextContributor } from '@openagent/contracts'
+import type { DeepReadonly, HarnessBartContextContributor, HarnessBackend } from '@openagent/contracts'
 import type { BartEvaluationModelIdentity } from './evaluation-facts.js'
 import { formatBartEvaluationFactsForNativeModels } from './evaluation-policy.js'
 import type { BartEvaluationSource } from './evaluation-source.js'
@@ -6,6 +6,7 @@ import type { BartEvaluationSource } from './evaluation-source.js'
 /** Native model matching stays inside Plugin Kit; Core receives final advice. */
 export function createBartEvaluationContext<Settings>(options: {
   readonly source: BartEvaluationSource
+  readonly loadBackend?: (input: { readonly settings: DeepReadonly<Settings>; readonly cwd: string; readonly signal: AbortSignal }) => Promise<HarnessBackend>
   readonly loadIdentities: (input: {
     readonly settings: DeepReadonly<Settings>
     readonly cwd: string
@@ -19,12 +20,20 @@ export function createBartEvaluationContext<Settings>(options: {
       signal.throwIfAborted()
       validateIdentities(loaded)
       if (loaded.length === 0) return undefined
-      const identities = structuredClone(loaded)
-      const facts = await waitWithAbort(options.source.waitForBootstrap(identities.map(identity => [
+      const backend = await options.loadBackend?.({ settings, cwd, signal })
+      const identities = structuredClone(loaded.map(identity => backend?.kind === 'provider'
+        ? { ...identity, ...backend.identify(identity.selector) }
+        : backend?.kind === 'unknown' ? { ...identity, evaluationRelease: null } : identity))
+      validateIdentities(identities)
+      const acquisitionIdentities = identities.map(identity => identity.evaluationRelease !== undefined
+        ? identity.evaluationRelease === null ? [] : [identity.evaluationRelease]
+        : [
         identity.selector,
         ...(identity.displayName ? [identity.displayName] : []),
         ...(identity.aliases ?? [])
-      ]), signal), signal)
+      ]).filter(identity => identity.length > 0)
+      if (acquisitionIdentities.length === 0) return undefined
+      const facts = await waitWithAbort(options.source.waitForBootstrap(acquisitionIdentities, signal), signal)
       signal.throwIfAborted()
       if (facts.availability !== 'available') return undefined
       return formatBartEvaluationFactsForNativeModels(facts, identities.map(identity => ({
@@ -46,7 +55,7 @@ function validateIdentities(identities: readonly BartEvaluationModelIdentity[]):
     throw new Error('Plugin evaluation identities exceed the bounded acquisition limit')
   }
   for (const identity of identities) {
-    const values = [identity.selector, ...(identity.displayName === undefined ? [] : [identity.displayName]), ...(identity.aliases ?? [])]
+    const values = [identity.selector, ...(identity.evaluationRelease == null ? [] : [identity.evaluationRelease]), ...(identity.displayName === undefined ? [] : [identity.displayName]), ...(identity.aliases ?? [])]
     if ((identity.aliases?.length ?? 0) > 64 || values.some(value =>
       typeof value !== 'string' || !value || value !== value.trim() || value.includes('\0') || Buffer.byteLength(value) > 1024
     )) throw new Error('Plugin evaluation identity must be a canonical bounded string')

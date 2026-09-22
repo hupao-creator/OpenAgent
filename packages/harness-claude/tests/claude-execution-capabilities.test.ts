@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mockProviderAccess } from '@openagent/test-kit'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -113,7 +114,7 @@ describe('Host-owned provider configuration', () => {
     const executable = join(directory, 'claude-fixture')
     await writeFile(executable, `#!${process.execPath}
 const fs = require('node:fs')
-fs.writeFileSync(process.env.CLI_CAPTURE, JSON.stringify(process.argv.slice(2)))
+fs.writeFileSync(process.env.CLI_CAPTURE, JSON.stringify({ args: process.argv.slice(2), env: { ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN, ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL } }))
 require('node:readline').createInterface({ input: process.stdin }).on('line', line => {
   const value = JSON.parse(line)
   if (value.type === 'control_request') process.stdout.write(JSON.stringify({
@@ -128,16 +129,22 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', li
     }]) {
       const capture = join(directory, providerOverride ? 'override.json' : 'normal.json')
       const transport = new ClaudeTransport({
-        executable, cwd: directory, environment: { CLI_CAPTURE: capture }, providerOverride,
+        executable, cwd: directory, environment: { CLI_CAPTURE: capture }, providerInjection: providerOverride ? mockProviderAccess('claude', providerOverride).explicit!.injection : undefined,
         sessionId: 'host-isolation', resume: false, settings: { executablePath: executable },
         interactive: false, persistSession: false, onEvent: () => undefined
       })
+      let settingsPath: string | undefined
       try {
         await transport.inspectInitialization()
-        const args = JSON.parse(await readFile(capture, 'utf8')) as string[]
+        const captured = JSON.parse(await readFile(capture, 'utf8'))
+        const args = captured.args as string[]
         const settingsIndex = args.indexOf('--settings')
-        const injected = settingsIndex >= 0 ? JSON.parse(args[settingsIndex + 1]) : {}
+        settingsPath = providerOverride ? args[settingsIndex + 1] : undefined
+        const injected = settingsPath ? JSON.parse(await readFile(settingsPath, 'utf8')) : settingsIndex >= 0 ? JSON.parse(args[settingsIndex + 1]) : {}
+        expect(args.join(' ')).not.toContain('claude-instance-key')
+        if (settingsPath) expect((await stat(settingsPath)).mode & 0o777).toBe(0o600)
         if (providerOverride) {
+          expect(captured.env).toEqual({ ANTHROPIC_AUTH_TOKEN: 'claude-instance-key', ANTHROPIC_MODEL: 'deepseek-v4-pro' })
           expect(injected.env).toMatchObject({
             ANTHROPIC_AUTH_TOKEN: 'claude-instance-key',
             ANTHROPIC_MODEL: 'deepseek-v4-pro'
@@ -149,6 +156,7 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', li
       } finally {
         await transport.dispose()
       }
+      if (settingsPath) await expect(stat(settingsPath)).rejects.toMatchObject({ code: 'ENOENT' })
     }
   })
 })

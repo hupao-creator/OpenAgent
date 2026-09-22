@@ -20,6 +20,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@openagent/plugin-kit": "workspace:*",
+    "@openagent/provider-mock": "workspace:*",
     "@openagent/contracts": "workspace:*"
   },
   "devDependencies": {

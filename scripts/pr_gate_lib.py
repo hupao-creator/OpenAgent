@@ -2,6 +2,7 @@
 
 import json
 import math
+import os
 import re
 import subprocess
 import time
@@ -135,7 +136,7 @@ def classify(*, head, reviews, comments, reactions=(), inline=()):
 
 def _run_gh(args, timeout):
     try:
-        result = subprocess.run(["gh", *args], capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+        result = subprocess.run([os.environ.get("OPENAGENT_GITHUB_CLI", "gh"), *args], capture_output=True, text=True, encoding="utf-8", timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise RuntimeError("gh {}: {}".format(" ".join(args), error)) from error
     if result.returncode:

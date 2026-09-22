@@ -27,6 +27,7 @@ export const claudeMainPluginModule: HarnessMainPluginModule<
   ClaudeSettingsPresentationData
 > = {
   id: 'claude',
+  providerSupport: { format: 'claude-settings-env-v1', scopes: ['harness'] },
   descriptor: claudeDescriptor,
   defaultHarnessSettings: DEFAULT_CLAUDE_HARNESS_SETTINGS,
   createMainPlugin(context: HarnessPluginHostContext): ClaudeMainPluginBundle {
@@ -39,7 +40,7 @@ export const claudeMainPluginModule: HarnessMainPluginModule<
         'claude'
       ),
       environment: () => context.environment(),
-      providerOverride: context.providerOverride,
+      providers: context.providers,
       temporaryWorkspaceRoot: context.temporaryWorkspaceRoot
     })
   }

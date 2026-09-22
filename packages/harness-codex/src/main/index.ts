@@ -1,4 +1,4 @@
-import { acquireBartEvaluationSource, createBartEvaluationContext } from '@openagent/plugin-kit/bart/main'
+import { acquireBartEvaluationSource, createBartEvaluationContext, providerTelemetryContext } from '@openagent/plugin-kit/bart/main'
 import spawn from 'cross-spawn'
 import { createCliAvailabilityProbe, runCliInstaller } from '@openagent/plugin-kit/main'
 import { execFile } from 'node:child_process'
@@ -26,7 +26,6 @@ import { CATALOG_TTL_MS, createCodexCatalogSource } from './catalog.js'
 import { normalizeCodexThreadSettings } from '../shared/settings.js'
 import { codexSessionState } from '../shared/session-state.js'
 import {
-  debugEnvironmentSummary,
   debugError,
   debugLog,
   startDebugSpan
@@ -113,7 +112,7 @@ export function createCodexMainPlugin(context: CodexMainContext): CodexMainPlugi
     prompt: createCodexPromptApi(runtime),
     // API-key providers have no OpenAI auto-review service. Keep user approval
     // as their default; an explicit approve-for-me request still validates it.
-    settings: createCodexSettingsApi(catalogSource, context.providerOverride ? 'ask-for-approval' : undefined),
+    settings: createCodexSettingsApi(catalogSource, context.providers?.explicit ? 'ask-for-approval' : undefined),
     settingsPresentation: {
       async load(input): Promise<CodexSettingsPresentationData> {
         if (input.signal.aborted) throw abortError()
@@ -152,24 +151,9 @@ export function createCodexMainPlugin(context: CodexMainContext): CodexMainPlugi
             presentations.clear()
             catalogSource.invalidate()
           }
-          const resolveSpan = startDebugSpan('codex.resolve-environment', {
-            harnessId: 'codex',
-            purpose: 'settings-presentation',
-            cwd,
-            ...(configuredExecutable ? { configuredExecutable } : {})
-          })
-          let resolvedExecutable: string
-          let environment: NodeJS.ProcessEnv
-          try {
-            [resolvedExecutable, environment] = await Promise.all([
-              context.resolveExecutable(cwd, configuredExecutable),
-              context.environment()
-            ])
-            resolveSpan.end({ executable: resolvedExecutable, ...debugEnvironmentSummary(environment) })
-          } catch (error) {
-            resolveSpan.fail(error)
-            throw error
-          }
+          const acquired = await runtime.server(cwd, configuredExecutable, input.signal, 'standard', 'settings-presentation')
+          presentationServer = acquired.server
+          const { executable: resolvedExecutable, environment } = acquired
           if (input.signal.aborted) throw abortError()
           executable = resolvedExecutable
           const cacheKey = `${executable}\0${cwd}`
@@ -189,9 +173,6 @@ export function createCodexMainPlugin(context: CodexMainContext): CodexMainPlugi
             })
             return cachedPresentation.value
           }
-          presentationServer = new CodexAppServer(executable, environment, {
-            debugPurpose: 'settings-presentation'
-          })
           const versionSpan = startDebugSpan('codex.cli-version.probe', {
             harnessId: 'codex',
             purpose: 'settings-presentation',
@@ -323,6 +304,7 @@ export function createCodexMainPlugin(context: CodexMainContext): CodexMainPlugi
     bartContextEntries: {
       evaluation: createBartEvaluationContext<CodexHarnessSettings>({
         source: evaluationSource,
+        loadBackend: ({ cwd, signal }) => runtime.backend(cwd, signal),
         // Harness-level settings cannot pin the binary; the host auto-detects.
         async loadIdentities({ cwd, signal }) {
           const catalog = await catalogSource.load({ cwd, signal })
@@ -331,29 +313,33 @@ export function createCodexMainPlugin(context: CodexMainContext): CodexMainPlugi
           }))
         }
       }),
-      telemetry: (input: {
+      telemetry: async (input: {
         readonly settings: DeepReadonly<CodexHarnessSettings>
         readonly cwd: string
         readonly telemetryLedger: import('@openagent/contracts').BartTelemetryLedgerCapability
         readonly signal: AbortSignal
-      }) => createCodexBartTelemetryContributor({
-        telemetryLedger: input.telemetryLedger,
-        readUsage: async (signal) => {
-          let server: CodexAppServer | undefined
-          try {
-            // Harness-level settings never choose the binary; auto-detect it.
-            const acquired = await runtime.server(
-              input.cwd,
-              undefined,
-              signal
-            )
-            server = acquired.server
-            return await server.readUsage(signal)
-          } finally {
-            await server?.dispose()
+      }) => {
+        const providerContext = await providerTelemetryContext(await runtime.backend(input.cwd, input.signal), input.signal)
+        if (providerContext !== undefined) return providerContext
+        return createCodexBartTelemetryContributor({
+          telemetryLedger: input.telemetryLedger,
+          readUsage: async (signal) => {
+            let server: CodexAppServer | undefined
+            try {
+              // Harness-level settings never choose the binary; auto-detect it.
+              const acquired = await runtime.server(
+                input.cwd,
+                undefined,
+                signal
+              )
+              server = acquired.server
+              return await server.readUsage(signal)
+            } finally {
+              await server?.dispose()
+            }
           }
-        }
-      })({ signal: input.signal })
+        })({ signal: input.signal })
+      }
     }
   }
 }

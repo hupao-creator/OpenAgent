@@ -32,7 +32,10 @@ describe('Claude live catalog admission', () => {
     const waitForBootstrap = vi.fn(async () => ({
       source: 'fixture evaluator', observedAt: null, availability: 'available' as const, releases: []
     }))
-    const contribute = createClaudeEvaluationContext({ load }, { waitForBootstrap })
+    const contribute = createClaudeEvaluationContext({ load }, { waitForBootstrap }, {
+      resolveExecutable: async () => 'claude',
+      environment: async () => ({ CLAUDE_CONFIG_DIR: '/nonexistent-openagent-fixture', ANTHROPIC_BASE_URL: 'https://api.anthropic.com' })
+    })
     const content = await contribute({
       settings: { threadSettings: {} },
       cwd: '/workspace/evaluation', signal,

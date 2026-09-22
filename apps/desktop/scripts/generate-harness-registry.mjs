@@ -152,6 +152,36 @@ const outputs = new Map([
   ['harness-registry.main.ts', processRegistry('main')],
   ['harness-registry.renderer.ts', processRegistry('renderer')]
 ])
+const providerEntries = []
+for (const name of Object.keys(desktopPackage.dependencies ?? {}).filter(name => name.startsWith('@openagent/provider-')).sort()) {
+  const match = /^@openagent\/provider-([a-z][a-z0-9-]*)$/.exec(name)
+  if (!match) throw new Error(`${name}: invalid Provider package name`)
+  const root = dirname(require.resolve(`${name}/package.json`))
+  const metadata = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  const paths = {}
+  for (const entry of ['./manifest', './main']) {
+    const exported = metadata.exports?.[entry]
+    paths[entry] = artifact(root, name, exported?.default)
+    artifact(root, name, exported?.types)
+  }
+  const { default: descriptor } = await import(pathToFileURL(paths['./manifest']).href)
+  if (metadata.name !== name || descriptor?.id !== match[1] || typeof descriptor.displayName !== 'string' ||
+    !Array.isArray(descriptor.harnesses) || !descriptor.harnesses.length ||
+    descriptor.harnesses.some(target => typeof target.harnessId !== 'string' || typeof target.format !== 'string' ||
+      !Array.isArray(target.scopes) || !target.scopes.length || target.scopes.some(scope => !['harness', 'thread'].includes(scope)))) {
+    throw new Error(`${name}: invalid Provider descriptor`)
+  }
+  providerEntries.push({ name, descriptor })
+}
+outputs.set('provider-registry.main.ts', [header,
+  "import type { ProviderPluginModule } from '@openagent/contracts'",
+  ...providerEntries.map(({ name }, i) => `import provider${i} from '${name}/main'`),
+  `export const providerPluginModules: readonly ProviderPluginModule[] = [${providerEntries.map((_, i) => `provider${i}`).join(', ')}]`,
+  `const expected = ${JSON.stringify(providerEntries.map(({ descriptor }) => descriptor))}`,
+  'for (const [index, plugin] of providerPluginModules.entries()) {',
+  "  if (JSON.stringify(plugin.descriptor) !== JSON.stringify(expected[index])) throw new Error('Provider module registration mismatch')",
+  '}', ''
+].join('\n'))
 const generatedDir = join(desktopRoot, 'src/generated')
 mkdirSync(generatedDir, { recursive: true })
 for (const [name, content] of outputs) {

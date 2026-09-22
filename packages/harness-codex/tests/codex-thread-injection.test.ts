@@ -177,7 +177,7 @@ describe('Codex generic Thread injection', () => {
       readThreadHistory, startTurn, subscribeNativeActivity: () => () => undefined,
       dispose: vi.fn(async () => undefined)
     } as unknown as CodexAppServer
-    vi.spyOn(test.runtime, 'server').mockResolvedValue({ executable: fixture, server: native })
+    vi.spyOn(test.runtime, 'server').mockResolvedValue({ executable: fixture, environment: {}, server: native })
     const injection: HarnessThreadInjection = { tools: { mode: 'exclusive', bindings: [{
       name: 'new_tool', description: 'Current tool', inputSchema: { type: 'object' }, execute: async () => null
     }] } }
@@ -219,7 +219,7 @@ describe('Codex generic Thread injection', () => {
     const dispose = vi.fn(async () => undefined)
     const startTurn = vi.fn()
     vi.spyOn(test.runtime, 'server').mockResolvedValue({
-      executable: fixture, server: { readThreadHistory, startTurn, dispose } as unknown as CodexAppServer
+      executable: fixture, environment: {}, server: { readThreadHistory, startTurn, dispose } as unknown as CodexAppServer
     })
     await expect(openCodexThread(test.runtime, {
       ...test.context(), injection: { tools: { mode: 'exclusive', bindings: [] } }
@@ -257,7 +257,7 @@ describe('Codex generic Thread injection', () => {
       return { sessionId, steer: async () => undefined, cancel: async () => undefined }
     })
     const acquire = vi.spyOn(test.runtime, 'server').mockResolvedValue({
-      executable: fixture,
+      executable: fixture, environment: {},
       server: {
         startTurn,
         readThreadHistory: vi.fn(async () => [

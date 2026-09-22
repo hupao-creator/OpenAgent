@@ -17,6 +17,7 @@ export function createOpaqueTelemetrySampleId(parts: readonly string[]): string 
 }
 
 export * from './evaluation-context.js'
+export * from './provider-context.js'
 export * from './evaluation-source.js'
 export * from './artificial-analysis-model-facts.js'
 export * from './evaluation-facts-store.js'

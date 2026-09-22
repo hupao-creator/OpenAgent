@@ -4,7 +4,7 @@ import { isJsonValue, type HarnessPluginHostContext, type HarnessPromptApi } fro
 import type { PiThreadSettings } from '../shared/types.js'
 import { startPiRpc, type PiRpc } from './runtime/rpc.js'
 import { piModelArguments } from './runtime/model-options.js'
-import { piEnvironment, piProviderSettings } from './runtime/provider-override.js'
+import { piEnvironment, piProviderSettings } from './runtime/provider-injection.js'
 
 export function createPiPrompt(host: HarnessPluginHostContext): HarnessPromptApi<PiThreadSettings> {
   return { async complete(request) {
@@ -15,7 +15,7 @@ export function createPiPrompt(host: HarnessPluginHostContext): HarnessPromptApi
     try {
       const executablePath = await host.resolveExecutable('pi', cwd, request.settings?.executablePath)
       rpc = await startPiRpc({ executablePath, cwd, env: await piEnvironment(host), signal: request.signal,
-        args: ['--no-session', '--no-tools', '--no-extensions', '--no-skills', '--no-prompt-templates', ...piModelArguments(piProviderSettings(request.settings ?? {}, host.providerOverride))] })
+        args: ['--no-session', '--no-tools', '--no-extensions', '--no-skills', '--no-prompt-templates', ...piModelArguments(piProviderSettings(request.settings ?? {}, host.providers?.explicit?.injection))] })
       let text = ''
       let stopReason = ''
       let resolve!: () => void

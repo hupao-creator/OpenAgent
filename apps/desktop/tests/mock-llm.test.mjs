@@ -9,7 +9,7 @@ test('an unrecognised LLM request fails instead of receiving a successful canned
   const llm = await createAcceptanceLlm()
   try {
     const response = await fetch(`${llm.url}/v1/chat/completions`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' },
       body: JSON.stringify({ model: 'mock-model', stream: false,
         messages: [{ role: 'user', content: 'This request has no test script.' }] })
     })
@@ -30,7 +30,7 @@ test('receipt calls are derived from HTTP instructions and history, and missing 
     { role: 'user', content: 'The current send receipt is 666f. Use acceptance_receipt.' }
   ]
   const post = () => fetch(`${llm.url}/v1/chat/completions`, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' },
     body: JSON.stringify({ model: 'mock-model', stream: false, messages,
       tools: [{ type: 'function', function: { name: 'acceptance_receipt', parameters: schema } }] })
   })
@@ -57,7 +57,7 @@ test('Anthropic tool results retain their contents and call identities over HTTP
   })
   try {
     const response = await fetch(`${llm.url}/v1/messages`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' },
       body: JSON.stringify({ model: 'mock-model', max_tokens: 100, stream: false,
         messages: [{ role: 'user', content: [
           { type: 'tool_result', tool_use_id: 'call_one', content: [{ type: 'text', text: 'result-one' }] },
@@ -76,7 +76,7 @@ test('cancelling a slow stream releases the mock process without draining the re
     llm.expect(() => true, () => ({ text: 'stream '.repeat(10000) }), { latency: 20, chunkSize: 20 });
     const controller = new AbortController();
     const response = await fetch(llm.url + '/v1/chat/completions', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' }, signal: controller.signal,
       body: JSON.stringify({ model: 'mock-model', stream: true, messages: [{ role: 'user', content: 'stream' }] })
     });
     await response.body.getReader().read();
@@ -95,7 +95,7 @@ test('Bart batch ignores JSON context preceding the explicit directive and neste
   const args = [1, 2, 3].map(n => ({ harnessId: 'codex', prompt: `Start with exactly STREAM_${n} on the first line. Output every integer from 1 through 4000.` }))
   try {
     const response = await fetch(`${llm.url}/v1/chat/completions`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' },
       body: JSON.stringify({ model: 'mock-model', stream: false,
         messages: [{ role: 'user', content: '{"namespace":"quota"}\nCall openagent_thread_start exactly three times, once with each JSON object below.\n' + args.map(arg => JSON.stringify(arg)).join('\n') }],
         tools: ['openagent_thread_list', 'openagent_thread_start'].map(name => ({ type: 'function', function: { name, parameters: { type: 'object' } } })) })
@@ -117,7 +117,7 @@ test('permission proof is read with the native read tool after the approved writ
   }])
   const messages = [{ role: 'user', content: "This is a native claude permission-response acceptance case.\nUse the native Bash tool to run exactly this command: printf %s 'PROOF' > '/tmp/proof.txt'\nAfter approval, read the proof file with a native read-only tool and output exactly PERMISSION_OK:PROOF." }]
   const post = () => fetch(`${llm.url}/v1/chat/completions`, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' },
     body: JSON.stringify({ model: 'mock-model', stream: false, messages,
       tools: ['Bash', 'Read'].map(name => ({ type: 'function', function: { name, parameters: { type: 'object' } } })) })
   })
@@ -135,7 +135,7 @@ test('malformed protocol requests and unknown routes fail health checks', async 
   for (const path of ['/v1/chat/completions', '/unknown']) {
     const llm = await createAcceptanceLlm()
     try {
-      const response = await fetch(llm.url + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stream: false, messages: [] }) })
+      const response = await fetch(llm.url + path, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' }, body: JSON.stringify({ stream: false, messages: [] }) })
       assert.ok(response.status >= 400)
       assert.throws(() => llm.assertHealthy(), /HTTP (400|404)/)
     } finally { await assert.rejects(llm.close(), /HTTP (400|404)/) }
@@ -152,7 +152,7 @@ test('concurrent large native requests retain one complete JSON record per evide
   llm.expect(() => true, () => 'acknowledged')
   try {
     const responses = await Promise.all(Array.from({ length: 8 }, (_, index) => fetch(`${llm.url}/v1/chat/completions`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' },
       body: JSON.stringify({ model: 'mock-model', stream: false, messages: [{ role: 'user', content: `${index}:` + 'x'.repeat(600000) }] })
     })))
     assert.ok(responses.every(response => response.status === 200))
@@ -175,7 +175,7 @@ test('shutdown rejects a late HTTP failure after the earlier health check passed
     throw new Error('late native request failed')
   })
   const response = fetch(`${llm.url}/v1/chat/completions`, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' },
     body: JSON.stringify({ model: 'mock-model', stream: false, messages: [{ role: 'user', content: 'pending at native shutdown' }] })
   })
   await started

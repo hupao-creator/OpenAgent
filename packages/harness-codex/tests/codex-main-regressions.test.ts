@@ -1,3 +1,4 @@
+import { mockProviderAccess } from '@openagent/test-kit'
 import {
   chmod,
   mkdir,
@@ -125,6 +126,56 @@ describe('Codex Main regression coverage', () => {
       models: [],
       modelsError: 'model catalog unavailable'
     })
+  })
+
+  it('reads settings models from the explicit Provider home without a native login', async () => {
+    await chmod(fixture, 0o755)
+    const directory = await temporaryDirectory('codex-provider-presentation-')
+    const plugin = createCodexMainPlugin({ resolveExecutable: async () => fixture,
+      environment: async () => ({ ...process.env, CODEX_HOME: join(directory, 'no-native-home'), FAKE_CODEX_MODEL_FROM_HOME: '1' }),
+      providers: mockProviderAccess('codex', { model: 'connected-model' }), dataRoot: directory, temporaryWorkspaceRoot: directory })
+    try {
+      const presentation = await plugin.settingsPresentation.load({ settings: { threadSettings: {} }, cwd: directory, signal: new AbortController().signal })
+      expect(presentation.cli.available).toBe(true)
+      expect(presentation.models.map(model => model.value)).toEqual(['connected-model'])
+      expect(presentation.modelsError).toBeUndefined()
+    } finally { await plugin.dispose?.() }
+  })
+
+  it('cancels a settings reader while another reader shares the pending Provider home', async () => {
+    const directory = await temporaryDirectory('codex-provider-cancel-')
+    const executable = join(directory, 'codex-probe.mjs')
+    const started = join(directory, 'started')
+    const release = join(directory, 'release')
+    await writeFile(executable, `#!/usr/bin/env node
+import { appendFileSync, existsSync } from 'node:fs'
+if (process.argv[2] === 'debug') {
+  appendFileSync(${JSON.stringify(started)}, 'probe\\n')
+  while (!existsSync(${JSON.stringify(release)})) await new Promise(resolve => setTimeout(resolve, 10))
+}
+await import(${JSON.stringify(pathToFileURL(fixture).href)})
+`, { mode: 0o755 })
+    const plugin = createCodexMainPlugin({ resolveExecutable: async () => executable,
+      environment: async () => ({ ...process.env, FAKE_CODEX_MODEL_FROM_HOME: '1' }),
+      providers: mockProviderAccess('codex', { model: 'connected-model' }), dataRoot: directory, temporaryWorkspaceRoot: directory })
+    const controller = new AbortController()
+    const first = plugin.settingsPresentation.load({ settings: { threadSettings: {} }, cwd: directory, signal: controller.signal })
+    const cancelled = expect(first).rejects.toMatchObject({ name: 'AbortError' })
+    let second: ReturnType<typeof plugin.settingsPresentation.load> | undefined
+    try {
+      await vi.waitFor(async () => expect(await readFile(started, 'utf8')).toBe('probe\n'))
+      second = plugin.settingsPresentation.load({ settings: { threadSettings: {} }, cwd: directory, signal: new AbortController().signal })
+      controller.abort()
+      await cancelled
+      await writeFile(release, '')
+      expect((await second).models.map(model => model.value)).toEqual(['connected-model'])
+      expect(await readFile(started, 'utf8')).toBe('probe\n')
+    } finally {
+      controller.abort()
+      await writeFile(release, '')
+      await Promise.allSettled([first, second, cancelled])
+      await plugin.dispose?.()
+    }
   })
 
   it('loads a Thread presentation from its pinned executable and cwd', async () => {
@@ -272,7 +323,7 @@ describe('Codex Main regression coverage', () => {
     const runtime = new CodexRuntime({
       resolveExecutable: async () => fixture,
       environment: async () => ({ ...process.env, CODEX_HOME: sourceHome }),
-      providerOverride: { provider: 'deepseek', apiKey: 'test-provider-key', baseUrl: 'http://127.0.0.1:12345', model: 'deepseek-v4-pro' },
+      providers: mockProviderAccess('codex', { apiKey: 'test-provider-key', model: 'deepseek-v4-pro' }),
       dataRoot, temporaryWorkspaceRoot: directory
     })
     const acquired = await runtime.server(directory, undefined, undefined, { toolMode: 'exclusive', threadId: 'key-only' })
@@ -280,8 +331,8 @@ describe('Codex Main regression coverage', () => {
       const isolationRoot = join(dataRoot, 'application-tools-only')
       const [home] = await readdir(isolationRoot)
       await expect(stat(join(isolationRoot, home!, 'auth.json'))).rejects.toMatchObject({ code: 'ENOENT' })
-      expect(await readFile(join(isolationRoot, home!, 'config.toml'), 'utf8')).toContain('requires_openai_auth = false')
-      expect(await readFile(join(isolationRoot, home!, 'config.toml'), 'utf8')).toContain('features.shell_snapshot = false')
+      expect(await readFile(join(isolationRoot, home!, 'config.toml'), 'utf8')).toContain('"requires_openai_auth" = false')
+      expect(await readFile(join(isolationRoot, home!, 'config.toml'), 'utf8')).toContain('"shell_snapshot" = false')
     } finally { await acquired.server.dispose() }
   })
 
@@ -1486,6 +1537,7 @@ async function openBufferedDeltaHarness(suffix: string, options?: {
   } as unknown as CodexAppServer
   let serverAcquisitions = 0
   const runtime = {
+    context: {},
     server: async () => ({
       executable: '/fake/codex',
       server: serverAcquisitions++ === 0 ? primaryServer : auxiliaryServer

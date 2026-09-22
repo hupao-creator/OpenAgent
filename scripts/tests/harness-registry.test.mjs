@@ -7,12 +7,47 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { pathToFileURL } from 'node:url'
 
-const registryFiles = ['harness-registry', 'harness-registry.main', 'harness-registry.renderer']
+const registryFiles = ['harness-registry', 'harness-registry.main', 'harness-registry.renderer', 'provider-registry.main']
 const allCapabilities = {
   instructions: true,
   threadContext: true,
   sendContext: true,
   toolModes: ['extend', 'exclusive']
+}
+
+test('discovers Providers separately without executing their Main entry during generation', async context => {
+  const fixture = await createFixture(context, [{ id: 'alpha', displayName: 'Alpha', threadCapabilities: allCapabilities }])
+  await addProvider(fixture, "throw new Error('Provider Main must not run during generation')")
+  const result = generate(fixture)
+  assert.equal(result.status, 0, result.stderr)
+  const generated = await readFile(join(fixture.generatedRoot, 'provider-registry.main.ts'), 'utf8')
+  assert.match(generated, /@openagent\/provider-test\/main/)
+  assert.doesNotMatch(await readFile(join(fixture.generatedRoot, 'harness-registry.renderer.ts'), 'utf8'), /provider-test/)
+})
+
+test('validates Provider capabilities against the generated manifest at Main import', async context => {
+  const fixture = await createFixture(context, [{ id: 'alpha', displayName: 'Alpha', threadCapabilities: allCapabilities }])
+  await addProvider(fixture, "export default { descriptor: { id: 'test', harnesses: [] } }")
+  assert.equal(generate(fixture).status, 0)
+  await compileGenerated(fixture)
+  await assert.rejects(import(pathToFileURL(join(fixture.generatedRoot, 'provider-registry.main.js')).href), /Provider module registration mismatch/)
+})
+
+async function addProvider(fixture, main) {
+  const packagePath = join(fixture.desktopRoot, 'package.json')
+  const metadata = JSON.parse(await readFile(packagePath, 'utf8'))
+  metadata.dependencies['@openagent/provider-test'] = 'workspace:*'
+  await writeFile(packagePath, JSON.stringify(metadata))
+  const root = join(fixture.desktopRoot, 'node_modules', '@openagent', 'provider-test')
+  await mkdir(join(root, 'dist'), { recursive: true })
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@openagent/provider-test', type: 'module', exports: {
+    './package.json': './package.json',
+    ...Object.fromEntries(['manifest', 'main'].map(entry => [`./${entry}`, { types: `./dist/${entry}.d.ts`, default: `./dist/${entry}.js` }]))
+  } }))
+  await writeFile(join(root, 'dist', 'manifest.js'), `export default ${JSON.stringify({ id: 'test', displayName: 'Test', testOnly: true,
+    harnesses: [{ harnessId: 'alpha', format: 'test-v1', scopes: ['harness'] }] })}`)
+  await writeFile(join(root, 'dist', 'main.js'), main)
+  for (const entry of ['manifest', 'main']) await writeFile(join(root, 'dist', `${entry}.d.ts`), 'declare const value: unknown; export default value;')
 }
 
 test('aggregates native capabilities without executing process entries or exporting product policy', async (context) => {

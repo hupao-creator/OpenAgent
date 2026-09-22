@@ -15,7 +15,7 @@ import {
 } from './debug.js'
 
 export interface ClaudeCatalogContext {
-  readonly providerOverride?: import('@openagent/contracts').HarnessProviderOverride
+  readonly providers?: import('@openagent/contracts').HarnessProviderAccess
   resolveExecutable(cwd: string, configuredPath?: string): Promise<string>
   environment(): Promise<NodeJS.ProcessEnv>
 }
@@ -126,7 +126,7 @@ export function createClaudeCatalogSource(
           executable,
           cwd: input.cwd,
           environment,
-          providerOverride: context.providerOverride,
+          providerInjection: context.providers?.explicit?.injection,
           sessionId: randomUUID(),
           resume: false,
           settings: { executablePath: configuredExecutable },

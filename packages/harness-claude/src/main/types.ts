@@ -12,7 +12,7 @@ import type { ClaudeCatalogSource } from './catalog.js'
 
 export interface ClaudeMainContext {
   resolveExecutable(cwd: string, configuredPath?: string): Promise<string>
-  readonly providerOverride?: import('@openagent/contracts').HarnessProviderOverride
+  readonly providers?: import('@openagent/contracts').HarnessProviderAccess
   environment(): Promise<NodeJS.ProcessEnv>
   temporaryWorkspaceRoot?: string
   interruptTimeouts?: ClaudeTransportOptions['interruptTimeouts']

@@ -47,6 +47,19 @@ function input(signal = new AbortController().signal) {
 }
 
 describe('Plugin-owned evaluation context', () => {
+  it.each(['unknown-backend', 'authoritatively-unmeasured'])('does not initialize shared acquisition for %s', async kind => {
+    const waitForBootstrap = vi.fn(async () => available(release('zenith-9-1', 'Zenith 9.1')))
+    const source = { waitForBootstrap }
+    const unmeasured = createBartEvaluationContext({ source,
+      loadBackend: async () => ({ kind: kind === 'unknown-backend' ? 'unknown' as const : 'native' as const }),
+      loadIdentities: async () => [{ selector: 'zenith-9.1', ...(kind === 'authoritatively-unmeasured' ? { evaluationRelease: null } : {}) }] })
+    expect(await unmeasured(input())).toBeUndefined()
+    expect(waitForBootstrap).not.toHaveBeenCalled()
+    const native = createBartEvaluationContext({ source, loadIdentities: async () => [{ selector: 'zenith-9.1' }] })
+    expect(await native(input())).toContain('Canonical evaluation release: zenith-9-1')
+    expect(waitForBootstrap).toHaveBeenCalledOnce()
+  })
+
   it('loads native identities and contributes final matching facts without passing settings to acquisition', async () => {
     const request = input()
     const identities = [{

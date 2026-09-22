@@ -317,7 +317,7 @@ finishReason，不能把 echo 充当模型。自动标题等能力需要这一�
 安装检测只检测标准 CLI 是否存在，不能读取自定义路径或调用模型。运行可用性 probe
 单独判断配置路径、启动、认证等实际条件，不能依赖 settings presentation 或加载模型目录。
 使用 `createMainPlugin(context)` 的 `resolveExecutable(command, cwd, configuredPath)`、
-`environment()`、`providerOverride` 和插件专属数据根；不要在 Plugin Kit 偷读 `.env`
+`environment()`、`providers` 和插件专属数据根；不要在 Plugin Kit 偷读 `.env`
 或自行选择全局 provider。`install?` 是可选官方安装器能力。
 
 真实设置流程：shared 保存 HarnessSettings、ThreadSettings/request/update、PromptSettings
@@ -521,3 +521,5 @@ Demo 不能作为 Bart host。无需真实模型的自动演练可使用仓库�
 最终边界清单：shared 无进程依赖；Main 拥有 native I/O；Renderer 只拥有视图；
 Harness 之间互不依赖；Core 只经生成 registry 组合；Host commit 将插件 state 与纯投影
 observation 原子发布；一个 Thread 一个 Handle owner；Report HTML 不获得任何 Host 能力。
+
+独立模型服务通过 [Provider Plugin](PROVIDER_PLUGIN_GUIDE.md) 绑定。Harness 只应用其声明支持的注入格式；自带订阅继续由原生 Harness 管理。

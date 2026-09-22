@@ -11,7 +11,7 @@ import {
   initDebugLog
 } from '@openagent/plugin-kit/main'
 import { createMainHarnessComposition } from './harness-composition'
-import { loadHarnessProviderOverride } from './harness-execution-environment'
+import { loadProviderConnections } from './harness-execution-environment'
 import {
   DEFAULT_HEADLESS_PORT,
   startHeadlessControl,
@@ -55,6 +55,7 @@ interface RuntimeServices {
 
 let mainWindow: BrowserWindow | null = null
 let openAgentService: OpenAgentService | null = null
+let providerConnections: Awaited<ReturnType<typeof loadProviderConnections>>['connections'] | undefined
 let runtimeServices: RuntimeServices | null = null
 let headlessControl: HeadlessControl | null = null
 let headlessOpening: Promise<HeadlessControl> | null = null
@@ -110,6 +111,7 @@ const quitCoordinator = new AppQuitCoordinator({
     app.removeListener('activate', openMainWindow)
     removeAppearanceListener?.()
     appearance.dispose()
+    providerConnections?.dispose()
     const results = await Promise.allSettled([
       closeHeadlessControl(),
       // Revoke the Service before joining startup: initializeService's error
@@ -217,12 +219,14 @@ async function initializeService(): Promise<void> {
   const defaultCwd = await realpath(paths.openAgentHome)
   assertStartupRunning()
 
-  const providerOverride = await loadHarnessProviderOverride({
+  const providers = await loadProviderConnections({
+    headless,
     environment: { ...process.env },
     cwd: process.cwd()
   })
   assertStartupRunning()
-  const resolver = new CliResolver(headless && providerOverride ? { ...process.env } : undefined)
+  providerConnections = providers.connections
+  const resolver = new CliResolver(headless ? { ...process.env } : undefined)
   const worktreeManager = new WorktreeManager({
     registryPath: join(userDataPath, 'openagent-state-v4', 'managed-worktrees.json')
   })
@@ -240,7 +244,8 @@ async function initializeService(): Promise<void> {
     assertStartupRunning()
     mainHarnesses = createMainHarnessComposition({
       resolver,
-      providerOverride,
+      providerConnections: providers.connections,
+      providerBindings: providers.bindings,
       harnessDataRoot: join(userDataPath, 'harnesses'),
       temporaryWorkspaceRoot: paths.temporaryWorkspaceRoot,
       telemetryLedgerFor: (harnessId) => {
@@ -278,6 +283,7 @@ async function initializeService(): Promise<void> {
     }
     runtimeServices = { attachmentStore, defaultCwd }
   } catch (error) {
+    providers.connections.dispose()
     // Before Service takes ownership, startup owns every acquired sidecar.
     // Join the entire acquisition batch before disposing even on partial failure.
     const cleanup = service

@@ -1,14 +1,15 @@
+import { mockProviderAccess } from '@openagent/test-kit'
 import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { HarnessPluginHostContext, HarnessProviderOverride } from '@openagent/contracts'
+import type { HarnessPluginHostContext, ProviderConnectionConfiguration } from '@openagent/contracts'
 import { createPiPrompt } from '../src/main/prompt.js'
 import { startPiRpc } from '../src/main/runtime/rpc.js'
 vi.mock('../src/main/runtime/rpc.js', () => ({ startPiRpc: vi.fn() }))
 const roots: string[] = []
 afterEach(async () => { vi.clearAllMocks(); await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true }))) })
-async function fixture(events: Record<string, unknown>[], providerOverride?: HarnessProviderOverride) {
+async function fixture(events: Record<string, unknown>[], providerOverride?: Omit<ProviderConnectionConfiguration, 'id'>) {
   const root = await mkdtemp(join(tmpdir(), 'pi-prompt-')); roots.push(root)
   let listener: (event: Record<string, unknown>) => void = () => {}
   const dispose = vi.fn(async () => {})
@@ -17,15 +18,15 @@ async function fixture(events: Record<string, unknown>[], providerOverride?: Har
     return {}
   })
   vi.mocked(startPiRpc).mockResolvedValue({ request, dispose, write: vi.fn(), subscribe: fn => { listener = fn; return () => {} }, onFailure: () => () => {} })
-  const host: HarnessPluginHostContext = { harnessDataRoot: root, temporaryWorkspaceRoot: root, resolveExecutable: async () => '/bin/pi', environment: async () => ({}), providerOverride }
+  const host: HarnessPluginHostContext = { harnessDataRoot: root, temporaryWorkspaceRoot: root, resolveExecutable: async () => '/bin/pi', environment: async () => ({}), providers: providerOverride ? mockProviderAccess('pi', providerOverride) : undefined }
   return { api: createPiPrompt(host), root, request, dispose }
 }
 const message = (text: string, stopReason = 'stop') => ({ type: 'message_end', message: { role: 'assistant', stopReason, content: [{ type: 'text', text }] } })
 it('uses the Host provider for metadata without native defaults or login', async () => {
-  const f = await fixture([message('Title'), { type: 'agent_settled' }], { provider: 'deepseek', model: 'deepseek-v4-flash', apiKey: 'metadata-key', baseUrl: 'http://127.0.0.1:12345' })
+  const f = await fixture([message('Title'), { type: 'agent_settled' }], { providerId: 'mock', model: 'deepseek-v4-flash', apiKey: 'metadata-key', baseUrl: 'http://127.0.0.1:12345' })
   await f.api.complete({ messages: [], outputFormat: { type: 'text' }, signal: new AbortController().signal })
   expect(vi.mocked(startPiRpc).mock.calls[0]?.[0]).toMatchObject({
-    env: { OPENAGENT_PROVIDER_API_KEY: 'metadata-key' }, args: expect.arrayContaining(['--provider', 'deepseek', '--model', 'deepseek-v4-flash'])
+    env: { OPENAGENT_PROVIDER_API_KEY: 'metadata-key' }, args: expect.arrayContaining(['--provider', 'mock', '--model', 'deepseek-v4-flash'])
   })
 })
 it('waits through native retry and returns the final isolated JSON response', async () => {

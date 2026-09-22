@@ -481,6 +481,14 @@ export class CodexAppServer {
     })
   }
 
+  /** Establish native subscription authority without exposing account credentials. */
+  async hasNativeSubscription(signal?: AbortSignal): Promise<boolean> {
+    throwIfAborted(signal)
+    await this.ensureReady(signal)
+    const response = await this.request('account/read', { refreshToken: false }, 7_500, signal)
+    return record(record(response).account).type === 'chatgpt'
+  }
+
   /** Read-only native account quota capability owned by the Codex Plugin. */
   async readUsage(signal?: AbortSignal): Promise<unknown> {
     throwIfAborted(signal)

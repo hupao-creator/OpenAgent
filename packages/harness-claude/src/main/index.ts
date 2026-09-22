@@ -93,7 +93,7 @@ export function createClaudeMainPlugin(
     catalogSource,
     bartContextEntries: {
       telemetry: createClaudeTelemetryContext(mainContext),
-      evaluation: createClaudeEvaluationContext(catalogSource, evaluationSource)
+      evaluation: createClaudeEvaluationContext(catalogSource, evaluationSource, mainContext)
     }
   }
 }

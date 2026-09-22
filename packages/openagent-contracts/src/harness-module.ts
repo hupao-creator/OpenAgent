@@ -13,15 +13,6 @@ export type HarnessProcessEnvironment = {
   [key: string]: string | undefined
 }
 
-/** Explicit provider configuration selected and resolved by the Host. */
-export interface HarnessProviderOverride {
-  readonly provider: string
-  readonly apiKey: string
-  readonly model: string
-  /** Provider origin. Each Harness owns its native protocol and route suffix. */
-  readonly baseUrl: string
-}
-
 /**
  * Host capabilities scoped to one Main Plugin module at composition time. The
  * Plugin supplies its executable command explicitly; harnessDataRoot is its
@@ -29,7 +20,7 @@ export interface HarnessProviderOverride {
  * another module's root.
  */
 export interface HarnessPluginHostContext {
-  readonly providerOverride?: HarnessProviderOverride
+  readonly providers?: import('./provider-plugin.js').HarnessProviderAccess
   /** Configured relative paths resolve against cwd; bare names search the Host environment. */
   resolveExecutable(command: string, cwd: string, configuredPath?: string): Promise<string>
   environment(): Promise<HarnessProcessEnvironment>
@@ -96,6 +87,7 @@ export interface HarnessMainPluginModule<
   SettingsPresentationData
 > {
   readonly id: Id
+  readonly providerSupport?: Omit<import('./provider-plugin.js').ProviderHarnessTarget, 'harnessId'>
   readonly descriptor: HarnessPluginDescriptor<Id>
   readonly defaultHarnessSettings: HarnessSettings
   createMainPlugin(

@@ -137,6 +137,7 @@ class CodexThreadController implements HarnessThreadHandle {
   private state: CodexHarnessState
   private active?: ActiveExecution
   private server?: CodexAppServer
+  private recordNativeUsage = false
   private unsubscribeActivity?: () => void
   private readonly queue = new SerialQueue()
   private readonly readControllers = new Set<AbortController>()
@@ -225,6 +226,8 @@ class CodexThreadController implements HarnessThreadHandle {
             : 'standard'
         )).server
         throwIfAborted(operationSignal)
+        this.recordNativeUsage = !this.runtime.context.providers ||
+          (await this.runtime.backendForServer(this.server, cwd, operationSignal)).kind === 'native'
       }
       this.ensureActivitySubscription()
       const turn = await this.server.startTurn({
@@ -805,6 +808,7 @@ class CodexThreadController implements HarnessThreadHandle {
     active: ActiveExecution,
     event: Extract<CodexNativeEvent, { readonly type: 'generation-usage' }>
   ): Promise<void> {
+    if (!this.recordNativeUsage) return
     const sampleId = createOpaqueTelemetrySampleId([
       'codex',
       this.context.thread.id,

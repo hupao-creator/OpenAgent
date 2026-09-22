@@ -18,6 +18,8 @@ python3 scripts/pr-gate.py merge 123 [--check] [--merge|--rebase]
 
 ## 门禁策略（GATE_CHECKS）
 
+GitHub CLI 可通过 `OPENAGENT_GITHUB_CLI` 指定为一个可执行文件（默认 `gh`）。使用 `ghw` 等账号包装器时，将其可执行入口传给此变量；脚本仍执行相同的完整门禁，不改变审查或验证策略。若包装器是 shell function，可使用一个只转发参数的本地可执行脚本调用该函数。
+
 `gate`/`merge` 按检查清单裁决：任一 blocked → blocked（退出码 1）；否则任一 pending → pending（退出码 2）；否则 ready（退出码 0）。清单是唯一策略落点：改拦截条件只改对应 check 原子，增删条件只改 `GATE_CHECKS` 映射，`--only`/`--skip` 可临时缩小范围。映射的键保留为下表中的检查名，用于命令参数和 JSON 输出。
 
 | 检查 | pass | pending (2) | blocked (1) |

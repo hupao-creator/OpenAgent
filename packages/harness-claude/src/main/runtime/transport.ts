@@ -1,8 +1,9 @@
-import { claudeBartHeadlessSettings } from './bart-headless-config.js'
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { execFileSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { JsonLines } from '@openagent/plugin-kit/main'
 import spawn from 'cross-spawn'
 import type { AgentInput } from '@openagent/contracts'
@@ -41,7 +42,6 @@ import {
   type DebugContext,
   type DebugSpan
 } from '../debug.js'
-import type { HarnessProviderOverride } from '@openagent/contracts'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -121,7 +121,7 @@ export interface ClaudeTransportOptions {
   executable: string
   cwd: string
   environment: NodeJS.ProcessEnv
-  providerOverride?: HarnessProviderOverride
+  providerInjection?: import('@openagent/contracts').ProviderInjection
   sessionId: string
   resume: boolean
   settings: ClaudeThreadSettings
@@ -221,6 +221,7 @@ type ClaudeNativeTaskMutation =
 
 export class ClaudeTransport {
   private child?: ChildProcessWithoutNullStreams
+  private providerSettingsDirectory?: string
   private decoder = new JsonLines()
   private stderr = ''
   private disposed = false
@@ -285,10 +286,9 @@ export class ClaudeTransport {
       }
     }
     try {
-      const bartHeadlessEnv = this.options.providerOverride
       this.assertOpen()
       if (!this.child || this.child.killed) {
-        this.spawn({ parts: [] }, bartHeadlessEnv)
+        this.spawn({ parts: [] })
         this.initialized = this.initialize()
       }
       const result = await this.initialized
@@ -627,7 +627,9 @@ export class ClaudeTransport {
   }
 
   dispose(): Promise<void> {
-    this.disposePromise ||= this.disposeUnlocked()
+    this.disposePromise ||= this.disposeUnlocked().finally(async () => {
+      if (this.providerSettingsDirectory) await rm(this.providerSettingsDirectory, { recursive: true, force: true })
+    })
     return this.disposePromise
   }
 
@@ -722,7 +724,6 @@ export class ClaudeTransport {
       }
     }
     try {
-      const bartHeadlessEnv = this.options.providerOverride
       throwIfAborted(signal)
       this.assertOpen()
       if (this.child && !this.child.killed) {
@@ -732,7 +733,7 @@ export class ClaudeTransport {
         return
       }
       throwIfAborted(signal)
-      this.spawn(input, bartHeadlessEnv)
+      this.spawn(input)
       this.initialized = this.initialize()
       await abortable(this.initialized, signal)
       throwIfAborted(signal)
@@ -747,16 +748,25 @@ export class ClaudeTransport {
     }
   }
 
-  private spawn(input: AgentInput, bartHeadlessEnv?: HarnessProviderOverride): void {
-    const environment = withSystemProxy(this.options.environment)
+  private spawn(input: AgentInput): void {
+    const environment = withSystemProxy({ ...this.options.environment, ...this.options.providerInjection?.environment })
     const args = buildClaudeArguments(
       this.options,
       this.settings,
       this.sessionEstablished,
       input,
-      environment,
-      bartHeadlessEnv
+      environment
     )
+    if (this.options.providerInjection) {
+      // Preserve --settings precedence without putting credentials in argv.
+      // Synchronous creation keeps process acquisition atomic across callers.
+      const index = args.indexOf('--settings')
+      if (index < 0) throw new Error('Provider injection requires native settings')
+      this.providerSettingsDirectory ??= mkdtempSync(join(tmpdir(), 'openagent-claude-provider-'))
+      const path = join(this.providerSettingsDirectory, 'settings.json')
+      writeFileSync(path, args[index + 1]!, { mode: 0o600 })
+      args[index + 1] = path
+    }
     inDebugContext(this.debugContext, () => debugDetail('claude.transport.spawn', {
       harnessId: 'claude',
       purpose: this.options.debugPurpose || 'thread',
@@ -1720,7 +1730,7 @@ export async function runClaudePrompt(input: {
   executable: string
   cwd: string
   environment: NodeJS.ProcessEnv
-  providerOverride?: HarnessProviderOverride
+  providerInjection?: import('@openagent/contracts').ProviderInjection
   prompt: string
   systemPrompt?: string
   model?: string
@@ -1769,7 +1779,7 @@ export async function runClaudePrompt(input: {
     executable: input.executable,
     cwd: input.cwd,
     environment: input.environment,
-    providerOverride: input.providerOverride,
+    providerInjection: input.providerInjection,
     sessionId: randomUUID(),
     resume: false,
     ...(input.resumeSessionId
@@ -1905,7 +1915,6 @@ function buildClaudeArguments(
   resume: boolean,
   firstInput: AgentInput,
   environment: NodeJS.ProcessEnv,
-  bartHeadlessEnv?: HarnessProviderOverride
 ): string[] {
   const args = [
     '--print',
@@ -1945,7 +1954,7 @@ function buildClaudeArguments(
   }
   if (options.applicationToolsOnly) {
     args.push('--tools', '', '--disable-slash-commands', '--strict-mcp-config')
-    if (bareModeCanAuthenticate(options.environment)) args.push('--bare')
+    if (bareModeCanAuthenticate(environment)) args.push('--bare')
   }
   // Tool registration controls visibility. Permission bypasses and denies come
   // only from the same native settings used by ordinary Threads.
@@ -1960,14 +1969,9 @@ function buildClaudeArguments(
   }
   const proxySettings = explicitProxySettings(environment)
   const cliSettings: UnknownRecord = {
-    ...(Object.keys(proxySettings).length || bartHeadlessEnv
+    ...(Object.keys(proxySettings).length || options.providerInjection
       ? {
-          env: {
-            ...proxySettings,
-            ...(bartHeadlessEnv
-              ? claudeBartHeadlessSettings(bartHeadlessEnv)
-              : {})
-          }
+          env: { ...proxySettings, ...options.providerInjection?.environment }
         }
       : {}),
     ...(options.nativeWorktreeName !== undefined && !resume

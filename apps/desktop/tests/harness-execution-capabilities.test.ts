@@ -7,7 +7,7 @@ import type { ErasedHarnessMainPluginModule, HarnessPluginHostContext } from '@o
 import { createCliAvailabilityProbe } from '@openagent/plugin-kit/main'
 import { bindMainHarnessComposition } from '../src/main/harness-composition'
 import { canHostBart } from '../src/shared/harnesses'
-import { loadHarnessProviderOverride } from '../src/main/harness-execution-environment'
+import { loadHeadlessProviderConfiguration } from '../src/main/harness-execution-environment'
 import { createDefaultOpenAgentSettings } from '../src/shared/openagent-settings'
 import { harnessMainPluginModules } from '../src/generated/harness-registry.main'
 
@@ -127,21 +127,21 @@ describe('Host-owned provider configuration', () => {
   it('uses a loopback endpoint without reading dotenv or ambient credentials', async () => {
     const cwd = await workspace('ignored-file-key', 'ignored-model')
     const environment = { DEEPSEEK_API_KEY: 'ignored-environment-key' }
-    await expect(loadHarnessProviderOverride({ cwd, environment })).resolves.toBeUndefined()
-    await expect(loadHarnessProviderOverride({ cwd, environment: {
+    await expect(loadHeadlessProviderConfiguration({ cwd, environment })).resolves.toBeUndefined()
+    await expect(loadHeadlessProviderConfiguration({ cwd, environment: {
       ...environment, OPENAGENT_BART_HEADLESS_PROVIDER: 'mock', OPENAGENT_MOCK_LLM_URL: 'http://127.0.0.1:12345'
     } })).resolves.toEqual({ provider: 'mock', model: 'mock-model', apiKey: 'openagent-mock-key', baseUrl: 'http://127.0.0.1:12345' })
   })
 
   it.each(['https://api.deepseek.com', 'http://localhost:1234', 'http://127.0.0.1', 'http://127.0.0.1:1234/path', 'http://key@127.0.0.1:1234'])('rejects an endpoint outside the local test contract: %s', async baseUrl => {
-    await expect(loadHarnessProviderOverride({ cwd: '/unused', environment: {
+    await expect(loadHeadlessProviderConfiguration({ cwd: '/unused', environment: {
       OPENAGENT_BART_HEADLESS_PROVIDER: 'mock', OPENAGENT_MOCK_LLM_URL: baseUrl
     } })).rejects.toThrow('loopback origin')
   })
 
   it('rejects remote provider mode and a missing local server', async () => {
-    await expect(loadHarnessProviderOverride({ cwd: '/unused', environment: { OPENAGENT_BART_HEADLESS_PROVIDER: 'deepseek' } })).rejects.toThrow('local mock provider')
-    await expect(loadHarnessProviderOverride({ cwd: '/unused', environment: { OPENAGENT_BART_HEADLESS_PROVIDER: 'mock' } })).rejects.toThrow()
+    await expect(loadHeadlessProviderConfiguration({ cwd: '/unused', environment: { OPENAGENT_BART_HEADLESS_PROVIDER: 'deepseek' } })).rejects.toThrow('local mock provider')
+    await expect(loadHeadlessProviderConfiguration({ cwd: '/unused', environment: { OPENAGENT_BART_HEADLESS_PROVIDER: 'mock' } })).rejects.toThrow()
   })
 })
 

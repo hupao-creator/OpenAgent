@@ -1,4 +1,4 @@
-import { codexProviderOverrideConfig, codexProviderOverrideCatalog } from './provider-override.js'
+import { codexProviderInjectionConfig, codexProviderInjectionCatalog } from './provider-injection.js'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
@@ -21,11 +21,11 @@ import {
   debugLog,
   startDebugSpan
 } from '../debug.js'
-import type { HarnessProviderOverride } from '@openagent/contracts'
+import type { ProviderInjection } from '@openagent/contracts'
 
 export interface CodexMainContext {
   resolveExecutable(cwd: string, configuredPath?: string): Promise<string>
-  readonly providerOverride?: import('@openagent/contracts').HarnessProviderOverride
+  readonly providers?: import('@openagent/contracts').HarnessProviderAccess
   environment(): Promise<NodeJS.ProcessEnv>
   readonly dataRoot: string
   readonly temporaryWorkspaceRoot: string
@@ -43,6 +43,41 @@ export class CodexRuntime {
 
   constructor(readonly context: CodexMainContext) {}
 
+  async backend(cwd: string, signal: AbortSignal): Promise<import('@openagent/contracts').HarnessBackend> {
+    if (this.context.providers?.explicit) return this.context.providers.explicit
+    let server: CodexAppServer | undefined
+    try {
+      server = (await this.server(cwd, undefined, signal)).server
+      return await this.backendForServer(server, cwd, signal)
+    } catch {
+      signal.throwIfAborted()
+      return { kind: 'unknown' }
+    } finally { await server?.dispose() }
+  }
+
+  /** Resolve the authority of the same process that will execute the turn. */
+  async backendForServer(server: CodexAppServer, cwd: string, signal: AbortSignal): Promise<import('@openagent/contracts').HarnessBackend> {
+    if (this.context.providers?.explicit) return this.context.providers.explicit
+    try {
+      const config = await server.readThreadConfiguration(cwd, signal)
+      const environment = await this.context.environment()
+      signal.throwIfAborted()
+      const id = typeof config.model_provider === 'string' ? config.model_provider : 'openai'
+      const configured = jsonRecord(jsonRecord(config.model_providers)[id])
+      const baseUrl = typeof configured.base_url === 'string' ? configured.base_url : environment.OPENAI_BASE_URL
+      const external = id !== 'openai' || baseUrl !== undefined || Boolean(environment.OPENAI_API_KEY)
+      if (!external) return { kind: await server.hasNativeSubscription(signal) ? 'native' : 'unknown' }
+      return this.context.providers?.resolve({ kind: 'external', baseUrl,
+        apiKey: typeof configured.env_key === 'string' ? environment[configured.env_key]
+          : id === 'openai' ? environment.OPENAI_API_KEY : undefined,
+        model: typeof config.model === 'string' ? config.model : undefined
+      }) ?? { kind: 'unknown' }
+    } catch {
+      signal.throwIfAborted()
+      return { kind: 'unknown' }
+    }
+  }
+
   async server(
     cwd: string,
     configuredPath?: string,
@@ -51,6 +86,7 @@ export class CodexRuntime {
     debugPurpose = runtimeDebugPurpose(profile)
   ): Promise<{
     readonly executable: string
+    readonly environment: NodeJS.ProcessEnv
     readonly server: CodexAppServer
   }> {
     throwIfAborted(signal)
@@ -63,9 +99,15 @@ export class CodexRuntime {
     let executable: string
     let environment: NodeJS.ProcessEnv
     try {
-      executable = await this.context.resolveExecutable(cwd, configuredPath)
-      throwIfAborted(signal)
-      environment = await this.context.environment()
+      // Capture both parts of the launch observation at request time. A slow
+      // executable probe must not pick up a newer account environment midway.
+      ;[executable, environment] = await Promise.all([
+        this.context.resolveExecutable(cwd, configuredPath),
+        (async () => {
+          throwIfAborted(signal)
+          return this.context.environment()
+        })()
+      ])
       throwIfAborted(signal)
       resolveSpan.end({ executable, ...debugEnvironmentSummary(environment) })
     } catch (error) {
@@ -84,18 +126,18 @@ export class CodexRuntime {
       executable,
       profile: typeof profile === 'string' ? profile : profile.toolMode
     })
-    const providerOverride = this.context.providerOverride
+    const providerInjection = this.context.providers?.explicit?.injection
     throwIfAborted(signal)
     if (profile === 'standard') {
-      const directory = providerOverride
-        ? await this.ensureProviderHome(executable, environment, providerOverride)
+      const directory = providerInjection
+        ? await awaitProviderHome(this.ensureProviderHome(executable, environment, providerInjection), signal)
         : undefined
       throwIfAborted(signal)
-      const standardEnvironment = directory && providerOverride
-        ? { ...environment, CODEX_HOME: directory, OPENAGENT_PROVIDER_API_KEY: providerOverride.apiKey }
+      const standardEnvironment = directory && providerInjection
+        ? { ...environment, CODEX_HOME: directory, ...providerEnvironment(providerInjection) }
         : environment
       return {
-        executable,
+        executable, environment: standardEnvironment,
         server: new CodexAppServer(executable, standardEnvironment, { debugPurpose })
       }
     }
@@ -108,7 +150,7 @@ export class CodexRuntime {
       join(this.context.dataRoot, 'application-tools-only'),
       signal,
       typeof profile === 'object' ? profile.threadId : undefined,
-      providerOverride,
+      providerInjection,
       cwd
     )
     try {
@@ -116,7 +158,7 @@ export class CodexRuntime {
       // No caller owns its cleanup until this acquisition returns a server.
       throwIfAborted(signal)
       return {
-        executable,
+        executable, environment: launch.environment,
         server: new CodexAppServer(executable, launch.environment, {
           configOverrides: launch.configOverrides,
           dispose: launch.dispose,
@@ -132,9 +174,9 @@ export class CodexRuntime {
   private ensureProviderHome(
     executable: string,
     environment: NodeJS.ProcessEnv,
-    env: HarnessProviderOverride
+    env: ProviderInjection
   ): Promise<string> {
-    const key = JSON.stringify([executable, env.provider, env.model])
+    const key = JSON.stringify([executable, env])
     let home = this.providerHomes.get(key)
     if (!home) {
       home = this.createProviderHome(executable, environment, env, key).catch((error) => {
@@ -149,23 +191,24 @@ export class CodexRuntime {
   private async createProviderHome(
     executable: string,
     environment: NodeJS.ProcessEnv,
-    env: HarnessProviderOverride,
+    env: ProviderInjection,
     key: string
   ): Promise<string> {
     const directory = join(this.context.dataRoot, 'provider-override',
       createHash('sha256').update(key).digest('hex'))
     const { stdout } = await execFileAsync(executable, ['debug', 'models', '--bundled'], {
       env: environment,
+      timeout: 10_000,
       maxBuffer: 8 * 1024 * 1024
     })
-    const catalog = codexProviderOverrideCatalog(jsonRecord(JSON.parse(stdout)), env)
+    const catalog = codexProviderInjectionCatalog(jsonRecord(JSON.parse(stdout)), env)
     await mkdir(directory, { recursive: true, mode: 0o700 })
     await chmod(directory, 0o700)
     const catalogPath = join(directory, 'models.json')
     await writeFile(catalogPath, JSON.stringify(catalog), { mode: 0o600 })
     await chmod(catalogPath, 0o600)
     const configPath = join(directory, 'config.toml')
-    await writeFile(configPath, codexProviderOverrideConfig(env, catalogPath), { mode: 0o600 })
+    await writeFile(configPath, codexProviderInjectionConfig(env, catalogPath), { mode: 0o600 })
     await chmod(configPath, 0o600)
     return directory
   }
@@ -177,7 +220,7 @@ async function exclusiveToolsLaunch(
   dataRoot: string,
   signal?: AbortSignal,
   ownerThreadId?: string,
-  providerOverride?: HarnessProviderOverride,
+  providerInjection?: ProviderInjection,
   cwd?: string
 ): Promise<{
   readonly environment: NodeJS.ProcessEnv
@@ -195,7 +238,7 @@ async function exclusiveToolsLaunch(
   try {
     const result = await execFileAsync(
       executable,
-      ['debug', 'models', ...(providerOverride ? ['--bundled'] : [])],
+      ['debug', 'models', ...(providerInjection ? ['--bundled'] : [])],
       {
         env: environment,
         ...(cwd ? { cwd } : {}),
@@ -237,7 +280,7 @@ async function exclusiveToolsLaunch(
     purpose: 'application-tools-launch',
     catalog: debugFrame(catalog)
   })
-  if (providerOverride) catalog = codexProviderOverrideCatalog(catalog, providerOverride)
+  if (providerInjection) catalog = codexProviderInjectionCatalog(catalog, providerInjection)
   const models = Array.isArray(catalog.models) ? catalog.models : []
   span.end({ modelCount: models.length })
   if (models.length === 0) throw new Error('Codex bundled model catalog 为空')
@@ -272,7 +315,7 @@ async function exclusiveToolsLaunch(
     const catalogPath = join(directory, 'models.json')
     await writeFile(catalogPath, JSON.stringify(restrictedCatalog), { mode: 0o600 })
     await chmod(catalogPath, 0o600)
-    if (!providerOverride && cwd) {
+    if (!providerInjection && cwd) {
       const source = new CodexAppServer(executable, environment, { debugPurpose: 'thread-configuration' })
       try {
         const nativeConfiguration = await source.readThreadConfiguration(cwd, signal)
@@ -288,12 +331,12 @@ async function exclusiveToolsLaunch(
         await source.dispose()
       }
     }
-    if (providerOverride) {
+    if (providerInjection) {
       const configPath = join(directory, 'config.toml')
-      await writeFile(configPath, codexProviderOverrideConfig(providerOverride, catalogPath), { mode: 0o600 })
+      await writeFile(configPath, codexProviderInjectionConfig(providerInjection, catalogPath), { mode: 0o600 })
       await chmod(configPath, 0o600)
     }
-    if (providerOverride) {
+    if (providerInjection) {
       // Explicit API-key execution must never import a native login session.
       await rm(authTarget, { force: true })
     } else {
@@ -315,8 +358,8 @@ async function exclusiveToolsLaunch(
       environment: {
         ...environment,
         CODEX_HOME: directory,
-        ...(providerOverride
-          ? { OPENAGENT_PROVIDER_API_KEY: providerOverride.apiKey }
+        ...(providerInjection
+          ? { ...providerEnvironment(providerInjection) }
           : {})
       },
       configOverrides: [`model_catalog_json=${JSON.stringify(catalogPath)}`],
@@ -338,6 +381,18 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new DOMException('The operation was aborted', 'AbortError')
 }
 
+/** A cancelled reader must not block on, or cancel, another reader's shared probe. */
+function awaitProviderHome(home: Promise<string>, signal?: AbortSignal): Promise<string> {
+  if (!signal) return home
+  return new Promise((resolve, reject) => {
+    const aborted = () => { signal.removeEventListener('abort', aborted); reject(new DOMException('The operation was aborted', 'AbortError')) }
+    signal.addEventListener('abort', aborted, { once: true })
+    home.then(value => { signal.removeEventListener('abort', aborted); resolve(value) },
+      error => { signal.removeEventListener('abort', aborted); reject(error) })
+    if (signal.aborted) aborted()
+  })
+}
+
 function runtimeDebugPurpose(profile: CodexRuntimeProfile): string {
   if (profile === 'standard') return 'thread'
   if (profile === 'prompt') return 'prompt'
@@ -354,4 +409,8 @@ function tomlValue(value: unknown): string {
       .map(([key, child]) => `${JSON.stringify(key)} = ${tomlValue(child)}`).join(', ')} }`
   }
   throw new Error('Codex native Thread configuration is not representable in TOML')
+}
+
+function providerEnvironment(value: ProviderInjection): Readonly<Record<string, string>> {
+  return value.environment
 }

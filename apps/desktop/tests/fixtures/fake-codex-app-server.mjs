@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 
 if (['debug models', 'debug models --bundled'].includes(process.argv.slice(2).join(' '))) {
@@ -355,6 +356,11 @@ function handle(message) {
         : undefined
     } catch {
       configuredModels = undefined
+    }
+    if (process.env.FAKE_CODEX_MODEL_FROM_HOME === '1') {
+      const catalog = JSON.parse(readFileSync(join(process.env.CODEX_HOME, 'models.json'), 'utf8'))
+      configuredModels = catalog.models.map(model => ({ id: model.slug, model: model.slug, displayName: model.display_name,
+        supportedReasoningEfforts: [], serviceTiers: [] }))
     }
     send({
       id: message.id,
