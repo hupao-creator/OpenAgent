@@ -12,7 +12,7 @@ const RollingDigit = memo(function RollingDigit({ value }: { readonly value: str
   </span>
 })
 
-/** Both metrics use the same numeric cells; only changed digits move, always upward. */
+/** Shared numeric cells: changed clock digits fade; usage digits roll upward. */
 export const RollingNumberText = memo(function RollingNumberText(props: {
   readonly value: string
   readonly clock?: boolean
@@ -29,7 +29,7 @@ export const RollingNumberText = memo(function RollingNumberText(props: {
   </span>
 })
 
-export function ThreadCardRuntime(props: {
+export const ThreadCardRuntime = memo(function ThreadCardRuntime(props: {
   readonly startedAt: number
   readonly endedAt?: number
 }): React.JSX.Element {
@@ -55,4 +55,4 @@ export function ThreadCardRuntime(props: {
   return <span className="thread-card-runtime" title={label} aria-label={label} tabIndex={0}>
     <RollingNumberText value={clock} clock ticking={ticking} dimColon={ticking && seconds % 2 === 1} />
   </span>
-}
+})

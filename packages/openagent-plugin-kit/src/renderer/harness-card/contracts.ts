@@ -33,6 +33,8 @@ export interface ThreadCardIdentityView {
   readonly usesWorktree?: boolean
   readonly steer?: string
   readonly excerpt: string
+  /** Full current message for local buffering; native identity survives streaming deltas. */
+  readonly message?: { readonly id: string; readonly text: string }
 }
 
 export type ThreadCardActivityStatus =

@@ -26,6 +26,7 @@ interface ReportCardProps {
   onOpen: (reportId: string) => void
   onOpenThread: (threadId: string, executionId: string) => void
   /** 缺省时不渲染归档入口（嵌入式消费者没有这条命令）。 */
+  onRender?: (id: string) => void
   onSetArchived?: (reportId: string, archived: boolean) => void
 }
 
@@ -50,6 +51,7 @@ export const ReportCard = memo(function ReportCard(props: ReportCardProps): Reac
   }, [])
 
   const { report } = props
+  props.onRender?.(report.id)
   const updatedLabel = formatReportUpdatedTime(report.updatedAt, now, locale)
   const [expanded, setExpanded] = useState(false)
   const visibleRelatedThreads = expanded ? props.relatedThreads : props.relatedThreads.slice(0, MAX_VISIBLE_RELATED_THREADS)

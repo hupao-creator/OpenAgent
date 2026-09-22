@@ -77,13 +77,20 @@ export function projectCodexOverview(
   const status = codexOverviewStatus(turn)
   // Keep the current task visible before its answer arrives; never borrow an older turn's answer.
   const prompt = turn?.messages.findLast((message) =>
-    message.role === 'user' && message.internal !== true && message.content.trim())?.content
+    message.role === 'user' && message.internal !== true && message.content.trim())
   const latestText = turn?.timeline.findLast((item) =>
-    (item.kind === 'assistant' || (live && item.kind === 'reasoning')) && item.content.trim())
+    (item.kind === 'assistant' || item.kind === 'reasoning') && item.content.trim())
   const currentText = latestText && 'content' in latestText ? latestText.content : turn?.answer ?? ''
   const excerpt = headExcerpt(currentText, 600, live) ||
     headExcerpt(turn?.reasoning ?? '', 600) || headExcerpt(turn?.error ?? '', 600) ||
-    headExcerpt(prompt ?? '', 600) || ''
+    headExcerpt(prompt?.content ?? '', 600) || ''
+  const message = latestText?.kind === 'assistant' || latestText?.kind === 'reasoning'
+    ? { id: JSON.stringify([turn!.executionId, latestText.kind, latestText.kind === 'assistant' ? latestText.itemId : latestText.id]), text: latestText.content.trim() }
+    : (() => {
+      const [kind, text] = ([['answer', turn?.answer], ['reasoning', turn?.reasoning], ['error', turn?.error],
+        [`prompt:${prompt?.id ?? ''}`, prompt?.content]] as const).find(([, text]) => text?.trim()) ?? ['empty', '']
+      return { id: JSON.stringify([turn?.executionId ?? null, kind]), text: text?.trim() ?? '' }
+    })()
   const settings = input.thread.settings as CodexThreadSettings
   const cwd = input.thread.worktree?.baseCwd?.trim() || input.thread.cwd
   const steer = turn?.messages.findLast(
@@ -101,7 +108,8 @@ export function projectCodexOverview(
     ...(cwd && !isTemporaryWorkspacePath(cwd) ? { cwd, cwdName: threadCardCwdName(cwd) } : {}),
     ...(input.thread.worktree ? { usesWorktree: true } : {}),
     ...(steer ? { steer } : {}),
-    excerpt
+    excerpt,
+    message
   }
   return {
     footprint: {
@@ -281,7 +289,7 @@ function activeTurn(turn: CodexTurn): boolean {
   return turn.status === 'running' || turn.status === 'waiting-input'
 }
 
-/** Normalize whitespace and retain the beginning of the latest message. */
+/** Retain the beginning of the latest message with its original inner whitespace. */
 export function codexTurnsExcerpt(turns: readonly CodexTurn[]): string {
   for (let index = turns.length - 1; index >= 0; index -= 1) {
     const excerpt = headExcerpt(turns[index]!.answer, 600)
@@ -291,7 +299,7 @@ export function codexTurnsExcerpt(turns: readonly CodexTurn[]): string {
 }
 
 function headExcerpt(content: string, limit: number, tail = false): string | undefined {
-  const characters = Array.from(content.replace(/\s+/gu, ' ').trim())
+  const characters = Array.from(content.trim())
   if (!characters.length) return undefined
   if (tail && characters.length > limit) return `…${characters.slice(-limit).join('')}`
   const excerpt = characters.slice(0, limit).join('')
@@ -364,8 +372,7 @@ function formatTokens(value: number): string {
   const [scale, suffix] = value >= 1_000_000_000 ? [1_000_000_000, 'B'] as const
     : value >= 1_000_000 ? [1_000_000, 'M'] as const
       : [1_000, 'K'] as const
-  const compact = value / scale
-  return `${compact >= 100 ? Math.round(compact) : compact.toFixed(1).replace(/\.0$/, '')}${suffix}`
+  return `${(value / scale).toFixed(1)}${suffix}`
 }
 
 function safeTool(

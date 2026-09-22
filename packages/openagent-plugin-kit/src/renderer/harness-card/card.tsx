@@ -1,7 +1,5 @@
 import {
   Fragment,
-  lazy,
-  Suspense,
   type CSSProperties,
   type ReactNode
 } from 'react'
@@ -9,6 +7,7 @@ import {
   CheckCircle2,
   CircleAlert,
   CircleX,
+  Combine,
   CornerDownRight,
   FileText,
   LoaderCircle,
@@ -38,9 +37,8 @@ import type {
   ThreadCardSize
 } from './contracts.js'
 import { useI18n } from '../i18n.js'
-import { measureThreadCardExcerptEnd, useThreadCardAnchor } from './spatial-anchors.js'
-
-const MarkdownBody = lazy(() => import('../components/MarkdownBody.js'))
+import { ThreadCardExcerpt } from './excerpt.js'
+export { ThreadCardExcerpt } from './excerpt.js'
 
 /**
  * Historical provider-card content without the old Provider registry or Core
@@ -218,7 +216,7 @@ export function ThreadCardIdentity(props: {
           <span>{identity.steer}</span>
         </span>
       ) : null}
-      <ThreadCardExcerpt content={identity.excerpt} />
+      <ThreadCardExcerpt content={identity.excerpt} messageId={identity.message?.id} messageText={identity.message?.text} />
       {expanded ? (props.projection?.recentTools ?? (props.projection?.latestTool ? [props.projection.latestTool] : []))
         .slice(-3).map((tool, index) => <ThreadCardLatestTool key={index} tool={tool} />) : null}
     </>
@@ -287,10 +285,11 @@ export function ThreadCardUsage(props: {
           <span className="thread-card-context-usage" data-usage-suffix={part.suffix || undefined} title={part.description ? t(part.description) : undefined}
             aria-label={part.numericValue === undefined ? undefined : `${formatNumber(part.numericValue)} ${part.suffix ?? ''}`.trim()} tabIndex={0}>
             {part.label ? <span>{part.label}</span> : null}
+            {part.suffix === 'tokens' ? <Combine className="thread-card-usage-icon" size={12} aria-hidden="true" /> : null}
             {part.numericValue === undefined ? part.value : (
               <RollingNumberText value={part.value} />
             )}
-            {part.suffix ? <span className="thread-card-usage-suffix">{part.suffix}</span> : null}
+            {part.suffix && part.suffix !== 'tokens' ? <span className="thread-card-usage-unit">{part.suffix}</span> : null}
           </span>
         </Fragment>
       ))}
@@ -303,21 +302,6 @@ function activityStatusLabel(status: ThreadCardIdentityTool['status']): string {
   if (status === 'completed') return '已完成'
   if (status === 'failed') return '失败'
   return '已取消'
-}
-
-export function ThreadCardExcerpt(props: {
-  readonly content: string
-}): React.JSX.Element {
-  const anchorRef = useThreadCardAnchor('excerpt-end', measureThreadCardExcerptEnd)
-  return (
-    <div className="thread-overview-excerpt" ref={anchorRef}>
-      <Suspense fallback={<div className="markdown-body markdown-fallback" aria-busy="true">{props.content}</div>}>
-        {/* An overview excerpt is a measured card, not a reading surface: a
-            chart here would be unreadable and would perturb card height. */}
-        <MarkdownBody content={props.content} streaming={false} mermaid={false} />
-      </Suspense>
-    </div>
-  )
 }
 
 export function threadCardCwdName(path: string): string {

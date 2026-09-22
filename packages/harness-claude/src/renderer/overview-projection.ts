@@ -196,5 +196,5 @@ function tokens(value: number): string {
   const [scale, suffix] = value >= 1_000_000_000 ? [1_000_000_000, 'B'] as const
     : value >= 1_000_000 ? [1_000_000, 'M'] as const
       : [1_000, 'K'] as const
-  return `${(value / scale).toFixed(1).replace(/\.0$/, '')}${suffix}`
+  return `${(value / scale).toFixed(1)}${suffix}`
 }

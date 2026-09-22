@@ -304,7 +304,9 @@ describe('Codex renderer interactions', () => {
       </I18nProvider>
     )
 
-    expect(screen.getByText('原生状态')).toBeInTheDocument()
+    expect(projection.view.statusLabel).toBe('原生状态')
+    expect(screen.queryByText('原生状态')).not.toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Codex · Running' })).toBeInTheDocument()
     expect(screen.getByText('原生模型')).toBeInTheDocument()
     expect(screen.queryByText(/WRONG/)).not.toBeInTheDocument()
   })

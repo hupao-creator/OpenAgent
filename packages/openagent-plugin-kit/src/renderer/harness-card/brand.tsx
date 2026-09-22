@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
+import { Send } from 'lucide-react'
+import { useI18n } from '../i18n.js'
+import { useThreadCardFollowUp } from './follow-up.js'
 import { useThreadCardAnchor } from './spatial-anchors.js'
 import type { ThreadCardTerminalStatus } from './status.js'
 
@@ -7,7 +10,7 @@ import type { ThreadCardTerminalStatus } from './status.js'
  * Plugin supplies its own static asset and label; failure falls back to a
  * stable inline glyph so a broken image never remains on the card.
  */
-export function ThreadCardProviderStatus(props: {
+export const ThreadCardProviderStatus = memo(function ThreadCardProviderStatus(props: {
   readonly logoSource: string
   readonly label: string
   readonly brandKey: string
@@ -15,13 +18,15 @@ export function ThreadCardProviderStatus(props: {
   readonly terminal?: ThreadCardTerminalStatus
 }): React.JSX.Element {
   const anchorRef = useThreadCardAnchor('status')
+  const onFollowUp = useThreadCardFollowUp()
+  const { t } = useI18n()
   return (
     <span
       ref={anchorRef}
       className={`thread-provider-status ${props.statusClassName ?? ''}`.trim()}
       data-provider={props.brandKey}
       data-terminal={props.terminal}
-      tabIndex={0}
+      tabIndex={onFollowUp ? -1 : 0}
       title={props.label}
     >
       <span
@@ -41,9 +46,13 @@ export function ThreadCardProviderStatus(props: {
           </svg>
         </span> : null}
       </span>
+      {onFollowUp ? <button type="button" className="thread-card-send" aria-label={t('发送消息')} title={t('发送消息')}
+        onClick={event => { event.stopPropagation(); onFollowUp() }}>
+        <Send size={16} strokeWidth={1.5} aria-hidden="true" />
+      </button> : null}
     </span>
   )
-}
+})
 
 function ThreadCardBrandLogo(props: {
   readonly logoSource: string

@@ -1,17 +1,17 @@
 import { useState } from 'react'
 import type { HarnessOverviewCardModule } from '@openagent/contracts/renderer'
-import { composeThreadCard, HarnessThreadCard, ThreadCardStatus, type ThreadCardPresentation, type ThreadCardExtensionProjection, type ThreadCardIdentityUsage } from '@openagent/plugin-kit/renderer'
+import { composeThreadCard, HarnessThreadCard, ThreadCardStatus, type ThreadCardPresentation, type ThreadCardExtensionProjection, type ThreadCardIdentityUsage, type ThreadCardIdentityView } from '@openagent/plugin-kit/renderer'
 import { piState } from '../shared/state.js'
 import type { PiMessage, PiThreadSettings } from '../shared/types.js'
 import { piLogo } from './pi-logo.js'
 
 const EXCERPT_CHARACTERS = 600
 
-/** Collapsed to one paragraph so the Renderer's line clamp ends the preview, not a raw pixel overflow. */
+/** Preserve literal message text; the Renderer clamps complete visual lines. */
 function cardExcerpt(content: string): string {
-  const normalized = content.replace(/\s+/gu, ' ').trim()
-  const characters = Array.from(normalized)
-  return characters.length > EXCERPT_CHARACTERS ? `${characters.slice(0, EXCERPT_CHARACTERS).join('')}…` : normalized
+  const text = content.trim()
+  const characters = Array.from(text)
+  return characters.length > EXCERPT_CHARACTERS ? `${characters.slice(0, EXCERPT_CHARACTERS).join('')}…` : text
 }
 
 /**
@@ -34,15 +34,18 @@ function compactTokens(value: number): string {
   const [scale, suffix] = value >= 1_000_000_000 ? [1_000_000_000, 'B'] as const
     : value >= 1_000_000 ? [1_000_000, 'M'] as const
       : [1_000, 'K'] as const
-  return `${(value / scale).toFixed(1).replace(/\.0$/, '')}${suffix}`
+  return `${(value / scale).toFixed(1)}${suffix}`
 }
 
-export interface PiOverviewView { presentation: ThreadCardPresentation; excerpt: string; model: string; status: string; pendingInteractionId?: string }
+export interface PiOverviewView { presentation: ThreadCardPresentation; excerpt: string; message?: ThreadCardIdentityView['message']; model: string; status: string; pendingInteractionId?: string }
 export const piOverviewCardModule: HarnessOverviewCardModule<PiOverviewView> = {
   project(input) {
     const state = piState(input.thread.sessionState)
-    const excerpt = cardExcerpt(state.messages.findLast(m => m.role === 'assistant' && m.text.trim())?.text || state.messages.findLast(m => m.role === 'user')?.text || '')
     const executionId = state.latestExecutionId
+    const current = state.messages.filter(message => executionId === null || message.executionId === executionId)
+    const latestMessage = current.findLast(message => message.role === 'assistant' && message.text.trim()) || current.findLast(message => message.role === 'user')
+    const excerpt = cardExcerpt(latestMessage?.text ?? '')
+    const message = latestMessage ? { id: JSON.stringify([latestMessage.executionId, latestMessage.role, latestMessage.id]), text: latestMessage.text.trim() } : undefined
     const usage = executionId === null ? undefined : cardUsage(state.messages.findLast(m =>
       m.executionId === executionId && m.role === 'assistant' && m.usage)?.usage)
     const settings = input.thread.settings as PiThreadSettings
@@ -64,7 +67,7 @@ export const piOverviewCardModule: HarnessOverviewCardModule<PiOverviewView> = {
     }
     const presentation = composeThreadCard({ kind: 'standard', identity: usage ? { usage } : {}, extensions }, { displayPolicy: input.displayPolicy, availableCols: input.layout.availableColumns })
     return { footprint: { columns: presentation.size.cols, rows: presentation.size.rows }, structureKey: presentation.key, excerpt,
-      view: { presentation, excerpt, model: [settings.provider, settings.model].filter(Boolean).join('/') || 'Pi', status: latest?.status || 'idle', pendingInteractionId: pending?.id } }
+      view: { presentation, excerpt, message, model: [settings.provider, settings.model].filter(Boolean).join('/') || 'Pi', status: latest?.status || 'idle', pendingInteractionId: pending?.id } }
   },
   Card: function PiOverviewCard({ thread, projection, actions }) {
     const [error, setError] = useState<string>()
@@ -80,6 +83,6 @@ export const piOverviewCardModule: HarnessOverviewCardModule<PiOverviewView> = {
     }} presentation={projection.presentation} onOpenThread={actions.openThread} identity={{ title: thread.title,
       providerStatus: <ThreadCardStatus brandKey="pi" className="provider-theme-pi" label="Pi Agent" logoSource={piLogo} observation={thread.observation} />,
       ...(execution ? { runtime: { startedAt: execution.startedAt, ...('finishedAt' in execution ? { endedAt: execution.finishedAt } : {}) } } : {}),
-      model: projection.model, excerpt: projection.excerpt }} />{error ? <div role="alert">{error}</div> : null}</>
+      model: projection.model, excerpt: projection.excerpt, message: projection.message }} />{error ? <div role="alert">{error}</div> : null}</>
   }
 }

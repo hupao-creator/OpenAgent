@@ -39,7 +39,7 @@ it('renders every bundled fake scene without fetching real captures', async () =
       expect(document.querySelectorAll('.thread-card-metrics .thread-card-identity-usage')).toHaveLength(1)
       expect(document.querySelector('.thread-card-context-usage')).toHaveAttribute('aria-label', '12,800 tokens')
       if (execution.status === 'waiting-for-user') {
-        expect(document.querySelector('.thread-card-task-state')).toHaveTextContent(scene.scenario.endsWith('question') ? '等你回答' : '等你授权')
+        expect(document.querySelector('.thread-card-task-state')).toBeNull()
       }
       if (execution.status === 'running' || (execution.status === 'completed' && background)) {
         expect(document.querySelector('.thread-card-task-state')).toBeNull()
@@ -64,9 +64,8 @@ it('renders Claude questions and keeps submitted fake snapshots immutable', asyn
   expect(screen.getByRole('button', { name: '提交回答' })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: 'Report Thread' }))
   await screen.findByText('搜索功能已完成，已验证项目名称与描述筛选、空结果和权限交互。')
-  await user.click(screen.getByRole('button', { name: '归档报告：搜索功能交付报告' }))
+  expect(screen.queryByRole('button', { name: '归档报告：搜索功能交付报告' })).not.toBeInTheDocument()
   expect(document.querySelector('[data-report-id]')).toHaveAttribute('data-report-archived', 'false')
-  expect(document.querySelector('output')).toHaveTextContent('快照保持不变')
   await user.click(screen.getByRole('button', { name: '关联已删除' }))
   await waitFor(() => expect(document.querySelector('li.missing button')).toBeDisabled())
   expect(JSON.stringify(fakeSnapshots)).toBe(before)

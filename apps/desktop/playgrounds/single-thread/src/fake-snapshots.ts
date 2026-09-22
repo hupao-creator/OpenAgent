@@ -15,7 +15,7 @@ const question = '搜索需要覆盖哪些内容？'
 const options = [{ id: 'name', label: '项目名称' }, { id: 'description', label: '名称与描述' }]
 const actions = [{ id: 'allow-once', intent: 'allow', label: '允许一次' }, { id: 'deny', intent: 'deny', label: '拒绝' }] as const
 
-/** Lab-only authored data. Never derive fixtures from a user's captured session. */
+/** Authored Lab scenarios; only the model display sample comes from local log metadata. */
 function fakeThread(harness: string, scenario: string, suffix = ''): AgentThreadRecord {
   const id = `fake-${harness}-${scenario}${suffix}`
   const executionId = `${id}-execution`
@@ -62,7 +62,9 @@ function fakeThread(harness: string, scenario: string, suffix = ''): AgentThread
   }
   if (!isJsonValue(session)) throw new Error('Fake session must be JSON')
   return { id, harnessId: harness, revision: 1, archived: false, title: prompt, tags: ['模拟'], cwd,
-    settings: {}, sessionState: session, createdAt: at, updatedAt: at + 1000,
+    // Model and effort observed together in a 2026-09-20 Claude Code execution.
+    settings: harness === 'claude' ? { model: 'deepseek-v4-pro', effort: 'max' } : {},
+    sessionState: session, createdAt: at, updatedAt: at + 1000,
     observation: ThreadPublicObservationSchema.parse({ latestExecution: phase === 'empty' ? null : {
       executionId, startedAt: at, status: waiting ? 'waiting-for-user' : status,
       ...(terminal ? { finishedAt: at + 1000 } : {}),
@@ -98,3 +100,29 @@ export const fakeSnapshots = [
   ...harnesses.flatMap(h => [...agentScenarios, ...combinations].map(s => fakeCase(h.id, s.id))),
   ...reportScenarios.map(s => fakeCase('report', s.id))
 ]
+
+/** Change only the preview copy; real Harness projectors still format the usage. */
+export function withPreviewTokenUsage(thread: AgentThreadRecord, addedTokens: number): AgentThreadRecord {
+  if (!addedTokens || !thread.observation.latestExecution) return thread
+  const state = thread.harnessId === 'claude' ? parseClaudeThreadState(thread.sessionState)
+    : thread.harnessId === 'codex' ? decodeCodexState(thread.sessionState) : null
+  if (!state) return thread
+  const session = { ...state, turns: state.turns.map((turn, index) => index === state.turns.length - 1
+    ? { ...turn, usage: { ...turn.usage, outputTokens: (turn.usage?.outputTokens ?? 0) + addedTokens } }
+    : turn) }
+  if (!isJsonValue(session)) throw new Error('Preview session must be JSON')
+  return { ...thread, sessionState: session }
+}
+
+/** Feed the full current Lab message through the real projector without changing card geometry. */
+export function withPreviewMessage(thread: AgentThreadRecord, content: string | undefined, messageId = 0): AgentThreadRecord {
+  if (content === undefined) return thread
+  const state = thread.harnessId === 'claude' ? parseClaudeThreadState(thread.sessionState)
+    : thread.harnessId === 'codex' ? decodeCodexState(thread.sessionState) : null
+  if (!state) return thread
+  const session = { ...state, turns: state.turns.map((turn, index) => index === state.turns.length - 1
+    ? { ...turn, timeline: [{ kind: 'assistant', id: `preview:${messageId}`, ...(thread.harnessId === 'claude' ? { messageId: `preview:${messageId}` } : { itemId: `preview:${messageId}` }), content, createdAt: turn.createdAt, status: 'complete' }], ...('text' in turn ? { text: content } : { answer: content }) }
+    : turn) }
+  if (!isJsonValue(session)) throw new Error('Preview session must be JSON')
+  return { ...thread, sessionState: session }
+}

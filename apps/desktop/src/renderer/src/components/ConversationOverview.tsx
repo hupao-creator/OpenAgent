@@ -17,7 +17,6 @@ import { focusForKeyboardNavigation } from '../button-focus-visibility'
 import {
   Archive,
   Folder,
-  ArchiveRestore,
   CheckCircle2,
   CircleAlert,
   LoaderCircle,
@@ -48,7 +47,7 @@ import {
 } from '../overview-motion'
 import { getBartSpatialRegistry } from '../bart-motion/registry'
 import type { BartVisualOperation } from '../bart-visual-operation'
-import { ThreadCardAnchorProvider, useI18n, type ThreadCardAnchorRegistrar } from '@openagent/plugin-kit/renderer'
+import { ThreadCardAnchorProvider, ThreadCardFollowUpProvider, useI18n, type ThreadCardAnchorRegistrar } from '@openagent/plugin-kit/renderer'
 import { BartLogo } from './BartLogo'
 import {
   type BartGenerationTarget,
@@ -80,7 +79,6 @@ import {
   type OverviewLayoutContext
 } from '@openagent/contracts/renderer'
 import { providerVisualTheme } from '../provider-visual-theme'
-import { ThreadFollowUpEntry } from './ThreadFollowUpEntry'
 import {
   OVERVIEW_LAYOUT_PLANNER, overviewGridPositionStyle, planOverviewSnapshot, type OverviewGridPosition,
   type OverviewLayoutPlanner, type OverviewLayoutPlanningState, type PlannedOverviewLayout
@@ -1203,6 +1201,17 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
     if (initialDraft === undefined) props.onFollowUpOpen?.(id)
     else props.onFollowUpOpen?.(id, initialDraft)
   }, [cardClickAllowed, props.onFollowUpOpen])
+  const handleRelatedExecutionOpen = useCallback((threadId: string, executionId: string): void => {
+    if (cardClickAllowed(threadId)) props.onOpenRelatedExecution?.(threadId, executionId)
+  }, [cardClickAllowed, props.onOpenRelatedExecution])
+  const relatedRowsCache = useRef(new WeakMap<RendererReport, ReportRelatedThread[]>())
+  const relatedRows = (report: RendererReport): ReportRelatedThread[] => {
+    const next = reportRelatedThreads(report, reportRelationThreadById, t)
+    const previous = relatedRowsCache.current.get(report)
+    if (previous && sameRelatedThreads(previous, next)) return previous
+    relatedRowsCache.current.set(report, next)
+    return next
+  }
   const onOpenReportRef = useRef(props.onOpenReport)
   onOpenReportRef.current = props.onOpenReport
   const handleReportOpen = useCallback((reportId: string): void => {
@@ -1284,16 +1293,14 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
                         key={item.key}
                         report={item.report}
                         gridPosition={presentedPositions.get(item.report.id)}
-                        relatedThreads={reportRelatedThreads(item.report, reportRelationThreadById, t)}
+                        relatedThreads={relatedRows(item.report)}
                         index={item.cardIndex}
                         totalCount={presentedCardCount}
                         transitionTarget={props.transitionId === item.report.id}
                         generationPending={generationPendingIds.has(item.report.id)}
                         onOpen={handleReportOpen}
-                        onOpenThread={(threadId, executionId) => {
-                          if (cardClickAllowed(threadId)) props.onOpenRelatedExecution?.(threadId, executionId)
-                        }}
-                        onSetArchived={props.onSetReportArchived}
+                        onOpenThread={handleRelatedExecutionOpen}
+                        onRender={props.onCardRender}
                       />
                     )
                   }
@@ -1311,9 +1318,8 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
                       operation={item.operation}
                       onOpen={handleCardOpen}
                       onFollowUpOpen={handleFollowUpOpen}
-                      onSetArchived={props.onSetThreadArchived}
                       followUpBlocked={
-                        Boolean(item.source.thread.archived) || Boolean(props.followUpThreadId) ||
+                        !props.onFollowUpOpen || Boolean(item.source.thread.archived) || Boolean(props.followUpThreadId) ||
                           observationNeedsAttention(item.source.thread.observation)
                       }
                       onRender={props.onCardRender}
@@ -1482,6 +1488,15 @@ export const HarnessThreadOverviewCard = memo(function HarnessThreadOverviewCard
     structureKey: props.structureKey,
     excerpt: props.source.envelope.excerpt
   }), [props.columns, props.rows, props.structureKey, props.source.envelope.excerpt])
+  const openThread = useCallback(() => props.onOpen(thread.id), [props.onOpen, thread.id])
+  const openFollowUp = useCallback((initialDraft?: string): void => {
+    if (thread.archived) return
+    if (initialDraft === undefined) props.onFollowUpOpen(thread.id)
+    else props.onFollowUpOpen(thread.id, initialDraft)
+  }, [props.onFollowUpOpen, thread.id, thread.archived])
+  const actions = useMemo(() => threadActions({ harnessId: thread.harnessId, threadId: thread.id,
+    interrupt: props.interrupt, openFollowUp, respond: props.respond
+  }), [thread.harnessId, thread.id, props.interrupt, openFollowUp, props.respond])
   const providerTheme = providerVisualTheme(thread.harnessId)
   props.onRender?.(thread.id)
   const registerSemanticAnchor = useCallback<ThreadCardAnchorRegistrar>((name, measure) => {
@@ -1532,41 +1547,32 @@ export const HarnessThreadOverviewCard = memo(function HarnessThreadOverviewCard
           total: props.totalCount
         })}
         className="thread-overview-item-open"
-        onClick={() => props.onOpen(thread.id)}
+        onClick={openThread}
         type="button"
       />
       <ThreadCardAnchorProvider register={registerSemanticAnchor}>
-      <HarnessOverviewCardHost
-        displayPolicy={props.source.displayPolicy}
-        actions={threadActions({
-          harnessId: thread.harnessId,
-          threadId: thread.id,
-          interrupt: props.interrupt,
-          openFollowUp: (initialDraft) => { if (!thread.archived) props.onFollowUpOpen(thread.id, initialDraft) },
-          respond: props.respond
-        })}
-        availableColumns={props.availableColumns}
-        envelope={motionEnvelope}
-        openThread={() => props.onOpen(thread.id)}
-        thread={thread}
-      />
+        <ThreadCardFollowUpProvider onOpen={props.followUpBlocked || thread.archived ? null : openFollowUp}>
+          <HarnessOverviewCardHost
+            displayPolicy={props.source.displayPolicy}
+            actions={actions}
+            availableColumns={props.availableColumns}
+            envelope={motionEnvelope}
+            openThread={openThread}
+            thread={thread}
+          />
+        </ThreadCardFollowUpProvider>
       </ThreadCardAnchorProvider>
-      {props.onSetArchived && <button type="button" className="thread-overview-archive"
-        title={thread.archived ? t('取消归档') : t('归档')}
-        aria-label={thread.archived ? t('取消归档：{title}', { title: thread.title }) : t('归档：{title}', { title: thread.title })}
-        onClick={event => { event.stopPropagation(); props.onSetArchived?.(thread.id, !thread.archived) }}>
-        {thread.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
-      </button>}
-      {!props.followUpBlocked ? (
-        <ThreadFollowUpEntry
-          onOpen={props.onFollowUpOpen}
-          threadId={thread.id}
-          threadTitle={thread.title}
-        />
-      ) : null}
     </article>
   )
 })
+
+function sameRelatedThreads(previous: readonly ReportRelatedThread[], next: readonly ReportRelatedThread[]): boolean {
+  return previous.length === next.length && previous.every((row, index) => {
+    const other = next[index]!
+    return row.id === other.id && row.executionId === other.executionId && row.title === other.title &&
+      row.harnessId === other.harnessId && row.running === other.running && row.missing === other.missing
+  })
+}
 
 export function reportRelatedThreads(
   report: RendererReport,

@@ -27,12 +27,57 @@ import type {
   HarnessOverviewThreadInput
 } from '@openagent/contracts/renderer'
 
+import { fakeSnapshots, withPreviewMessage, withPreviewTokenUsage } from '../playgrounds/single-thread/src/fake-snapshots'
+import { OVERVIEW_LAYOUT_PLANNER } from '../src/renderer/src/overview-layout-planner'
+
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 describe('Harness Plugin overview Core seam', () => {
+  it('isolates clock, buffer and usage updates from other cards and the layout planner', async () => {
+    vi.useFakeTimers()
+    const captured = fakeSnapshots.find(scene => scene.harness === 'claude' && scene.scenario === 'running')!.state.threads[0] as AgentThreadRecord
+    const first = { ...captured, id: 'live-a', createdAt: 1, updatedAt: 1 }
+    const second = { ...captured, id: 'live-b', createdAt: 2, updatedAt: 2 }
+    const report: RendererReport = { id: 'stable-report', title: 'Report', previewText: 'Summary', tags: [],
+      archived: false, createdAt: 3, updatedAt: 3,
+      relatedExecutions: [{ threadId: first.id, executionId: 'older-execution' }] }
+    const onRender = vi.fn()
+    const onCardRender = vi.fn()
+    const plan = vi.fn(OVERVIEW_LAYOUT_PLANNER.plan)
+    const common = { embedded: true, interrupt: async () => {}, respond: async () => {}, onSelect: () => {},
+      onFollowUpOpen: vi.fn(), onRender, onCardRender, transitionId: null, reports: [report],
+      layoutPlanner: { ...OVERVIEW_LAYOUT_PLANNER, plan } }
+    const other = { thread: second }
+    const view = render(<ConversationOverview {...common} threads={[{ thread: first }, other]} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    onRender.mockClear(); onCardRender.mockClear(); plan.mockClear()
+    // The one-second clock remains inside its own leaf.
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(onRender).not.toHaveBeenCalled()
+    expect(onCardRender).not.toHaveBeenCalled()
+    const updated = withPreviewTokenUsage(first, 100)
+    view.rerender(<ConversationOverview {...common} threads={[{ thread: updated }, other]} />)
+    expect(onCardRender.mock.calls.map(([id]) => id)).toEqual(['live-a'])
+    expect(plan).not.toHaveBeenCalled()
+    const buffered = withPreviewMessage(updated, 'a'.repeat(1200) + 'tail', 1)
+    view.rerender(<ConversationOverview {...common} threads={[{ thread: buffered }, other]} />)
+    onRender.mockClear(); onCardRender.mockClear()
+    await act(async () => { await vi.advanceTimersByTimeAsync(800) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(800) })
+    expect(document.querySelector('[data-thread-id="live-a"] .thread-card-excerpt-text')?.textContent).toBe('tail')
+    expect(onRender).not.toHaveBeenCalled()
+    expect(onCardRender).not.toHaveBeenCalled()
+    expect(plan).not.toHaveBeenCalled()
+    // Semantic relation changes must still refresh the Report.
+    view.rerender(<ConversationOverview {...common} threads={[{ thread: { ...buffered, title: 'Renamed' } }, other]} />)
+    expect(onCardRender.mock.calls.map(([id]) => id)).toEqual(['live-a', 'stable-report'])
+    expect(screen.getByRole('button', { name: '打开关联 Thread：Renamed' })).toBeVisible()
+  })
+
   it('localizes Core overview actions and the single thread open layer in en-US', () => {
     render(
       <I18nProvider locale="en-US">
@@ -54,14 +99,13 @@ describe('Harness Plugin overview Core seam', () => {
     })).toBeVisible()
   })
 
-  it.each([false, true])('localizes the Agent archive tooltip when archived=%s', (archived) => {
+  it.each([false, true])('omits the Agent archive action when archived=%s', (archived) => {
     render(<I18nProvider locale="en-US">
       <ConversationOverview embedded threads={[threadInput('thread-a', { archived })]}
         view={archived ? 'archived' : 'default'} onSetThreadArchived={() => {}}
         interrupt={async () => {}} respond={async () => {}} onSelect={() => {}} transitionId={null} />
     </I18nProvider>)
-    expect(screen.getByRole('button', { name: `${archived ? 'Unarchive' : 'Archive'}: Thread thread-a` }))
-      .toHaveAttribute('title', archived ? 'Unarchive' : 'Archive')
+    expect(screen.queryByRole('button', { name: `${archived ? 'Unarchive' : 'Archive'}: Thread thread-a` })).toBeNull()
   })
 
   it('keeps one Core motion anchor while the Plugin owns all card content and actions', async () => {
@@ -100,11 +144,11 @@ describe('Harness Plugin overview Core seam', () => {
     await user.click(within(shell).getByRole('button', { name: /打开 Thread thread-a/ }))
     expect(onSelect).toHaveBeenCalledWith('thread-a')
 
-    const followUp = within(shell).getByRole('button', { name: '续写 Thread thread-a' })
-    expect(followUp).not.toHaveAttribute('title')
+    const followUp = within(shell).getByRole('button', { name: '发送消息' })
+    expect(followUp).toHaveAttribute('title', '发送消息')
     expect(followUp).toHaveTextContent('')
     expect(followUp.children).toHaveLength(1)
-    expect(followUp.firstElementChild).toHaveClass('bart-logo')
+    expect(followUp.firstElementChild).toHaveClass('lucide-send')
     await user.click(followUp)
     expect(onFollowUpOpen).toHaveBeenLastCalledWith('thread-a')
     await user.keyboard('{Enter} ')
@@ -184,7 +228,7 @@ describe('Harness Plugin overview Core seam', () => {
   })
 
 
-  it('localizes report links and preserves the report reading and archive actions', async () => {
+  it('localizes report links and retains reading without an archive entry', async () => {
     const user = userEvent.setup()
     const onOpenReport = vi.fn()
     const onSetReportArchived = vi.fn()
@@ -199,8 +243,8 @@ describe('Harness Plugin overview Core seam', () => {
     expect(screen.getByText('The original report summary')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'View all 3 links' }))
     await user.click(screen.getByRole('button', { name: 'Collapse links' }))
-    await user.click(screen.getByRole('button', { name: 'Archive report: Long report title' }))
-    expect(onSetReportArchived).toHaveBeenCalledWith('english-report', true)
+    expect(screen.queryByRole('button', { name: 'Archive report: Long report title' })).toBeNull()
+    expect(onSetReportArchived).not.toHaveBeenCalled()
     expect(onOpenReport).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: /Long report title.*report/i }))
     expect(onOpenReport).toHaveBeenCalledWith('english-report')
@@ -210,7 +254,6 @@ describe('Harness Plugin overview Core seam', () => {
   })
 
   it('updates Default and Archived cards and counts together from a committed latest-only Report archive', async () => {
-    const user = userEvent.setup()
     const initial = createOpenAgentState({ bartThreadId: 'bart', hostHarnessId: 'codex', bartThreadSettings: {},
       bartCwd: '/bart', createdAt: 1, selectedThreadId: null, settings: createDefaultOpenAgentSettings() })
     const latest = (id: string, executionId: string) => agentThread(id, { observation: {
@@ -230,8 +273,7 @@ describe('Harness Plugin overview Core seam', () => {
     expect(document.querySelector('[data-overview-card-id="current"]')).toBeNull()
     expect(document.querySelector('[data-overview-card-id="historical"]')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '已归档，共 0 张卡片' })).toBeVisible()
-    await user.click(screen.getByRole('button', { name: '归档报告：Delivery' }))
-    expect(onArchive).toHaveBeenCalledWith('report-archive', true)
+    expect(screen.queryByRole('button', { name: '归档报告：Delivery' })).toBeNull()
     // Pending/rejected requests do not optimistically uncover the covered Agent.
     expect(screen.getByText('Retained')).toBeVisible()
     expect(document.querySelector('[data-overview-card-id="current"]')).toBeNull()
@@ -291,18 +333,15 @@ describe('Harness Plugin overview Core seam', () => {
     expect(capture).toHaveBeenCalledOnce()
   })
 
-  it('offers archive and restore on Agent cards, with no archived follow-up entry', async () => {
-    const user = userEvent.setup()
-    const onSetThreadArchived = vi.fn()
+  it('omits archived send and archive actions while retaining the active send entry', () => {
     const common = { embedded: true, interrupt: async () => {}, respond: async () => {},
-      onSelect: () => {}, transitionId: null, onSetThreadArchived, onFollowUpOpen: vi.fn() }
+      onSelect: () => {}, transitionId: null, onSetThreadArchived: vi.fn(), onFollowUpOpen: vi.fn() }
     const view = render(<ConversationOverview {...common} threads={[threadInput('thread-a')]} />)
-    await user.click(screen.getByRole('button', { name: '归档：Thread thread-a' }))
-    expect(onSetThreadArchived).toHaveBeenLastCalledWith('thread-a', true)
+    expect(screen.getByRole('button', { name: '发送消息' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '归档：Thread thread-a' })).toBeNull()
     view.rerender(<ConversationOverview {...common} view="archived" threads={[threadInput('thread-a', { archived: true })]} />)
-    expect(screen.queryByRole('button', { name: '续写 Thread thread-a' })).toBeNull()
-    await user.click(await screen.findByRole('button', { name: '取消归档：Thread thread-a' }))
-    expect(onSetThreadArchived).toHaveBeenLastCalledWith('thread-a', false)
+    expect(screen.queryByRole('button', { name: '发送消息' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '取消归档：Thread thread-a' })).toBeNull()
   })
 
   it('keeps only the Archived view action and toggles it back to default', async () => {

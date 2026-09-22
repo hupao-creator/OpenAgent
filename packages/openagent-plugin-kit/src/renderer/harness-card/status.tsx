@@ -14,7 +14,7 @@ export function threadCardStatus(observation: ThreadPublicObservation) {
     const question = execution.interactions.some(item => item.kind === 'question')
     const permission = execution.interactions.some(item => item.kind === 'permission')
     return { kind: 'attention', label: question && permission ? '需要你处理' : question ? '等你回答' : permission ? '等你授权' : '等待你的响应',
-      Icon: question ? MessageCircle : ShieldCheck, secondary }
+      Icon: question ? MessageCircle : ShieldCheck, secondary, quiet: question || permission }
   }
   if (execution?.status === 'failed' || execution?.status === 'interrupted') {
     return { kind: execution.status, label: execution.status === 'failed' ? '执行失败' : '已中断',
@@ -45,7 +45,7 @@ export function ThreadCardStatus(props: {
     <ThreadCardProviderStatus brandKey={props.brandKey} logoSource={props.logoSource}
       label={`${props.label} · ${label}${status.secondary ? ` · ${t(status.secondary)}` : ''}`}
       statusClassName={[props.className, status.kind].filter(Boolean).join(' ')} terminal={status.terminal} />
-    {status.terminal || status.kind === 'running' ? null :
+    {status.terminal || status.kind === 'running' || status.quiet ? null :
       <span className="thread-card-task-state" data-tone={status.kind} role="status">
         <span className="thread-card-task-state-primary">{Icon ? <Icon size={14} aria-hidden="true" /> : null}<span>{label}</span></span>
         {status.secondary ? <span className="thread-card-task-state-secondary">{t(status.secondary)}</span> : null}

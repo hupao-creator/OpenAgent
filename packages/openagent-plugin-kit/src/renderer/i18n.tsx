@@ -23,6 +23,7 @@ const EN_US: Readonly<Record<string, string>> = {
   '收起执行过程': 'Hide work',
   '回到最新': 'Jump to latest',
   '用时：{duration}': 'Elapsed: {duration}',
+  '发送消息': 'Send message',
   后台仍在运行: 'Background work is still running',
   后台运行中: 'Background running',
   需要你处理: 'Needs your attention',

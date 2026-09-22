@@ -80,7 +80,8 @@ export function projectClaudeOverview(input: HarnessRendererThreadInput & {
         startedAt: input.thread.observation.latestExecution.startedAt,
         ...('finishedAt' in input.thread.observation.latestExecution ? { endedAt: input.thread.observation.latestExecution.finishedAt } : {})
       } } : {}),
-      excerpt: summary
+      excerpt: summary,
+      message: overviewMessage(state, input.thread.title)
     },
     presentation,
     ...(publicInteraction ? { pendingPublicInteraction: publicInteraction } : {})
@@ -145,15 +146,34 @@ function overviewSummary(state: ClaudeThreadState, fallback: string): string {
   const forkSummary = forkHistorySummary(state.forkHistory)
   const live = turn?.status === 'running'
   const latestText = turn?.timeline.findLast((item) =>
-    (item.kind === 'assistant' || (live && item.kind === 'reasoning')) && item.content.trim())
+    (item.kind === 'assistant' || item.kind === 'reasoning') && item.content.trim())
   const source = (latestText && 'content' in latestText ? latestText.content.trim() : '') ||
     turn?.text.trim() || turn?.reasoning.trim() || turn?.error ||
     latestVisibleClaudePrompt(turn) || turn?.statusLabel || forkSummary ||
     state.nativeNotifications.at(-1)?.summary || fallback
-  const normalized = source.replace(/\s+/g, ' ').trim()
-  const characters = Array.from(normalized)
+  const text = source.trim()
+  const characters = Array.from(text)
   const hasOutput = Boolean(latestText || turn?.text.trim() || turn?.reasoning.trim())
-  return live && hasOutput && characters.length > 600 ? `…${characters.slice(-600).join('')}` : boundedText(normalized, 600)
+  return live && hasOutput && characters.length > 600 ? `…${characters.slice(-600).join('')}` : boundedText(text, 600)
+}
+
+function overviewMessage(state: ClaudeThreadState, fallback: string): NonNullable<ThreadCardIdentityView['message']> {
+  const turn = currentClaudeTurn(state)
+  const latest = turn?.timeline.findLast(item =>
+    (item.kind === 'assistant' || item.kind === 'reasoning') && item.content.trim())
+  if (latest?.kind === 'assistant' || latest?.kind === 'reasoning') {
+    const nativeId = latest.kind === 'assistant' ? latest.messageId : undefined
+    const text = nativeId ? turn!.timeline.flatMap(item =>
+      item.kind === 'assistant' && item.messageId === nativeId ? [item.content] : []).join('') : latest.content
+    return { id: JSON.stringify([turn!.executionId, latest.kind, nativeId ?? latest.id]), text: text.trim() }
+  }
+  const candidates = [
+    ['answer', turn?.text], ['reasoning', turn?.reasoning], ['error', turn?.error],
+    [`prompt:${turn?.prompts.length ?? 0}`, latestVisibleClaudePrompt(turn)], ['status', turn?.statusLabel],
+    ['history', forkHistorySummary(state.forkHistory)], ['notice', state.nativeNotifications.at(-1)?.summary], ['title', fallback]
+  ] as const
+  const [kind, text] = candidates.find(([, text]) => text?.trim()) ?? ['title', fallback]
+  return { id: JSON.stringify([turn?.executionId ?? null, kind]), text: text?.trim() ?? '' }
 }
 
 function forkHistorySummary(history: ClaudeForkHistory | undefined): string {
