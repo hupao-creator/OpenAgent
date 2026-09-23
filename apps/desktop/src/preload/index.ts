@@ -319,6 +319,7 @@ const api: DesktopApi = {
     [],
     createOperationContext()
   ),
+  listKnownDirectories: () => invokeIpc('workspace:list-known-directories', [], createOperationContext()),
   loadHarnessSettingsPresentation: (request) =>
     invokeIpc('harness:settings-presentation', [request], createOperationContext(
       request.scope === 'thread' ? { threadId: request.threadId } : {

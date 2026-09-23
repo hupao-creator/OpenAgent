@@ -17,6 +17,14 @@ function boundary() {
 const input = { parts: [{ kind: 'text', text: 'hello' }] }
 
 describe('command schema behavior', () => {
+  it('preserves directory mention identity across the desktop command boundary', async () => {
+    const { handlers, methods } = boundary()
+    const request = { input: { parts: [{ kind: 'mention', name: 'project', path: '/work/project', pathType: 'directory' }] } }
+    await handlers['bart:submit'](request)
+    expect(methods.submitBartMessage).toHaveBeenCalledWith(request)
+    await expect(handlers['bart:submit']({ input: { parts: [{ ...request.input.parts[0], pathType: 'unknown' }] } })).rejects.toThrow()
+  })
+
   it('normalizes routing guidance over settings IPC without mutating the request', async () => {
     const { handlers, methods } = boundary()
     const defaults = createDefaultOpenAgentSettings()

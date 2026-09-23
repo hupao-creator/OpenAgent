@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, utime
 import { tmpdir } from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
 import type { AutoInterventionService } from '../src/main/use-cases/auto-intervention-service'
-import { dirname, join } from 'node:path'
+import { dirname, join, parse } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   bindMainHarnessComposition,
@@ -76,6 +76,28 @@ afterEach(async () => {
 })
 
 describe('OpenAgent Service Harness dispatch', () => {
+  it('unions native workspace discovery with live directory tags, shares scans, and isolates source failures', async () => {
+    const main = mainHarnessComposition({})
+    const scan = vi.spyOn(main.codex, 'discoverWorkspaceDirectories')
+    vi.spyOn(main.claude, 'discoverWorkspaceDirectories').mockRejectedValue(new Error('unreadable native store'))
+    const worktrees = fixtureWorktreeManager({ managedWorkspaceRoots: () => ['/work/native-managed'] })
+    const f = await serviceFixture({}, [], settings => settings, { main, worktrees })
+    scan.mockResolvedValue(['/work/native', '/work/tagged/', join(f.root, 'bart'), '/work/native-managed/thread', '/work/.tagged-openagent-worktrees/stale'])
+    await f.service.initialize()
+    await f.store.commit({ type: 'add-agent-thread', thread: { ...fixtureAgentThread('tagged', '/work/tagged', 1), archived: true } })
+    await f.store.commit({ type: 'add-agent-thread', thread: fixtureAgentThread('temporary', join(f.temporaryWorkspaceRoot, 'scratch'), 2) })
+    const [first, concurrent] = await Promise.all([f.service.listKnownDirectories(), f.service.listKnownDirectories()])
+    expect(first).toEqual([{ name: 'native', path: '/work/native' }, { name: 'tagged', path: '/work/tagged' }])
+    expect(concurrent).toEqual(first)
+    expect(scan).toHaveBeenCalledOnce()
+    await f.store.commit({ type: 'add-agent-thread', thread: fixtureAgentThread('new-tag', '/work/new-tag', 3) })
+    expect(await f.service.listKnownDirectories()).toContainEqual({ name: 'new-tag', path: '/work/new-tag' })
+    expect(scan).toHaveBeenCalledOnce()
+    const root = parse(f.root).root
+    await f.store.commit({ type: 'add-agent-thread', thread: fixtureAgentThread('filesystem-root', root, 4) })
+    expect(await f.service.listKnownDirectories()).toContainEqual({ name: root, path: root })
+  })
+
   it.each(['model', 'guidance', 'targets', 'host'].flatMap(change =>
     ['active', 'background'].map(work => ({ change, work }))))(
     'keeps pending $change settings behind $work Bart work when steering', async ({ change, work }) => {
@@ -5195,6 +5217,23 @@ describe('OpenAgent Service Harness dispatch', () => {
         }]
       })
     )
+  })
+
+  it.each([false, true])('preserves directory references in persisted Bart history with surrounding text: %s', async withText => {
+    const fixture = await serviceFixture({ runBartTools: async () => undefined }, [])
+    await fixture.service.initialize()
+    const mention: AgentInput['parts'][number] = { kind: 'mention', name: '项目', path: '/work/中文 项目', pathType: 'directory' }
+    await fixture.service.submitBartMessage({ input: { parts: withText
+      ? [{ kind: 'text', text: 'Read ' }, mention, { kind: 'text', text: ' carefully.' }]
+      : [mention]
+    } })
+    const message = expect.objectContaining({ type: 'message', role: 'user',
+      content: withText ? 'Read @"/work/中文 项目" carefully.' : '@"/work/中文 项目"'
+    })
+    expect(readBartThread(fixture.store.read()).transcript).toContainEqual(message)
+    await fixture.store.flush()
+    const restored = await trackedStore(fixture.root).load()
+    expect(readBartThread(restored!).transcript).toContainEqual(message)
   })
 
   it('records one complete Core user message for Bart text and attachments', async () => {

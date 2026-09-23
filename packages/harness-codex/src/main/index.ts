@@ -22,6 +22,7 @@ import { CodexRuntime, type CodexMainContext } from './runtime/index.js'
 import { createCodexSettingsApi } from './settings.js'
 import { openCodexThread } from './thread/thread-handle.js'
 import { forkCodexThread } from './fork.js'
+import { discoverCodexWorkspaceDirectories } from './workspace-directories.js'
 import { createCodexBartTelemetryContributor } from '../bart/usage.js'
 import { CATALOG_TTL_MS, createCodexCatalogSource } from './catalog.js'
 import { normalizeCodexThreadSettings } from '../shared/settings.js'
@@ -76,6 +77,7 @@ export function createCodexMainPlugin(context: CodexMainContext): CodexMainPlugi
 
   const plugin = {
     sessionState: codexSessionState,
+    discoverWorkspaceDirectories: async ({ signal }) => discoverCodexWorkspaceDirectories(await context.environment(), signal),
     async install({ signal }: { readonly signal: AbortSignal }): Promise<void> {
       await runCliInstaller({
         unix: "curl -fsSL https://chatgpt.com/codex/install.sh | sh",

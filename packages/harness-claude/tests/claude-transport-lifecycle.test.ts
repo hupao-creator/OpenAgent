@@ -16,6 +16,74 @@ afterEach(async () => {
 })
 
 describe('Claude transport lifecycle', () => {
+  it('adds the exact directory mention scope while file references add their parent', async () => {
+    const { transport } = fixture()
+    await transport.send('execution', { parts: [
+      { kind: 'mention', name: 'project', path: '/work/project', pathType: 'directory' },
+      { kind: 'mention', name: 'file', path: '/files/project/readme.md' }
+    ] }, 'now', new AbortController().signal)
+    const args = mocks.spawn.mock.calls[0]?.[1] as string[]
+    const scopes = args.flatMap((arg, index) => arg === '--add-dir' ? [args[index + 1]] : [])
+    expect(scopes).toEqual(['/work/project', '/files/project'])
+    expect(scopes).not.toContain('/work')
+  })
+
+  it('extends a live process scope before admitting later mentions and serializes cumulative updates', async () => {
+    const { transport, child } = fixture()
+    const signal = new AbortController().signal
+    const mention = (path: string) => ({ parts: [{ kind: 'mention' as const, name: path, path, pathType: 'directory' as const }] })
+    await transport.send('execution', mention('/work/first'), 'now', signal)
+    child.onWrite = frame => { if (frame.type === 'user') child.frame(frame) }
+    const second = transport.send('execution', mention('/work/second'), 'next', signal)
+    const third = transport.send('execution', mention('/work/third'), 'next', signal)
+    const updates = () => child.writes.filter(frame => (frame.request as Record<string, unknown> | undefined)?.subtype === 'apply_flag_settings')
+    await expect.poll(() => updates().length).toBe(1)
+    expect(updates()[0]?.request).toEqual({ subtype: 'apply_flag_settings', settings: {
+      permissions: { additionalDirectories: ['/work/first', '/work/second'] }
+    } })
+    expect(child.writes.filter(frame => frame.type === 'user')).toHaveLength(1)
+    child.frame({ type: 'control_response', response: { subtype: 'success', request_id: updates()[0]?.request_id } })
+    await second
+    await expect.poll(() => updates().length).toBe(2)
+    expect(updates()[1]?.request).toEqual({ subtype: 'apply_flag_settings', settings: {
+      permissions: { additionalDirectories: ['/work/first', '/work/second', '/work/third'] }
+    } })
+    child.frame({ type: 'control_response', response: { subtype: 'success', request_id: updates()[1]?.request_id } })
+    await third
+    await transport.send('execution', mention('/work/second'), 'next', signal)
+    expect(updates()).toHaveLength(2)
+    expect(child.writes.filter(frame => frame.type === 'user')).toHaveLength(4)
+    expect(mocks.spawn).toHaveBeenCalledOnce()
+  })
+
+  it('does not admit input when a new scope is rejected and can retry the update', async () => {
+    const { transport, child } = fixture()
+    const signal = new AbortController().signal
+    await transport.inspectInitialization()
+    const input = { parts: [{ kind: 'mention' as const, name: 'project', path: '/work/project', pathType: 'directory' as const }] }
+    child.onWrite = frame => child.frame({ type: 'control_response', response: {
+      subtype: 'error', request_id: frame.request_id, error: 'scope rejected'
+    } })
+    await expect(transport.send('execution', input, 'now', signal)).rejects.toThrow('scope rejected')
+    expect(child.writes.filter(frame => frame.type === 'user')).toHaveLength(0)
+    child.onWrite = undefined
+    await transport.send('execution', input, 'now', signal)
+    expect(child.writes.filter(frame => (frame.request as Record<string, unknown> | undefined)?.subtype === 'apply_flag_settings')).toHaveLength(2)
+    expect(child.writes.filter(frame => frame.type === 'user')).toHaveLength(1)
+  })
+
+  it('restores previously granted directory scopes when the native child reconnects', async () => {
+    const { transport, child } = fixture()
+    const signal = new AbortController().signal
+    await transport.inspectInitialization()
+    await transport.send('execution', { parts: [{ kind: 'mention', name: 'project', path: '/work/project', pathType: 'directory' }] }, 'now', signal)
+    child.close(1)
+    await expect.poll(() => transport.activeExecutionId).toBeUndefined()
+    mocks.spawn.mockReturnValue(new FakeChild())
+    await transport.send('recovery', { parts: [{ kind: 'text', text: 'continue' }] }, 'now', signal)
+    expect(mocks.spawn.mock.calls[1]?.[1]).toEqual(expect.arrayContaining(['--add-dir', '/work/project']))
+  })
+
   it('accepts root task results without treating user echoes as tool output', async () => {
     const { transport, child, events } = fixture()
     await transport.send('execution', { parts: [{ kind: 'text', text: 'Track two tasks' }] },
@@ -264,12 +332,14 @@ function fixture(): {
 }
 
 class FakeChild extends EventEmitter {
+  readonly writes: Record<string, unknown>[] = []
   readonly stdout = new PassThrough()
   readonly stderr = new PassThrough()
   readonly stdin = new Writable({
     write: (chunk, _encoding, callback) => {
       try {
         const frame = JSON.parse(chunk.toString()) as Record<string, unknown>
+        this.writes.push(frame)
         if (this.onWrite) this.onWrite(frame)
         else if (frame.type === 'control_request') {
           this.frame({

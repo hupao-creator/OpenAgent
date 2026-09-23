@@ -58,6 +58,7 @@ import {
   type BartLogoPhase
 } from './BartLogo'
 import { AttachmentChips } from './AttachmentChips'
+import { useBartDirectoryMentions, type BartDirectoryMentionProps } from './BartDirectoryMentions'
 import { BartRoleDecoration } from './BartRoleDecoration'
 import type { BartReasoningOptions } from '../bart-motion/reasoning-geometry'
 import { BartReplyBadge } from './BartReplyBadge'
@@ -131,7 +132,7 @@ interface BartInterventionMeta {
   respondedAt?: number
 }
 
-interface BartDockProps {
+interface BartDockProps extends BartDirectoryMentionProps {
   activityContext: BartActivityContext
   displayQueue?: BartDisplayQueue
   displayTiming?: BartDisplayTiming
@@ -245,7 +246,9 @@ export const BartDock = memo(function BartDock({
   onSubmit,
   onInteractionResponse,
   onThreadFollowUpClose,
-  onThreadFollowUpSubmit
+  onThreadFollowUpSubmit,
+  loadMentionDirectories,
+  onMentionSelect
 }: BartDockProps): React.JSX.Element {
   const { t } = useI18n()
   const windowVisible = useWindowVisible()
@@ -319,6 +322,10 @@ export const BartDock = memo(function BartDock({
   const interactionVisible = Boolean(interaction)
   const threadFollowUpVisible = Boolean(threadFollowUp) && !threadOpen && !interactionVisible
   const bartInputVisible = inputOpen && !threadOpen && !interactionVisible && !threadFollowUpVisible
+  const directoryMentions = useBartDirectoryMentions({
+    enabled: bartInputVisible && !inputDisabled && !presentationCovered,
+    value: inputValue, input: textareaRef, loadMentionDirectories, onMentionSelect
+  })
   // The capsule collapses back into the Dock on its way out, and that collapse
   // takes longer than the state change does. The composer stays mounted, the
   // Dock keeps its input layout until the capsule has finished closing.
@@ -612,6 +619,9 @@ export const BartDock = memo(function BartDock({
     if (!bartInputVisible) return
     const dismiss = (event: PointerEvent): void => {
       if (dockRef.current?.contains(event.target as Node)) return
+      // The field's portaled listbox remains part of its composer interaction.
+      const popupId = textareaRef.current?.getAttribute('aria-controls')
+      if (popupId && document.getElementById(popupId)?.contains(event.target as Node)) return
       onInputOpenChange(false)
     }
     document.addEventListener('pointerdown', dismiss, true)
@@ -1231,6 +1241,7 @@ export const BartDock = memo(function BartDock({
               <Plus size={18} strokeWidth={2} aria-hidden="true" />
             </button>
             <textarea
+              {...directoryMentions.fieldProps}
               ref={textareaRef}
               rows={1}
               value={draftValue}
@@ -1240,7 +1251,7 @@ export const BartDock = memo(function BartDock({
               placeholder="Ask Bart…"
               autoComplete="off"
               spellCheck="false"
-              onChange={(event) => onInputChange(event.target.value)}
+              onChange={(event) => { onInputChange(event.target.value); directoryMentions.syncSelection() }}
               onPaste={(event) => {
                 // Read-only stops the browser from inserting; this handler does
                 // the inserting itself, so it has to be told separately.
@@ -1255,11 +1266,14 @@ export const BartDock = memo(function BartDock({
               }}
               onCompositionStart={() => {
                 composingRef.current = true
+                directoryMentions.fieldProps.onCompositionStart()
               }}
               onCompositionEnd={() => {
                 composingRef.current = false
+                directoryMentions.fieldProps.onCompositionEnd()
               }}
               onKeyDown={(event) => {
+                if (directoryMentions.onKeyDown(event)) return
                 if (event.key === 'Escape') {
                   event.preventDefault()
                   onInputOpenChange(false)
@@ -1285,6 +1299,8 @@ export const BartDock = memo(function BartDock({
           </div>
         </form>
       ) : null}
+
+      {directoryMentions.menu}
 
       {followUpPresent && followUpTarget && onThreadFollowUpSubmit ? (
         <BartDockThreadFollowUpComposer

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { DesktopApi } from '../src/shared/desktop-api'
 import type { AgentAttachment } from '../src/shared/attachments'
 import { createBartComposerStore } from '../src/renderer/src/bart-composer-store'
+import { PublicAgentInputSchema } from '@openagent/contracts'
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void
@@ -18,6 +19,84 @@ function api(overrides: Partial<DesktopApi> = {}): DesktopApi {
 }
 
 describe('Bart shared composer', () => {
+  it.each(['', 'Read '])('preserves an existing mention when inserting another at its boundary after %j', async prefix => {
+    const store = createBartComposerStore()
+    store.setText(prefix + '@')
+    store.insertMention({ start: prefix.length, end: prefix.length + 1, query: '' }, { name: 'old', path: '/work/old' })
+    const draft = store.getState().text
+    store.setText(draft.slice(0, prefix.length) + '@' + draft.slice(prefix.length))
+    expect(store.getState().mentions).toHaveLength(1)
+    store.setText(draft)
+    expect(store.getState().mentions).toHaveLength(1)
+    store.setText(draft.slice(0, prefix.length) + '@' + draft.slice(prefix.length))
+    store.insertMention({ start: prefix.length, end: prefix.length + 1, query: '' }, { name: 'new', path: '/work/new' })
+    const host = api()
+    await store.submit(host, '')
+    const input = vi.mocked(host.submitBartMessage).mock.calls[0][0].input
+    expect(input.parts.filter(part => part.kind === 'mention')).toEqual([
+      { kind: 'mention', pathType: 'directory', name: 'new', path: '/work/new' },
+      { kind: 'mention', pathType: 'directory', name: 'old', path: '/work/old' }
+    ])
+  })
+
+  it('keeps the largest mention draft with all attachments inside the public input limit', async () => {
+    const store = createBartComposerStore()
+    for (let index = 0; index < 50; index++) {
+      const start = store.getState().text.length
+      store.setText(store.getState().text + '@')
+      expect(store.insertMention({ start, end: start + 1, query: '' }, { name: 'project', path: '/work/project' })).toBeDefined()
+    }
+    const start = store.getState().text.length
+    store.setText(store.getState().text + '@')
+    const previous = store.getState()
+    expect(store.insertMention({ start, end: start + 1, query: '' }, { name: 'extra', path: '/work/extra' })).toBeUndefined()
+    expect(store.getState()).toBe(previous)
+    const host = api({ chooseFiles: vi.fn(async () => Array.from({ length: 20 }, (_, index) => attachment(String(index)))) })
+    await store.chooseFiles(host, '')
+    await store.submit(host, '')
+    const input = vi.mocked(host.submitBartMessage).mock.calls[0][0].input
+    expect(input.parts.filter(part => part.kind === 'mention')).toHaveLength(50)
+    expect(input.parts.filter(part => part.kind === 'local-file')).toHaveLength(20)
+    expect(PublicAgentInputSchema.safeParse(input).success).toBe(true)
+  })
+
+  it('retains failed mentions, tracks surrounding edits, and removes references edited into ordinary text', async () => {
+    const store = createBartComposerStore()
+    const directory = { name: 'project', path: '/work/project' }
+    store.setText('Read @')
+    store.insertMention({ start: 5, end: 6, query: '' }, directory)
+    const failed = api({ submitBartMessage: vi.fn(async () => { throw new Error('offline') }) })
+    await expect(store.submit(failed, '')).rejects.toThrow('offline')
+    expect(store.getState().mentions).toHaveLength(1)
+    store.setText('Please ' + store.getState().text)
+    const host = api()
+    await store.submit(host, '')
+    expect(host.submitBartMessage).toHaveBeenCalledWith({ input: { parts: [
+      { kind: 'text', text: 'Please Read ' }, { kind: 'mention', pathType: 'directory', ...directory }
+    ] } })
+    store.setText('@')
+    store.insertMention({ start: 0, end: 1, query: '' }, directory)
+    store.setText(store.getState().text.replace('project', 'other'))
+    await store.submit(host, '')
+    expect(host.submitBartMessage).toHaveBeenLastCalledWith({ input: { parts: [{ kind: 'text', text: '@"/work/other"' }] } })
+  })
+
+  it('preserves mentions edited during an in-flight send, including a second reference', async () => {
+    const store = createBartComposerStore(), pending = deferred()
+    store.setText('@')
+    store.insertMention({ start: 0, end: 1, query: '' }, { name: 'a', path: '/work/a' })
+    const sending = store.submit(api({ submitBartMessage: vi.fn(() => pending.promise) as DesktopApi['submitBartMessage'] }), '')
+    const start = store.getState().text.length
+    store.setText(store.getState().text + '@')
+    store.insertMention({ start, end: start + 1, query: '' }, { name: 'b', path: '/work/b' })
+    pending.resolve(); await sending
+    const host = api()
+    await store.submit(host, '')
+    expect(host.submitBartMessage).toHaveBeenCalledWith({ input: { parts: [
+      { kind: 'mention', pathType: 'directory', name: 'a', path: '/work/a' }, { kind: 'text', text: ' ' }, { kind: 'mention', pathType: 'directory', name: 'b', path: '/work/b' }
+    ] } })
+  })
+
   it('locks duplicate submission and preserves edits including A → B → A during the request', async () => {
     const pending = deferred()
     const host = api({ submitBartMessage: vi.fn(() => pending.promise) as DesktopApi['submitBartMessage'] })

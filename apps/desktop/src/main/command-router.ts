@@ -28,6 +28,7 @@ export type CommandService = Pick<OpenAgentService,
   | 'updateThreadSettings'
   | 'updateAppSettings'
   | 'detectHarnessInstallations'
+  | 'listKnownDirectories'
   | 'installHarness'
   | 'loadHarnessSettingsPresentation'
   | 'invokeHarnessExtension'
@@ -57,6 +58,7 @@ export const COMMAND_CHANNELS = [
   'thread:update-settings',
   'app:update-settings',
   'harness:detect-installations',
+  'workspace:list-known-directories',
   'harness:install',
   'harness:settings-presentation',
   'harness:extension',
@@ -153,6 +155,7 @@ export function createChannelHandlers(
     'harness:detect-installations': async () => {
       return service.detectHarnessInstallations()
     },
+    'workspace:list-known-directories': async () => service.listKnownDirectories(),
 
     'harness:settings-presentation': async (rawRequest: unknown) => {
       const request = parseCommand(HarnessSettingsPresentationRequestSchema, rawRequest)

@@ -393,6 +393,8 @@ export interface HarnessMainPlugin<
   SettingsPresentationData
 > {
   readonly sessionState: HarnessSessionStateAdapter
+  /** Read native local workspace metadata without importing sessions or executing work. */
+  discoverWorkspaceDirectories?(input: { readonly signal: AbortSignal }): Promise<readonly string[]>
   /**
    * Detect whether the standard command is installed in PATH or its native install location. Custom
    * settings paths and native process/model probing do not participate.

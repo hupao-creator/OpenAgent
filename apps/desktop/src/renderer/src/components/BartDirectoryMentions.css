@@ -1,0 +1,35 @@
+.bart-directory-mentions {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 5px;
+  border: 1px solid #3b3c37;
+  border-radius: 14px;
+  background: #171815;
+  color: #f1f1e9;
+  box-shadow: 0 10px 32px #0004;
+  font: 13px/1.4 var(--font-sans, sans-serif);
+}
+.bart-directory-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.bart-directory-option[aria-selected='true'],
+.bart-directory-option:hover { background: #30322b; }
+.bart-directory-option > svg { flex: none; color: #c4c8b7; }
+.bart-directory-option > span { min-width: 0; }
+.bart-directory-option strong, .bart-directory-option small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bart-directory-option strong { font-weight: 500; }
+.bart-directory-option small { color: #adafa4; font-size: 11px; }
+.bart-directory-empty { padding: 12px; color: #adafa4; }

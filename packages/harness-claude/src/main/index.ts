@@ -2,6 +2,7 @@ import { acquireBartEvaluationSource } from '@openagent/plugin-kit/bart/main'
 import spawn from 'cross-spawn'
 import { createCliAvailabilityProbe, runCliInstaller } from '@openagent/plugin-kit/main'
 import { createClaudeSettings } from './settings.js'
+import { discoverClaudeWorkspaceDirectories } from './workspace-directories.js'
 import { createClaudeTelemetryContext } from './telemetry.js'
 import type { ClaudeMainPlugin, ClaudeMainPluginBundle } from './types.js'
 
@@ -34,6 +35,7 @@ export function createClaudeMainPlugin(
   const evaluationSource = acquireBartEvaluationSource()
   const plugin = {
     sessionState: claudeSessionStateAdapter,
+    discoverWorkspaceDirectories: async ({ signal }) => discoverClaudeWorkspaceDirectories(await mainContext.environment(), signal),
     async install({ signal }: { readonly signal: AbortSignal }): Promise<void> {
       await runCliInstaller({
         unix: "curl -fsSL https://claude.ai/install.sh | bash",

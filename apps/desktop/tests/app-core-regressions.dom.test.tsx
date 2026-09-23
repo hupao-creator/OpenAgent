@@ -870,7 +870,7 @@ describe('App Renderer Core regressions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'submit request' }))
 
     await waitFor(() => expect(fixture.submitBartMessage).toHaveBeenCalledWith({
-      input: { parts: [] },
+      input: { parts: [{ kind: 'text', text: 'Create a real thread' }] },
       directoryTag: 'workspace'
     }))
   })
