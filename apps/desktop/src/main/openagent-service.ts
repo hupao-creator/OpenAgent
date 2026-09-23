@@ -149,17 +149,6 @@ const DEFAULT_BART_ROUTING_GUIDANCE = [
   'Prefer the least costly option that can reliably complete the task, and use stronger reasoning only when complexity warrants it.',
   'Never invent a Harness, model, or option that is absent from the supplied Thread settings schema.'
 ].join(' ')
-const BART_EXECUTION_CONTRACT = [
-  'A successful start/send is accepted, not completed: the Thread reports its terminal status and any available result through an automatic OpenAgent lifecycle event that can begin a later Bart turn.',
-  'Do not keep the current turn active to wait for it, and do not poll status or read unless intermediate information is needed.'
-].join(' ')
-// Result-level dispatch-not-wait anchor. The full contract belongs to
-// BART_EXECUTION_CONTRACT; this per-result line sits in the tool result because
-// Bart acts on each dispatch without re-reading the system prompt.
-const BART_START_NEXT_ACTION =
-  'Dispatched, not completed; the automatic OpenAgent lifecycle event carries the terminal status and any available result. End this turn if no other coordination remains, and do not poll status or read.'
-const BART_SEND_NEXT_ACTION =
-  'Accepted, not completed; the automatic OpenAgent lifecycle event carries the terminal status and any available result. End this turn if no other coordination remains, and do not poll status or read.'
 
 export interface OpenAgentServicePaths {
   readonly defaultCwd: string
@@ -1615,8 +1604,6 @@ export class OpenAgentService {
             systemEntries,
             instructions: [
               BART_SYSTEM_PROMPT,
-              'Use only the supplied OpenAgent Core tools to operate Agent Threads.',
-              BART_EXECUTION_CONTRACT,
               threadCreation.instructions,
               `Model routing guidance:\n${settings.bart.routingGuidance ?? DEFAULT_BART_ROUTING_GUIDANCE}`
             ],
@@ -1639,8 +1626,6 @@ export class OpenAgentService {
             injection: {
               instructions: [
                 BART_SYSTEM_PROMPT,
-                'Use only the supplied OpenAgent Core tools to operate Agent Threads.',
-                BART_EXECUTION_CONTRACT,
                 threadCreation.instructions,
                 `Model routing guidance:\n${settings.bart.routingGuidance ?? DEFAULT_BART_ROUTING_GUIDANCE}`
               ],
@@ -2058,8 +2043,7 @@ export class OpenAgentService {
         ok: true,
         threadId: created.record.id,
         executionId: created.execution.executionId,
-        acknowledgement: resolved.acknowledgement,
-        nextAction: BART_START_NEXT_ACTION
+        acknowledgement: resolved.acknowledgement
       }
     } catch (error) {
       if (temporaryCwd && !dispatchStarted) {
@@ -2085,8 +2069,7 @@ export class OpenAgentService {
       ok: true,
       threadId,
       executionId: result.executionId,
-      startedNewExecution: result.startedNewExecution,
-      nextAction: BART_SEND_NEXT_ACTION
+      startedNewExecution: result.startedNewExecution
     }
   }
 

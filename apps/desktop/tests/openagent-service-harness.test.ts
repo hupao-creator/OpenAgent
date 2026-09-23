@@ -4467,7 +4467,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     await fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Archive lifecycle' }] } })
   })
 
-  it('carries the dispatch-not-wait contract in start/send results and in Bart instructions', async () => {
+  it('does not inject extra Core-tool or dispatch-wait instructions into Bart', async () => {
     let started: JsonValue | undefined
     let sent: JsonValue | undefined
     const trace: HarnessTrace = { async runBartTools(tools, signal) {
@@ -4487,16 +4487,12 @@ describe('OpenAgent Service Harness dispatch', () => {
     await fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Dispatch work.' }] } })
 
     const instructions = trace.injectionSnapshots?.[0]?.instructions.join('\n') ?? ''
-    expect(instructions).toMatch(/automatic OpenAgent lifecycle event/)
-    expect(instructions).toMatch(/do not poll status or read/)
-    expect(started).toMatchObject({
-      ok: true,
-      nextAction: expect.stringMatching(/Dispatched, not completed[\s\S]*lifecycle event[\s\S]*do not poll status or read/)
-    })
-    expect(sent).toMatchObject({
-      ok: true,
-      nextAction: expect.stringMatching(/Accepted, not completed[\s\S]*lifecycle event[\s\S]*do not poll status or read/)
-    })
+    expect(instructions).not.toContain('Use only the supplied OpenAgent Core tools')
+    expect(instructions).not.toContain('A successful start/send is accepted')
+    expect(started).toMatchObject({ ok: true })
+    expect(sent).toMatchObject({ ok: true })
+    expect(started).not.toHaveProperty('nextAction')
+    expect(sent).not.toHaveProperty('nextAction')
   })
 
   it('reuses the archive submission boundary for a Thread auto-archived by its failed Execution', async () => {
