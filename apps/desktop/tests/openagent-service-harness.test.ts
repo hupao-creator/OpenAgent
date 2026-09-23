@@ -2661,7 +2661,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     expect(injection?.instructions.length).toBeGreaterThan(0)
     expect(injection?.toolNames).toEqual([
       'thread_list', 'thread_create', 'thread_status', 'thread_send',
-      'thread_set_archived', 'thread_read', 'thread_interrupt', 'thread_respond',
+      'thread_set_archived', 'thread_read', 'thread_interrupt',
       'report_create', 'report_list', 'report_read', 'report_update',
       'report_set_archived', 'schedule_create', 'schedule_list', 'schedule_cancel'
     ])

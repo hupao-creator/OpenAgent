@@ -64,16 +64,11 @@ export const resilienceSuite = {
           interactionId: `stale-${context.token}`,
           actionId: allow.actionId
         }
-        const { message } = await context.bart.askForToolFailure({
-          name: 'thread_respond',
-          expectedArguments: staleArguments,
-          directive: exactCallDirective(
-            'Answer a native interaction with an identifier that is not pending.',
-            'thread_respond',
-            staleArguments,
-            ['Report the tool error verbatim. Do not retry with the real interaction id.']
-          )
-        })
+        let message = ''
+        await assert.rejects(
+          () => context.client.invoke('thread:interaction-respond', staleArguments),
+          error => { message = String(error); return true }
+        )
         assert.ok(message.trim(), 'the rejected respond produced no error message')
         if (evidence.kind === 'write-proof') {
           await assertMissing(proofPath, 'native proof after a stale respond')
@@ -112,17 +107,11 @@ export const resilienceSuite = {
           interactionId: interaction.id,
           actionId
         }
-        const { message } = await context.bart.askForToolFailure({
-          name: 'thread_respond',
-          expectedArguments: replayArguments,
-          errorPattern: /interaction|pending|waiting|等待|active/i,
-          directive: exactCallDirective(
-            'Replay a response for an interaction that has already completed.',
-            'thread_respond',
-            replayArguments,
-            ['Report the tool error verbatim. Do not send a follow-up.']
-          )
-        })
+        let message = ''
+        await assert.rejects(
+          () => context.client.invoke('thread:interaction-respond', replayArguments),
+          error => { message = String(error); return /interaction|pending|waiting|等待|active/i.test(message) }
+        )
         const after = latestExecution(findThread(await context.client.loadState(), threadId))
         assert.deepEqual(after, terminal, 'a replayed interaction response mutated the terminal state')
         return {

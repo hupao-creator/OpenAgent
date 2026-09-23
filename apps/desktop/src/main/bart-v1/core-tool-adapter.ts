@@ -1,5 +1,4 @@
 import {
-  MAX_HARNESS_RESPONSE_MESSAGE_CHARACTERS,
   type HarnessToolBinding,
   type JsonObject,
   type JsonValue
@@ -18,7 +17,6 @@ export interface BartToolHandlers {
   readonly setThreadArchived: BartToolHandler
   readonly readThread: BartToolHandler
   readonly interruptThread: BartToolHandler
-  readonly respondThread: BartToolHandler
   readonly createReport: BartToolHandler
   readonly listReports: BartToolHandler
   readonly readReport: BartToolHandler
@@ -66,26 +64,6 @@ export function createBartToolBindings(
     tool('thread_interrupt', 'Interrupt the Thread current Execution.',
       objectSchema({ threadId: idSchema }, ['threadId']),
       (value, signal) => handlers.interruptThread(value, signal)),
-    tool('thread_respond', 'Respond to the Thread current native interaction.',
-      objectSchema({
-        threadId: idSchema,
-        interactionId: idSchema,
-        actionId: idSchema,
-        answers: {
-          type: 'object',
-          additionalProperties: {
-            anyOf: [
-              { type: 'string' },
-              { type: 'array', items: { type: 'string' } }
-            ]
-          }
-        },
-        message: {
-          type: 'string',
-          maxLength: MAX_HARNESS_RESPONSE_MESSAGE_CHARACTERS
-        }
-      }, ['threadId', 'interactionId', 'actionId']),
-      (value, signal) => handlers.respondThread(value, signal)),
     ...reportToolBindings(handlers, idSchema, emptySchema),
     ...scheduleToolBindings(handlers, threadCreationSchema, idSchema, emptySchema)
   ]

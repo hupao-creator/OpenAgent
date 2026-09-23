@@ -3,15 +3,16 @@
 This suite verifies the real control and observation chain:
 
 `bart:submit` → Bart tool call → Harness Plugin → native interaction →
-`thread_respond` → native completion.
+GUI `thread:interaction-respond` command → native completion.
 
-Delegated task responses always use Bart's `thread_respond` tool.
-When Bart itself enters native permission waiting, the driver uses the normal
-GUI `thread:interaction-respond` command, after rechecking that the Thread id is
+The headless suite disables Bart automatic intervention so it can exercise the
+manual response path deterministically. Delegated task responses use the same
+public command as the GUI. When Bart itself enters native permission waiting,
+the driver uses that command after rechecking that the Thread id is
 the current Bart host. The observed waiting state, selected public allow action,
 and command response are retained in each case's `host.interactions` evidence.
 Native host questions or unsupported controls fail explicitly. This flow keeps
-normal native permission settings and does not approve delegated targets directly.
+normal native permission settings.
 Each successful Bart directive requires its host Execution to finish `completed`,
 even after all expected Core tool results have committed. An expected Core tool
 rejection is checked separately and never excuses a failed or interrupted host.

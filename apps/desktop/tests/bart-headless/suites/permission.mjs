@@ -19,7 +19,7 @@ import {
 export const permissionSuite = {
   id: 'permission',
   tier: 'core',
-  description: 'Native permission interactions answered through the Bart',
+  description: 'Native permission interactions answered through the GUI command',
   cases: [
     {
       id: 'allow',
@@ -76,8 +76,7 @@ export const permissionSuite = {
         await context.respond({
           threadId,
           interaction,
-          actionId: response.actionId,
-          intro: 'Reject the pending native permission request for this acceptance case.'
+          actionId: response.actionId
         })
 
         const terminal = await context.waitForTerminal(threadId)

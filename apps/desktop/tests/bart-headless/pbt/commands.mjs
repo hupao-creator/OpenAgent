@@ -1,4 +1,5 @@
 import { check } from '../invariant.mjs'
+import assert from 'node:assert/strict'
 import fc from 'fast-check'
 import { exactCallDirective } from '../bart.mjs'
 import { bounded } from '../support.mjs'
@@ -615,8 +616,7 @@ async function denyPermission(command, real, model, entry, key) {
   await scoped.respond({
     threadId: entry.threadId,
     interaction,
-    actionId: response.actionId,
-    intro: 'Reject the pending native permission request for this PBT sample.'
+    actionId: response.actionId
   })
   const terminal = await scoped.waitForTerminal(entry.threadId)
   check.ok('permission.deny.marker',
@@ -647,8 +647,7 @@ async function rejectUnknownInteraction(command, real, entry) {
   const actionId = scoped.answerFor(valid, 'allow').actionId
   await assertRejected(
     real, entry,
-    { threadId: entry.threadId, interactionId: unknownId, actionId },
-    'Answer the pending native interaction with an identifier that is not pending.'
+    { threadId: entry.threadId, interactionId: unknownId, actionId }
   )
   // The pending interaction must survive the rejected answer, and the protected
   // native effect must still be impossible.
@@ -663,23 +662,21 @@ async function rejectConsumedInteraction(command, real, entry) {
   check.ok('permission.consumed.identity-present', consumed, 'no consumed interaction is available to replay')
   await assertRejected(
     real, entry,
-    { threadId: entry.threadId, interactionId: consumed, actionId: entry.consumedActionId },
-    'Replay a response for a native interaction that has already completed.'
+    { threadId: entry.threadId, interactionId: consumed, actionId: entry.consumedActionId }
   )
   await real.assertObserved(entry, `after ${command.plan.kind}`)
   if (entry.denied) await assertEvidenceStillLocked(real, entry)
   reach(command.coverage, 'rejected-consumed-interaction')
 }
 
-async function assertRejected(real, entry, args, intro) {
+async function assertRejected(real, entry, args) {
   const before = await real.client.loadState()
   const beforeExecution = await real.observe(entry.threadId)
-  const { message } = await real.bart.askForToolFailure({
-    name: 'thread_respond',
-    expectedArguments: args,
-    directive: exactCallDirective(intro, 'thread_respond', args,
-      ['Report the tool error verbatim. Do not retry with the real interaction id.'])
-  })
+  let message = ''
+  await assert.rejects(
+    () => real.client.invoke('thread:interaction-respond', args),
+    error => { message = String(error); return true }
+  )
   check.ok('permission.rejected.error-message', message.trim(), 'a rejected respond produced no error message')
   const after = await real.client.loadState()
   check.equal('permission.rejected.thread-set', after.threads.length, before.threads.length, 'a rejected respond changed the Thread set')
@@ -789,8 +786,7 @@ async function rejectForeignInteraction(command, real, model, entry, key) {
   const actionId = real.scoped(foreign.scopeToken).answerFor(interaction, 'allow').actionId
   await assertRejected(
     real, entry,
-    { threadId: entry.threadId, interactionId: foreign.interactionId, actionId },
-    'Answer one PBT Thread with an interaction that belongs to another Thread.'
+    { threadId: entry.threadId, interactionId: foreign.interactionId, actionId }
   )
   const pending = await pendingInteraction(scoped, entry)
   check.equal('isolation.foreign.local-pending', pending.id, entry.interactionId, 'a foreign answer consumed the local pending interaction')

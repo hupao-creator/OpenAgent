@@ -13,7 +13,7 @@ import {
 export const questionSuite = {
   id: 'question',
   tier: 'core',
-  description: 'Native question interactions answered through the Bart',
+  description: 'Native question interactions answered through the GUI command',
   cases: [
     {
       id: 'single-select',
@@ -93,8 +93,7 @@ export const questionSuite = {
         await context.respond({
           threadId,
           interaction,
-          actionId: response.actionId,
-          intro: 'Cancel the pending native question for this acceptance case.'
+          actionId: response.actionId
         })
         const terminal = await context.waitForTerminal(threadId)
         assertContainsToken(

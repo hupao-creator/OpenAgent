@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process'
 import { mkdir, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { exactCallDirective, orderedCallDirective } from './bart.mjs'
+import { exactCallDirective } from './bart.mjs'
 import {
   permissiveProviderOptions,
   provider,
@@ -168,10 +168,7 @@ export class ScenarioContext {
     return { thread, execution, interaction }
   }
 
-  /**
-   * Responds through the Bart, requiring it to observe the pending public
-   * interaction with `thread_status` before acting on it.
-   */
+  /** Responds to a public native interaction through the same command as the GUI. */
   async respond(input) {
     const respondArguments = {
       threadId: input.threadId,
@@ -179,33 +176,11 @@ export class ScenarioContext {
       actionId: input.actionId,
       ...(input.answers ? { answers: input.answers } : {})
     }
-    const operation = await this.bart.askForTool({
-      name: 'thread_respond',
-      expectedArguments: respondArguments,
-      timeoutMs: input.timeoutMs,
-      requiredBefore: {
-        name: 'thread_status',
-        expectedArguments: { threadId: input.threadId },
-        validate(statusOperation) {
-          const observed = statusOperation.result?.thread?.observation?.latestExecution
-          check.equal('interaction.observed-waiting',
-            observed?.status,
-            'waiting-for-user',
-            'Bart status did not expose the pending public interaction: ' +
-            bounded(statusOperation.result)
-          )
-          check.ok('interaction.observed-id', observed?.interactions?.some(
-            interaction => interaction.id === input.interaction.id
-          ))
-        }
-      },
-      directive: orderedCallDirective(
-        input.intro || 'Continue the native acceptance case.',
-        { name: 'thread_status', arguments: { threadId: input.threadId } },
-        { name: 'thread_respond', arguments: respondArguments }
-      )
-    })
-    return { operation, respondArguments }
+    await this.client.invoke(
+      'thread:interaction-respond', respondArguments,
+      AbortSignal.timeout(input.timeoutMs ?? this.client.timeoutMs)
+    )
+    return { respondArguments }
   }
 
   /** Selects the public response for one native interaction. */
@@ -240,11 +215,10 @@ export class ScenarioContext {
   }
 
   /**
-   * Approves a bounded chain of native permission requests through the Bart.
+   * Approves a bounded chain of native permission requests through the GUI command.
    * Some CLIs request permission again for a read that verifies an approved
    * write, so a single approval is not a terminality guarantee. Every response
-   * still observes and submits the current public interaction through the
-   * normal Bart status -> respond sequence.
+   * still uses the current public interaction exposed by renderer state.
    */
   async allowPermissionChain(input) {
     const maxPermissions = input.maxPermissions ?? 4
@@ -291,10 +265,7 @@ export class ScenarioContext {
         threadId: input.threadId,
         interaction,
         actionId: response.actionId,
-        timeoutMs: remaining(),
-        intro: interactionIds.length === 0
-          ? input.intro
-          : 'Approve the next native permission required by the same acceptance case.'
+        timeoutMs: remaining()
       })
       seen.add(interaction.id)
       interactionIds.push(interaction.id)

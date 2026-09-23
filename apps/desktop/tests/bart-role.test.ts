@@ -72,7 +72,6 @@ describe('Bart Dock role resolution', () => {
     'thread_list',
     'thread_create',
     'thread_send',
-    'thread_respond',
     'thread_status',
     'thread_interrupt'
   ])('defers to the dedicated choreography of %s', (toolName) => {

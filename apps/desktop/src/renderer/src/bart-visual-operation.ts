@@ -75,8 +75,7 @@ function visualKind(name: string): BartVisualOperationKind | undefined {
   switch (name) {
     case 'thread_list': return 'list'
     case 'thread_create': return 'start'
-    case 'thread_send':
-    case 'thread_respond': return 'send'
+    case 'thread_send': return 'send'
     case 'thread_status': return 'status'
     case 'thread_interrupt': return 'interrupt'
     default: return undefined

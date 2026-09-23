@@ -1984,7 +1984,6 @@ export class OpenAgentService {
       sendThread: (value, signal) => this.bartSendThread(value, signal),
       readThread: (value, signal) => this.bartReadThread(value, signal),
       interruptThread: (value, signal) => this.bartInterruptThread(value, signal),
-      respondThread: (value, signal) => this.bartRespondThread(value, signal),
       createReport: (value, signal) => this.bartCreateReport(value, signal),
       listReports: (_value, signal) => this.bartListReports(signal),
       readReport: (value, signal) => this.bartReadReport(value, signal),
@@ -2082,12 +2081,6 @@ export class OpenAgentService {
   private async bartInterruptThread(value: JsonValue, signal: AbortSignal): Promise<JsonValue> {
     const threadId = toolString(value, 'threadId')
     await this.threadLifecycle.interrupt(threadId, this.agentLifecycleSignal(signal))
-    return { ok: true, threadId }
-  }
-
-  private async bartRespondThread(value: JsonValue, signal: AbortSignal): Promise<JsonValue> {
-    const { threadId, response } = normalizeThreadResponse(value)
-    await this.threadLifecycle.respond(threadId, response, this.agentLifecycleSignal(signal))
     return { ok: true, threadId }
   }
 
