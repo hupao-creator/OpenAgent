@@ -4024,6 +4024,7 @@ function jsonObject(value: unknown): value is JsonObject {
 
 interface BartWorkspaceHint {
   readonly cwds: readonly string[]
+  readonly truncated: boolean
 }
 
 const MAX_BART_WORKSPACE_HINT_CWDS = 8
@@ -4049,17 +4050,21 @@ function resolveBartWorkspaceHint(
     )
   const cwds: string[] = []
   const seen = new Set<string>()
+  let truncated = false
   for (const { thread } of candidates) {
     const candidateTag = threadDirectoryTag(thread)
     if (!candidateTag || !sameThreadTag(candidateTag, requestedTag)) continue
     const cwd = threadWorkspaceCwd(thread)
     if (cwd && !seen.has(cwd)) {
       seen.add(cwd)
-      cwds.push(cwd)
+      if (cwds.length < MAX_BART_WORKSPACE_HINT_CWDS) cwds.push(cwd)
+      else {
+        truncated = true
+        break
+      }
     }
-    if (cwds.length >= MAX_BART_WORKSPACE_HINT_CWDS) break
   }
-  return cwds.length ? { cwds } : undefined
+  return cwds.length ? { cwds, truncated } : undefined
 }
 
 function withBartWorkspaceHint(
@@ -4069,7 +4074,7 @@ function withBartWorkspaceHint(
   if (!hint) return entries
   const content = hint.cwds.length === 1
     ? `The user's entire request concerns work in the directory ${JSON.stringify(hint.cwds[0])}.`
-    : `The user's entire request concerns work in these directories:\n${hint.cwds.map(cwd => `- ${JSON.stringify(cwd)}`).join('\n')}`
+    : `The user's entire request concerns work in ${hint.truncated ? 'these and other matching directories (partial list)' : 'these directories'}:\n${hint.cwds.map(cwd => `- ${JSON.stringify(cwd)}`).join('\n')}`
   const index = entries.findIndex((entry) => entry.id === 'workspace')
   if (index < 0) {
     return [...entries, { id: 'workspace' satisfies BartContextEntryId, content }]

@@ -2834,6 +2834,30 @@ describe('OpenAgent Service Harness dispatch', () => {
 
   })
 
+  it('marks the workspace path list as partial only when another distinct directory matches', async () => {
+    const trace: HarnessTrace = { runBartTools: async () => undefined }
+    const fixture = await serviceFixture(trace, [])
+    for (let index = 0; index < 9; index += 1) {
+      await fixture.store.commit({
+        type: 'add-agent-thread',
+        thread: fixtureAgentThread(`alpha-${index}`, `/workspace/${index}/Alpha`, index + 1)
+      })
+    }
+    await fixture.service.initialize()
+    await fixture.service.submitBartMessage({
+      input: { parts: [{ kind: 'text', text: 'Work in Alpha.' }] },
+      directoryTag: 'Alpha'
+    })
+
+    const selectedIndex = trace.bartInputs?.findIndex(input =>
+      input.parts.some(part => part.kind === 'text' && part.text === 'Work in Alpha.')
+    ) ?? -1
+    const workspace = trace.bartContextEntries?.[selectedIndex]?.find(entry => entry.id === 'workspace')
+    expect(workspace?.content).toContain('these and other matching directories (partial list)')
+    expect(workspace?.content).toContain('"/workspace/8/Alpha"')
+    expect(workspace?.content).not.toContain('"/workspace/0/Alpha"')
+  })
+
   it('silently consumes schedules already due when the Service initializes', async () => {
     const now = Date.now()
     const trace: HarnessTrace = {}
