@@ -2,6 +2,8 @@ import { createStore } from 'zustand/vanilla'
 import type { AgentAttachment, BartDraftAttachment } from '../../shared/attachments'
 import type { DesktopApi } from '../../shared/desktop-api'
 import { buildAgentInput } from './components/BartThreadView'
+import { directoryMentionParts, insertDirectoryMention, reconcileDirectoryMentions, type DirectoryMention, type MentionQuery } from './directory-mentions'
+import type { KnownDirectory } from '../../shared/known-directory'
 
 const MAX_BART_ATTACHMENTS = 20
 export const ATTACHMENT_LIMIT_ERROR = '附件数量不能超过 20 个'
@@ -10,6 +12,7 @@ export const ATTACHMENT_IMPORT_BUSY_ERROR = '附件正在处理中，请稍候'
 export function createBartComposerStore() {
   const store = createStore(() => ({
     text: '',
+    mentions: [] as readonly DirectoryMention[],
     editRevision: 0,
     attachments: [] as readonly BartDraftAttachment[],
     submitting: false,
@@ -19,15 +22,22 @@ export function createBartComposerStore() {
   const updateAttachments = (update: (current: readonly BartDraftAttachment[]) => readonly BartDraftAttachment[]) =>
     store.setState(state => ({ attachments: update(state.attachments) }))
   const setText = (text: string) =>
-    store.setState(state => ({ text, editRevision: state.editRevision + 1 }))
+    store.setState(state => ({ text, mentions: reconcileDirectoryMentions(state.text, text, state.mentions), editRevision: state.editRevision + 1 }))
   const clearSubmitted = (revision: number, submitted: readonly BartDraftAttachment[]) =>
     store.setState(state => ({
       text: state.editRevision === revision ? '' : state.text,
+      mentions: state.editRevision === revision ? [] : state.mentions,
       attachments: state.attachments.filter(draft => !submitted.some(item =>
         item === draft || (item.status === 'pending' && item.id === draft.id)))
     }))
   return Object.assign(store, {
     setText,
+    insertMention(query: MentionQuery, directory: KnownDirectory): number {
+      const state = store.getState()
+      const inserted = insertDirectoryMention(state.text, state.mentions, query, directory)
+      store.setState({ text: inserted.text, mentions: inserted.mentions, editRevision: state.editRevision + 1 })
+      return inserted.caret
+    },
     removeAttachment: (id: string) => updateAttachments(current => current.filter(draft =>
       (draft.status === 'ready' ? draft.attachment.id : draft.id) !== id)),
     async chooseFiles(api: DesktopApi, cwd: string) {
@@ -68,7 +78,7 @@ export function createBartComposerStore() {
       store.setState({ submitting: true })
       try {
         await api.submitBartMessage({
-          input: buildAgentInput(state.text, ready),
+          input: { parts: [...directoryMentionParts(state.text, state.mentions), ...buildAgentInput('', ready).parts] },
           ...(directoryTag ? { directoryTag } : {})
         })
         clearSubmitted(state.editRevision, state.attachments.filter(draft => draft.status === 'ready'))

@@ -1,4 +1,6 @@
 import { RendererStatePublisher } from './services/renderer-state-publisher'
+import { mergeKnownDirectories } from './services/known-directories'
+import type { KnownDirectory } from '../shared/known-directory'
 import { AutoInterventionService } from './use-cases/auto-intervention-service'
 import { publicThreadEnvelope } from './use-cases/thread-observation'
 import { errorMessage } from './services/error-message'
@@ -1003,6 +1005,25 @@ export class OpenAgentService {
     }).finally(() => this.harnessInstalls.delete(harnessId))
     this.harnessInstalls.set(harnessId, operation)
     return operation
+  }
+
+  private knownWorkspaceCache?: { expires: number; promise: Promise<readonly string[]> }
+
+  async listKnownDirectories(): Promise<readonly KnownDirectory[]> {
+    this.assertOperational()
+    const signal = this.serviceController.signal
+    if (!this.knownWorkspaceCache || this.knownWorkspaceCache.expires < Date.now()) {
+      const promise = this.trackCompositionOperation(async () => {
+        const results = await Promise.allSettled(Object.values(this.main).map(binding =>
+          binding.discoverWorkspaceDirectories(signal)))
+        signal.throwIfAborted()
+        return results.flatMap(result => result.status === 'fulfilled' ? [...result.value] : [])
+      })
+      this.knownWorkspaceCache = { expires: Date.now() + 30_000, promise }
+    }
+    const native = await this.knownWorkspaceCache.promise
+    const tagged = this.store.read().threads.filter(isAgentThreadRecord).map(threadWorkspaceCwd)
+    return mergeKnownDirectories([...native, ...tagged], this.paths.temporaryWorkspaceRoot)
   }
 
   async detectHarnessInstallations(): Promise<HarnessInstallationMap> {

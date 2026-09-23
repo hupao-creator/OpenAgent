@@ -76,6 +76,23 @@ afterEach(async () => {
 })
 
 describe('OpenAgent Service Harness dispatch', () => {
+  it('unions native workspace discovery with live directory tags, shares scans, and isolates source failures', async () => {
+    const main = mainHarnessComposition({})
+    const scan = vi.spyOn(main.codex, 'discoverWorkspaceDirectories').mockResolvedValue(['/work/native', '/work/tagged/'])
+    vi.spyOn(main.claude, 'discoverWorkspaceDirectories').mockRejectedValue(new Error('unreadable native store'))
+    const f = await serviceFixture({}, [], settings => settings, { main })
+    await f.service.initialize()
+    await f.store.commit({ type: 'add-agent-thread', thread: { ...fixtureAgentThread('tagged', '/work/tagged', 1), archived: true } })
+    await f.store.commit({ type: 'add-agent-thread', thread: fixtureAgentThread('temporary', join(f.temporaryWorkspaceRoot, 'scratch'), 2) })
+    const [first, concurrent] = await Promise.all([f.service.listKnownDirectories(), f.service.listKnownDirectories()])
+    expect(first).toEqual([{ name: 'native', path: '/work/native' }, { name: 'tagged', path: '/work/tagged' }])
+    expect(concurrent).toEqual(first)
+    expect(scan).toHaveBeenCalledOnce()
+    await f.store.commit({ type: 'add-agent-thread', thread: fixtureAgentThread('new-tag', '/work/new-tag', 3) })
+    expect(await f.service.listKnownDirectories()).toContainEqual({ name: 'new-tag', path: '/work/new-tag' })
+    expect(scan).toHaveBeenCalledOnce()
+  })
+
   it.each(['model', 'guidance', 'targets', 'host'].flatMap(change =>
     ['active', 'background'].map(work => ({ change, work }))))(
     'keeps pending $change settings behind $work Bart work when steering', async ({ change, work }) => {

@@ -17,6 +17,7 @@ import type {
   RendererStateMutation
 } from './renderer-state-contracts'
 import type { AgentAttachment } from './attachments'
+import type { KnownDirectory } from './known-directory'
 import type { HarnessExtensionRequest } from '@openagent/contracts'
 import type { RendererFirstCommitDiagnostic } from './diagnostic-tracing'
 import type {
@@ -76,6 +77,7 @@ export interface DesktopApi {
   ): Promise<HarnessSettingsPresentationResult>
   installHarness(harnessId: HarnessId): Promise<void>
   detectHarnessInstallations(): Promise<HarnessInstallationMap>
+  listKnownDirectories(): Promise<readonly KnownDirectory[]>
   invokeHarnessExtension(request: HarnessExtensionRequest): Promise<JsonValue>
 
   chooseFiles(

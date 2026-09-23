@@ -6,6 +6,7 @@ import type { PiHarnessSettings, PiSettingsPresentation, PiThreadSettings, PiThr
 import { createPiSettings } from './settings.js'
 import { createPiPrompt } from './prompt.js'
 import { openPiThread } from './thread/handle.js'
+import { discoverPiWorkspaceDirectories } from './workspace-directories.js'
 
 export const piMainModule: HarnessMainPluginModule<'pi', PiHarnessSettings, PiThreadSettings, PiThreadSettingsUpdate, PiThreadSettingsUpdate, PiThreadSettings, PiSettingsPresentation> = {
   id: 'pi', descriptor: piDescriptor, defaultHarnessSettings: { threadSettings: {} },
@@ -15,6 +16,7 @@ export const piMainModule: HarnessMainPluginModule<'pi', PiHarnessSettings, PiTh
     const source = acquireBartEvaluationSource()
     return {
       ...settings,
+      discoverWorkspaceDirectories: async ({ signal }) => discoverPiWorkspaceDirectories(await host.environment(), signal),
       dispose: () => source.dispose(),
       bartContextEntries: {
         telemetry: async input => providerTelemetryContext(await settings.backend(input.settings, input.cwd, input.signal), input.signal),

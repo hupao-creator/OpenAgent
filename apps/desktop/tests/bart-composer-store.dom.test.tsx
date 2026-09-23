@@ -18,6 +18,43 @@ function api(overrides: Partial<DesktopApi> = {}): DesktopApi {
 }
 
 describe('Bart shared composer', () => {
+  it('retains failed mentions, tracks surrounding edits, and removes references edited into ordinary text', async () => {
+    const store = createBartComposerStore()
+    const directory = { name: 'project', path: '/work/project' }
+    store.setText('Read @')
+    store.insertMention({ start: 5, end: 6, query: '' }, directory)
+    const failed = api({ submitBartMessage: vi.fn(async () => { throw new Error('offline') }) })
+    await expect(store.submit(failed, '')).rejects.toThrow('offline')
+    expect(store.getState().mentions).toHaveLength(1)
+    store.setText('Please ' + store.getState().text)
+    const host = api()
+    await store.submit(host, '')
+    expect(host.submitBartMessage).toHaveBeenCalledWith({ input: { parts: [
+      { kind: 'text', text: 'Please Read ' }, { kind: 'mention', ...directory }
+    ] } })
+    store.setText('@')
+    store.insertMention({ start: 0, end: 1, query: '' }, directory)
+    store.setText(store.getState().text.replace('project', 'other'))
+    await store.submit(host, '')
+    expect(host.submitBartMessage).toHaveBeenLastCalledWith({ input: { parts: [{ kind: 'text', text: '@"/work/other"' }] } })
+  })
+
+  it('preserves mentions edited during an in-flight send, including a second reference', async () => {
+    const store = createBartComposerStore(), pending = deferred()
+    store.setText('@')
+    store.insertMention({ start: 0, end: 1, query: '' }, { name: 'a', path: '/work/a' })
+    const sending = store.submit(api({ submitBartMessage: vi.fn(() => pending.promise) as DesktopApi['submitBartMessage'] }), '')
+    const start = store.getState().text.length
+    store.setText(store.getState().text + '@')
+    store.insertMention({ start, end: start + 1, query: '' }, { name: 'b', path: '/work/b' })
+    pending.resolve(); await sending
+    const host = api()
+    await store.submit(host, '')
+    expect(host.submitBartMessage).toHaveBeenCalledWith({ input: { parts: [
+      { kind: 'mention', name: 'a', path: '/work/a' }, { kind: 'text', text: ' ' }, { kind: 'mention', name: 'b', path: '/work/b' }
+    ] } })
+  })
+
   it('locks duplicate submission and preserves edits including A → B → A during the request', async () => {
     const pending = deferred()
     const host = api({ submitBartMessage: vi.fn(() => pending.promise) as DesktopApi['submitBartMessage'] })

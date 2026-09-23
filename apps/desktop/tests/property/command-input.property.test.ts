@@ -39,6 +39,7 @@ function boundary() {
     updateThreadSettings: vi.fn(async () => undefined),
     updateAppSettings: vi.fn(async () => undefined),
     detectHarnessInstallations: vi.fn(async () => []),
+    listKnownDirectories: vi.fn(async () => []),
     installHarness: vi.fn(async () => undefined),
     loadHarnessSettingsPresentation: vi.fn(async () => undefined),
     invokeHarnessExtension: vi.fn(async () => undefined),

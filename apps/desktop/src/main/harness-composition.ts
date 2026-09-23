@@ -138,6 +138,7 @@ export interface MainHarnessBinding {
   readonly id: string
   readonly displayName: string
   readonly threadCapabilities: HarnessThreadCapabilities
+  discoverWorkspaceDirectories(signal: AbortSignal): Promise<readonly string[]>
   detectInstallation(
     cwd: string,
     signal: AbortSignal
@@ -383,6 +384,10 @@ function bindMainHarness<
     id,
     displayName: descriptor.displayName,
     threadCapabilities: descriptor.threadCapabilities,
+    async discoverWorkspaceDirectories(signal) {
+      signal.throwIfAborted()
+      return main.discoverWorkspaceDirectories?.({ signal }) ?? []
+    },
     detectInstallation(cwd, signal) {
       return runHarnessDebugSpan(id, 'harness.installation.detect', { cwd }, () =>
         main.detectInstallation({ cwd, signal })

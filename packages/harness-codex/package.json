@@ -41,7 +41,8 @@
   "dependencies": {
     "@openagent/contracts": "workspace:*",
     "@openagent/plugin-kit": "workspace:*",
-    "cross-spawn": "^7.0.6"
+    "cross-spawn": "^7.0.6",
+    "smol-toml": "^1.9.0"
   },
   "peerDependencies": {
     "lucide-react": "^0.544.0",
