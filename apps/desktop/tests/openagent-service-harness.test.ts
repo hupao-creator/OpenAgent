@@ -76,8 +76,9 @@ afterEach(async () => {
 })
 
 describe('OpenAgent Service Harness dispatch', () => {
-  it.each(['model', 'guidance', 'targets', 'host'])(
-    'keeps pending %s settings behind the active Bart execution when steering', async change => {
+  it.each(['model', 'guidance', 'targets', 'host'].flatMap(change =>
+    ['active', 'background'].map(work => ({ change, work }))))(
+    'keeps pending $change settings behind $work Bart work when steering', async ({ change, work }) => {
       const trace: HarnessTrace = { runBartTools: async () => undefined, detachBartTools: true }
       const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
       const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
@@ -85,8 +86,14 @@ describe('OpenAgent Service Harness dispatch', () => {
         bart: { ...settings.bart, autoIntervention: false } }), { main })
       await f.service.initialize()
       await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start a live turn' }] } })
+      const started = readBartThread(f.store.read()).observation.latestExecution!
+      expect(started.status).toBe('running')
+      if (work === 'background') {
+        await trace.commitBartObservation!({ latestExecution: {
+          executionId: started.executionId, startedAt: started.startedAt,
+          status: 'completed', finishedAt: Date.now() }, backgroundWork: { status: 'running' } })
+      }
       const before = f.store.read()
-      expect(readBartThread(before).observation.latestExecution?.status).toBe('running')
       const settings = change === 'host'
         ? { ...before.settings, bart: { ...before.settings.bart, hostHarnessPreference: 'claude' as const } }
         : changedCodexSettings(before.settings, change)

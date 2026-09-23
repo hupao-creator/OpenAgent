@@ -3445,9 +3445,10 @@ export class OpenAgentService {
     signal.throwIfAborted()
     const current = readBartThread(this.store.read())
     const execution = current.observation.latestExecution
-    // Follow-ups steer the already admitted execution and must keep its Handle
-    // and configuration. Apply pending preferences only for the next new turn.
-    if (this.bartInstance?.execution || (execution && !isTerminalPublicExecution(execution))) return
+    // Follow-ups and native background work retain their owning Handle and
+    // configuration. Apply pending preferences only at an idle admission.
+    if (this.bartInstance?.execution || current.observation.backgroundWork !== null ||
+        (execution && !isTerminalPublicExecution(execution))) return
     const { settings, bartAppliedSettings: applied } = this.store.read()
     if (applied && sameBartRuntimeSettings(applied, settings)) return
     const host = !applied || applied.bart.hostHarnessPreference !== settings.bart.hostHarnessPreference ||
