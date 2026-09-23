@@ -44,7 +44,7 @@ it('selects the exact same-named directory with arrows and Enter, then sends a m
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '发送' }))
   await waitFor(() => expect(f.submit).toHaveBeenCalledWith({ input: { parts: [
-    { kind: 'text', text: 'Inspect ' }, { kind: 'mention', name: 'project', path: '/work/two/project' }
+    { kind: 'text', text: 'Inspect ' }, { kind: 'mention', pathType: 'directory', name: 'project', path: '/work/two/project' }
   ] } }))
   expect(f.store.getState().mentions).toEqual([])
 })
@@ -67,7 +67,7 @@ it('supports mouse selection and paths with spaces and Chinese characters', asyn
   fireEvent.pointerDown(option)
   fireEvent.click(option)
   await act(() => f.store.submit(f.api, ''))
-  expect(f.submit).toHaveBeenCalledWith({ input: { parts: [{ kind: 'mention', name: '中文 项目', path: '/work/中文 项目' }] } })
+  expect(f.submit).toHaveBeenCalledWith({ input: { parts: [{ kind: 'mention', pathType: 'directory', name: '中文 项目', path: '/work/中文 项目' }] } })
 })
 
 it('Escape dismisses the menu before closing the composer and editing reopens it', async () => {
@@ -118,4 +118,16 @@ it('shows an empty state and does not send on a selection attempt with no matche
   expect(f.submit).not.toHaveBeenCalled()
   fireEvent.keyDown(f.input, { key: 'Escape' })
   expect(f.input.value).toBe('@missing')
+})
+
+it('bounds rendered options for large histories while still searching all known paths', async () => {
+  const many = Array.from({ length: 2000 }, (_, index) => ({ name: `project-${index}`, path: `/work/project-${index}` }))
+  const f = fixture(vi.fn(async () => many))
+  f.type('@')
+  await screen.findByText('仅显示前 50 项，继续输入以缩小范围')
+  expect(screen.getAllByRole('option')).toHaveLength(50)
+  f.type('@project-1999')
+  expect(screen.getAllByRole('option')).toHaveLength(1)
+  fireEvent.keyDown(f.input, { key: 'Enter' })
+  expect(f.store.getState().mentions[0]?.path).toBe('/work/project-1999')
 })

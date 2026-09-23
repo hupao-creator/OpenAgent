@@ -16,6 +16,18 @@ afterEach(async () => {
 })
 
 describe('Claude transport lifecycle', () => {
+  it('adds the exact directory mention scope while file references add their parent', async () => {
+    const { transport } = fixture()
+    await transport.send('execution', { parts: [
+      { kind: 'mention', name: 'project', path: '/work/project', pathType: 'directory' },
+      { kind: 'mention', name: 'file', path: '/files/project/readme.md' }
+    ] }, 'now', new AbortController().signal)
+    const args = mocks.spawn.mock.calls[0]?.[1] as string[]
+    const scopes = args.flatMap((arg, index) => arg === '--add-dir' ? [args[index + 1]] : [])
+    expect(scopes).toEqual(['/work/project', '/files/project'])
+    expect(scopes).not.toContain('/work')
+  })
+
   it('accepts root task results without treating user echoes as tool output', async () => {
     const { transport, child, events } = fixture()
     await transport.send('execution', { parts: [{ kind: 'text', text: 'Track two tasks' }] },

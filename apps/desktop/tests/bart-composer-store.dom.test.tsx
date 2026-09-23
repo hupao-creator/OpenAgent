@@ -30,7 +30,7 @@ describe('Bart shared composer', () => {
     const host = api()
     await store.submit(host, '')
     expect(host.submitBartMessage).toHaveBeenCalledWith({ input: { parts: [
-      { kind: 'text', text: 'Please Read ' }, { kind: 'mention', ...directory }
+      { kind: 'text', text: 'Please Read ' }, { kind: 'mention', pathType: 'directory', ...directory }
     ] } })
     store.setText('@')
     store.insertMention({ start: 0, end: 1, query: '' }, directory)
@@ -51,7 +51,7 @@ describe('Bart shared composer', () => {
     const host = api()
     await store.submit(host, '')
     expect(host.submitBartMessage).toHaveBeenCalledWith({ input: { parts: [
-      { kind: 'mention', name: 'a', path: '/work/a' }, { kind: 'text', text: ' ' }, { kind: 'mention', name: 'b', path: '/work/b' }
+      { kind: 'mention', pathType: 'directory', name: 'a', path: '/work/a' }, { kind: 'text', text: ' ' }, { kind: 'mention', pathType: 'directory', name: 'b', path: '/work/b' }
     ] } })
   })
 

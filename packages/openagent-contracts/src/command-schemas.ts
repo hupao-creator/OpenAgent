@@ -92,7 +92,8 @@ const partSchemas = {
   'image-url': closedObject({ kind: z.literal('image-url'), url: mediaUrl, detail: imageDetail }, 'Agent input part', []),
   audio: closedObject({ kind: z.literal('audio'), file: localFile }, 'Agent input part'),
   'audio-url': closedObject({ kind: z.literal('audio-url'), url: mediaUrl }, 'Agent input part'),
-  mention: closedObject({ kind: z.literal('mention'), name: commandString('name', 1024), path: commandString('path', 4096) }, 'Agent input part'),
+  mention: closedObject({ kind: z.literal('mention'), name: commandString('name', 1024), path: commandString('path', 4096),
+    pathType: z.enum(['file', 'directory']).optional() }, 'Agent input part', ['kind', 'name', 'path']),
   skill: closedObject({ kind: z.literal('skill'), name: commandString('name', 1024), path: commandString('path', 4096) }, 'Agent input part')
 }
 // Dispatch preserves the relevant variant's field error instead of exposing a Zod union error tree.

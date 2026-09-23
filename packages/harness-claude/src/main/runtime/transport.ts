@@ -1989,7 +1989,7 @@ function buildClaudeArguments(
   for (const part of firstInput.parts) {
     if ('file' in part) directories.add(dirname(part.file.path))
     if (part.kind === 'mention' || part.kind === 'skill') {
-      directories.add(dirname(part.path))
+      directories.add(part.kind === 'mention' && part.pathType === 'directory' ? part.path : dirname(part.path))
     }
   }
   for (const directory of directories) {

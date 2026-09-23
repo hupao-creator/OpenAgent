@@ -311,7 +311,7 @@ try {
   result.cases.push('UI autosave stays open; appearance and immediate-close text survive reopen and cold start')
   result.cases.push('guidance normalizes over IPC; over-limit drafts retain full text and do not block other preferences')
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+b' : 'Control+Shift+b')
-  const composer = page.getByRole('textbox', { name: '给 Bart 发消息', exact: true })
+  const composer = page.getByRole('combobox', { name: '给 Bart 发消息', exact: true })
   await composer.fill('Appearance keeps this unsent draft')
   await composer.evaluate(element => {
     const clipboardData = new DataTransfer()

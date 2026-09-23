@@ -4,6 +4,7 @@ import type { TranslationCatalog } from '@openagent/plugin-kit/renderer'
 export const coreRendererTranslations: TranslationCatalog = {
   'en-US': {
     '已知目录': 'Known directories',
+    '仅显示前 50 项，继续输入以缩小范围': 'Showing the first 50. Keep typing to narrow the results.',
     '正在查找目录…': 'Finding directories…',
     '没有匹配的目录': 'No matching directories',
     '读取目录失败，请重新打开输入框重试': 'Could not load directories. Reopen the input to retry.',

@@ -78,9 +78,11 @@ afterEach(async () => {
 describe('OpenAgent Service Harness dispatch', () => {
   it('unions native workspace discovery with live directory tags, shares scans, and isolates source failures', async () => {
     const main = mainHarnessComposition({})
-    const scan = vi.spyOn(main.codex, 'discoverWorkspaceDirectories').mockResolvedValue(['/work/native', '/work/tagged/'])
+    const scan = vi.spyOn(main.codex, 'discoverWorkspaceDirectories')
     vi.spyOn(main.claude, 'discoverWorkspaceDirectories').mockRejectedValue(new Error('unreadable native store'))
-    const f = await serviceFixture({}, [], settings => settings, { main })
+    const worktrees = fixtureWorktreeManager({ managedWorkspaceRoots: () => ['/work/native-managed'] })
+    const f = await serviceFixture({}, [], settings => settings, { main, worktrees })
+    scan.mockResolvedValue(['/work/native', '/work/tagged/', join(f.root, 'bart'), '/work/native-managed/thread', '/work/.tagged-openagent-worktrees/stale'])
     await f.service.initialize()
     await f.store.commit({ type: 'add-agent-thread', thread: { ...fixtureAgentThread('tagged', '/work/tagged', 1), archived: true } })
     await f.store.commit({ type: 'add-agent-thread', thread: fixtureAgentThread('temporary', join(f.temporaryWorkspaceRoot, 'scratch'), 2) })

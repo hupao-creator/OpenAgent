@@ -178,6 +178,11 @@ export class WorktreeManager {
     return (await this.prepareForStart(options)).worktree
   }
 
+  /** Core-owned execution roots are not user workspace candidates, including native layouts. */
+  managedWorkspaceRoots(): readonly string[] {
+    return [...new Set([...this.ownershipProofs.values()].flatMap(proof => [proof.root, proof.stagingRoot]))]
+  }
+
   async prepareForStart(options: PrepareWorktreeOptions): Promise<WorktreePreparation> {
     if (options.existing?.cwd) {
       const validation = await this.validateManagedWorktree({

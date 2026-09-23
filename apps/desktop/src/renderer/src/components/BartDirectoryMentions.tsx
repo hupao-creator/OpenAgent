@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Folder } from 'lucide-react'
 import { useI18n } from '@openagent/plugin-kit/renderer'
@@ -41,7 +41,8 @@ export function useBartDirectoryMentions(props: BartDirectoryMentionProps & {
   const key = JSON.stringify([props.value, selection.start, selection.end])
   const open = Boolean(props.enabled && props.onMentionSelect && focused && !composing && query && dismissed !== key)
   const needle = query?.query.toLocaleLowerCase() ?? ''
-  const matches = directories.filter(item => item.path.toLocaleLowerCase().includes(needle) || item.name.toLocaleLowerCase().includes(needle))
+  const filtered = useMemo(() => directories.filter(item => item.path.toLocaleLowerCase().includes(needle) || item.name.toLocaleLowerCase().includes(needle)), [directories, needle])
+  const matches = useMemo(() => filtered.slice(0, 50), [filtered])
   const index = Math.min(active.key === key ? active.index : 0, Math.max(0, matches.length - 1))
   const syncSelection = () => {
     const input = props.input.current
@@ -93,7 +94,7 @@ export function useBartDirectoryMentions(props: BartDirectoryMentionProps & {
     },
     menu: open ? <DirectoryMenu id={id} input={props.input} directories={matches} active={index} onChoose={choose}
       empty={status === 'loading' ? t('正在查找目录…') : status === 'error' ? t('读取目录失败，请重新打开输入框重试') : t('没有匹配的目录')}
-      label={t('已知目录')} /> : null
+      label={t('已知目录')} more={filtered.length > matches.length ? t('仅显示前 50 项，继续输入以缩小范围') : undefined} /> : null
   }
 }
 
@@ -105,6 +106,7 @@ function DirectoryMenu(props: {
   onChoose: (directory: KnownDirectory) => void
   empty: string
   label: string
+  more?: string
 }) {
   const menu = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ left: 8, top: 8, width: 320, maxHeight: 260 })
@@ -132,7 +134,7 @@ function DirectoryMenu(props: {
   }, [props.input])
   useEffect(() => {
     menu.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest' })
-  }, [props.active])
+  }, [props.active, props.directories])
   return createPortal(<div ref={menu} id={props.id} role="listbox" aria-label={props.label}
     className="bart-directory-mentions" style={position} onPointerDown={event => event.preventDefault()}>
     {props.directories.length ? props.directories.map((directory, index) =>
@@ -141,5 +143,6 @@ function DirectoryMenu(props: {
         <Folder size={17} aria-hidden="true" />
         <span><strong>{directory.name}</strong><small>{directory.path}</small></span>
       </div>) : <div className="bart-directory-empty" role="status">{props.empty}</div>}
+    {props.more ? <div className="bart-directory-empty" role="status">{props.more}</div> : null}
   </div>, document.body)
 }

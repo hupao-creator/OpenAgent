@@ -60,7 +60,7 @@ export function directoryMentionParts(text: string, mentions: readonly Directory
     if (mention.start < cursor || text.slice(mention.start, mention.end) !== `@${JSON.stringify(mention.path)}`) continue
     const before = text.slice(cursor, mention.start)
     if (before) parts.push({ kind: 'text', text: before })
-    parts.push({ kind: 'mention', name: mention.name, path: mention.path })
+    parts.push({ kind: 'mention', name: mention.name, path: mention.path, pathType: 'directory' })
     cursor = mention.end
   }
   const after = text.slice(cursor)
