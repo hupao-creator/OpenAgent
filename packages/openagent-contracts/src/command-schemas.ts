@@ -248,6 +248,18 @@ export function parseCommand<S extends z.ZodType>(schema: S, value: unknown): z.
 export const OPENAGENT_APPEARANCES = ['system', 'light', 'dark'] as const
 export const OPENAGENT_LOCALES = ['zh-CN', 'en-US'] as const
 export const MAX_BART_ROUTING_GUIDANCE_LENGTH = 12_000
+export function normalizeBartRoutingGuidance(value: string | null): string | null {
+  return value?.trim() || null
+}
+
+export function bartRoutingGuidanceError(value: string | null, locale: 'zh-CN' | 'en-US'): string | undefined {
+  const length = normalizeBartRoutingGuidance(value)?.length ?? 0
+  if (length <= MAX_BART_ROUTING_GUIDANCE_LENGTH) return undefined
+  return locale === 'en-US'
+    ? `Model routing guidance must be at most ${MAX_BART_ROUTING_GUIDANCE_LENGTH} UTF-16 code units; current length: ${length}.`
+    : `模型路由指导最多 ${MAX_BART_ROUTING_GUIDANCE_LENGTH} 个字符（UTF-16 计数），当前 ${length} 个。`
+}
+
 /** Only the application shell is interpreted; each Harness slice stays opaque JSON. */
 export const OpenAgentSettingsShellSchema = closedObject({
   locale: z.enum(OPENAGENT_LOCALES, { error: 'OpenAgent locale 无效' }),
@@ -258,8 +270,7 @@ export const OpenAgentSettingsShellSchema = closedObject({
       .refine(value => new Set(value).size === value.length, 'OpenAgent Bart Target Harness 集合无效').readonly(),
     autoIntervention: z.boolean({ error: 'OpenAgent Bart autoIntervention 无效' }),
     // Settings guidance historically permits embedded NUL; its own rule uses UTF-16 length.
-    routingGuidance: z.string().refine(value => Boolean(value.trim()) && value === value.trim() &&
-      value.length <= MAX_BART_ROUTING_GUIDANCE_LENGTH, 'OpenAgent Bart routingGuidance 无效').nullable()
+    routingGuidance: z.string().nullable().transform(normalizeBartRoutingGuidance)
   }, 'OpenAgent Bart settings'),
   harnesses: CommandRecordSchema.superRefine((value, context) => {
     for (const [harnessId, settings] of Object.entries(value)) {
@@ -269,7 +280,10 @@ export const OpenAgentSettingsShellSchema = closedObject({
       })
     }
   }).transform(value => value as Record<string, JsonObject>)
-}, 'OpenAgent settings')
+}, 'OpenAgent settings').superRefine((settings, context) => {
+  const message = bartRoutingGuidanceError(settings.bart.routingGuidance, settings.locale)
+  if (message) context.addIssue({ code: 'custom', path: ['bart', 'routingGuidance'], message })
+})
 export type OpenAgentSettings = z.infer<typeof OpenAgentSettingsShellSchema>
 
 // Public callers may supply immutable answer arrays; parsing still returns copies.

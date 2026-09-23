@@ -1,6 +1,7 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { measureThreadCardExcerptEnd, useThreadCardAnchor } from './spatial-anchors.js'
 import { useExcerptReveal } from './excerpt-reveal.js'
+import { excerptPreview } from './excerpt-preview.js'
 
 const BATCH_SIZE = 600
 const HOLD_MS = 800
@@ -74,7 +75,17 @@ export const ThreadCardExcerpt = memo(function ThreadCardExcerpt(props: ExcerptP
       revision: frame.revision + (rewrite ? 1 : 0) })
   }
   const batch = batchAt(frame.text, frame.offset)
-  const content = !props.messageId ? props.content : frame.initial ? frame.snapshot : batch.text
+  const rawContent = !props.messageId ? props.content : frame.initial ? frame.snapshot : batch.text
+  // Initial envelopes can be a head excerpt or a tail prefixed with an ellipsis.
+  // Recover available fence context without altering that projected envelope.
+  const snapshotText = frame.snapshot.startsWith('…') ? frame.snapshot.slice(1) : frame.snapshot
+  const snapshotOffset = frame.snapshot.startsWith('…')
+    ? frame.text.lastIndexOf(snapshotText) : frame.text.indexOf(snapshotText)
+  const contextOffset = !props.messageId ? 0 : frame.initial ? Math.max(0, snapshotOffset) : frame.offset
+  const tailMarker = Boolean(props.messageId && frame.initial && frame.snapshot.startsWith('…') && snapshotOffset >= 0)
+  const content = useMemo(() => (tailMarker ? '…' : '') + excerptPreview(
+    tailMarker ? rawContent.slice(1) : rawContent, frame.text.slice(0, contextOffset)),
+  [tailMarker, rawContent, frame.text, contextOffset])
   const key = JSON.stringify([frame.id, frame.revision, frame.origin + frame.offset])
   const excerpt = useRef<HTMLDivElement>(null)
   const body = useRef<HTMLDivElement>(null)

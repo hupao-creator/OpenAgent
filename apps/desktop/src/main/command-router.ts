@@ -7,7 +7,7 @@ import {
   type AgentInput
 } from '@openagent/contracts'
 import {
-  assertOpenAgentSettingsShell, UpdateThreadSettingsRequestSchema,
+  parseOpenAgentSettings, UpdateThreadSettingsRequestSchema,
   HarnessSettingsPresentationRequestSchema
 } from '../shared/openagent-settings'
 import { isHarnessId } from '../shared/harnesses'
@@ -140,9 +140,9 @@ export function createChannelHandlers(
     },
 
     'app:update-settings': async (rawSettings: unknown) => {
-      assertOpenAgentSettingsShell(rawSettings)
+      const settings = parseOpenAgentSettings(rawSettings)
       parseCommand(commandJsonSize(2_000_000, 'settings'), rawSettings)
-      await service.updateAppSettings(structuredClone(rawSettings))
+      await service.updateAppSettings(structuredClone(settings))
     },
 
     'harness:install': async (harnessId: unknown) => {

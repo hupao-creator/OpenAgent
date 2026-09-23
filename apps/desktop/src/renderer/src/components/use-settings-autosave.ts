@@ -1,10 +1,13 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import type { OpenAgentSettings } from '../../../shared/openagent-settings'
+import { bartRoutingGuidanceError, normalizeBartRoutingGuidance, type OpenAgentSettings } from '../../../shared/openagent-settings'
 
 const TEXT_DELAY = 500
 const same = (a: OpenAgentSettings, b: OpenAgentSettings): boolean => JSON.stringify(a) === JSON.stringify(b)
 export const invalidRoutingGuidance = (value: OpenAgentSettings): boolean =>
-  value.bart.routingGuidance !== null && !value.bart.routingGuidance.trim()
+  bartRoutingGuidanceError(value.bart.routingGuidance, value.locale) !== undefined
+const normalized = (value: OpenAgentSettings): OpenAgentSettings => ({
+  ...value, bart: { ...value.bart, routingGuidance: normalizeBartRoutingGuidance(value.bart.routingGuidance) }
+})
 
 /** Coordinates Renderer edits only; Main still validates, persists and applies settings. */
 export function useSettingsAutosave(props: {
@@ -97,11 +100,11 @@ export function useSettingsAutosave(props: {
     cancelTimer()
     if (composing.current) return Promise.resolve(false)
     const next = current.current
-    // A temporarily empty custom rule must not overwrite the last valid rule or
+    // An over-limit custom rule must not overwrite the last valid rule or
     // prevent unrelated choices from applying. Harness slices stay opaque here.
     ready.current = invalidRoutingGuidance(next)
       ? { ...next, bart: { ...next.bart, routingGuidance: ready.current.bart.routingGuidance } }
-      : next
+      : normalized(next)
     return drain()
   }
 
@@ -121,12 +124,12 @@ export function useSettingsAutosave(props: {
   const flush = async (): Promise<boolean> => {
     const saved = await submit()
     return saved && !composing.current && !invalidRoutingGuidance(current.current) &&
-      same(current.current, committed.current)
+      same(normalized(current.current), committed.current)
   }
 
   return {
     draft, status, error, errorText, change, flush,
-    settled: !running.current && !failed.current && !composing.current && same(draft, committed.current),
+    settled: !running.current && !failed.current && !composing.current && same(normalized(draft), committed.current),
     composing,
     retry: () => { void submit() },
     fieldEvents: {

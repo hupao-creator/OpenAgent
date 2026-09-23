@@ -41,6 +41,7 @@ const EN_US: Readonly<Record<string, string>> = {
   '保存中…': 'Saving…',
   '正在保存…': 'Saving…',
   模型: 'Model',
+  默认: 'Default',
   模型默认: 'Model default',
   推理强度: 'Reasoning effort',
   审批: 'Approval',

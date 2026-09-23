@@ -24,6 +24,22 @@ function resolve(requested: CodexThreadSettingsRequest = {}, base = defaults) {
 }
 
 describe('Codex harness settings normalization', () => {
+  it.each([undefined, true, false])('rejects implicit default permission at execution with defaults=%s and probe=false', async useDefaultThreadSettings => {
+    const probe = vi.fn(async () => false)
+    const unavailable = createCodexSettingsApi({ load, probeAutoReview: probe, invalidate, adoptModels })
+    const settings = unavailable.normalizeHarnessSettings({
+      ...(useDefaultThreadSettings === undefined ? {} : { useDefaultThreadSettings }), threadSettings: {}
+    })
+    expect(settings.threadSettings).toEqual({})
+    await expect(unavailable.resolveThreadSettings({ merged: unavailable.defaultThreadSettings(settings),
+      cwd: '/target', sessionState: null, signal })).rejects.toThrow('auto_review')
+    expect(probe).toHaveBeenCalledOnce()
+    await expect(unavailable.resolveThreadSettings({ merged: {}, requested: { permissionMode: 'approve-for-me' },
+      cwd: '/target', sessionState: null, signal })).rejects.toThrow('auto_review')
+    await expect(unavailable.resolveThreadSettings({ merged: {}, requested: { permissionMode: 'ask-for-approval' },
+      cwd: '/target', sessionState: null, signal })).resolves.toMatchObject({ approvalsReviewer: 'user' })
+  })
+
   it('keeps the use-default Thread settings flag only when explicitly false', () => {
     expect(api.normalizeHarnessSettings({ useDefaultThreadSettings: false, threadSettings: {} }))
       .toStrictEqual({ useDefaultThreadSettings: false, threadSettings: {} })

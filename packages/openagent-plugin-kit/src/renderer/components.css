@@ -2422,7 +2422,8 @@
   font-size: inherit;
   line-height: inherit;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 /* Render the excerpt as literal text and clip on complete browser line boxes. */
