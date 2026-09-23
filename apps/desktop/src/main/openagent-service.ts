@@ -3419,6 +3419,7 @@ export class OpenAgentService {
       this.bartInstance = undefined
       this.bartInstanceThreadId = undefined
       this.bartThreadCreation = undefined
+      signal.throwIfAborted()
       await this.store.commit({
         type: 'replace-bart-thread',
         expectedThreadId: current.id,
@@ -3428,7 +3429,7 @@ export class OpenAgentService {
         threadSettings,
         cwd: this.paths.bartCwd,
         createdAt: this.boundaryTimestamp()
-      })
+      }, () => signal.throwIfAborted())
       await this.attachments.releaseOwner(current.id)
         .catch(error => this.reportFailure('attachment-owner-reset', error))
       this.publisher.publish()
@@ -3449,10 +3450,8 @@ export class OpenAgentService {
     if (this.bartInstance?.execution || (execution && !isTerminalPublicExecution(execution))) return
     const { settings, bartAppliedSettings: applied } = this.store.read()
     if (applied && sameBartRuntimeSettings(applied, settings)) return
-    const hostSettingsChanged = !applied ||
-      !sameJson(applied.harnesses[current.harnessId], settings.harnesses[current.harnessId])
     const host = !applied || applied.bart.hostHarnessPreference !== settings.bart.hostHarnessPreference ||
-      (settings.bart.hostHarnessPreference === 'auto' && hostSettingsChanged)
+      settings.bart.hostHarnessPreference === 'auto'
       ? await waitForAbortable(this.resolveBartHost(settings, signal, current.harnessId), signal)
       : current.harnessId as HarnessId
     signal.throwIfAborted()

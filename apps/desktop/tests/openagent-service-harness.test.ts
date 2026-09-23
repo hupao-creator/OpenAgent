@@ -131,8 +131,8 @@ describe('OpenAgent Service Harness dispatch', () => {
     expect(f.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
   })
 
-  it.each(['appearance', 'locale', 'autoIntervention'] as const)(
-    'still resolves the automatic Host at restart after only %s changes', async preference => {
+  it.each(['appearance', 'locale', 'autoIntervention', 'guidance', 'targets'] as const)(
+    'still resolves the automatic Host after restart with pending %s changes', async preference => {
       const trace: HarnessTrace = { runBartTools: async () => undefined }
       const f = await serviceFixture(trace, [], settings => ({ ...settings,
         bart: { ...settings.bart, hostHarnessPreference: 'auto', autoIntervention: false } }))
@@ -141,7 +141,9 @@ describe('OpenAgent Service Harness dispatch', () => {
       await f.service.updateAppSettings({ ...settings, bart: { ...settings.bart, targetHarnessIds: ['codex', 'claude'] } })
       await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Apply both targets' }] } })
       const applied = f.store.read().settings
-      await f.service.updateAppSettings(preference === 'autoIntervention'
+      await f.service.updateAppSettings(preference === 'guidance' || preference === 'targets'
+        ? changedCodexSettings(applied, preference)
+        : preference === 'autoIntervention'
         ? { ...applied, bart: { ...applied.bart, autoIntervention: true } }
         : { ...applied, [preference]: preference === 'appearance' ? 'dark' : 'en-US' })
       await f.service.shutdown()
@@ -210,6 +212,39 @@ describe('OpenAgent Service Harness dispatch', () => {
     expect(trace.nativeDisposeCount || 0).toBe(0)
     expect(trace.exposedTargetSets).toEqual([['codex']])
     expect(trace.injectionSnapshots?.[0]).toEqual(f.trace.injectionSnapshots?.[0])
+  })
+
+  it('retains the old Bart record and attachments when cancellation arrives during Host disposal', async () => {
+    const trace: HarnessTrace = { runBartTools: async () => undefined }
+    const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
+    const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
+    const f = await serviceFixture(trace, [], settings => ({ ...settings,
+      bart: { ...settings.bart, autoIntervention: false } }), { main })
+    await f.service.initialize()
+    await drainStartupRecovery(f.service)
+    const before = f.store.read()
+    let release!: () => void
+    trace.bartDisposeGate = new Promise<void>(resolve => { release = resolve })
+    trace.bartDisposeStarted = false
+    const releaseOwner = vi.spyOn(f.attachments, 'releaseOwner')
+    await f.service.updateAppSettings({ ...before.settings,
+      bart: { ...before.settings.bart, hostHarnessPreference: 'claude' } })
+    const sending = f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Cancel during disposal' }] } })
+    const rejected = expect(sending).rejects.toThrow('interrupted before native admission')
+    try {
+      await vi.waitFor(() => expect(trace.bartDisposeStarted).toBe(true))
+      await f.service.cancelBartTask()
+    } finally {
+      release()
+    }
+    await rejected
+    expect(readBartThread(f.store.read())).toEqual(readBartThread(before))
+    expect(f.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+    expect(releaseOwner).not.toHaveBeenCalled()
+    await f.service.updateAppSettings(before.settings)
+    await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Reopen retained Bart' }] } })
+    expect(readBartThread(f.store.read()).id).toBe(readBartThread(before).id)
+    expect(trace.nativeOpenCount).toBe(2)
   })
 
   it.each(['availability', 'same-host', 'replacement'] as const)(
