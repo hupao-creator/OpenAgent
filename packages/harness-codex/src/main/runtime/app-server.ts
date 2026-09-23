@@ -207,6 +207,29 @@ export class CodexAppServer {
     return () => this.activityListeners.delete(listener)
   }
 
+  /** Persist an independent native conversation without admitting a turn. */
+  async forkThread(options: {
+    readonly sourceSessionId: string
+    readonly cwd: string
+    readonly settings: CodexThreadSettings
+    readonly signal: AbortSignal
+  }): Promise<string> {
+    const { signal } = options
+    throwIfAborted(signal)
+    await this.ensureReady(signal)
+    if (options.settings.approvalsReviewer === 'auto_review' &&
+        !await this.supportsAutoReview(options.cwd, signal)) {
+      throw new Error('Codex approve-for-me 自动审批不可用：目标 runtime 不支持或禁止 auto_review')
+    }
+    return this.ensureThread({
+      ...options,
+      forkFromSessionId: options.sourceSessionId,
+      // Core forks into the base cwd without the source's worktree grant.
+      developerInstructions: '',
+      settings: { ...options.settings, ephemeral: false }
+    }, signal)
+  }
+
   async startTurn(options: CodexTurnOptions): Promise<CodexTurnHandle> {
     const admissionSignal = options.admissionSignal || options.signal
     throwIfAborted(admissionSignal)
@@ -588,7 +611,9 @@ export class CodexAppServer {
   }
 
   private async ensureThread(
-    options: CodexTurnOptions,
+    options: Pick<CodexTurnOptions,
+      'cwd' | 'settings' | 'sessionId' | 'forkFromSessionId' |
+      'developerInstructions' | 'toolBindings' | 'toolMode'>,
     admissionSignal: AbortSignal,
     managedWorktree?: ManagedWorkspaceWriteTranslation
   ): Promise<string> {
@@ -621,7 +646,8 @@ export class CodexAppServer {
       ...(settings.model ? { model: settings.model } : {}),
       ...(settings.serviceTier ? { serviceTier: settings.serviceTier } : {}),
       ...(config ? { config } : {}),
-      ...(developerInstructions ? { developerInstructions } : {})
+      ...(developerInstructions || options.developerInstructions === ''
+        ? { developerInstructions: developerInstructions ?? '' } : {})
     }
 
     if (options.forkFromSessionId) {

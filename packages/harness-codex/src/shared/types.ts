@@ -326,6 +326,8 @@ export interface CodexHarnessState {
   readonly nativeToolMode?: 'extend' | 'exclusive'
   /** Full prior native Thread items replayed as untrusted context after tool changes. */
   readonly nativeHistorySeed?: string
+  /** Read-only inherited history; these executions belong to the source. */
+  readonly forkHistory?: readonly CodexTurn[]
   readonly updatedAt: number
   readonly nativeActivity?: CodexNativeActivity
   readonly backgroundTerminals: readonly CodexBackgroundTerminal[]

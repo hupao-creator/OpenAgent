@@ -11,6 +11,7 @@ import {
   createEmptyCodexState,
   decodeCodexState,
   reduceCodexEvent,
+  settleCodexExecution,
   stageCodexExecution
 } from '../../../packages/harness-codex/src/shared/state'
 import type {
@@ -27,6 +28,22 @@ import { I18nProvider } from '@openagent/plugin-kit/renderer'
 afterEach(cleanup)
 
 describe('Codex renderer interactions', () => {
+  it('shows inherited fork history without exposing it as active work', () => {
+    const history = settleCodexExecution(stageCodexExecution(createEmptyCodexState(1),
+      'source-execution', { parts: [{ kind: 'text', text: 'Inherited fork question' }] }, 2, 'source-message'),
+    'source-execution', 'completed', 3)
+    const thread: AgentThreadRecord<'codex', CodexThreadSettings> = {
+      id: 'forked-thread', harnessId: 'codex', revision: 0, archived: false,
+      title: 'Forked conversation', tags: [], cwd: '/workspace', settings: {},
+      sessionState: JSON.parse(JSON.stringify({ ...createEmptyCodexState(3), forkHistory: history.turns })),
+      observation: { latestExecution: null, backgroundWork: null }, createdAt: 3, updatedAt: 3
+    }
+    render(<CodexThreadView thread={thread} actions={stubThreadActions()} />)
+    fireEvent.click(screen.getByRole('button', { name: '显示用户消息' }))
+    expect(screen.getByText('Inherited fork question')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '中断' })).not.toBeInTheDocument()
+  })
+
   it.each(['question', 'permission'])('toggles the %s extension through the Core overview policy', async (kind) => {
     await expectOverviewPolicyToggle(kind === 'question' ? codexQuestionThread()
       : codexInteractionThread(codexPermissionInteraction()))

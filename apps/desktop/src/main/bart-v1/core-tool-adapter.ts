@@ -12,6 +12,7 @@ type BartToolHandler = (value: JsonValue, signal: AbortSignal) => Promise<JsonVa
 export interface BartToolHandlers {
   readonly listThreads: BartToolHandler
   readonly startThread: BartToolHandler
+  readonly forkThread: BartToolHandler
   readonly threadStatus: BartToolHandler
   readonly sendThread: BartToolHandler
   readonly setThreadArchived: BartToolHandler
@@ -48,6 +49,10 @@ export function createBartToolBindings(
       'Create a normal Agent Thread using native Harness settings and dispatch its first task.',
       threadCreationSchema,
       (value, signal) => handlers.startThread(value, signal)),
+    tool('thread_fork',
+      'Fork an idle Agent Thread at its current conversation into a new Thread. Returns the new threadId without starting work; use thread_send to continue it.',
+      objectSchema({ threadId: idSchema }, ['threadId']),
+      (value, signal) => handlers.forkThread(value, signal)),
     tool('thread_status', 'Read one committed Thread status projection.',
       objectSchema({ threadId: idSchema }, ['threadId']),
       (value, signal) => handlers.threadStatus(value, signal)),

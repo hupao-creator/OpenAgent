@@ -434,7 +434,7 @@ pnpm dev
 | `send(request.contextEntries)` | 将每次执行上下文送入 native 请求，不把它持久化为另一套 Core 状态。 |
 | `tools.mode: extend` | 保留 native tools，增加 bindings。 |
 | `tools.mode: exclusive` | 只暴露 supplied bindings；这是工具集合限制，native permissions/questions 仍通过 waiting/respond。 |
-| `forkThread?` | 纯插件派生新 Thread 的完整、未启动 state，可返回 settings/title；Core 创建目标 Thread，初始 observation 为空。 |
+| `forkThread?` | 插件派生新 Thread 的完整、未启动 state，可创建独立 native session、返回 settings/title，但不得启动执行或修改来源；Core 创建目标 Thread，初始 observation 为空。 |
 | `bartContextEntries?` | 贡献 workspace、telemetry、evaluation 的最终文本，不把模型目录交给 Core。 |
 | `extension?` | 插件拥有的 opaque control plane；不得变成 Host 通用后门。 |
 | `dispose?` | module 资源在操作与 Thread drain 后释放，尤其是 evaluation lease。 |

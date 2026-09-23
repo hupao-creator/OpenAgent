@@ -178,7 +178,7 @@ function CodexNativeTimeline(props: {
     }
   }, [props.actions, t])
   const rows = [
-    ...props.state.turns.map((turn, index, turns) => ({
+    ...[...(props.state.forkHistory ?? []), ...props.state.turns].map((turn, index, turns) => ({
       id: `turn:${turn.executionId}`,
       createdAt: turn.createdAt,
       subpage: index < turns.length - 1 ? {

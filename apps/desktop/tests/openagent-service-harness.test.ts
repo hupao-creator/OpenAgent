@@ -1947,6 +1947,98 @@ describe('OpenAgent Service Harness dispatch', () => {
     await expect(fork).resolves.toEqual({ threadId: expect.any(String) })
   })
 
+  it('forks through the recorded Bart tool without dispatching work', async () => {
+    let result: JsonValue | undefined
+    const trace: HarnessTrace = {
+      async runBartTools(tools, signal) {
+        result = await requiredTool(tools, 'thread_fork').execute({
+          arguments: { threadId: 'bart-fork-source' }, signal
+        })
+      }
+    }
+    const fixture = await serviceFixture(trace, [])
+    await fixture.store.commit({ type: 'add-agent-thread', thread: {
+      ...fixtureAgentThread('bart-fork-source', fixture.defaultCwd, Date.now()),
+      emoji: '🌱', tags: ['fork-source']
+    } })
+    await fixture.service.initialize()
+    await drainStartupRecovery(fixture.service)
+    const source = structuredClone(readAgentThread(fixture.store.read(), 'bart-fork-source'))
+    await fixture.service.submitBartMessage({
+      input: { parts: [{ kind: 'text', text: 'Fork that conversation.' }] }
+    })
+    expect(result).toEqual({ ok: true, threadId: expect.any(String) })
+    const childId = (result as { threadId: string }).threadId
+    expect(childId).not.toBe(source.id)
+    expect(readAgentThread(fixture.store.read(), childId)).toMatchObject({
+      harnessId: source.harnessId, cwd: source.cwd, settings: source.settings,
+      emoji: source.emoji, tags: source.tags, archived: false,
+      observation: { latestExecution: null, backgroundWork: null }
+    })
+    expect(readAgentThread(fixture.store.read(), source.id)).toEqual(source)
+    expect(trace.forkRequests).toEqual([{ source, request: {} }])
+    expect(trace.threadSends ?? []).toEqual([])
+    expect(readBartThread(fixture.store.read()).transcript).toContainEqual(
+      expect.objectContaining({ name: 'thread_fork', result, completedAt: expect.any(Number) })
+    )
+  })
+
+  it.each(['missing', 'bart', 'busy'] as const)('rejects a %s source through Bart fork', async kind => {
+    const trace: HarnessTrace = {
+      async runBartTools(tools, signal) {
+        await requiredTool(tools, 'thread_fork').execute({
+          arguments: { threadId: kind === 'bart' ? readBartThread(fixture.store.read()).id : 'fork-source' }, signal
+        })
+      }
+    }
+    const fixture = await serviceFixture(trace, [])
+    await fixture.service.initialize()
+    if (kind === 'busy') {
+      await fixture.store.commit({ type: 'add-agent-thread', thread: fixtureThreadWithObservation({
+        ...fixtureAgentThread('fork-source', fixture.defaultCwd, Date.now()),
+        observation: { latestExecution: { executionId: 'busy-execution', status: 'running', startedAt: Date.now() }, backgroundWork: null }
+      }) })
+    }
+    const before = fixture.store.read().threads.filter(isAgentThreadRecord).length
+    await expect(fixture.service.submitBartMessage({
+      input: { parts: [{ kind: 'text', text: 'Fork this source.' }] }
+    })).rejects.toThrow()
+    expect(fixture.store.read().threads.filter(isAgentThreadRecord)).toHaveLength(before)
+    expect(trace.forkRequests ?? []).toEqual([])
+    expect(readBartThread(fixture.store.read()).transcript).toContainEqual(
+      expect.objectContaining({ name: 'thread_fork', isError: true })
+    )
+  })
+
+  it('cancels a pending Bart fork before committing a child and releases its reservation', async () => {
+    let releaseFork!: () => void
+    const controller = new AbortController()
+    const trace: HarnessTrace = {
+      forkGate: new Promise(resolve => { releaseFork = resolve }),
+      async runBartTools(tools) {
+        await requiredTool(tools, 'thread_fork').execute({
+          arguments: { threadId: 'cancel-fork-source' }, signal: controller.signal
+        })
+      }
+    }
+    const fixture = await serviceFixture(trace, [])
+    await fixture.store.commit({ type: 'add-agent-thread', thread:
+      fixtureAgentThread('cancel-fork-source', fixture.defaultCwd, Date.now()) })
+    await fixture.service.initialize()
+    await drainStartupRecovery(fixture.service)
+    const operation = fixture.service.submitBartMessage({
+      input: { parts: [{ kind: 'text', text: 'Fork this source.' }] }
+    })
+    const rejected = expect(operation).rejects.toThrow('cancel fork')
+    await vi.waitFor(() => expect(trace.forkRequests).toHaveLength(1))
+    controller.abort(new Error('cancel fork'))
+    releaseFork()
+    await rejected
+    expect(fixture.store.read().threads.filter(isAgentThreadRecord)).toHaveLength(1)
+    await expect(fixture.service.forkThread({ threadId: 'cancel-fork-source', request: {} }))
+      .resolves.toEqual({ threadId: expect.any(String) })
+  })
+
   it('resolves a fresh Bart record through the ordinary Thread settings pipeline', async () => {
     const root = await realpath(
       await mkdtemp(join(tmpdir(), 'openagent-service-fresh-bart-'))
@@ -2660,7 +2752,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     expect(injection?.toolMode).toBe('exclusive')
     expect(injection?.instructions.length).toBeGreaterThan(0)
     expect(injection?.toolNames).toEqual([
-      'thread_list', 'thread_create', 'thread_status', 'thread_send',
+      'thread_list', 'thread_create', 'thread_fork', 'thread_status', 'thread_send',
       'thread_set_archived', 'thread_read', 'thread_interrupt',
       'report_create', 'report_list', 'report_read', 'report_update',
       'report_set_archived', 'schedule_create', 'schedule_list', 'schedule_cancel'

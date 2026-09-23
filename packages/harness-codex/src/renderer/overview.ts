@@ -76,21 +76,23 @@ export function projectCodexOverview(
     displayPolicy: input.displayPolicy, availableCols: input.layout.availableColumns
   })
   const status = codexOverviewStatus(turn)
-  // Keep the current task visible before its answer arrives; never borrow an older turn's answer.
-  const prompt = turn?.messages.findLast((message) =>
+  // Inherited history supplies a preview until the child starts its own work.
+  // It never contributes execution status, tools, usage, or pending actions.
+  const previewTurn = turn ?? state.forkHistory?.at(-1)
+  const prompt = previewTurn?.messages.findLast((message) =>
     message.role === 'user' && message.internal !== true && message.content.trim())
-  const latestText = turn?.timeline.findLast((item) =>
+  const latestText = previewTurn?.timeline.findLast((item) =>
     (item.kind === 'assistant' || item.kind === 'reasoning') && item.content.trim())
-  const currentText = latestText && 'content' in latestText ? latestText.content : turn?.answer ?? ''
+  const currentText = latestText && 'content' in latestText ? latestText.content : previewTurn?.answer ?? ''
   const excerpt = headExcerpt(currentText, 600, live) ||
-    headExcerpt(turn?.reasoning ?? '', 600) || headExcerpt(turn?.error ?? '', 600) ||
+    headExcerpt(previewTurn?.reasoning ?? '', 600) || headExcerpt(previewTurn?.error ?? '', 600) ||
     headExcerpt(prompt?.content ?? '', 600) || ''
   const message = latestText?.kind === 'assistant' || latestText?.kind === 'reasoning'
-    ? { id: JSON.stringify([turn!.executionId, latestText.kind, latestText.kind === 'assistant' ? latestText.itemId : latestText.id]), text: messageWindowText(latestText.content, latestText.kind === 'assistant' ? 256 * 1024 : 64 * 1024) }
+    ? { id: JSON.stringify([previewTurn!.executionId, latestText.kind, latestText.kind === 'assistant' ? latestText.itemId : latestText.id]), text: messageWindowText(latestText.content, latestText.kind === 'assistant' ? 256 * 1024 : 64 * 1024) }
     : (() => {
-      const [kind, text] = ([['answer', turn?.answer], ['reasoning', turn?.reasoning], ['error', turn?.error],
+      const [kind, text] = ([['answer', previewTurn?.answer], ['reasoning', previewTurn?.reasoning], ['error', previewTurn?.error],
         [`prompt:${prompt?.id ?? ''}`, prompt?.content]] as const).find(([, text]) => text?.trim()) ?? ['empty', '']
-      return { id: JSON.stringify([turn?.executionId ?? null, kind]), text: text?.trim() ?? '' }
+      return { id: JSON.stringify([previewTurn?.executionId ?? null, kind]), text: text?.trim() ?? '' }
     })()
   const settings = input.thread.settings as CodexThreadSettings
   const cwd = input.thread.worktree?.baseCwd?.trim() || input.thread.cwd
