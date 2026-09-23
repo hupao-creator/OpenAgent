@@ -48,6 +48,26 @@ describe('thread card preview', () => {
     expect(body?.textContent).toBe('x'.repeat(573) + '\n**raw** [file](/tmp/file)\n')
   })
 
+  it.each(['`', '``'])('carries inline delimiter %s across preview windows and newlines', delimiter => {
+    const literal = '**raw** [file](/tmp/file)'
+    expect(excerptPreview(literal + delimiter + ' **prose**', delimiter + 'earlier '))
+      .toBe(literal + delimiter + ' prose')
+    expect(excerptPreview(delimiter + 'earlier\n' + literal + delimiter + ' **prose**'))
+      .toBe(delimiter + 'earlier\n' + literal + delimiter + ' prose')
+    const message = delimiter + 'x'.repeat(600) + literal + delimiter
+    const view = render(<ThreadCardExcerpt content={'…' + literal + delimiter}
+      messageId="inline-code" messageText={message} />)
+    expect(view.container.querySelector('.thread-card-excerpt-text')?.textContent)
+      .toBe('…' + literal + delimiter)
+  })
+
+  it('keeps mismatched and escaped backticks literal within a code span', () => {
+    expect(excerptPreview('` **raw** [file](/tmp/file) `` **prose**', '``earlier\n'))
+      .toBe('` **raw** [file](/tmp/file) `` prose')
+    expect(excerptPreview('\\` **prose**', '`earlier ')).toBe('\\` prose')
+    expect(excerptPreview('[file](/tmp/a\\)b) **prose**')).toBe('file prose')
+  })
+
   it('uses natural wrapping and a line clamp for the rendered text', () => {
     const testPath = expect.getState().testPath!
     const css = readFileSync(resolve(dirname(testPath), '../../../packages/openagent-plugin-kit/src/renderer/components.css'), 'utf8')

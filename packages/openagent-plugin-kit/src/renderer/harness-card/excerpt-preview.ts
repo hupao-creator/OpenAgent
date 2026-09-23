@@ -2,6 +2,7 @@
  * Keep whitespace, block markers and code literal, including unfinished fences. */
 export function excerptPreview(source: string, precedingText = ''): string {
   let fence: string | undefined
+  let inlineDelimiter = 0
   const previewLine = (line: string, format: boolean): string => {
     const marker = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)/.exec(line)
     if (fence) {
@@ -9,17 +10,30 @@ export function excerptPreview(source: string, precedingText = ''): string {
         /^[ \t]*$/.test(marker[2]!)) fence = undefined
       return line
     }
-    if (marker) {
+    if (marker && !inlineDelimiter) {
       fence = marker[1]
       return line
     }
-    if (!format || /^(?: {4}|\t)/.test(line)) return line
-    // Consume code spans and escapes before considering links or **emphasis**.
-    return line.replace(
-      /(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)|\\[^\r\n]|(?<!!)\[([^[\]\r\n]+)\]\((?:\\[^\r\n]|[^()\\\r\n]|\([^()\r\n]*\))*\)|(?<!\*)\*\*([^*`\r\n]+)\*\*(?!\*)/g,
-      (match: string, code: string | undefined, label: string | undefined, emphasis: string | undefined) =>
-        code ? match : label ?? emphasis ?? match
-    )
+    if (!inlineDelimiter && /^(?: {4}|\t)/.test(line)) return line
+    // Scan context even when it is outside the visible window. Exact-length
+    // backtick delimiters may close on another line or in a later text batch.
+    let result = ''
+    let offset = 0
+    const proseToken = /\\[^\r\n]|`+|(?<!!)\[([^[\]\r\n]+)\]\((?:\\[^\r\n]|[^()\\\r\n]|\([^()\r\n]*\))*\)|(?<!\*)\*\*([^*`\r\n]+)\*\*(?!\*)/g
+    const codeToken = /`+/g
+    for (;;) {
+      const pattern = inlineDelimiter ? codeToken : proseToken
+      pattern.lastIndex = offset
+      const token = pattern.exec(line)
+      if (!token) return result + line.slice(offset)
+      result += line.slice(offset, token.index)
+      result += format && !inlineDelimiter ? token[1] ?? token[2] ?? token[0] : token[0]
+      if (token[0][0] === '`') {
+        if (!inlineDelimiter) inlineDelimiter = token[0].length
+        else if (inlineDelimiter === token[0].length) inlineDelimiter = 0
+      }
+      offset = token.index + token[0].length
+    }
   }
   // A streamed 600-character window can start inside a fence opened earlier.
   for (const line of precedingText.split(/(?<=\n)/)) previewLine(line, false)
