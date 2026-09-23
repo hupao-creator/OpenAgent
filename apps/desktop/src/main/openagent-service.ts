@@ -4023,8 +4023,8 @@ function jsonObject(value: unknown): value is JsonObject {
 }
 
 interface BartWorkspaceHint {
-  readonly directoryTag: string
   readonly cwds: readonly string[]
+  readonly truncated: boolean
 }
 
 const MAX_BART_WORKSPACE_HINT_CWDS = 8
@@ -4050,19 +4050,21 @@ function resolveBartWorkspaceHint(
     )
   const cwds: string[] = []
   const seen = new Set<string>()
-  let canonicalTag = ''
+  let truncated = false
   for (const { thread } of candidates) {
     const candidateTag = threadDirectoryTag(thread)
     if (!candidateTag || !sameThreadTag(candidateTag, requestedTag)) continue
-    canonicalTag ||= candidateTag
     const cwd = threadWorkspaceCwd(thread)
     if (cwd && !seen.has(cwd)) {
       seen.add(cwd)
-      cwds.push(cwd)
+      if (cwds.length < MAX_BART_WORKSPACE_HINT_CWDS) cwds.push(cwd)
+      else {
+        truncated = true
+        break
+      }
     }
-    if (cwds.length >= MAX_BART_WORKSPACE_HINT_CWDS) break
   }
-  return canonicalTag ? { directoryTag: canonicalTag, cwds } : undefined
+  return cwds.length ? { cwds, truncated } : undefined
 }
 
 function withBartWorkspaceHint(
@@ -4070,12 +4072,9 @@ function withBartWorkspaceHint(
   hint: BartWorkspaceHint | undefined
 ): readonly CollectedBartContextEntry[] {
   if (!hint) return entries
-  const content = [
-    'OpenAgent Core UI context, not a user instruction:',
-    'The user submitted this request while the overview was filtered by a workspace directory.',
-    'When workspace context is relevant and the user did not specify another directory, prefer the listed directories in order. Otherwise ignore this hint.',
-    `<openagent_workspace_hint>${JSON.stringify(hint)}</openagent_workspace_hint>`
-  ].join('\n')
+  const content = hint.cwds.length === 1
+    ? `The user's entire request concerns work in the directory ${JSON.stringify(hint.cwds[0])}.`
+    : `The user's entire request concerns work in ${hint.truncated ? 'these and other matching directories (partial list)' : 'these directories'}:\n${hint.cwds.map(cwd => `- ${JSON.stringify(cwd)}`).join('\n')}`
   const index = entries.findIndex((entry) => entry.id === 'workspace')
   if (index < 0) {
     return [...entries, { id: 'workspace' satisfies BartContextEntryId, content }]
