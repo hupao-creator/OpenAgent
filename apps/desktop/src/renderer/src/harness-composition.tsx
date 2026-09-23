@@ -51,6 +51,8 @@ interface HarnessRendererBinding {
   readonly id: string
   readonly logoSource: string
   readonly translations?: HarnessTranslationCatalog
+  executionTokenUsage(thread: DeepReadonly<HarnessThreadRecord>, executionId: string):
+    { readonly value: string; readonly count: number; readonly suffix: string } | undefined
   renderThread(props: HarnessThreadHostProps): React.JSX.Element
   projectOverview(
     input: HarnessOverviewThreadInput,
@@ -86,6 +88,10 @@ function bindRendererHarness<
     DeepReadonly<HarnessThreadRecord>,
     Map<string, ReturnType<typeof projectOverviewBranch<OverviewView>>>
   >()
+  const executionUsages = new WeakMap<
+    DeepReadonly<HarnessThreadRecord>,
+    Map<string, ReturnType<HarnessRendererBinding['executionTokenUsage']>>
+  >()
   const projectOverview = (input: HarnessOverviewThreadInput, columns: number) => {
     const key = overviewProjectionKey(input, columns)
     let widths = projections.get(input.thread)
@@ -102,6 +108,22 @@ function bindRendererHarness<
     id,
     logoSource: plugin.logoSource,
     translations: plugin.translations,
+    executionTokenUsage(thread, executionId) {
+      let byExecution = executionUsages.get(thread)
+      if (!byExecution) {
+        byExecution = new Map()
+        executionUsages.set(thread, byExecution)
+      }
+      if (byExecution.has(executionId)) return byExecution.get(executionId)
+      let usage: ReturnType<HarnessRendererBinding['executionTokenUsage']>
+      try {
+        usage = plugin.OverviewCard.executionTokenUsage?.(thread, executionId)
+      } catch {
+        usage = undefined
+      }
+      byExecution.set(executionId, usage)
+      return usage
+    },
     renderThread(props) {
       const ThreadView = plugin.ThreadView
       return <ThreadView {...props} />
@@ -367,6 +389,13 @@ export function projectHarnessBartPresentation(
   thread: DeepReadonly<HarnessThreadRecord>
 ): HarnessBartPresentation | undefined {
   return harnessRendererPlugins[thread.harnessId]?.projectBartDock(thread)
+}
+
+export function projectExecutionTokenUsage(
+  thread: DeepReadonly<HarnessThreadRecord>, executionId: string
+): { readonly value: string; readonly count: number; readonly suffix: string } | undefined {
+  const usage = harnessRendererPlugins[thread.harnessId]?.executionTokenUsage(thread, executionId)
+  return usage && Number.isFinite(usage.count) && usage.count > 0 ? usage : undefined
 }
 
 /**

@@ -3,11 +3,13 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AgentThreadRecord } from '@openagent/contracts'
+import type { AgentThreadRecord, JsonValue } from '@openagent/contracts'
+import { decodeCodexState } from '../../../packages/harness-codex/src/shared/state'
 import type { RendererReport } from '../src/shared/renderer-state-contracts'
 import { createOpenAgentState, isAgentThreadRecord, reduceOpenAgentState, type OpenAgentState } from '../src/shared/openagent-state'
 import { createDefaultOpenAgentSettings } from '../src/shared/openagent-settings'
 import { ConversationOverview } from '../src/renderer/src/components/ConversationOverview'
+import { projectExecutionTokenUsage } from '../src/renderer/src/harness-composition'
 import {
   bartGenerationThreadTarget
 } from '../src/renderer/src/components/BartThreadGeneration'
@@ -227,6 +229,74 @@ describe('Harness Plugin overview Core seam', () => {
     expect(within(region).getAllByRole('button')).toHaveLength(2)
   })
 
+  it('shows pinned execution token usage in both relation views and omits absent or zero totals', async () => {
+    const user = userEvent.setup()
+    const base = fakeSnapshots.find(scene => scene.harness === 'codex' && scene.scenario === 'completed')!
+      .state.threads[0] as AgentThreadRecord
+    const state = decodeCodexState(base.sessionState)
+    const executionId = state.turns[0]!.executionId
+    const threadWithUsage = (id: string, total: number | undefined, newerTotal?: number): AgentThreadRecord => ({
+      ...base,
+      id,
+      title: `${id} ${'很长的关联线程标题'.repeat(8)}`,
+      sessionState: {
+        ...state,
+        turns: [
+          { ...state.turns[0]!, ...(total === undefined ? { usage: undefined } : { usage: { inputTokens: total, outputTokens: 0 } }) },
+          ...(newerTotal === undefined ? [] : [{ ...state.turns[0]!, executionId: 'newer-execution', usage: { inputTokens: newerTotal, outputTokens: 0 } }])
+        ]
+      } as unknown as JsonValue,
+      ...(newerTotal === undefined ? {} : { observation: { ...base.observation, latestExecution: {
+        executionId: 'newer-execution', status: 'completed' as const, startedAt: 2, finishedAt: 3
+      } } })
+    })
+    const threads = [
+      threadWithUsage('one', 179_500, 900_000),
+      threadWithUsage('two', undefined),
+      threadWithUsage('three', 0),
+      threadWithUsage('four', 1_250)
+    ]
+    const report: RendererReport = {
+      id: 'usage-report', title: 'Usage report', tags: [], createdAt: 2, updatedAt: 3,
+      archived: false, previewText: 'Summary',
+      relatedExecutions: threads.map(thread => ({ threadId: thread.id, executionId }))
+    }
+    render(<ConversationOverview embedded threads={[]} reportRelationThreads={threads.map(thread => ({ thread }))}
+      reports={[report]} interrupt={async () => {}} respond={async () => {}} onSelect={() => {}}
+      transitionId={null} />)
+
+    const rows = (): HTMLElement[] => Array.from(document.querySelectorAll<HTMLElement>('.report-overview-relations li'))
+    expect(rows()).toHaveLength(2)
+    expect(rows()[0]!.querySelector('.report-overview-relation-usage')).toHaveTextContent('179.5K')
+    expect(rows()[0]!.querySelector('.report-overview-relation-usage')).toHaveAttribute('aria-label', '179,500 tokens')
+    expect(rows()[0]).not.toHaveTextContent('900.0K')
+    expect(rows()[1]!.querySelector('.report-overview-relation-usage')).toBeNull()
+    await user.click(screen.getByRole('button', { name: '查看全部 4 个关联' }))
+    expect(rows()).toHaveLength(4)
+    expect(rows()[0]!.querySelector('.report-overview-relation-usage')).toHaveTextContent('179.5K')
+    expect(rows()[1]!.querySelector('.report-overview-relation-usage')).toBeNull()
+    expect(rows()[2]!.querySelector('.report-overview-relation-usage')).toBeNull()
+    expect(rows()[3]!.querySelector('.report-overview-relation-usage')).toHaveTextContent('1.3K')
+    expect(rows().map(row => row.textContent).join(' ')).not.toMatch(/undefined|NaN|\(\s*\)/)
+  })
+
+  it('decodes pinned usage once per thread record and execution', () => {
+    const thread = fakeSnapshots.find(scene => scene.harness === 'codex' && scene.scenario === 'completed')!
+      .state.threads[0] as AgentThreadRecord
+    const updated = withPreviewTokenUsage(thread, 100)
+    const executionId = thread.observation.latestExecution!.executionId
+    const clone = vi.spyOn(globalThis, 'structuredClone')
+
+    const first = projectExecutionTokenUsage(thread, executionId)
+    const firstDecodeCalls = clone.mock.calls.length
+    expect(first).toMatchObject({ value: '12.8K', suffix: 'tokens' })
+    expect(firstDecodeCalls).toBe(1)
+    expect(projectExecutionTokenUsage(thread, executionId)).toBe(first)
+    expect(clone).toHaveBeenCalledTimes(firstDecodeCalls)
+
+    expect(projectExecutionTokenUsage(updated, executionId)).toMatchObject({ value: '12.9K', suffix: 'tokens' })
+    expect(clone).toHaveBeenCalledTimes(firstDecodeCalls + 1)
+  })
 
   it('localizes report links and retains reading without an archive entry', async () => {
     const user = userEvent.setup()

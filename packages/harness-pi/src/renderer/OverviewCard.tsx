@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { HarnessOverviewCardModule } from '@openagent/contracts/renderer'
+import type { DeepReadonly, HarnessThreadRecord } from '@openagent/contracts'
 import { composeThreadCard, HarnessThreadCard, ThreadCardStatus, type ThreadCardPresentation, type ThreadCardExtensionProjection, type ThreadCardIdentityUsage, type ThreadCardIdentityView } from '@openagent/plugin-kit/renderer'
 import { piState } from '../shared/state.js'
 import type { PiMessage, PiThreadSettings } from '../shared/types.js'
@@ -39,6 +40,13 @@ function compactTokens(value: number): string {
 
 export interface PiOverviewView { presentation: ThreadCardPresentation; excerpt: string; message?: ThreadCardIdentityView['message']; model: string; status: string; pendingInteractionId?: string }
 export const piOverviewCardModule: HarnessOverviewCardModule<PiOverviewView> = {
+  executionTokenUsage(thread: DeepReadonly<HarnessThreadRecord>, executionId: string) {
+    const state = piState(thread.sessionState)
+    const part = cardUsage(state.messages.findLast(message =>
+      message.executionId === executionId && message.role === 'assistant' && message.usage)?.usage)
+      ?.parts.find(item => item.id === 'total')
+    return part?.numericValue === undefined ? undefined : { value: part.value, count: part.numericValue, suffix: part.suffix ?? '' }
+  },
   project(input) {
     const state = piState(input.thread.sessionState)
     const executionId = state.latestExecutionId

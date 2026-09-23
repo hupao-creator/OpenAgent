@@ -2915,6 +2915,13 @@
   white-space: nowrap;
 }
 
+.report-overview-relation-tail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 .report-overview-relation-provider {
   display: grid;
   width: 12px;

@@ -46,6 +46,7 @@ import { createEmptyCodexState, decodeCodexState } from '../shared/state.js'
 import { projectCodexBartPresentation } from '../shared/bart-presentation.js'
 import { codexHasNativePermissionConfig } from '../shared/settings.js'
 import {
+  codexExecutionTokenUsage,
   projectCodexOverview,
   type CodexOverviewView
 } from './overview.js'
@@ -650,6 +651,7 @@ export const codexRendererPlugin = {
   ThreadView: CodexThreadView,
   OverviewCard: {
     project: projectCodexOverview,
+    executionTokenUsage: codexExecutionTokenUsage,
     Card: CodexOverviewCard
   },
   projectBartDock({ thread }) {

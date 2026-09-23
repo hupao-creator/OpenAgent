@@ -34,6 +34,7 @@ export interface ReportRelatedThread {
   id: string
   executionId: string
   title: string
+  usage?: { readonly value: string; readonly count: number; readonly suffix: string }
   harnessId?: string
   running?: boolean
   missing?: boolean
@@ -43,7 +44,7 @@ export interface ReportRelatedThread {
 const MAX_VISIBLE_RELATED_THREADS = 2
 
 export const ReportCard = memo(function ReportCard(props: ReportCardProps): React.JSX.Element {
-  const { locale, t } = useI18n()
+  const { locale, formatNumber, t } = useI18n()
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
@@ -161,6 +162,7 @@ export const ReportCard = memo(function ReportCard(props: ReportCardProps): Reac
                   aria-label={thread.missing
                     ? undefined
                     : t('打开关联 Thread：{title}', { title: thread.title })}
+                  aria-describedby={thread.usage ? `${relationsId}-usage-${thread.id}` : undefined}
                   onClick={(event) => {
                     event.stopPropagation()
                     if (!thread.missing) props.onOpenThread(thread.id, thread.executionId)
@@ -179,8 +181,15 @@ export const ReportCard = memo(function ReportCard(props: ReportCardProps): Reac
                   <span className="report-overview-relation-title" title={thread.title}>
                     {thread.title}
                   </span>
-                  {thread.missing || thread.running ? (
-                    <small>{thread.missing ? t('已删除') : t('运行中')}</small>
+                  {thread.usage || thread.missing || thread.running ? (
+                    <span className="report-overview-relation-tail">
+                      {thread.usage ? <small id={`${relationsId}-usage-${thread.id}`} className="report-overview-relation-usage"
+                        aria-label={`${formatNumber(thread.usage.count)} ${thread.usage.suffix}`.trim()}
+                        title={t('输入与输出 token 合计，按 Harness 当前上报的统计范围显示')}>{thread.usage.value}</small> : null}
+                      {thread.missing || thread.running ? (
+                        <small>{thread.missing ? t('已删除') : t('运行中')}</small>
+                      ) : null}
+                    </span>
                   ) : null}
                 </button>
               </li>
