@@ -76,6 +76,90 @@ afterEach(async () => {
 })
 
 describe('OpenAgent Service Harness dispatch', () => {
+  it.each(['model', 'guidance', 'targets', 'host'])(
+    'keeps pending %s settings behind the active Bart execution when steering', async change => {
+      const trace: HarnessTrace = { runBartTools: async () => undefined, detachBartTools: true }
+      const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
+      const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
+      const f = await serviceFixture(trace, [], settings => ({ ...settings,
+        bart: { ...settings.bart, autoIntervention: false } }), { main })
+      await f.service.initialize()
+      await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start a live turn' }] } })
+      const before = f.store.read()
+      expect(readBartThread(before).observation.latestExecution?.status).toBe('running')
+      const settings = change === 'host'
+        ? { ...before.settings, bart: { ...before.settings.bart, hostHarnessPreference: 'claude' as const } }
+        : changedCodexSettings(before.settings, change)
+      const resolves = HARNESS_IDS.map(id => vi.spyOn(main[id], 'resolveThreadSettings'))
+      await f.service.updateAppSettings(settings)
+      await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Steer the live turn' }] } })
+      expect(trace.nativeOpenCount).toBe(1)
+      expect(trace.nativeDisposeCount || 0).toBe(0)
+      expect(readBartThread(f.store.read()).id).toBe(readBartThread(before).id)
+      expect(f.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+      for (const resolve of resolves) expect(resolve).not.toHaveBeenCalled()
+      const execution = readBartThread(f.store.read()).observation.latestExecution!
+      await trace.commitBartObservation!({ latestExecution: {
+        executionId: execution.executionId, startedAt: execution.startedAt,
+        status: 'completed', finishedAt: Date.now() }, backgroundWork: null })
+      trace.detachBartTools = false
+      await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start the next turn' }] } })
+      expect(trace.nativeOpenCount).toBe(2)
+      expect(trace.nativeDisposeCount).toBe(1)
+      expect(f.store.read().bartAppliedSettings).toEqual(f.store.read().settings)
+    }
+  )
+
+  it('falls back to an available automatic Host for standalone intervention after a saved model change', async () => {
+    const trace: HarnessTrace = { autoInterventionCompletion: Promise.resolve(waitDecision('Wait')) }
+    const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
+    const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
+    const f = await serviceFixture(trace, [], settings => ({ ...settings,
+      bart: { ...settings.bart, hostHarnessPreference: 'auto' } }), { main })
+    await f.service.initialize()
+    await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start agent work' }] } })
+    await vi.waitFor(() => expect(trace.autoInterventionRequests).toBeGreaterThan(0))
+    await vi.waitFor(() => expect(trace.autoInterventionInFlight || 0).toBe(0))
+    const alternateComplete = vi.spyOn(main.claude, 'completePrompt')
+    const availability = vi.spyOn(main.codex, 'availability').mockResolvedValue({ available: false })
+    const before = f.store.read()
+    await f.service.updateAppSettings(changedCodexSettings(before.settings, 'model'))
+    expect(availability).not.toHaveBeenCalled()
+    await trace.commitAgentState?.({ changedAutomaticProvider: true })
+    await vi.waitFor(() => expect(alternateComplete).toHaveBeenCalled())
+    expect(readBartThread(f.store.read()).harnessId).toBe('codex')
+    expect(f.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+  })
+
+  it.each(['appearance', 'locale', 'autoIntervention'] as const)(
+    'still resolves the automatic Host at restart after only %s changes', async preference => {
+      const trace: HarnessTrace = { runBartTools: async () => undefined }
+      const f = await serviceFixture(trace, [], settings => ({ ...settings,
+        bart: { ...settings.bart, hostHarnessPreference: 'auto', autoIntervention: false } }))
+      await f.service.initialize()
+      const settings = f.store.read().settings
+      await f.service.updateAppSettings({ ...settings, bart: { ...settings.bart, targetHarnessIds: ['codex', 'claude'] } })
+      await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Apply both targets' }] } })
+      const applied = f.store.read().settings
+      await f.service.updateAppSettings(preference === 'autoIntervention'
+        ? { ...applied, bart: { ...applied.bart, autoIntervention: true } }
+        : { ...applied, [preference]: preference === 'appearance' ? 'dark' : 'en-US' })
+      await f.service.shutdown()
+      const fresh: HarnessTrace = { runBartTools: async () => undefined }
+      const alternate = mainHarnessComposition(fresh, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
+      const main: MainHarnessComposition = { ...mainHarnessComposition(fresh), claude: alternate.claude }
+      vi.spyOn(main.codex, 'availability').mockResolvedValue({ available: false })
+      const store = trackedStore(f.root)
+      const service = new OpenAgentService(store, main, new WorktreeManager(), f.attachments,
+        new ScheduledDispatchStore(f.root), { defaultCwd: f.defaultCwd, bartCwd: join(f.root, 'bart'),
+          temporaryWorkspaceRoot: f.temporaryWorkspaceRoot })
+      services.push(service)
+      await service.initialize()
+      await service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Use available Host after restart' }] } })
+      expect(readBartThread(store.read()).harnessId).toBe('claude')
+    }
+  )
+
   it('falls back to another automatic Host when saved Host settings make the current one unavailable', async () => {
     const trace: HarnessTrace = { runBartTools: async () => undefined }
     const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
@@ -6861,7 +6945,9 @@ function mainHarnessComposition(
               input: structuredClone(request.input) as unknown as JsonValue
             }
           : context.sessionState.read()
-        const startedAt = Date.now()
+        const previousExecution = testSessionState.project(context.sessionState.read()).latestExecution
+        const startedAt = previousExecution?.executionId === request.executionId
+          ? previousExecution.startedAt : Date.now()
         const backgroundWork = trace.preserveBartBackgroundWork
           ? testSessionState.project(context.sessionState.read()).backgroundWork
           : null

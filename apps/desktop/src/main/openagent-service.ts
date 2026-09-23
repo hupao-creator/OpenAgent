@@ -357,13 +357,16 @@ export class OpenAgentService {
     },
     async (harnessId, request) => {
       // Automatic decisions are standalone prompts, not Bart Handle turns.
-      // Their settings are read fresh by completePrompt; a pending explicit
-      // Host choice must also take effect before this execution starts.
-      const settings = this.store.read().settings
+      // Their settings are read fresh by completePrompt, including automatic
+      // Host fallback when a saved provider/model change removes availability.
+      const { settings, bartAppliedSettings: applied } = this.store.read()
       const preference = settings.bart.hostHarnessPreference
-      const host = preference === 'auto' || preference === harnessId
-        ? harnessId
-        : await this.resolveBartHost(settings, request.signal, harnessId)
+      const changedHostSettings = !applied ||
+        !sameJson(applied.harnesses[harnessId], settings.harnesses[harnessId])
+      const resolveHost = preference === 'auto' ? changedHostSettings : preference !== harnessId
+      const host = resolveHost
+        ? await this.resolveBartHost(settings, request.signal, harnessId)
+        : harnessId
       request.signal.throwIfAborted()
       return this.completePrompt(host, request)
     },
@@ -464,7 +467,7 @@ export class OpenAgentService {
       const current = readBartThread(this.store.read())
       // Pending saved preferences belong to execution admission, even after
       // restart. Otherwise retain the existing startup Host selection policy.
-      const hostHarnessId = applied && !sameJson(applied, normalized) &&
+      const hostHarnessId = applied && !sameBartRuntimeSettings(applied, normalized) &&
         canHostBart(this.main[current.harnessId].threadCapabilities)
         ? current.harnessId as HarnessId
         : await this.resolveBartHost(normalized, this.serviceController.signal, current.harnessId)
@@ -3439,12 +3442,13 @@ export class OpenAgentService {
 
   private async applySavedBartSettings(signal: AbortSignal): Promise<void> {
     signal.throwIfAborted()
-    const { settings, bartAppliedSettings: applied } = this.store.read()
-    if (applied && sameJson(applied.harnesses, settings.harnesses) &&
-        applied.bart.hostHarnessPreference === settings.bart.hostHarnessPreference &&
-        sameJson(applied.bart.targetHarnessIds, settings.bart.targetHarnessIds) &&
-        applied.bart.routingGuidance === settings.bart.routingGuidance) return
     const current = readBartThread(this.store.read())
+    const execution = current.observation.latestExecution
+    // Follow-ups steer the already admitted execution and must keep its Handle
+    // and configuration. Apply pending preferences only for the next new turn.
+    if (this.bartInstance?.execution || (execution && !isTerminalPublicExecution(execution))) return
+    const { settings, bartAppliedSettings: applied } = this.store.read()
+    if (applied && sameBartRuntimeSettings(applied, settings)) return
     const hostSettingsChanged = !applied ||
       !sameJson(applied.harnesses[current.harnessId], settings.harnesses[current.harnessId])
     const host = !applied || applied.bart.hostHarnessPreference !== settings.bart.hostHarnessPreference ||
@@ -4073,6 +4077,13 @@ function withBartWorkspaceHint(
   return entries.map((entry, entryIndex) => entryIndex === index
     ? { ...entry, content: `${entry.content}\n\n${content}` }
     : entry)
+}
+
+function sameBartRuntimeSettings(a: OpenAgentSettings, b: OpenAgentSettings): boolean {
+  return sameJson(a.harnesses, b.harnesses) &&
+    a.bart.hostHarnessPreference === b.bart.hostHarnessPreference &&
+    sameJson(a.bart.targetHarnessIds, b.bart.targetHarnessIds) &&
+    a.bart.routingGuidance === b.bart.routingGuidance
 }
 
 function isTerminalPublicExecution(
