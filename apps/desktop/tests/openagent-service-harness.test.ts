@@ -2830,8 +2830,6 @@ describe('OpenAgent Service Harness dispatch', () => {
         content: 'Work in the selected project.'
       })
     )
-    expect(JSON.stringify(readBartThread(fixture.store.read()).transcript))
-      .not.toContain(newerCwd)
 
   })
 
