@@ -18,6 +18,7 @@ import type {
   ThreadCardProjection,
   ThreadCardQuestion
 } from '@openagent/plugin-kit/renderer'
+import type { DeepReadonly, HarnessThreadRecord } from '@openagent/contracts'
 import { createEmptyCodexState, decodeCodexState, latestCodexTurn } from '../shared/state.js'
 import type {
   CodexHarnessState,
@@ -371,6 +372,16 @@ function codexCardUsage(usage: {
     })
   }
   return parts.length ? { parts } : undefined
+}
+
+export function codexExecutionTokenUsage(thread: DeepReadonly<HarnessThreadRecord>, executionId: string):
+  { readonly value: string; readonly count: number; readonly suffix: string } | undefined {
+  const state = thread.sessionState === null
+    ? createEmptyCodexState(thread.createdAt)
+    : decodeCodexState(thread.sessionState)
+  const part = codexCardUsage(state.turns.findLast(turn => turn.executionId === executionId)?.usage)
+    ?.parts.find(item => item.id === 'total')
+  return part?.numericValue === undefined ? undefined : { value: part.value, count: part.numericValue, suffix: part.suffix ?? '' }
 }
 
 function formatTokens(value: number): string {

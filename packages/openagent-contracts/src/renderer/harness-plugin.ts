@@ -61,6 +61,9 @@ export interface HarnessOverviewProjection<OverviewView> {
 }
 
 export interface HarnessOverviewCardModule<OverviewView> {
+  /** The same token total shown by this Harness's card, for a pinned Execution. */
+  readonly executionTokenUsage?: (thread: DeepReadonly<HarnessThreadRecord>, executionId: string) =>
+    { readonly value: string; readonly count: number; readonly suffix: string } | undefined
   project(input: HarnessRendererThreadInput & {
     readonly displayPolicy?: HarnessOverviewDisplayPolicy
     readonly layout: { readonly availableColumns: number }

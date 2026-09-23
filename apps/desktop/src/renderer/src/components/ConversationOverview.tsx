@@ -67,6 +67,7 @@ import {
 } from '../conversation-overview-layout'
 import {
   HarnessOverviewCardHost,
+  projectExecutionTokenUsage,
   projectHarnessOverviewThread,
   threadActions
 } from '../harness-composition'
@@ -1574,7 +1575,9 @@ function sameRelatedThreads(previous: readonly ReportRelatedThread[], next: read
   return previous.length === next.length && previous.every((row, index) => {
     const other = next[index]!
     return row.id === other.id && row.executionId === other.executionId && row.title === other.title &&
-      row.harnessId === other.harnessId && row.running === other.running && row.missing === other.missing
+      row.harnessId === other.harnessId && row.running === other.running && row.missing === other.missing &&
+      row.usage?.value === other.usage?.value && row.usage?.count === other.usage?.count &&
+      row.usage?.suffix === other.usage?.suffix
   })
 }
 
@@ -1591,6 +1594,7 @@ export function reportRelatedThreads(
           executionId,
           title: source.thread.title,
           harnessId: source.thread.harnessId,
+          usage: projectExecutionTokenUsage(source.thread, executionId),
           running: isPublicExecutionActive(source.thread.observation)
         }
       : {

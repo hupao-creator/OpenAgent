@@ -150,7 +150,7 @@ function claudeCardIdentity(turn: ClaudeTurn | undefined): ThreadCardIdentityPro
   }
 }
 
-function claudeCardUsage(usage: ClaudeUsage | undefined): ThreadCardIdentityUsage | undefined {
+export function claudeCardUsage(usage: ClaudeUsage | undefined): ThreadCardIdentityUsage | undefined {
   if (!usage) return undefined
   const parts: ThreadCardIdentityUsage['parts'][number][] = []
   const fields = [usage.inputTokens, usage.cachedTokens, usage.cacheWriteTokens, usage.outputTokens]

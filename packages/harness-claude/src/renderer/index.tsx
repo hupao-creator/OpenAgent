@@ -8,7 +8,7 @@ import claudeCodeLogo from './claude-code.svg?inline'
 import './claude-renderer.css'
 import { claudeRendererTranslations } from './translations.js'
 import { ClaudeThreadView } from './ThreadView.js'
-import { projectClaudeOverview, ClaudeOverviewCard, type ClaudeOverviewView } from './OverviewCard.js'
+import { projectClaudeOverview, claudeExecutionTokenUsage, ClaudeOverviewCard, type ClaudeOverviewView } from './OverviewCard.js'
 import { decodeClaudeRendererState } from './state.js'
 import { projectClaudeBartPresentation } from '../shared/bart-presentation.js'
 import { ClaudeThreadSettingsPanel, ClaudeHarnessSettingsPanel } from './Settings.js'
@@ -22,6 +22,7 @@ export const claudeRendererPlugin = {
   ThreadView: ClaudeThreadView,
   OverviewCard: {
     project: projectClaudeOverview,
+    executionTokenUsage: claudeExecutionTokenUsage,
     Card: ClaudeOverviewCard
   },
   projectBartDock({ thread }) {

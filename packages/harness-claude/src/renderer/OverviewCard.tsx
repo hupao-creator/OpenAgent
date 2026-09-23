@@ -7,7 +7,7 @@ import { HarnessThreadCard, ThreadCardStatus } from '@openagent/plugin-kit/rende
 import { composeThreadCard } from '@openagent/plugin-kit/renderer'
 import type { ThreadCardIdentityView, ThreadCardPresentation } from '@openagent/plugin-kit/renderer'
 import { isTemporaryWorkspacePath } from '@openagent/contracts'
-import { claudeCardProjection } from './overview-projection.js'
+import { claudeCardProjection, claudeCardUsage } from './overview-projection.js'
 import {
   currentClaudeTurn,
   latestVisibleClaudePrompt,
@@ -92,6 +92,13 @@ export function projectClaudeOverview(input: HarnessRendererThreadInput & {
     excerpt: summary,
     view
   }
+}
+
+export function claudeExecutionTokenUsage(thread: DeepReadonly<HarnessRendererThreadInput['thread']>, executionId: string):
+  { readonly value: string; readonly count: number; readonly suffix: string } | undefined {
+  const turn = decodeClaudeRendererState(thread.sessionState).turns.findLast(item => item.executionId === executionId)
+  const part = claudeCardUsage(turn?.usage)?.parts.find(item => item.id === 'total')
+  return part?.numericValue === undefined ? undefined : { value: part.value, count: part.numericValue, suffix: part.suffix ?? '' }
 }
 
 export function ClaudeOverviewCard(props: OverviewCardProps): React.JSX.Element {
