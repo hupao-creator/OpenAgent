@@ -1041,8 +1041,16 @@ export class OpenAgentService {
     )
   }
 
-  async forkThread(request: ForkThreadRequest): Promise<ForkThreadResult> {
+  forkThread(request: ForkThreadRequest): Promise<ForkThreadResult> {
+    return this.forkAgentThread(request, this.agentLifecycleSignal())
+  }
+
+  private async forkAgentThread(
+    request: ForkThreadRequest,
+    signal: AbortSignal
+  ): Promise<ForkThreadResult> {
     this.assertOperational()
+    signal.throwIfAborted()
     assertIdentifier(request.threadId, 'threadId')
     const forkRequest = jsonValue(request.request)
     const initial = readAgentThread(this.store.read(), request.threadId)
@@ -1056,10 +1064,6 @@ export class OpenAgentService {
     this.forkingAgentThreads.add(request.threadId)
     try {
       return await this.runAgentCommand(request.threadId, async () => {
-        const signal = AbortSignal.any([
-          this.serviceController.signal,
-          this.agentOwnershipController.signal
-        ])
         signal.throwIfAborted()
         const reservation = await this.reserveAgentFork(request.threadId, signal)
         try {
@@ -1973,6 +1977,12 @@ export class OpenAgentService {
     return createBartToolBindings(threadCreation.inputSchema, {
       listThreads: (_value, signal) => this.bartListThreads(signal),
       startThread: (value, signal) => this.bartStartThread(value, signal, threadCreation),
+      forkThread: async (value, signal) => {
+        const result = await this.forkAgentThread({
+          threadId: toolString(value, 'threadId'), request: {}
+        }, this.agentLifecycleSignal(signal))
+        return { ok: true, threadId: result.threadId }
+      },
       threadStatus: (value, signal) => this.bartThreadStatus(value, signal),
       setThreadArchived: async (value, signal) => {
         signal.throwIfAborted()

@@ -21,6 +21,7 @@ import { createCodexPromptApi } from './prompt.js'
 import { CodexRuntime, type CodexMainContext } from './runtime/index.js'
 import { createCodexSettingsApi } from './settings.js'
 import { openCodexThread } from './thread/thread-handle.js'
+import { forkCodexThread } from './fork.js'
 import { createCodexBartTelemetryContributor } from '../bart/usage.js'
 import { CATALOG_TTL_MS, createCodexCatalogSource } from './catalog.js'
 import { normalizeCodexThreadSettings } from '../shared/settings.js'
@@ -109,6 +110,7 @@ export function createCodexMainPlugin(context: CodexMainContext): CodexMainPlugi
       }
     },
     openThread: (openContext) => openCodexThread(runtime, openContext),
+    forkThread: input => forkCodexThread(runtime, input),
     prompt: createCodexPromptApi(runtime),
     // API-key providers have no OpenAI auto-review service. Keep user approval
     // as their default; an explicit approve-for-me request still validates it.

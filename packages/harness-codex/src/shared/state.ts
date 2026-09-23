@@ -28,7 +28,7 @@ import type {
 
 export const CODEX_THREAD_STATE_SCHEMA = 'openagent.harness.codex.thread.v1' as const
 
-const MAX_TURNS = 200
+export const MAX_CODEX_TURNS = 200
 const MAX_BACKGROUND_TERMINALS = 2_000
 const MAX_ANSWER = 256 * 1024
 const MAX_REASONING = 64 * 1024
@@ -104,7 +104,7 @@ export function stageCodexExecution(
   return {
     ...state,
     updatedAt: timestamp,
-    turns: [...state.turns, turn].slice(-MAX_TURNS)
+    turns: [...state.turns, turn].slice(-MAX_CODEX_TURNS)
   }
 }
 
@@ -604,6 +604,7 @@ export function isCodexState(value: unknown): value is CodexHarnessState {
       'nativeToolConfiguration',
       'nativeToolMode',
       'nativeHistorySeed',
+      'forkHistory',
       'updatedAt',
       'nativeActivity',
       'backgroundTerminals',
@@ -624,7 +625,14 @@ export function isCodexState(value: unknown): value is CodexHarnessState {
   const stateUpdatedAt = value.updatedAt
   if (value.nativeActivity !== undefined &&
     !isNativeActivity(value.nativeActivity, stateUpdatedAt)) return false
-  return value.turns.length <= MAX_TURNS &&
+  if (value.forkHistory !== undefined && (
+    !Array.isArray(value.forkHistory) || value.forkHistory.length > MAX_CODEX_TURNS ||
+    !value.forkHistory.every(turn => isTurn(turn, stateUpdatedAt) &&
+      !activeTurnStatus(turn.status) &&
+      !turn.activities.some(activity => activity.status === 'running') &&
+      !turn.interactions.some(interaction => interaction.status === 'pending'))
+  )) return false
+  return value.turns.length <= MAX_CODEX_TURNS &&
     value.turns.every((turn) => isTurn(turn, stateUpdatedAt))
 }
 

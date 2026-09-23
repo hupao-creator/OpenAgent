@@ -418,7 +418,10 @@ export interface HarnessMainPlugin<
     HarnessSettings,
     SettingsPresentationData
   >
-  /** Pure Plugin-owned derivation; Core alone creates the target Thread. */
+  /**
+   * Plugin-owned derivation; may fork a native session without starting work or
+   * modifying the source. Core alone creates the target OpenAgent Thread.
+   */
   forkThread?(
     input: HarnessThreadForkRequest<Id, ThreadSettings>
   ): Promise<HarnessThreadForkResult<ThreadSettings>>
