@@ -11,6 +11,10 @@ interface PreviewNode {
 /** Shorten complete prose links and same-line emphasis without interpreting the
  * displayed markup. Markdown positions protect code, including container fences. */
 export function excerptPreview(source: string, precedingText = ''): string {
+  // The preview is a bounded leaf, but a stream can carry megabytes of context.
+  // Beyond this budget retain literal text: guessing a truncated Markdown state
+  // could corrupt code, and parsing the full prefix on every append is unbounded.
+  if (precedingText.length + source.length > 16_384) return source
   const input = precedingText + source
   const boundary = precedingText.length
   const code: Array<{ start: number; end: number }> = []

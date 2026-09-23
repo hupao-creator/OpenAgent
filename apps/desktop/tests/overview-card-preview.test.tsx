@@ -39,6 +39,15 @@ describe('thread card preview', () => {
     expect(excerptPreview(source)).toBe(source)
   })
 
+  it.each(['prose\n', '> ~~~md\n'])('keeps a megabyte stream preview bounded and literal after %s', prefix => {
+    const source = '**raw** [file](/tmp/file)'
+    const preceding = prefix + 'x'.repeat(4_000_000)
+    expect(excerptPreview(source, preceding)).toBe(source)
+    const view = render(<ThreadCardExcerpt content={'…' + source} messageId="large"
+      messageText={preceding + source} />)
+    expect(view.container.querySelector('.thread-card-excerpt-text')?.textContent).toBe('…' + source)
+  })
+
   it('keeps code literal when its opening fence is before the visible window', () => {
     const message = '```md\n' + 'x'.repeat(600) + '\n**raw** [file](/tmp/file)\n'
     const view = render(<ThreadCardExcerpt content={'…**raw** [file](/tmp/file)\n'} messageId="code" messageText={message} />)
