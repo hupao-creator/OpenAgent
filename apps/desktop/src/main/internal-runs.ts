@@ -3,7 +3,6 @@ import type { JsonObject, JsonValue } from '@openagent/contracts'
 import {
   DEFAULT_THREAD_EMOJI,
   isThreadEmoji,
-  HarnessRespondRequestShapeSchema,
   parseHarnessRespondRequest,
   type AgentThreadRecord,
   type BartTranscriptItem,
@@ -15,6 +14,8 @@ import type { OpenAgentTagPoolEntry } from '../shared/openagent-state'
 import { threadTagKey } from '@openagent/contracts'
 import {
   AutoInterventionStructureSchema,
+  AutoInterventionAnswerSchema,
+  AutoInterventionResponseSchema,
   GeneratedThreadTagSchema,
   ThreadMetadataStructureSchema,
   AUTO_INTERVENTION_OUTPUT_SCHEMA,
@@ -279,7 +280,9 @@ export function buildAutoInterventionPrompt(
           'Return decision "wait" with response null when there is no pending intervention, the observation lacks an exact response shape or identifiers, or the user\'s intent is ambiguous.',
           'Return decision "respond" only when the response is necessary, scoped, reversible or explicitly authorized, and consistent with the user\'s established intent.',
           'Never silently authorize destructive or irreversible work, credential disclosure, external communication, purchases, or broader permissions without explicit user intent.',
-          'For "respond", response must contain the exact interactionId and actionId from the public observation, plus answers only when needed and an optional message only when the chosen action can use feedback. Never invent fields or identifiers.',
+          'For "respond", response must contain all four fields: the exact interactionId and actionId from the public observation, answers, and message. Never invent fields or identifiers.',
+          'Encode answers as an array of { key, value } entries using the exact question/answer keys from the public observation, with no duplicate keys. Preserve each value as a string or array of strings. Use answers null when no answers are needed.',
+          'Use message only when the chosen action can use feedback; otherwise return message null.',
           'Give a concise reason suitable for the Bart log. Return only the JSON object required by the supplied schema.'
         ].join('\n')
       },
@@ -295,7 +298,7 @@ export function buildAutoInterventionPrompt(
   }
 }
 
-/** Parses the closed decision shape using the unified interaction response. */
+/** Decodes the closed model decision into the public interaction response. */
 export function parseAutoInterventionOutput(
   value: JsonValue
 ): AutoInterventionDecision {
@@ -319,18 +322,30 @@ export function parseAutoInterventionOutput(
 }
 
 function parsePublicResponse(value: Record<string, JsonValue>): HarnessRespondRequest {
-  const structure = HarnessRespondRequestShapeSchema.safeParse(value)
-  if (!structure.success && structure.error.issues.some((issue) =>
-    issue.path.length === 0 ||
-    (issue.path.length === 1 && !Object.hasOwn(value, issue.path[0]!))
-  )) {
+  const structure = AutoInterventionResponseSchema.safeParse(value)
+  if (!hasClosedEnumerableFields(value, AutoInterventionResponseSchema.keyof().options) ||
+      !structure.success) {
     throw new Error('Bart 自动介入 response 字段无效')
   }
   if (typeof value.interactionId !== 'string' || !value.interactionId.trim() ||
       typeof value.actionId !== 'string' || !value.actionId.trim()) {
     throw new Error('Bart 自动介入 response 标识无效')
   }
-  return parseHarnessRespondRequest(value)
+  const entries = structure.data.answers
+  if (Array.isArray(value.answers) && value.answers.some(entry =>
+    !hasClosedEnumerableFields(entry, AutoInterventionAnswerSchema.keyof().options)
+  )) {
+    throw new Error('Bart 自动介入 answers 字段无效')
+  }
+  if (entries && new Set(entries.map(entry => entry.key)).size !== entries.length) {
+    throw new Error('Bart 自动介入 answers 包含重复 key')
+  }
+  return parseHarnessRespondRequest({
+    interactionId: value.interactionId,
+    actionId: value.actionId,
+    ...(entries === null ? {} : { answers: Object.fromEntries(entries.map(entry => [entry.key, entry.value])) }),
+    ...(value.message === null ? {} : { message: value.message })
+  })
 }
 
 function metadataIntentEvidence(input: DeepReadonly<AgentInput>): JsonValue[] {

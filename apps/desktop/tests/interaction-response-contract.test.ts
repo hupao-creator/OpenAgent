@@ -14,8 +14,7 @@ describe('provider-neutral interaction response contract', () => {
     const properties = objectBranch.properties as JsonObject
 
     expect(properties.message).toEqual({
-      type: 'string',
-      maxLength: MAX_HARNESS_RESPONSE_MESSAGE_CHARACTERS
+      anyOf: [{ type: 'string', maxLength: MAX_HARNESS_RESPONSE_MESSAGE_CHARACTERS }, { type: 'null' }]
     })
     expect(objectBranch.additionalProperties).toBe(false)
   })
@@ -26,7 +25,7 @@ describe('provider-neutral interaction response contract', () => {
       response: {
         interactionId: 'public-interaction',
         actionId: 'public-action',
-        answers: { choices: ['second', 'first', 'second'] },
+        answers: [{ key: 'choices', value: ['second', 'first', 'second'] }],
         message: 'Use the read-only operation instead.'
       },
       reason: 'The user previously requested a read-only alternative.'
@@ -45,7 +44,7 @@ describe('provider-neutral interaction response contract', () => {
   it('normalizes empty feedback away and rejects non-current or unsafe shapes', () => {
     const decision = (response: JsonObject): JsonObject => ({
       decision: 'respond',
-      response,
+      response: { answers: null, message: null, ...response },
       reason: 'Test strict response parsing.'
     })
     expect(parseAutoInterventionOutput(decision({
@@ -81,7 +80,7 @@ describe('provider-neutral interaction response contract', () => {
     expect(() => parseAutoInterventionOutput(decision({
       interactionId: 'public-interaction',
       actionId: 'public-action',
-      answers: null
-    }))).toThrow('answers 必须为 object')
+      answers: {}
+    }))).toThrow('字段无效')
   })
 })

@@ -38,9 +38,22 @@ const ThreadMetadataModelSchema = ThreadMetadataStructureSchema.extend({
   })).min(1).max(MAX_THREAD_SEMANTIC_TAGS)
 })
 
+// Strict model output requires all object fields and closed objects. The public
+// response's optional fields and open answer map therefore need a model-only
+// wire shape, decoded back into the public response before dispatch.
+export const AutoInterventionAnswerSchema = z.strictObject({
+  key: z.string(),
+  value: HarnessRespondRequestShapeSchema.shape.answers.unwrap().valueType
+})
+export const AutoInterventionResponseSchema = z.strictObject({
+  interactionId: HarnessRespondRequestShapeSchema.shape.interactionId,
+  actionId: HarnessRespondRequestShapeSchema.shape.actionId,
+  answers: z.array(AutoInterventionAnswerSchema).nullable(),
+  message: HarnessRespondRequestShapeSchema.shape.message.unwrap().nullable()
+})
 export const AutoInterventionStructureSchema = z.strictObject({
   decision: z.enum(['respond', 'wait']),
-  response: HarnessRespondRequestShapeSchema.nullable(),
+  response: AutoInterventionResponseSchema.nullable(),
   reason: z.string()
 })
 
@@ -51,10 +64,10 @@ export const AutoInterventionStructureSchema = z.strictObject({
 // ceiling. The decision/response relation and normalized reason's code-point
 // ceiling remain product semantic checks, before Core's execution-state checks.
 const AutoInterventionModelSchema = AutoInterventionStructureSchema.extend({
-  response: HarnessRespondRequestShapeSchema.extend({
+  response: AutoInterventionResponseSchema.extend({
     interactionId: HarnessRespondRequestShapeSchema.shape.interactionId.min(1).max(128),
     actionId: HarnessRespondRequestShapeSchema.shape.actionId.min(1).max(128),
-    message: z.string().max(MAX_HARNESS_RESPONSE_MESSAGE_CHARACTERS).optional()
+    message: z.string().max(MAX_HARNESS_RESPONSE_MESSAGE_CHARACTERS).nullable()
   }).nullable().describe('Unified interaction response, or null when waiting.'),
   reason: AutoInterventionStructureSchema.shape.reason.min(1).max(MAX_AUTO_INTERVENTION_REASON_LENGTH)
 })

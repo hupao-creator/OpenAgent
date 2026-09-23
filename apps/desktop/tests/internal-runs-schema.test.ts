@@ -40,7 +40,7 @@ const decision = (response: JsonValue, reason = 'Previously authorized.'): JsonO
   decision: 'respond', response, reason
 })
 const response = (patch: JsonObject = {}): JsonObject => ({
-  interactionId: 'interaction', actionId: 'submit', ...patch
+  interactionId: 'interaction', actionId: 'submit', answers: null, message: null, ...patch
 })
 
 describe('internal model output boundaries', () => {
@@ -74,9 +74,54 @@ describe('internal model output boundaries', () => {
     expect(autoSchema.additionalProperties).toBe(false)
     expect((autoSchema.properties as JsonObject).response).toMatchObject({
       anyOf: [expect.objectContaining({
-        required: ['interactionId', 'actionId'], additionalProperties: false
+        required: ['interactionId', 'actionId', 'answers', 'message'], additionalProperties: false
       }), { type: 'null' }]
     })
+  })
+
+  it('sends only closed required-field objects to strict structured-output providers', () => {
+    const assertStrictObjects = (schema: JsonValue): void => {
+      if (Array.isArray(schema)) return schema.forEach(assertStrictObjects)
+      if (!schema || typeof schema !== 'object') return
+      if (schema.type === 'object') {
+        expect(schema.additionalProperties).toBe(false)
+        expect(schema.required).toEqual(Object.keys(schema.properties as JsonObject))
+      }
+      Object.values(schema).forEach(assertStrictObjects)
+    }
+    assertStrictObjects(buildThreadMetadataPrompt(input).outputFormat.schema)
+    assertStrictObjects(buildAutoInterventionPrompt({ bartTranscript: [], threadStatus: null }).outputFormat.schema)
+  })
+
+  it('decodes nullable model fields and preserves empty answer maps', () => {
+    expect(parseAutoInterventionOutput(decision(response())).response)
+      .toEqual({ interactionId: 'interaction', actionId: 'submit' })
+    expect(parseAutoInterventionOutput(decision(response({ answers: [] }))).response)
+      .toEqual({ interactionId: 'interaction', actionId: 'submit', answers: {} })
+  })
+
+  it('rejects duplicate answers and missing, inherited, nonenumerable or extra model fields', () => {
+    expect(() => parseAutoInterventionOutput(decision(response({ answers: [
+      { key: 'question', value: 'first' }, { key: 'question', value: 'second' }
+    ] })))).toThrow('重复 key')
+    for (const field of ['interactionId', 'actionId', 'answers', 'message']) {
+      const missing = response()
+      delete missing[field]
+      expect(() => parseAutoInterventionOutput(decision(missing))).toThrow('字段无效')
+      const inherited = Object.assign(Object.create({ [field]: response()[field] }), missing)
+      expect(() => parseAutoInterventionOutput(decision(inherited))).toThrow('字段无效')
+      const hidden = response()
+      Object.defineProperty(hidden, field, { enumerable: false })
+      expect(() => parseAutoInterventionOutput(decision(hidden))).toThrow('字段无效')
+    }
+    for (const field of ['key', 'value']) {
+      const entry: JsonObject = { key: 'question', value: 'answer' }
+      Object.defineProperty(entry, field, { enumerable: false })
+      expect(() => parseAutoInterventionOutput(decision(response({ answers: [entry] })))).toThrow('字段无效')
+    }
+    expect(() => parseAutoInterventionOutput(decision(response({ answers: [
+      { key: 'question', value: 'answer', extra: true }
+    ] })))).toThrow('字段无效')
   })
 
   it('requires own envelope fields rather than accepting inherited required values', () => {
@@ -227,17 +272,18 @@ describe('internal model output boundaries', () => {
     expect(parseAutoInterventionOutput(decision(response({ message })))).toMatchObject({ response: { message } })
     expect(() => parseAutoInterventionOutput(decision(response({ message: `${message}𠮷` })))).toThrow('message 无效')
     expect(() => parseAutoInterventionOutput(decision(response({ message: 'bad\0feedback' })))).toThrow('message 无效')
-    const invalidResponses: JsonObject[] = [{ answers: null }, { message: null }, { answers: { ' ': 'empty key' } },
-      { answers: { choices: [1] } }, { nativeAction: true }]
+    const invalidResponses: JsonObject[] = [{ answers: {} }, { message: 42 },
+      { answers: [{ key: ' ', value: 'empty key' }] },
+      { answers: [{ key: 'choices', value: [1] }] }, { nativeAction: true }]
     for (const patch of invalidResponses) {
       expect(() => parseAutoInterventionOutput(decision(response(patch)))).toThrow()
     }
     const answers = JSON.parse('{"__proto__":["one","one"],"answer":""}') as JsonObject
-    const result = parseAutoInterventionOutput(decision(response({ answers, message: '' })))
+    const result = parseAutoInterventionOutput(decision(response({ answers: Object.entries(answers).map(([key, value]) => ({ key, value })), message: '' })))
     expect(result.response).not.toHaveProperty('message')
     expect(Object.hasOwn(result.response!.answers!, '__proto__')).toBe(true)
     expect(result.response!.answers).toEqual(answers)
-    expect(() => parseAutoInterventionOutput(decision(response({ answers: JSON.parse('{"__proto__":1}') })))).toThrow()
+    expect(() => parseAutoInterventionOutput(decision(response({ answers: [{ key: '__proto__', value: 1 }] })))).toThrow()
     expect(() => parseAutoInterventionOutput(decision({ ...response(), answers: undefined } as unknown as JsonObject)))
       .toThrow()
   })

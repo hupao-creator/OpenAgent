@@ -6906,7 +6906,8 @@ describe('OpenAgent Service Harness dispatch', () => {
           response: {
             interactionId: 'late-interaction',
             actionId: 'submit',
-            answers: { answer: 'late' }
+            answers: [{ key: 'answer', value: 'late' }],
+            message: null
           },
           reason: 'Late stale decision.'
         }
@@ -7971,7 +7972,12 @@ function respondDecision(
       type: 'json',
       value: {
         decision: 'respond',
-        response,
+        response: {
+          interactionId: response.interactionId,
+          actionId: response.actionId,
+          answers: response.answers === undefined ? null : Object.entries(response.answers).map(([key, value]) => ({ key, value })),
+          message: response.message ?? null
+        },
         reason
       }
     },
