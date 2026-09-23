@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest'
 import { planOverviewInWorker, type OverviewLayoutRequest, type OverviewLayoutResponse } from '../src/renderer/src/overview-layout-worker'
 import { layoutOverview } from '../src/renderer/src/overview-layout'

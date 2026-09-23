@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest'
 import { connectBartDisplay } from '../src/renderer/src/bart-display/source'
 import { BartDisplayQueue } from '../src/renderer/src/bart-display/queue'
@@ -21,7 +22,7 @@ it('skips unchanged Bart history while accepting activity-only events and author
     expect(project).toHaveBeenCalledTimes(1)
     for (let index = 0; index < 100; index++) {
       const previous = rendererAppState(store.getState())
-      const agent = { ...bart, id: 'agent', bart: false as const, archived: false, revision: index + 1, sessionState: { text: `token ${index}` } }
+      const agent = { ...bart, id: 'agent', bart: undefined, archived: false, revision: index + 1, sessionState: { text: `token ${index}` } }
       applyRendererStateStoreMutation(store, createRendererStateMutation(previous, { ...previous, revision: previous.revision + 1, threads: [bart, agent] }))
     }
     expect(project).toHaveBeenCalledTimes(1)
