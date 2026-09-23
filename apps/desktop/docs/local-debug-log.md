@@ -175,6 +175,14 @@ effect-to-next-frame measurement only; it does not include cross-process send
 latency. The next `requestAnimationFrame` is an observation checkpoint, not
 proof that the frame has physically reached the display.
 
+Executable discovery checks optional installation paths as well as configured
+CLIs. A missing candidate ends `cli.resolve` with `resolved: false` and emits
+`cli.resolve.not-found` at debug level in detail mode. The resolver still rejects
+with its typed not-found error, so the calling operation decides whether a
+fallback is available or a user-visible failure is needed. Unexpected resolver
+errors produce one `cli.resolve.failed` record. Do not count discovery misses
+as failed agent executions.
+
 Changes to startup logging or instrumentation are loaded when Electron starts.
 Stop and restart the development process from the worktree containing the
 changes, for example:

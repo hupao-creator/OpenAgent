@@ -1,10 +1,62 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { CliResolver } from '../src/main/services/cli-resolver'
+import { HarnessExecutableNotFoundError } from '@openagent/contracts'
+import { flushDebugLog, initDebugLog } from '@openagent/plugin-kit/main'
 
 describe('CLI resolver path resolution', () => {
+  it.each(['summary', 'detail'])('records missing candidates as discovery results in %s mode', async mode => {
+    const directory = await mkdtemp(join(tmpdir(), 'openagent-cli-log-'))
+    vi.stubEnv('OPENAGENT_DEBUG_LOG', mode)
+    const logPath = initDebugLog(join(directory, 'logs'))!
+    const resolver = new CliResolver({ PATH: directory })
+    try {
+      await expect(resolver.resolve('missing-candidate')).rejects.toBeInstanceOf(HarnessExecutableNotFoundError)
+      await flushDebugLog()
+      const events = (await readFile(logPath, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+      const started = events.find(event => event.evt === 'cli.resolve.started')
+      const terminals = events.filter(event => event.evt === 'cli.resolve.completed' || event.evt === 'cli.resolve.failed')
+      expect(terminals).toEqual([expect.objectContaining({
+        evt: 'cli.resolve.completed', level: 'info', resolved: false,
+        command: 'missing-candidate', spanId: started.spanId
+      })])
+      expect(events.filter(event => event.level === 'error')).toEqual([])
+      const misses = events.filter(event => event.evt === 'cli.resolve.not-found')
+      expect(misses).toHaveLength(mode === 'detail' ? 1 : 0)
+      if (mode === 'detail') expect(misses[0]).toMatchObject({ level: 'debug', spanId: started.spanId })
+    } finally {
+      vi.stubEnv('OPENAGENT_DEBUG_LOG', 'off')
+      initDebugLog(join(directory, 'logs'))
+      vi.unstubAllEnvs()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('records an unexpected resolution failure exactly once and preserves the caller error', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'openagent-cli-error-'))
+    vi.stubEnv('OPENAGENT_DEBUG_LOG', 'summary')
+    const logPath = initDebugLog(join(directory, 'logs'))!
+    const resolver = new CliResolver()
+    const failure = new Error('environment unavailable')
+    vi.spyOn(resolver, 'environment').mockRejectedValue(failure)
+    try {
+      await expect(resolver.resolve('unavailable')).rejects.toBe(failure)
+      await flushDebugLog()
+      const events = (await readFile(logPath, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+      expect(events.filter(event => event.evt === 'cli.resolve.failed')).toEqual([
+        expect.objectContaining({ level: 'error', error: expect.objectContaining({ message: failure.message }) })
+      ])
+      expect(events.some(event => event.evt === 'cli.resolve.completed' || event.evt === 'cli.resolve.not-found')).toBe(false)
+    } finally {
+      vi.stubEnv('OPENAGENT_DEBUG_LOG', 'off')
+      initDebugLog(join(directory, 'logs'))
+      vi.unstubAllEnvs()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('preserves an explicit environment across refresh without reading login-shell exports', async () => {
     const resolver = new CliResolver({ PATH: '/isolated/bin', HOME: '/isolated/home' })
     const first = await resolver.environment()

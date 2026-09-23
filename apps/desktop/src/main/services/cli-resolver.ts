@@ -86,11 +86,17 @@ export class CliResolver {
       })
       return result
     }, error => {
-      debugError('cli.resolve.failed', error, {
-        command,
-        reuse: pending ? 'pending' : cached ? 'cache-candidate' : 'miss'
-      })
-      span.fail(error, { command })
+      if (error instanceof HarnessExecutableNotFoundError) {
+        // Discovery deliberately checks optional installations. A missing
+        // candidate is a lookup result; callers still decide whether it makes
+        // their operation fail, and the next lookup must remain retryable.
+        withDebugContext(span.context, () => debugLog('cli.resolve.not-found', {
+          command, level: 'debug'
+        }))
+        span.end({ command, resolved: false })
+      } else {
+        span.fail(error, { command })
+      }
       throw error
     })
     if (pending) return tracked
