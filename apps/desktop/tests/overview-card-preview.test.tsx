@@ -78,6 +78,19 @@ describe('thread card preview', () => {
     expect(excerptPreview('ts:86](/tmp/file)', '[file.')).toBe('ts:86](/tmp/file)')
   })
 
+  it.each([
+    '> ~~~md\n> **raw** [file](/tmp/file)\n> ~~~\n\n**prose**',
+    '> ```md\n> mid-line ``` **raw** [file](/tmp/file)\n> ```\n\n**prose**',
+    '- ~~~md\n  **raw** [file](/tmp/file)\n  ~~~\n\n**prose**',
+    '1. > ~~~md\n   > **raw** [file](/tmp/file)\n   > ~~~\n\n**prose**',
+    '> ~~~md\n> **raw** [file](/tmp/file)\n'
+  ])('preserves fenced code inside Markdown containers: %s', source => {
+    expect(excerptPreview(source)).toBe(source.replace('**prose**', 'prose'))
+    const boundary = source.indexOf('**raw**')
+    expect(excerptPreview(source.slice(boundary), source.slice(0, boundary)))
+      .toBe(source.slice(boundary).replace('**prose**', 'prose'))
+  })
+
   it('uses natural wrapping and a line clamp for the rendered text', () => {
     const testPath = expect.getState().testPath!
     const css = readFileSync(resolve(dirname(testPath), '../../../packages/openagent-plugin-kit/src/renderer/components.css'), 'utf8')

@@ -1,53 +1,52 @@
-/** Shorten complete links and prose emphasis only; buffering owns the text window.
- * Keep whitespace, block markers and code literal, including unfinished fences. */
+import { unified } from 'unified'
+import remarkParse from 'remark-parse'
+
+const parser = unified().use(remarkParse)
+interface PreviewNode {
+  readonly type: string
+  readonly position?: { readonly start: { readonly offset?: number }; readonly end: { readonly offset?: number } }
+  readonly children?: readonly PreviewNode[]
+}
+
+/** Shorten complete prose links and same-line emphasis without interpreting the
+ * displayed markup. Markdown positions protect code, including container fences. */
 export function excerptPreview(source: string, precedingText = ''): string {
   const input = precedingText + source
   const boundary = precedingText.length
-  let fence: string | undefined
-  let inlineDelimiter = 0
+  const code: Array<{ start: number; end: number }> = []
+  const collect = (node: PreviewNode): void => {
+    if (node.type === 'code' || node.type === 'inlineCode') {
+      const start = node.position?.start.offset
+      const end = node.position?.end.offset
+      if (start !== undefined && end !== undefined) code.push({ start, end })
+      return
+    }
+    for (const child of node.children ?? []) collect(child)
+  }
+  collect(parser.parse(input))
   let result = ''
-  let lineOffset = 0
   const emit = (start: number, end: number, replacement?: string): void => {
     if (end <= boundary) return
-    // A window can split a delimiter or link. Scan the complete token for
-    // context, but keep its visible suffix literal rather than inventing text.
+    // Do not transform a link or delimiter sliced by the visible window.
     result += start < boundary ? input.slice(boundary, end) : replacement ?? input.slice(start, end)
   }
-  for (const line of input.split(/(?<=\n)/)) {
-    const end = lineOffset + line.length
-    const marker = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)/.exec(line)
-    if (fence) {
-      if (marker && marker[1]![0] === fence[0] && marker[1]!.length >= fence.length &&
-        /^[ \t]*$/.test(marker[2]!)) fence = undefined
-      emit(lineOffset, end)
-    } else if (marker && !inlineDelimiter) {
-      fence = marker[1]
-      emit(lineOffset, end)
-    } else if (!inlineDelimiter && /^(?: {4}|\t)/.test(line)) {
-      emit(lineOffset, end)
-    } else {
-      const proseToken = /\\[^\r\n]|`+|(?<!!)\[([^[\]\r\n]+)\]\((?:\\[^\r\n]|[^()\\\r\n]|\([^()\r\n]*\))*\)|(?<!\*)\*\*([^*`\r\n]+)\*\*(?!\*)/g
-      const codeToken = /`+/g
-      let offset = 0
-      for (;;) {
-        const pattern = inlineDelimiter ? codeToken : proseToken
-        pattern.lastIndex = offset
-        const token = pattern.exec(line)
-        if (!token) {
-          emit(lineOffset + offset, end)
-          break
-        }
-        emit(lineOffset + offset, lineOffset + token.index)
-        emit(lineOffset + token.index, lineOffset + token.index + token[0].length,
-          inlineDelimiter ? undefined : token[1] ?? token[2])
-        if (token[0][0] === '`') {
-          if (!inlineDelimiter) inlineDelimiter = token[0].length
-          else if (inlineDelimiter === token[0].length) inlineDelimiter = 0
-        }
-        offset = token.index + token[0].length
-      }
+  const prose = (start: number, end: number): void => {
+    const text = input.slice(start, end)
+    const tokens = /\\[^\r\n]|(?<!!)\[([^[\]\r\n]+)\]\((?:\\[^\r\n]|[^()\\\r\n]|\([^()\r\n]*\))*\)|(?<!\*)\*\*([^*`\r\n]+)\*\*(?!\*)/g
+    let offset = 0
+    for (const token of text.matchAll(tokens)) {
+      emit(start + offset, start + token.index)
+      emit(start + token.index, start + token.index + token[0].length, token[1] ?? token[2])
+      offset = token.index + token[0].length
     }
-    lineOffset = end
+    emit(start + offset, end)
   }
+  let offset = 0
+  for (const span of code) {
+    prose(offset, span.start)
+    emit(span.start, span.end)
+    offset = span.end
+  }
+  prose(offset, input.length)
   return result
 }
