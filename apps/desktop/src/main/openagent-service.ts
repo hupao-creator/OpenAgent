@@ -917,7 +917,6 @@ export class OpenAgentService {
         this.autoIntervention.invalidateDecisions()
         this.autoIntervention.requestActive()
       }
-      this.replaceBartRunContextScope()
     })
   }
 
@@ -1355,7 +1354,7 @@ export class OpenAgentService {
           )
         : await this.ensureBartThread()
       const collectedContextEntries = this.readBartRunContextEntries(
-        this.store.read().settings
+        this.appliedBartSettings()
       )
       const contextEntries = withBartWorkspaceHint(
         collectedContextEntries,
@@ -1747,12 +1746,17 @@ export class OpenAgentService {
     ])) as BartContextEntryComposition
   }
 
+  private appliedBartSettings(): OpenAgentSettings {
+    const state = this.store.read()
+    return state.bartAppliedSettings ?? state.settings
+  }
+
   private startBartRunContextLifecycle(): void {
     if (this.shuttingDown || this.clearingHistory) return
     if (this.bartRunContextController.signal.aborted) {
       this.bartRunContextController = new AbortController()
     }
-    this.startBartRunContextRefresh(this.store.read().settings, true)
+    this.startBartRunContextRefresh(this.appliedBartSettings(), true)
     this.armBartRunContextRefreshTimer()
   }
 
@@ -1785,7 +1789,7 @@ export class OpenAgentService {
         this.bartRunContextRefreshTimer = undefined
       }
       if (this.shuttingDown || this.clearingHistory) return
-      this.startBartRunContextRefresh(this.store.read().settings, true)
+      this.startBartRunContextRefresh(this.appliedBartSettings(), true)
       this.armBartRunContextRefreshTimer()
     }, BART_RUN_CONTEXT_REFRESH_MS)
     timer.unref()
@@ -1848,7 +1852,7 @@ export class OpenAgentService {
           generation !== this.bartRunContextGeneration ||
           !this.sameBartRunContextScope(
             { settings: settingsSnapshot, cwd },
-            this.store.read().settings,
+            this.appliedBartSettings(),
             this.paths.bartCwd
           )
         ) {
@@ -3458,6 +3462,7 @@ export class OpenAgentService {
     signal.throwIfAborted()
     if (host !== current.harnessId) {
       await this.replaceBartThread(settings, host, signal)
+      this.replaceBartRunContextScope()
       return
     }
     // Target/tool/context changes do not alter the Host's native settings.
@@ -3465,6 +3470,7 @@ export class OpenAgentService {
       !sameJson(applied.harnesses[host], settings.harnesses[host])
     try {
       await this.recycleBartThread(settings, resolveHostSettings, signal)
+      this.replaceBartRunContextScope()
     } finally {
       if (this.bartUseCaseController.signal.aborted) {
         this.bartUseCaseController = new AbortController()

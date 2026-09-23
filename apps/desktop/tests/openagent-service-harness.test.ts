@@ -79,12 +79,14 @@ describe('OpenAgent Service Harness dispatch', () => {
   it.each(['model', 'guidance', 'targets', 'host'].flatMap(change =>
     ['active', 'background'].map(work => ({ change, work }))))(
     'keeps pending $change settings behind $work Bart work when steering', async ({ change, work }) => {
-      const trace: HarnessTrace = { runBartTools: async () => undefined, detachBartTools: true }
+      const trace: HarnessTrace = { runBartTools: async () => undefined, detachBartTools: true,
+        telemetryContextFactory: input => JSON.stringify(input.settings) }
       const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
       const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
       const f = await serviceFixture(trace, [], settings => ({ ...settings,
         bart: { ...settings.bart, autoIntervention: false } }), { main })
       await f.service.initialize()
+      await drainBartRunContext(f.service)
       await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start a live turn' }] } })
       const started = readBartThread(f.store.read()).observation.latestExecution!
       expect(started.status).toBe('running')
@@ -94,12 +96,15 @@ describe('OpenAgent Service Harness dispatch', () => {
           status: 'completed', finishedAt: Date.now() }, backgroundWork: { status: 'running' } })
       }
       const before = f.store.read()
+      const telemetryCalls = structuredClone(trace.telemetryContextCalls)
       const settings = change === 'host'
         ? { ...before.settings, bart: { ...before.settings.bart, hostHarnessPreference: 'claude' as const } }
         : changedCodexSettings(before.settings, change)
       const resolves = HARNESS_IDS.map(id => vi.spyOn(main[id], 'resolveThreadSettings'))
       await f.service.updateAppSettings(settings)
       await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Steer the live turn' }] } })
+      expect(trace.bartContextEntries?.at(-1)).toEqual(trace.bartContextEntries?.[0])
+      expect(trace.telemetryContextCalls).toEqual(telemetryCalls)
       expect(trace.nativeOpenCount).toBe(1)
       expect(trace.nativeDisposeCount || 0).toBe(0)
       expect(readBartThread(f.store.read()).id).toBe(readBartThread(before).id)
@@ -367,7 +372,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     }
   })
 
-  it.each(['bart', ...HARNESS_IDS])('refreshes run context for %s without renewing enabled auto intervention', async change => {
+  it.each(['bart', ...HARNESS_IDS])('defers run context for saved %s until admission without renewing enabled auto intervention', async change => {
     const fixture = await serviceFixture({}, [], settings => ({
       ...settings, bart: { ...settings.bart, autoIntervention: true }
     }))
@@ -385,8 +390,8 @@ describe('OpenAgent Service Harness dispatch', () => {
       : { ...before.settings, harnesses: { ...before.settings.harnesses,
           [change]: { ...before.settings.harnesses[change as HarnessId], threadSettings: { model: 'updated' } } } }
     await fixture.service.updateAppSettings(settings)
-    expect(runContext.signal.aborted).toBe(true)
-    expect(Reflect.get(fixture.service, 'bartRunContextController')).not.toBe(runContext)
+    expect(runContext.signal.aborted).toBe(false)
+    expect(Reflect.get(fixture.service, 'bartRunContextController')).toBe(runContext)
     expect(cancel).not.toHaveBeenCalled()
     expect(renew).not.toHaveBeenCalled()
     expect(invalidate).not.toHaveBeenCalled()
@@ -2261,12 +2266,14 @@ describe('OpenAgent Service Harness dispatch', () => {
       ) as NodeJS.Timeout | undefined
       expect(timer).toBeDefined()
       expect(timer?.hasRef()).toBe(false)
+      await fixture.service.updateAppSettings(changedCodexSettings(fixture.store.read().settings, 'model'))
 
       await vi.advanceTimersByTimeAsync(5 * 60 * 1_000 - 1)
       expect(trace.telemetryContextCalls).toHaveLength(1)
       await vi.advanceTimersByTimeAsync(1)
       await drainBartRunContext(fixture.service)
       expect(trace.telemetryContextCalls).toHaveLength(2)
+      expect(trace.telemetryContextCalls?.[1]?.settings).toEqual(trace.telemetryContextCalls?.[0]?.settings)
       await fixture.service.shutdown()
     } finally {
       vi.useRealTimers()
@@ -2300,6 +2307,11 @@ describe('OpenAgent Service Harness dispatch', () => {
             executablePath: '/fixture/codex-b'
           }
         }
+      })
+      expect(trace.telemetryContextCalls).toHaveLength(1)
+      expect(trace.telemetryContextSignals?.[0]?.aborted).toBe(false)
+      await fixture.service.submitBartMessage({
+        input: { parts: [{ kind: 'text', text: 'Admit settings scope B.' }] }
       })
       await vi.waitFor(() => expect(trace.telemetryContextCalls).toHaveLength(2))
       expect(trace.telemetryContextSignals?.[0]?.aborted).toBe(true)
