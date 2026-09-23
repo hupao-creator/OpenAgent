@@ -1340,12 +1340,11 @@ export class OpenAgentService {
     workspaceHint?: BartWorkspaceHint
   ): Promise<void> {
     try {
-      // Both user admission and system/automatic input must adopt saved settings
-      // before either ensure path can return an already warm Handle.
-      await this.applySavedBartSettings()
       const sendSignal = admission
         ? AbortSignal.any([this.serviceController.signal, admission.controller.signal])
         : this.serviceController.signal
+      // Settings probes belong to this admission, including its cancellation.
+      await this.applySavedBartSettings(sendSignal)
       const instance = admission
         ? await waitForAbortable(
             this.ensureBartThreadForUserAdmission(sendSignal),
@@ -1586,6 +1585,10 @@ export class OpenAgentService {
       'bart.thread.open',
       { threadId: record.id, harnessId: record.harnessId },
       async () => {
+        // Recovery must compose the same configuration as the retained native
+        // record. Pending preferences only take effect at successful admission.
+        const state = this.store.read()
+        const settings = state.bartAppliedSettings ?? state.settings
         const threadController = new AbortController()
         this.bartThreadController = threadController
         const signal = AbortSignal.any([
@@ -1596,11 +1599,11 @@ export class OpenAgentService {
         const [systemEntries, threadCreation] = await Promise.all([
           collectBartContextEntries({
             timing: 'system',
-            composition: this.bartContextComposition(this.store.read().settings),
+            composition: this.bartContextComposition(settings),
             signal,
             onFailure: failure => this.reportFailure('context', failure)
           }),
-          preparedThreadCreation ?? this.describeTargets(signal)
+          preparedThreadCreation ?? this.describeTargets(signal, settings)
         ])
         const tools = this.createBartToolBindings(record.id, signal, threadCreation)
         try {
@@ -1613,7 +1616,7 @@ export class OpenAgentService {
               'Use only the supplied OpenAgent Core tools to operate Agent Threads.',
               BART_EXECUTION_CONTRACT,
               threadCreation.instructions,
-              `Model routing guidance:\n${this.store.read().settings.bart.routingGuidance ?? DEFAULT_BART_ROUTING_GUIDANCE}`
+              `Model routing guidance:\n${settings.bart.routingGuidance ?? DEFAULT_BART_ROUTING_GUIDANCE}`
             ],
             toolSchemas: tools.map(tool => ({
               name: tool.name,
@@ -1637,7 +1640,7 @@ export class OpenAgentService {
                 'Use only the supplied OpenAgent Core tools to operate Agent Threads.',
                 BART_EXECUTION_CONTRACT,
                 threadCreation.instructions,
-                `Model routing guidance:\n${this.store.read().settings.bart.routingGuidance ?? DEFAULT_BART_ROUTING_GUIDANCE}`
+                `Model routing guidance:\n${settings.bart.routingGuidance ?? DEFAULT_BART_ROUTING_GUIDANCE}`
               ],
               contextEntries: systemEntries,
               tools: { mode: 'exclusive', bindings: tools }
@@ -1656,21 +1659,25 @@ export class OpenAgentService {
     )
   }
 
-  private describeTargets(signal: AbortSignal): Promise<ThreadCreationDescription> {
-    const settings = this.store.read().settings
+  private describeTargets(
+    signal: AbortSignal,
+    settings = this.store.read().settings
+  ): Promise<ThreadCreationDescription> {
     return runServiceDebugSpan(
       'bart.targets.refresh',
       {
         cwd: this.paths.bartCwd,
         targetHarnessIds: [...settings.bart.targetHarnessIds]
       },
-      () => this.describeTargetsImpl(signal),
+      () => this.describeTargetsImpl(signal, settings),
       { harnessId: readBartThread(this.store.read()).harnessId }
     )
   }
 
-  private async describeTargetsImpl(signal: AbortSignal): Promise<ThreadCreationDescription> {
-    const settings = this.store.read().settings
+  private async describeTargetsImpl(
+    signal: AbortSignal,
+    settings: OpenAgentSettings
+  ): Promise<ThreadCreationDescription> {
     let availability: readonly {
       readonly harnessId: HarnessId
       readonly availability: HarnessAvailability
@@ -3375,19 +3382,22 @@ export class OpenAgentService {
 
   private async replaceBartThread(
     settings: OpenAgentSettings,
-    resolvedHostHarnessId?: HarnessId
+    resolvedHostHarnessId?: HarnessId,
+    signal = this.serviceController.signal
   ): Promise<void> {
     const current = readBartThread(this.store.read())
-    const hostHarnessId = resolvedHostHarnessId ?? await this.resolveBartHost(
+    const hostHarnessId = resolvedHostHarnessId ?? await waitForAbortable(this.resolveBartHost(
       settings,
-      this.serviceController.signal,
+      signal,
       current.harnessId
-    )
-    const threadSettings = await this.main[hostHarnessId].resolveThreadSettings({
+    ), signal)
+    signal.throwIfAborted()
+    const threadSettings = await waitForAbortable(this.main[hostHarnessId].resolveThreadSettings({
       settings,
       cwd: this.paths.bartCwd,
-      signal: this.serviceController.signal
-    })
+      signal
+    }), signal)
+    signal.throwIfAborted()
     const pendingBartOpening = this.bartOpening
     this.bartOpening = undefined
     this.startupBartRecoveryEpoch += 1
@@ -3427,25 +3437,30 @@ export class OpenAgentService {
     }
   }
 
-  private async applySavedBartSettings(): Promise<void> {
+  private async applySavedBartSettings(signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted()
     const { settings, bartAppliedSettings: applied } = this.store.read()
     if (applied && sameJson(applied.harnesses, settings.harnesses) &&
         applied.bart.hostHarnessPreference === settings.bart.hostHarnessPreference &&
         sameJson(applied.bart.targetHarnessIds, settings.bart.targetHarnessIds) &&
         applied.bart.routingGuidance === settings.bart.routingGuidance) return
     const current = readBartThread(this.store.read())
-    const host = !applied || applied.bart.hostHarnessPreference !== settings.bart.hostHarnessPreference
-      ? await this.resolveBartHost(settings, this.serviceController.signal, current.harnessId)
+    const hostSettingsChanged = !applied ||
+      !sameJson(applied.harnesses[current.harnessId], settings.harnesses[current.harnessId])
+    const host = !applied || applied.bart.hostHarnessPreference !== settings.bart.hostHarnessPreference ||
+      (settings.bart.hostHarnessPreference === 'auto' && hostSettingsChanged)
+      ? await waitForAbortable(this.resolveBartHost(settings, signal, current.harnessId), signal)
       : current.harnessId as HarnessId
+    signal.throwIfAborted()
     if (host !== current.harnessId) {
-      await this.replaceBartThread(settings, host)
+      await this.replaceBartThread(settings, host, signal)
       return
     }
     // Target/tool/context changes do not alter the Host's native settings.
     const resolveHostSettings = !applied ||
       !sameJson(applied.harnesses[host], settings.harnesses[host])
     try {
-      await this.recycleBartThread(settings, resolveHostSettings)
+      await this.recycleBartThread(settings, resolveHostSettings, signal)
     } finally {
       if (this.bartUseCaseController.signal.aborted) {
         this.bartUseCaseController = new AbortController()
@@ -3458,14 +3473,15 @@ export class OpenAgentService {
 
   private async recycleBartThread(
     settings: OpenAgentSettings,
-    resolveHostSettings: boolean
+    resolveHostSettings: boolean,
+    signal: AbortSignal
   ): Promise<void> {
     let current = readBartThread(this.store.read())
     const resolve = () => resolveHostSettings
       ? this.main[current.harnessId].resolveThreadSettings({
           settings,
           cwd: this.paths.bartCwd,
-          signal: this.serviceController.signal,
+          signal,
           current
         })
       : Promise.resolve(jsonValue(current.settings))
@@ -3474,7 +3490,8 @@ export class OpenAgentService {
     // recovery after a crash opens from these durable settings. Even a failed
     // conflict retry or persistence write must leave the old Handle intact.
     for (;;) {
-      const threadSettings = await resolve()
+      const threadSettings = await waitForAbortable(resolve(), signal)
+      signal.throwIfAborted()
       try {
         await this.commit({
           type: 'replace-thread-settings',
@@ -3483,7 +3500,7 @@ export class OpenAgentService {
           settings: threadSettings,
           bartAppliedSettings: settings,
           updatedAt: this.boundaryTimestamp(current.updatedAt)
-        })
+        }, undefined, () => signal.throwIfAborted())
         break
       } catch (error) {
         const latest = readBartThread(this.store.read())

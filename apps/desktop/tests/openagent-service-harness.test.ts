@@ -76,6 +76,116 @@ afterEach(async () => {
 })
 
 describe('OpenAgent Service Harness dispatch', () => {
+  it('falls back to another automatic Host when saved Host settings make the current one unavailable', async () => {
+    const trace: HarnessTrace = { runBartTools: async () => undefined }
+    const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
+    const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
+    const f = await serviceFixture(trace, [], settings => ({ ...settings,
+      bart: { ...settings.bart, hostHarnessPreference: 'auto', autoIntervention: false }
+    }), { main })
+    await f.service.initialize()
+    await drainStartupRecovery(f.service)
+    const availability = vi.spyOn(main.codex, 'availability').mockResolvedValue({ available: false })
+    const resolve = vi.spyOn(main.codex, 'resolveThreadSettings')
+    const settings = changedCodexSettings(f.store.read().settings, 'model')
+    await f.service.updateAppSettings({ ...settings, bart: { ...settings.bart, targetHarnessIds: ['claude'] } })
+    expect(availability).not.toHaveBeenCalled()
+    await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Use available Host' }] } })
+    expect(availability).toHaveBeenCalled()
+    expect(resolve).not.toHaveBeenCalled()
+    expect(readBartThread(f.store.read()).harnessId).toBe('claude')
+    expect(f.store.read().bartAppliedSettings).toEqual(f.store.read().settings)
+  })
+
+  it('recovers the applied composition until pending settings resolve, including reverting a failed admission', async () => {
+    const f = await codexSettingsFixture()
+    const applied = f.store.read().settings
+    const changed = changedCodexSettings(applied, 'model')
+    await f.service.updateAppSettings({ ...changed, bart: { ...changed.bart,
+      routingGuidance: 'Pending guidance', targetHarnessIds: ['codex', 'claude'] } })
+    await f.service.shutdown()
+    const store = trackedStore(f.root)
+    const trace: HarnessTrace = { runBartTools: async tools => {
+      trace.exposedTargetSets = [exposedHarnessIds(requiredTool(tools, 'openagent_thread_start').inputSchema)]
+    } }
+    const main = mainHarnessComposition(trace)
+    main.codex.normalizeSettings = f.main.codex.normalizeSettings
+    main.codex.resolveThreadSettings = f.main.codex.resolveThreadSettings
+    const service = new OpenAgentService(store, main, new WorktreeManager(), f.attachments,
+      new ScheduledDispatchStore(f.root), { defaultCwd: f.defaultCwd, bartCwd: join(f.root, 'bart'),
+        temporaryWorkspaceRoot: f.temporaryWorkspaceRoot })
+    services.push(service)
+    await service.initialize()
+    await drainStartupRecovery(service)
+    expect(trace.injectionSnapshots?.[0]).toEqual(f.trace.injectionSnapshots?.[0])
+    await expect(service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Pending' }] } }))
+      .rejects.toThrow('auto_review')
+    await service.updateAppSettings(applied)
+    await service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Use applied settings' }] } })
+    expect(trace.nativeOpenCount).toBe(1)
+    expect(trace.nativeDisposeCount || 0).toBe(0)
+    expect(trace.exposedTargetSets).toEqual([['codex']])
+    expect(trace.injectionSnapshots?.[0]).toEqual(f.trace.injectionSnapshots?.[0])
+  })
+
+  it.each(['availability', 'same-host', 'replacement'] as const)(
+    'cancels pending %s settings probes without holding the queue or changing the applied Handle', async phase => {
+      const trace: HarnessTrace = { runBartTools: async () => undefined }
+      const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
+      const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
+      const f = await serviceFixture(trace, [], settings => ({ ...settings,
+        bart: { ...settings.bart, hostHarnessPreference: 'auto', autoIntervention: false }
+      }), { main })
+      await f.service.initialize()
+      await drainStartupRecovery(f.service)
+      const before = f.store.read()
+      let release!: () => void
+      const gate = new Promise<void>(resolve => { release = resolve })
+      let probeSignal: AbortSignal | undefined
+      let restore: () => void
+      if (phase === 'availability') {
+        const probe = vi.spyOn(main.codex, 'availability').mockImplementation(async (_settings, _cwd, signal) => {
+          probeSignal = signal
+          await gate // Deliberately ignore abort; the caller must still release admission.
+          return { available: true }
+        })
+        restore = () => probe.mockRestore()
+      } else {
+        const probe = vi.spyOn(main[phase === 'replacement' ? 'claude' : 'codex'], 'resolveThreadSettings')
+          .mockImplementation(async input => {
+            probeSignal = input.signal
+            await gate
+            return { model: 'late-result' }
+          })
+        restore = () => probe.mockRestore()
+      }
+      const settings = changedCodexSettings(before.settings, 'model')
+      await f.service.updateAppSettings({ ...settings, bart: { ...settings.bart,
+        hostHarnessPreference: phase === 'availability' ? 'auto' : phase === 'replacement' ? 'claude' : 'codex' } })
+      const sending = f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Cancel before admission' }] } })
+      const rejected = expect(sending).rejects.toThrow('interrupted before native admission')
+      try {
+        await vi.waitFor(() => expect(probeSignal).toBeDefined())
+        await f.service.cancelBartTask()
+        await rejected
+        expect(probeSignal?.aborted).toBe(true)
+        // This command must finish before the uncooperative probe is released.
+        await f.service.updateAppSettings(before.settings)
+        expect(readBartThread(f.store.read())).toEqual(readBartThread(before))
+        expect(f.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+        expect(trace.nativeDisposeCount || 0).toBe(0)
+      } finally {
+        release()
+        restore!()
+        await sending.catch(() => undefined)
+      }
+      await new Promise<void>(resolve => setImmediate(resolve))
+      expect(readBartThread(f.store.read())).toEqual(readBartThread(before))
+      await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Queue recovered' }] } })
+      expect(trace.nativeOpenCount).toBe(1)
+    }
+  )
+
   it.each(['appearance', 'locale'] as const)('persists only %s without revoking pending auto intervention or run context', async preference => {
     let resolveDecision!: (result: HarnessPromptCompleteResult) => void
     let releaseMetadata!: () => void
