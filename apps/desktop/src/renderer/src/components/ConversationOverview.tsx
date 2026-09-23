@@ -1265,15 +1265,15 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
           playbackRate={props.tagTransitionPlaybackRate ?? 1} viewport={scrollRef} motion={filterMotion}>
         <div className={'thread-overview-scroll-content ' + tagTransitionDirection} key={selectedSelectionKey || '__all__'}>
           {presentedItems.length === 0 ? (
-            <div className="thread-overview-empty">
+            <div key="empty" className="thread-overview-empty">
               <strong>{props.selectedTag
                 ? t('没有 {category} 会话', { category: selectedFilter?.tag || props.selectedTag })
                 : view === 'archived' ? t('没有已归档的 Thread') : t('还没有会话')}</strong>
               <span>{t('切换视图或标签筛选以查看其他 Thread。')}</span>
             </div>
           ) : (
-            // plane transform 由 applyPlaneTransform 命令式维护，不经 React 渲染。
-            <div className="thread-overview-plane" ref={bindPlane}>
+            // Distinct keys keep the imperative camera transform off the empty state.
+            <div key="plane" className="thread-overview-plane" ref={bindPlane}>
               <div
                 className={'thread-overview-grid' + (presentedLayout.plan ? ' overview-planned-grid' : '')}
                 ref={gridRef}
