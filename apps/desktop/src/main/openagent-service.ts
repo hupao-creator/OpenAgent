@@ -1977,12 +1977,7 @@ export class OpenAgentService {
     return createBartToolBindings(threadCreation.inputSchema, {
       listThreads: (_value, signal) => this.bartListThreads(signal),
       startThread: (value, signal) => this.bartStartThread(value, signal, threadCreation),
-      forkThread: async (value, signal) => {
-        const result = await this.forkAgentThread({
-          threadId: toolString(value, 'threadId'), request: {}
-        }, this.agentLifecycleSignal(signal))
-        return { ok: true, threadId: result.threadId }
-      },
+      forkThread: (value, signal) => this.bartForkThread(value, signal),
       threadStatus: (value, signal) => this.bartThreadStatus(value, signal),
       setThreadArchived: async (value, signal) => {
         signal.throwIfAborted()
@@ -2064,6 +2059,24 @@ export class OpenAgentService {
     signal.throwIfAborted()
     const thread = readAgentThread(this.store.read(), toolString(value, 'threadId'))
     return jsonValue({ ok: true, thread: publicThreadEnvelope(thread) })
+  }
+
+  private async bartForkThread(value: JsonValue, signal: AbortSignal): Promise<JsonValue> {
+    signal.throwIfAborted()
+    const sourceThreadId = toolString(value, 'threadId')
+    // Reject an invalid prompt before creating a durable child.
+    const prompt = toolString(value, 'prompt', MAX_INPUT_TEXT)
+    const { threadId } = await this.forkAgentThread({
+      threadId: sourceThreadId, request: {}
+    }, this.agentLifecycleSignal(signal))
+    try {
+      return await this.bartSendThread({ threadId, prompt }, signal)
+    } catch (error) {
+      throw new Error(
+        `Thread 已 fork 为 ${threadId}，但发送指令失败：${errorMessage(error)}。请检查该 Thread 的状态后继续，避免重复 fork。`,
+        { cause: error }
+      )
+    }
   }
 
   private async bartSendThread(value: JsonValue, signal: AbortSignal): Promise<JsonValue> {
