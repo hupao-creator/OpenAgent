@@ -211,6 +211,8 @@ export interface ConversationOverviewProps {
 // FLIP 动画时长/缓动：placeholder 卸载后其余卡片从旧位置平滑过渡到新位置
 /** 与历史连续生成一致：短静默窗把连续 start 合成一个全局 FIFO 批次。 */
 const GENERATION_BATCH_GRACE_MS = 350
+/** A queued shape change older than this is no longer useful once a newer shape is waiting. */
+const STALE_LAYOUT_SHAPE_MS = 2_000
 const CANVAS_WHEEL_ZOOM_INTENSITY = 0.0015
 /** 空白处按下到抬起的位移上限；超过即视为拖拽平移，不再当作单击。 */
 const CANVAS_BLANK_CLICK_SLOP = 4
@@ -440,6 +442,8 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
   const presentedLayoutRef = useRef(presentedLayout)
   presentedLayoutRef.current = presentedLayout
   const lastQueuedLayoutSignatureRef = useRef(presentedLayout.signature)
+  const latestQueuedLayoutRef = useRef<OverviewLayoutSnapshot>(desiredLayout)
+  const latestQueuedLayoutTokenRef = useRef<symbol | null>(null)
   // 规划失败时 revision 已被标记消费，但它的生成工作还没投递。保留最后一次失败
   // 的请求，让重试按原快照连同 generationTargets 一起重新登记，而不是只重投
   // desiredLayout——那会静默丢掉卡片入场后的生成动画。
@@ -623,9 +627,21 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       snapshot: OverviewLayoutSnapshot,
       planningLease: OverviewStageLease,
       signal: AbortSignal,
-      frozenGenerationTargets: readonly BartGenerationTarget[]
+      frozenGenerationTargets: readonly BartGenerationTarget[],
+      token: symbol,
+      queuedAt: number
     ): Promise<void> => {
       if (signal.aborted) { planningLease.release(); throw abortError() }
+      const obsoleteShape = (): boolean =>
+        Date.now() - queuedAt >= STALE_LAYOUT_SHAPE_MS &&
+        token !== latestQueuedLayoutTokenRef.current &&
+        frozenGenerationTargets.length === 0 &&
+        !snapshot.items.some(item => item.kind === 'placeholder') &&
+        sameOverviewLayoutMembers(snapshot.items, latestQueuedLayoutRef.current.items)
+      // A long Bart/camera FIFO can outlive the activity that briefly enlarged a
+      // card. Preserve recent A → B → A motion, but do not replay old shapes
+      // after their newer counterpart is already queued.
+      if (obsoleteShape()) { planningLease.release(); return }
       const previous = presentedLayoutRef.current
       let target: PlannedOverviewLayout
       try {
@@ -633,6 +649,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
         target = await planOverviewSnapshotAsync(snapshot, layoutPlanner, previous.plan?.placements ?? [], signal)
       } catch (error) {
         if (signal.aborted) { planningLease.release(); throw abortError() }
+        if (obsoleteShape()) { planningLease.release(); return }
         // No verified candidate: keep the last successful geometry and let later revisions retry.
         failedLayoutRef.current = {
           snapshot,
@@ -646,6 +663,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
         planningLease.release()
         return
       }
+      if (obsoleteShape()) { planningLease.release(); return }
       // 失败快照的暂存目标不在这里作废：规划成功不等于它们被投递。只有后续成功
       // 呈现真正把它们交给 stageGenerationTargets 之后，这批目标才算交付完毕。
       setLayoutError(false)
@@ -842,6 +860,9 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       const abortForSceneCut = (): void => controller.abort()
       sceneSignal.addEventListener('abort', abortForSceneCut, { once: true })
       const token = Symbol(target.signature)
+      const queuedAt = Date.now()
+      latestQueuedLayoutRef.current = target
+      latestQueuedLayoutTokenRef.current = token
       pendingLayoutWorkRef.current.add(token)
       layoutMotionPendingRef.current = true
       // acquireStage 在捕获 revision 的同一 effect 内调用：布局、Bart 与 camera
@@ -854,7 +875,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
         let lease: OverviewStageLease | null = null
         try {
           lease = await planningLease
-          await playLayoutRevision(target, lease, controller.signal, generationTargets)
+          await playLayoutRevision(target, lease, controller.signal, generationTargets, token, queuedAt)
           lease = null
           if (!controller.signal.aborted) {
             cameraCockpit.reconcileBounds(
@@ -915,6 +936,8 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
     try { next = planOverviewSnapshot(desiredLayout, layoutPlanner) }
     catch { next = { ...desiredLayout, signature: '', items: [] } }
     lastQueuedLayoutSignatureRef.current = next.signature
+    latestQueuedLayoutRef.current = next
+    latestQueuedLayoutTokenRef.current = null
     presentedLayoutRef.current = next
     setPresentedLayout(next)
     if (
@@ -1666,6 +1689,15 @@ function cardPlaneRect(element: HTMLElement): OverviewContentBox {
     width: element.offsetWidth,
     height: element.offsetHeight
   }
+}
+
+function sameOverviewLayoutMembers(
+  left: readonly OverviewLayoutItem[],
+  right: readonly OverviewLayoutItem[]
+): boolean {
+  return left.length === right.length && left.every((item, index) =>
+    item.kind === right[index]?.kind && item.entityId === right[index]?.entityId
+  )
 }
 
 type PresentedOverviewItem =
