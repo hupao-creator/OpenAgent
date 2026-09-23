@@ -4791,11 +4791,11 @@ describe('OpenAgent Service Harness dispatch', () => {
   })
 
   it('rejects a schedule whose target passes during asynchronous settings resolution', async () => {
-    vi.useFakeTimers()
+    let wallNow = 1_800_000_000_000
+    // Polling must not advance the schedule clock before settings resolution starts.
+    const wallClock = vi.spyOn(Date, 'now').mockImplementation(() => wallNow)
     let releaseSettings: (() => void) | undefined
     try {
-      const wallNow = 1_800_000_000_000
-      vi.setSystemTime(wallNow)
       const settingsGate = new Promise<void>(resolve => { releaseSettings = resolve })
       const trace: HarnessTrace = {
         resolveThreadSettingsGate: settingsGate,
@@ -4818,7 +4818,7 @@ describe('OpenAgent Service Harness dispatch', () => {
         input: { parts: [{ kind: 'text', text: 'Try the expiring schedule.' }] }
       })
       await vi.waitFor(() => expect(trace.resolveThreadSettingsStarted).toBe(true))
-      vi.setSystemTime(wallNow + 101)
+      wallNow += 101
       if (!releaseSettings) throw new Error('Settings gate was not installed')
       releaseSettings()
 
@@ -4826,7 +4826,7 @@ describe('OpenAgent Service Harness dispatch', () => {
       expect(await fixture.schedules.load()).toEqual([])
     } finally {
       releaseSettings?.()
-      vi.useRealTimers()
+      wallClock.mockRestore()
     }
   })
 
