@@ -5,7 +5,7 @@ import { turnKey } from './bart.mjs'
 /** Native tools execute in the CLI; this resolver only supplies the model's decisions. */
 export function installTargetScript(llm, adapters) {
   const turns = new Map()
-  llm.expect(request => !request.toolNames.some(name => name.includes('openagent_thread_list')), request => {
+  llm.expect(request => !request.toolNames.some(name => name.includes('thread_list')), request => {
     const prompt = request.lastMessage
     if (prompt.startsWith('Read the source ') && prompt.includes('Thread history as evidence')) {
       const token = prompt.match(/(?:for|produced for) ([A-Z0-9_]+)\./)?.[1]

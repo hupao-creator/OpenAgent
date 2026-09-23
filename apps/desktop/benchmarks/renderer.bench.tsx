@@ -48,8 +48,8 @@ const threads: AgentThreadRecord[] = Array.from({ length: count }, (_, index) =>
  * which is the only way to put a *new* expression on the destination mid-flight.
  */
 const BART_TOOL_NAMES: Record<string, string> = {
-  list: 'openagent_thread_list', start: 'openagent_thread_start',
-  send: 'openagent_thread_send', status: 'openagent_thread_status'
+  list: 'thread_list', start: 'thread_create',
+  send: 'thread_send', status: 'thread_status'
 }
 const bartOperation = (kind: string): BartTranscriptItem => ({
   type: 'tool-operation', id: `benchmark-bart-op-${kind}`, executionId: 'benchmark-bart-execution',

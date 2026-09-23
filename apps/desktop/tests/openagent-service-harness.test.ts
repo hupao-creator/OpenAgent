@@ -204,7 +204,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     await f.service.shutdown()
     const store = trackedStore(f.root)
     const trace: HarnessTrace = { runBartTools: async tools => {
-      trace.exposedTargetSets = [exposedHarnessIds(requiredTool(tools, 'openagent_thread_start').inputSchema)]
+      trace.exposedTargetSets = [exposedHarnessIds(requiredTool(tools, 'thread_create').inputSchema)]
     } }
     const main = mainHarnessComposition(trace)
     main.codex.normalizeSettings = f.main.codex.normalizeSettings
@@ -476,7 +476,7 @@ describe('OpenAgent Service Harness dispatch', () => {
       expect((await disk.load())?.settings).toEqual(expected)
       if (['guidance', 'targets', 'non-host'].includes(change)) {
         f.trace.runBartTools = async tools => {
-          f.trace.exposedTargetSets = [exposedHarnessIds(requiredTool(tools, 'openagent_thread_start').inputSchema)]
+          f.trace.exposedTargetSets = [exposedHarnessIds(requiredTool(tools, 'thread_create').inputSchema)]
         }
         await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Apply composition' }] } })
         expect(f.resolve).not.toHaveBeenCalled()
@@ -837,7 +837,7 @@ describe('OpenAgent Service Harness dispatch', () => {
         const trace: HarnessTrace = {
           runBartTools(tools) {
             trace.exposedTargetSets = [exposedHarnessIds(
-              requiredTool(tools, 'openagent_thread_start').inputSchema
+              requiredTool(tools, 'thread_create').inputSchema
             )]
             return Promise.resolve()
           }
@@ -1757,12 +1757,8 @@ describe('OpenAgent Service Harness dispatch', () => {
     })
     const worktrees = fixtureWorktreeManager({ validateManagedWorktree })
     const trace: HarnessTrace = {
-      async runBartTools(tools, signal) {
-        await requiredTool(tools, 'openagent_thread_delete').execute({
-          callId: 'delete-during-fork-validation',
-          arguments: { threadId: 'delete-fork-source' },
-          signal
-        })
+      async runBartTools() {
+        await fixture.service.deleteThread('delete-fork-source')
       }
     }
     const fixture = await serviceFixture(trace, [], settings => settings, { worktrees })
@@ -1914,7 +1910,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     const trace: HarnessTrace = {
       forkGate: new Promise(resolve => { releaseFork = resolve }),
       async runBartTools(tools, signal) {
-        await requiredTool(tools, 'openagent_thread_send').execute({
+        await requiredTool(tools, 'thread_send').execute({
           callId: 'send-during-fork',
           arguments: {
             threadId: 'bart-send-fork-source',
@@ -2626,7 +2622,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     let dispatched: JsonValue | undefined
     const trace: HarnessTrace = {
       async runBartTools(tools, signal) {
-        dispatched = await requiredTool(tools, 'openagent_thread_start').execute({
+        dispatched = await requiredTool(tools, 'thread_create').execute({
           arguments: { prompt: 'Use every selected native setting.', cwd: fixture.defaultCwd, harnessId: 'codex', options: nativeSettings },
           signal
         })
@@ -2663,8 +2659,12 @@ describe('OpenAgent Service Harness dispatch', () => {
     const injection = trace.injectionSnapshots?.[0]
     expect(injection?.toolMode).toBe('exclusive')
     expect(injection?.instructions.length).toBeGreaterThan(0)
-    expect(injection?.toolNames).toContain('openagent_thread_start')
-    expect(injection?.toolNames.every(name => name.startsWith('openagent_'))).toBe(true)
+    expect(injection?.toolNames).toEqual([
+      'thread_list', 'thread_create', 'thread_status', 'thread_send',
+      'thread_set_archived', 'thread_read', 'thread_interrupt', 'thread_respond',
+      'report_create', 'report_list', 'report_read', 'report_update',
+      'report_set_archived', 'schedule_create', 'schedule_list', 'schedule_cancel'
+    ])
     expect(trace.bartResponses ?? []).toEqual([])
     await fixture.service.respondToThreadInteraction({
       threadId: waiting.id, interactionId: 'injected-permission', actionId: 'allow'
@@ -2773,7 +2773,7 @@ describe('OpenAgent Service Harness dispatch', () => {
   it('rejects natively invalid settings through the same resolver used by ordinary creation', async () => {
     const trace: HarnessTrace = {
       async runBartTools(tools, signal) {
-        await requiredTool(tools, 'openagent_thread_start').execute({
+        await requiredTool(tools, 'thread_create').execute({
           arguments: { prompt: 'Reject invalid native configuration.', harnessId: 'codex', options: { model: 'not-native' } },
           signal
         })
@@ -3155,7 +3155,7 @@ describe('OpenAgent Service Harness dispatch', () => {
       const input: AgentInput = { parts: [{ kind: 'text', text: 'Continue independently of the report.' }] }
       if (scenario === 'bart-agent-tool') {
         trace.runBartTools = async (tools, signal) => {
-          await requiredTool(tools, 'openagent_thread_send').execute({
+          await requiredTool(tools, 'thread_send').execute({
             callId: 'report-independent-send',
             arguments: { threadId, prompt: 'Continue independently of the report.' },
             signal
@@ -4209,7 +4209,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     const checkedTools: string[] = []
     const trace: HarnessTrace = {
       async runBartTools(tools) {
-        for (const name of ['openagent_report_create', 'openagent_report_update']) {
+        for (const name of ['report_create', 'report_update']) {
           const properties = requiredTool(tools, name).inputSchema.properties
           const html = jsonObject(properties) ? properties.html : undefined
           const description = jsonObject(html) ? html.description : undefined
@@ -4230,7 +4230,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     await fixture.service.submitBartMessage({
       input: { parts: [{ kind: 'text', text: 'Explain the task outcome in a report.' }] }
     })
-    expect(checkedTools).toEqual(['openagent_report_create', 'openagent_report_update'])
+    expect(checkedTools).toEqual(['report_create', 'report_update'])
   })
 
   it('rejects escaped Report HTML through Bart tools without committing and accepts a corrected retry', async () => {
@@ -4238,7 +4238,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     const raw = '<h2>结论摘要</h2>\n<p>正文</p>'
     const trace: HarnessTrace = {
       async runBartTools(tools, signal) {
-        const create = requiredTool(tools, 'openagent_report_create')
+        const create = requiredTool(tools, 'report_create')
         await expect(create.execute({
           callId: 'escaped-create', arguments: { title: '报告', html: escaped }, signal
         })).rejects.toThrow(/原始 HTML/)
@@ -4249,13 +4249,13 @@ describe('OpenAgent Service Harness dispatch', () => {
         })
         const created = fixture.service.loadRendererState().reports[0]
         const original = fixture.service.readReport(created.id)
-        await expect(requiredTool(tools, 'openagent_report_update').execute({
+        await expect(requiredTool(tools, 'report_update').execute({
           callId: 'escaped-update',
           arguments: { reportId: created.id, title: '错误替换', html: escaped }, signal
         })).rejects.toThrow(/原始 HTML/)
         expect(fixture.service.readReport(created.id)).toEqual(original)
 
-        await requiredTool(tools, 'openagent_report_update').execute({
+        await requiredTool(tools, 'report_update').execute({
           callId: 'corrected-update',
           arguments: { reportId: created.id, html: raw + '<p>更新</p>' }, signal
         })
@@ -4277,7 +4277,7 @@ describe('OpenAgent Service Harness dispatch', () => {
   it('serializes parallel Report aggregate writes from Bart tools', async () => {
     const trace: HarnessTrace = {
       async runBartTools(tools, signal) {
-        const create = requiredTool(tools, 'openagent_report_create')
+        const create = requiredTool(tools, 'report_create')
         await Promise.all([
           create.execute({
             callId: 'report-one',
@@ -4315,15 +4315,15 @@ describe('OpenAgent Service Harness dispatch', () => {
         const call = (name: string, args: JsonValue) => requiredTool(tools, name).execute({ callId: name, arguments: args, signal })
         const oldRef = { threadId: 'report-race-target', executionId: 'E1' }
         if (operation === 'update') {
-          await call('openagent_report_create', { title: 'Original', html: '<p>Keep original</p>', relatedExecutions: [oldRef] })
+          await call('report_create', { title: 'Original', html: '<p>Keep original</p>', relatedExecutions: [oldRef] })
         }
         const original = fixture.service.loadRendererState().reports
         const reportId = original[0]?.id
         deleting = true
-        const deletion = call('openagent_thread_delete', { threadId: oldRef.threadId })
+        const deletion = fixture.service.deleteThread(oldRef.threadId)
         await vi.waitFor(() => expect(deletionEntered).toBe(true))
         const resolved = vi.spyOn(testSessionState, 'resolveExecution')
-        const write = call(`openagent_report_${operation}`, { ...(reportId ? { reportId } : {}),
+        const write = call(`report_${operation}`, { ...(reportId ? { reportId } : {}),
           title: 'New title', html: '<p>New content</p>', relatedExecutions: [{ ...oldRef, executionId: 'E0' }] })
         const outcome = write.then(value => ({ value }), error => ({ error }))
         try {
@@ -4339,7 +4339,7 @@ describe('OpenAgent Service Harness dispatch', () => {
         expect(fixture.service.loadRendererState().reports).toEqual(original)
         if (reportId) {
           // Existing unavailable references are preserved for ordinary text edits.
-          await call('openagent_report_update', { reportId, title: 'Still readable', html: '<p>Original target unavailable</p>' })
+          await call('report_update', { reportId, title: 'Still readable', html: '<p>Original target unavailable</p>' })
           expect(fixture.service.readReport(reportId).relatedExecutions).toEqual([oldRef])
         }
       }
@@ -4376,34 +4376,34 @@ describe('OpenAgent Service Harness dispatch', () => {
         const call = (name: string, args: JsonValue) => requiredTool(tools, name).execute({ callId: name, arguments: args, signal })
         const ref = { threadId: 'report-history', executionId: 'E1' }
         for (const executionId of ['E2', 'failed', 'interrupted', 'waiting', 'missing']) {
-          await expect(call('openagent_report_create', { title: 'Invalid', html: '<p>invalid</p>',
+          await expect(call('report_create', { title: 'Invalid', html: '<p>invalid</p>',
             relatedExecutions: [{ ...ref, executionId }] })).rejects.toThrow(/completed Execution/)
           expect(fixture.store.read().reports).toEqual([])
         }
-        await expect(call('openagent_report_create', { title: 'Wrong owner', html: '<p>invalid</p>',
+        await expect(call('report_create', { title: 'Wrong owner', html: '<p>invalid</p>',
           relatedExecutions: [{ threadId: 'other-thread', executionId: 'E1' }] })).rejects.toThrow()
         const malformed = vi.spyOn(testSessionState, 'resolveExecution').mockReturnValueOnce({
           executionId: 'E1', status: 'completed', startedAt: 10, finishedAt: 9
         })
-        await expect(call('openagent_report_create', { title: 'Malformed public Execution', html: '<p>invalid</p>',
+        await expect(call('report_create', { title: 'Malformed public Execution', html: '<p>invalid</p>',
           relatedExecutions: [ref] })).rejects.toThrow()
         expect(fixture.store.read().reports).toEqual([])
         malformed.mockRestore()
-        await call('openagent_report_create', { title: 'E1 result', html: '<p>historical</p>', relatedExecutions: [ref] })
+        await call('report_create', { title: 'E1 result', html: '<p>historical</p>', relatedExecutions: [ref] })
         const original = fixture.store.read().reports[0]
         expect(original.relatedExecutions).toEqual([ref])
-        await call('openagent_report_update', { reportId: original.id, title: 'Renamed', html: '<p>updated text</p>' })
+        await call('report_update', { reportId: original.id, title: 'Renamed', html: '<p>updated text</p>' })
         expect(fixture.store.read().reports[0].relatedExecutions).toEqual([ref])
         const stable = fixture.service.loadRendererState().reports
-        await expect(call('openagent_report_update', { reportId: original.id,
+        await expect(call('report_update', { reportId: original.id,
           relatedExecutions: [{ ...ref, executionId: 'E2' }] })).rejects.toThrow(/completed Execution/)
         expect(fixture.service.loadRendererState().reports).toEqual(stable)
         const commit = vi.spyOn(fixture.store, 'commit').mockRejectedValueOnce(new Error('disk full'))
-        await expect(call('openagent_report_update', { reportId: original.id,
+        await expect(call('report_update', { reportId: original.id,
           relatedExecutions: [{ ...ref, executionId: 'E0' }] })).rejects.toThrow('disk full')
         expect(fixture.service.loadRendererState().reports).toEqual(stable)
         commit.mockRestore()
-        await call('openagent_report_update', { reportId: original.id,
+        await call('report_update', { reportId: original.id,
           relatedExecutions: [{ ...ref, executionId: 'E0' }] })
         expect(fixture.store.read().reports[0].relatedExecutions).toEqual([{ ...ref, executionId: 'E0' }])
         await fixture.service.setReportArchived(original.id, true)
@@ -4441,11 +4441,11 @@ describe('OpenAgent Service Harness dispatch', () => {
         callId: name, arguments: args, signal
       })
       const before = readAgentThread(fixture.store.read(), 'archived-agent')
-      const listed = await call('openagent_thread_list', {})
+      const listed = await call('thread_list', {})
       expect(JSON.stringify(listed)).toContain('archived-agent')
-      await call('openagent_thread_set_archived', { threadId: 'archived-agent', archived: true })
-      expect(JSON.stringify(await call('openagent_thread_list', {}))).not.toContain('archived-agent')
-      await expect(call('openagent_thread_send', { threadId: 'archived-agent', prompt: 'stale ID' }))
+      await call('thread_set_archived', { threadId: 'archived-agent', archived: true })
+      expect(JSON.stringify(await call('thread_list', {}))).not.toContain('archived-agent')
+      await expect(call('thread_send', { threadId: 'archived-agent', prompt: 'stale ID' }))
         .rejects.toThrow(/已归档/)
       await expect(fixture.service.followUpThread({ threadId: 'archived-agent',
         input: { parts: [{ kind: 'text', text: 'stale composer' }] } })).rejects.toThrow(/已归档/)
@@ -4457,8 +4457,8 @@ describe('OpenAgent Service Harness dispatch', () => {
       const reloaded = trackedStore(fixture.root)
       expect((await reloaded.load())?.threads.find(thread => thread.id === archived.id)).toEqual(archived)
       await fixture.service.setThreadArchived('archived-agent', false)
-      expect(JSON.stringify(await call('openagent_thread_list', {}))).toContain('archived-agent')
-      await call('openagent_thread_send', { threadId: 'archived-agent', prompt: 'restored' })
+      expect(JSON.stringify(await call('thread_list', {}))).toContain('archived-agent')
+      await call('thread_send', { threadId: 'archived-agent', prompt: 'restored' })
       expect(readAgentThread(fixture.store.read(), 'archived-agent').observation.latestExecution).not.toBeNull()
     } }
     const fixture = await serviceFixture(trace, [])
@@ -4474,13 +4474,13 @@ describe('OpenAgent Service Harness dispatch', () => {
       const call = (name: string, args: JsonValue) => requiredTool(tools, name).execute({
         callId: name, arguments: args, signal
       })
-      started = await call('openagent_thread_start', {
+      started = await call('thread_create', {
         prompt: 'Dispatch then stop waiting.', harnessId: 'codex', options: {}
       })
       const threadId = jsonObject(started) && typeof started.threadId === 'string'
         ? started.threadId
         : ''
-      sent = await call('openagent_thread_send', { threadId, prompt: 'Follow up.' })
+      sent = await call('thread_send', { threadId, prompt: 'Follow up.' })
     } }
     const fixture = await serviceFixture(trace, [])
     await fixture.service.initialize()
@@ -4500,12 +4500,12 @@ describe('OpenAgent Service Harness dispatch', () => {
       const call = (name: string, args: JsonValue) => requiredTool(tools, name).execute({
         callId: name, arguments: args, signal
       })
-      expect(JSON.stringify(await call('openagent_thread_list', {}))).not.toContain('failed-agent')
-      await expect(call('openagent_thread_send', { threadId: 'failed-agent', prompt: 'after failure' }))
+      expect(JSON.stringify(await call('thread_list', {}))).not.toContain('failed-agent')
+      await expect(call('thread_send', { threadId: 'failed-agent', prompt: 'after failure' }))
         .rejects.toThrow(/已归档/)
-      await call('openagent_thread_set_archived', { threadId: 'failed-agent', archived: false })
-      expect(JSON.stringify(await call('openagent_thread_list', {}))).toContain('failed-agent')
-      await call('openagent_thread_send', { threadId: 'failed-agent', prompt: 'restored' })
+      await call('thread_set_archived', { threadId: 'failed-agent', archived: false })
+      expect(JSON.stringify(await call('thread_list', {}))).toContain('failed-agent')
+      await call('thread_send', { threadId: 'failed-agent', prompt: 'restored' })
     } }
     const fixture = await serviceFixture(trace, [])
     await fixture.service.initialize()
@@ -4599,22 +4599,22 @@ describe('OpenAgent Service Harness dispatch', () => {
       const before = fixture.store.read()
       const reports = before.reports
       const agents = before.threads.filter(isAgentThreadRecord)
-      const listed = await call('openagent_thread_list', {})
+      const listed = await call('thread_list', {})
       expect(JSON.stringify(listed)).toContain('report-active')
       const archive = async (index: number) => source === 'GUI'
         ? fixture.service.setReportArchived(reports[index].id, true)
-        : call('openagent_report_set_archived', { reportId: reports[index].id, archived: true })
+        : call('report_set_archived', { reportId: reports[index].id, archived: true })
       for (let index = 0; index < reports.length; index++) await archive(index)
       for (const agent of agents) {
         const archived = readAgentThread(fixture.store.read(), agent.id)
         if (agent.id !== 'report-idle' && agent.id !== 'report-latest' && !agent.archived) {
           expect(archived).toEqual(agent)
-          expect(JSON.stringify(await call('openagent_thread_list', {}))).toContain(agent.id)
+          expect(JSON.stringify(await call('thread_list', {}))).toContain(agent.id)
           continue
         }
         expect(archived).toEqual({ ...agent, archived: true, revision: agent.revision + (agent.archived ? 0 : 1) })
-        expect(JSON.stringify(await call('openagent_thread_list', {}))).not.toContain(agent.id)
-        await expect(call('openagent_thread_send', { threadId: agent.id, prompt: 'stale Bart ID' })).rejects.toThrow(/已归档/)
+        expect(JSON.stringify(await call('thread_list', {}))).not.toContain(agent.id)
+        await expect(call('thread_send', { threadId: agent.id, prompt: 'stale Bart ID' })).rejects.toThrow(/已归档/)
         await expect(fixture.service.followUpThread({ threadId: agent.id,
           input: { parts: [{ kind: 'text', text: 'stale GUI composer' }] } })).rejects.toThrow(/已归档/)
       }
@@ -4766,7 +4766,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     const relatedExecutions = [{ threadId: 'report-alpha-thread', executionId: 'report-e1' }, { threadId: 'report-beta-thread', executionId: 'report-e1' }]
     const trace: HarnessTrace = {
       async runBartTools(tools, signal) {
-        await requiredTool(tools, 'openagent_report_create').execute({
+        await requiredTool(tools, 'report_create').execute({
           callId: 'directory-tag-report',
           arguments: {
             title: 'Directory tags',
@@ -4819,7 +4819,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     let linkedCwd = ''
     const trace: HarnessTrace = {
       async runBartTools(tools, signal) {
-        const create = requiredTool(tools, 'openagent_schedule_create')
+        const create = requiredTool(tools, 'schedule_create')
         await expect(create.execute({
           callId: 'non-rfc3339-schedule',
           arguments: {
@@ -4869,7 +4869,7 @@ describe('OpenAgent Service Harness dispatch', () => {
       const trace: HarnessTrace = {
         resolveThreadSettingsGate: settingsGate,
         async runBartTools(tools, signal) {
-          await requiredTool(tools, 'openagent_schedule_create').execute({
+          await requiredTool(tools, 'schedule_create').execute({
             callId: 'expired-during-settings',
             arguments: {
               executeAt: new Date(wallNow + 100).toISOString(),
@@ -4904,7 +4904,7 @@ describe('OpenAgent Service Harness dispatch', () => {
       runBartTools(tools) {
         trace.exposedTargetSets ??= []
         trace.exposedTargetSets.push(exposedHarnessIds(
-          requiredTool(tools, 'openagent_thread_start').inputSchema
+          requiredTool(tools, 'thread_create').inputSchema
         ))
         return Promise.resolve()
       }
@@ -5610,15 +5610,8 @@ describe('OpenAgent Service Harness dispatch', () => {
     const sendRejected = expect(send).rejects.toThrow('Agent Thread deleted')
     try {
       await vi.waitFor(() => expect(trace.openThreadStarted).toBe(true))
-      const deleteThread = Reflect.get(fixture.service, 'bartDeleteThread') as (
-        value: JsonValue,
-        signal: AbortSignal
-      ) => Promise<JsonValue>
-      await expect(deleteThread.call(
-        fixture.service,
-        { threadId: 'delete-opening-thread' },
-        new AbortController().signal
-      )).resolves.toEqual({ ok: true, threadId: 'delete-opening-thread' })
+      await expect(fixture.service.deleteThread('delete-opening-thread'))
+        .resolves.toBeUndefined()
       await sendRejected
       expect(fixture.store.read().threads.some(
         thread => thread.id === 'delete-opening-thread'
@@ -5650,16 +5643,8 @@ describe('OpenAgent Service Harness dispatch', () => {
     })
     const commitFailure = new Error('fixture durable delete failed')
     vi.spyOn(fixture.store, 'commit').mockRejectedValueOnce(commitFailure)
-    const deleteThread = Reflect.get(fixture.service, 'bartDeleteThread') as (
-      value: JsonValue,
-      signal: AbortSignal
-    ) => Promise<JsonValue>
-
-    await expect(deleteThread.call(
-      fixture.service,
-      { threadId: 'delete-commit-failure' },
-      new AbortController().signal
-    )).rejects.toThrow(commitFailure.message)
+    await expect(fixture.service.deleteThread('delete-commit-failure'))
+      .rejects.toThrow(commitFailure.message)
     expect(readAgentThread(fixture.store.read(), 'delete-commit-failure')).toBeDefined()
     expect(unregisterOwnedWorktree).not.toHaveBeenCalled()
   })
@@ -5682,16 +5667,8 @@ describe('OpenAgent Service Harness dispatch', () => {
         worktree: { baseCwd: fixture.defaultCwd, native: false, cwd: managedCwd }
       }
     })
-    const deleteThread = Reflect.get(fixture.service, 'bartDeleteThread') as (
-      value: JsonValue,
-      signal: AbortSignal
-    ) => Promise<JsonValue>
-
-    await expect(deleteThread.call(
-      fixture.service,
-      { threadId: 'delete-prune-failure' },
-      new AbortController().signal
-    )).resolves.toEqual({ ok: true, threadId: 'delete-prune-failure' })
+    await expect(fixture.service.deleteThread('delete-prune-failure'))
+      .resolves.toBeUndefined()
     expect(fixture.store.read().threads.some(
       thread => thread.id === 'delete-prune-failure'
     )).toBe(false)
@@ -5712,16 +5689,8 @@ describe('OpenAgent Service Harness dispatch', () => {
       },
       current.updatedAt + 1
     ))
-    const deleteThread = Reflect.get(fixture.service, 'bartDeleteThread') as (
-      value: JsonValue,
-      signal: AbortSignal
-    ) => Promise<JsonValue>
-
-    await expect(deleteThread.call(
-      fixture.service,
-      { threadId: current.id },
-      new AbortController().signal
-    )).rejects.toThrow('后台任务')
+    await expect(fixture.service.deleteThread(current.id))
+      .rejects.toThrow('后台任务')
     expect(readAgentThread(fixture.store.read(), current.id)).toBeDefined()
     expect(trace.agentInterrupts || 0).toBe(0)
     expect(trace.agentDisposeCount || 0).toBe(0)
@@ -5743,15 +5712,7 @@ describe('OpenAgent Service Harness dispatch', () => {
       () => blockerGate
     )
     await Promise.resolve()
-    const deleteThread = Reflect.get(fixture.service, 'bartDeleteThread') as (
-      value: JsonValue,
-      signal: AbortSignal
-    ) => Promise<JsonValue>
-    const deletion = deleteThread.call(
-      fixture.service,
-      { threadId: 'delete-background-race' },
-      new AbortController().signal
-    )
+    const deletion = fixture.service.deleteThread('delete-background-race')
     const rejected = expect(deletion).rejects.toThrow('后台任务')
     await vi.waitFor(() => {
       const deleting = Reflect.get(fixture.service, 'threadLifecycle') as { isDeleting(threadId: string): boolean }
@@ -5825,7 +5786,7 @@ describe('OpenAgent Service Harness dispatch', () => {
       openThreadGate: openGate,
       detachBartTools: true,
       async runBartTools(tools, signal) {
-        await requiredTool(tools, 'openagent_thread_start').execute({
+        await requiredTool(tools, 'thread_create').execute({
           callId: 'stale-start',
           arguments: {
             prompt: 'This stale start must disappear.',
@@ -5880,7 +5841,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     const trace: HarnessTrace = {
       afterResolveThreadSettings() { armed = true },
       async runBartTools(tools) {
-        await requiredTool(tools, 'openagent_thread_start').execute({
+        await requiredTool(tools, 'thread_create').execute({
           callId: 'abort-at-dispatch-entry',
           arguments: {
             prompt: 'This start must not retain its temporary workspace.',
@@ -6551,7 +6512,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     const trace: HarnessTrace = {
       autoInterventionCompletion: new Promise(resolve => { resolveDecision = resolve }),
       async runBartTools(tools, signal) {
-        const started = await requiredTool(tools, 'openagent_thread_start').execute({
+        const started = await requiredTool(tools, 'thread_create').execute({
           callId: 'auto-delete-start',
           arguments: {
             prompt: 'Start work that will be deleted during evaluation.',
@@ -6567,11 +6528,7 @@ describe('OpenAgent Service Harness dispatch', () => {
         await vi.waitFor(() => expect(trace.autoInterventionRequests).toBe(1))
         if (!trace.commitAgentState) throw new Error('Agent commit boundary was not installed')
         await trace.commitAgentState({ dirtyWhilePromptPending: true })
-        await requiredTool(tools, 'openagent_thread_delete').execute({
-          callId: 'auto-delete-thread',
-          arguments: { threadId },
-          signal
-        })
+        await fixture.service.deleteThread(threadId)
         reportDeleted(threadId)
         await deletionObserved
       }
@@ -6633,12 +6590,8 @@ describe('OpenAgent Service Harness dispatch', () => {
         reportRunning()
         await sendGate
       },
-      async runBartTools(tools, signal) {
-        await requiredTool(tools, 'openagent_thread_delete').execute({
-          callId: 'delete-blocked-send',
-          arguments: { threadId: 'delete-preemption-thread' },
-          signal
-        })
+      async runBartTools() {
+        await fixture.service.deleteThread('delete-preemption-thread')
       }
     }
     const fixture = await serviceFixture(trace, [])
@@ -7067,7 +7020,7 @@ function mainHarnessComposition(
           }))
           return
         }
-        const start = requiredTool(context.injection!.tools!.bindings, 'openagent_thread_start')
+        const start = requiredTool(context.injection!.tools!.bindings, 'thread_create')
         trace.startSchema = structuredClone(start.inputSchema)
         try {
           await start.execute({

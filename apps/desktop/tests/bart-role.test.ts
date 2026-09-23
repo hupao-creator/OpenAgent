@@ -55,7 +55,7 @@ describe('Bart Dock role resolution', () => {
     expect(resolveBartRole(reasoning('e' + '\u0301'.repeat(60)), false)).toMatchObject({ kind: 'reasoning', text: '' })
   })
 
-  it.each(['mcp__github__create_issue', 'openagent_thread_read'])('shows the generic tool signature for %s', (toolName) => {
+  it.each(['mcp__github__create_issue', 'thread_read'])('shows the generic tool signature for %s', (toolName) => {
     const activity: HarnessBartActivity = {
       kind: 'tool-call',
       callId: 'call-1',
@@ -69,13 +69,12 @@ describe('Bart Dock role resolution', () => {
   })
 
   it.each([
-    'openagent_thread_list',
-    'openagent_thread_start',
-    'openagent_thread_send',
-    'openagent_thread_respond',
-    'openagent_thread_status',
-    'openagent_thread_interrupt',
-    'openagent_thread_delete'
+    'thread_list',
+    'thread_create',
+    'thread_send',
+    'thread_respond',
+    'thread_status',
+    'thread_interrupt'
   ])('defers to the dedicated choreography of %s', (toolName) => {
     const activity: HarnessBartActivity = {
       kind: 'tool-call',
@@ -103,7 +102,7 @@ describe('Bart Dock role resolution', () => {
 it('uses running for active work without an owned expression', () => {
   expect(resolveBartRole(null, false, true).kind).toBe('running')
   expect(resolveBartRole({ kind: 'assistant-text', sequence: 1, executionId: 'run' }, false, true).kind).toBe('running')
-  const tool: HarnessBartActivity = { kind: 'tool-call', toolName: 'openagent_thread_start', callId: 'call', sequence: 2, executionId: 'run' }
+  const tool: HarnessBartActivity = { kind: 'tool-call', toolName: 'thread_create', callId: 'call', sequence: 2, executionId: 'run' }
   expect(resolveBartRole(tool, false, true).kind).toBe('running')
   expect(resolveBartRole(tool, true, true).kind).toBe('idle')
   expect(resolveBartRole(reasoning('thinking'), false, true).kind).toBe('reasoning')

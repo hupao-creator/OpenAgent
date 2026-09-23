@@ -56,14 +56,14 @@ export const terminalHistorySuite = {
         const operations = await context.bart.askForTools({
           directive: [
             'Start one multi-Thread terminal-history acceptance batch.',
-            'Call openagent_thread_start exactly three times, once with each JSON object below.',
+            'Call thread_create exactly three times, once with each JSON object below.',
             'Use the objects verbatim and preserve their order.',
             'Do not call status, respond, interrupt, delete, or any direct IPC.',
             'After the third tool result, stop. Do not wait for the target Threads.',
             ...starts.map(start => JSON.stringify(start.arguments))
           ].join('\n'),
           expect: starts.map(start => ({
-            name: 'openagent_thread_start',
+            name: 'thread_create',
             expectedArguments: start.arguments
           }))
         })
@@ -174,13 +174,13 @@ export const terminalHistorySuite = {
         const statusOperations = await context.bart.askForTools({
           directive: [
             'Verify the observable state of the three Threads from the prior batch.',
-            'Call openagent_thread_status exactly three times, once with each JSON object below.',
+            'Call thread_status exactly three times, once with each JSON object below.',
             'Use the objects verbatim and preserve their order. Do not call any other tool.',
             'After the third tool result, stop.',
             ...statusArguments.map(arguments_ => JSON.stringify(arguments_))
           ].join('\n'),
           expect: statusArguments.map(arguments_ => ({
-            name: 'openagent_thread_status',
+            name: 'thread_status',
             expectedArguments: arguments_
           }))
         })

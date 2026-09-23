@@ -254,7 +254,7 @@ it('catches up when the camera uncovers the Dock, even while its own layout stay
 it('fills the gap before a dedicated Core route arrives, then yields and resumes the latest activity', () => {
   const f = fixture(reasoning('工具前'))
   f.advance(100)
-  f.set(tool('openagent_thread_status'))
+  f.set(tool('thread_status'))
   expect(f.role()).toBe('reasoning')
   f.advance(1900)
   expect(f.role()).toBe('running')

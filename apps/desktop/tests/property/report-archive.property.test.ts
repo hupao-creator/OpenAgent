@@ -399,8 +399,8 @@ it('An archive covers exactly the referenced Threads whose latest Execution matc
   ).afterEach(releaseSample), 'a Report referencing a generated set of Thread roles, each with its own current Execution', budget, samples)
 }, timeout)
 
-it('Unarchiving or deleting a Report never unarchives its Threads', async () => {
-  await checkAsync('Unarchiving or deleting a Report never unarchives its Threads', fc.asyncProperty(
+it('Unarchiving a Report never unarchives its Threads', async () => {
+  await checkAsync('Unarchiving a Report never unarchives its Threads', fc.asyncProperty(
     archiveWorld,
     async world => {
       const fixture = await setup(world)
@@ -415,16 +415,10 @@ it('Unarchiving or deleting a Report never unarchives its Threads', async () => 
       expect(unarchived.reports[0]).toEqual({ ...archived.reports[0], archived: false })
       expect(archiveFlags(unarchived)).toEqual(archiveFlags(archived))
       expect(unarchived.threads).toEqual(archived.threads)
-      await fixture.reports.delete('report', signal)
-      const deleted = fixture.store.read()
-      expect(deleted.reports).toEqual([])
-      // A deleted Report keeps the archive it produced; references go with the Report.
-      expect(archiveFlags(deleted)).toEqual(archiveFlags(archived))
-      await expect(fixture.reports.setArchived('report', true, signal)).rejects.toThrow(/不存在/)
       await fixture.store.flush()
-      expect(await disk(fixture.directory)).toEqual(deleted)
+      expect(await disk(fixture.directory)).toEqual(unarchived)
     }
-  ).afterEach(releaseSample), 'archive, unarchive and delete of one Report over a generated Thread population', budget, samples)
+  ).afterEach(releaseSample), 'archive and unarchive of one Report over a generated Thread population', budget, samples)
 }, timeout)
 
 it('A content update preserves the references and their tag snapshot, and a replacement re-evaluates them', async () => {

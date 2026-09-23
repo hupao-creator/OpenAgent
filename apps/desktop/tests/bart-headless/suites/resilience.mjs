@@ -23,35 +23,24 @@ export const resilienceSuite = {
       id: 'unknown-thread',
       scope: 'once',
       requires: ['plain'],
-      description: 'status and delete refuse an identifier that never existed',
+      description: 'status refuses an identifier that never existed',
       async run(context) {
         const threadId = `absent-${context.token}`
         const before = await context.client.loadState()
         const status = await context.bart.askForToolFailure({
-          name: 'openagent_thread_status',
+          name: 'thread_status',
           expectedArguments: { threadId },
           errorPattern: /不存在|not exist|not found/i,
           directive: exactCallDirective(
             'Inspect a Thread identifier that does not exist.',
-            'openagent_thread_status',
-            { threadId },
-            ['Report the tool error verbatim. Do not create anything.']
-          )
-        })
-        const deletion = await context.bart.askForToolFailure({
-          name: 'openagent_thread_delete',
-          expectedArguments: { threadId },
-          errorPattern: /不存在|not exist|not found/i,
-          directive: exactCallDirective(
-            'Delete a Thread identifier that does not exist.',
-            'openagent_thread_delete',
+            'thread_status',
             { threadId },
             ['Report the tool error verbatim. Do not create anything.']
           )
         })
         const after = await context.client.loadState()
         assert.equal(after.threads.length, before.threads.length)
-        return { status: status.message, deletion: deletion.message }
+        return { status: status.message }
       }
     },
     {
@@ -76,11 +65,11 @@ export const resilienceSuite = {
           actionId: allow.actionId
         }
         const { message } = await context.bart.askForToolFailure({
-          name: 'openagent_thread_respond',
+          name: 'thread_respond',
           expectedArguments: staleArguments,
           directive: exactCallDirective(
             'Answer a native interaction with an identifier that is not pending.',
-            'openagent_thread_respond',
+            'thread_respond',
             staleArguments,
             ['Report the tool error verbatim. Do not retry with the real interaction id.']
           )
@@ -124,12 +113,12 @@ export const resilienceSuite = {
           actionId
         }
         const { message } = await context.bart.askForToolFailure({
-          name: 'openagent_thread_respond',
+          name: 'thread_respond',
           expectedArguments: replayArguments,
           errorPattern: /interaction|pending|waiting|等待|active/i,
           directive: exactCallDirective(
             'Replay a response for an interaction that has already completed.',
-            'openagent_thread_respond',
+            'thread_respond',
             replayArguments,
             ['Report the tool error verbatim. Do not send a follow-up.']
           )
@@ -142,63 +131,6 @@ export const resilienceSuite = {
           interactionId: interaction.id,
           guardrail: message
         }
-      }
-    },
-    {
-      id: 'delete-running-thread',
-      requires: ['plain'],
-      description: 'delete interrupts a live Execution and removes the Thread',
-      async run(context) {
-        const marker = `DELETE_STREAM:${context.token}`
-        const { threadId, operation: startOperation } = await context.start({
-          cwd: context.repositoryRoot,
-          worktree: false,
-          options: context.permissiveOptions(),
-          prompt: [
-            `This is a native ${context.harness} deletion acceptance case.`,
-            'Do not call any tools, run commands, create files, delegate, or start background work.',
-            'Generate your answer directly as assistant text.',
-            `Start with exactly ${marker} on the first line, with no introduction.`,
-            'Then write every integer from 1 through 4000, one integer per line, in order.',
-            'Do not skip numbers, summarize, use ellipses, or finish before the entire sequence is written.',
-            `Only after 4000, write DELETE_MISSED:${context.token}.`
-          ].join('\n')
-        })
-        const executionId = startOperation.result.executionId
-        await context.client.waitForThread(threadId, thread => {
-          const execution = latestExecution(thread)
-          if (!execution) return undefined
-          assert.equal(execution.executionId, executionId,
-            'delete-running-thread precondition failed: the original Execution was replaced')
-          assert.equal(execution.status, 'running',
-            `delete-running-thread precondition failed: Execution became ${execution.status} before deletion`)
-          assert.equal(thread.observation.backgroundWork, null,
-            'delete-running-thread precondition failed: native background work appeared')
-          // Public summaries update during generation. The prompt has another
-          // prefix, so this cannot match an initial user-input projection.
-          return execution.summary?.startsWith(marker) ? thread : undefined
-        }, `thread ${threadId} generating foreground text before deletion`)
-
-        await context.bart.askForTool({
-          name: 'openagent_thread_delete',
-          expectedArguments: { threadId },
-          directive: exactCallDirective(
-            'Remove one running acceptance Thread.',
-            'openagent_thread_delete',
-            { threadId }
-          )
-        })
-        const state = await context.client.waitForState(candidate =>
-          findThread(candidate, threadId) ? undefined : candidate,
-          `thread ${threadId} removed`)
-        assert.ok(
-          !context.client.statusTransitions(threadId).some(status =>
-            status === 'completed' || status === 'failed'),
-          'delete-running-thread precondition failed: native generation finished before deletion'
-        )
-        assert.equal(findThread(state, threadId), undefined)
-        context.threads.delete(threadId)
-        return { threadId }
       }
     },
     {

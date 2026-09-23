@@ -158,7 +158,7 @@ it('catches up across dedicated ownership even when it starts and finishes insid
   expect(p.text()).toBe('old visible thought')
   p.startBatch()
   p.emit({ type: 'text-delta', itemId: 'old-message', delta: 'old pending text' })
-  p.emit({ type: 'activity-start', activity: { id: 'dedicated', kind: 'tool', toolName: 'openagent_thread_list', label: 'List', status: 'running' } })
+  p.emit({ type: 'activity-start', activity: { id: 'dedicated', kind: 'tool', toolName: 'thread_list', label: 'List', status: 'running' } })
   p.emit({ type: 'activity-end', activityId: 'dedicated', status: 'completed' })
   p.emit({ type: 'reasoning-delta', delta: 'latest thought' })
   p.emit({ type: 'done', outcome: 'completed' })

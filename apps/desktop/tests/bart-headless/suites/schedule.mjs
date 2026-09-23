@@ -32,22 +32,22 @@ export const scheduleSuite = {
         }
         const before = await context.client.loadState()
         const { message } = await context.bart.askForToolFailure({
-          name: 'openagent_schedule_create',
+          name: 'schedule_create',
           expectedArguments: scheduleArguments,
           errorPattern: /未来|future/i,
           directive: exactCallDirective(
             'Attempt one deliberately expired scheduled dispatch.',
-            'openagent_schedule_create',
+            'schedule_create',
             scheduleArguments,
             ['Report the tool error verbatim. Do not change executeAt.']
           )
         })
         const listOperation = await context.bart.askForTool({
-          name: 'openagent_schedule_list',
+          name: 'schedule_list',
           expectedArguments: {},
           directive: exactCallDirective(
             'List schedules after the rejected expired dispatch.',
-            'openagent_schedule_list',
+            'schedule_list',
             {}
           )
         })
@@ -81,11 +81,11 @@ export const scheduleSuite = {
         const existingThreadIds = new Set(before.threads.map(thread => thread.id))
 
         const createOperation = await context.bart.askForTool({
-          name: 'openagent_schedule_create',
+          name: 'schedule_create',
           expectedArguments: scheduleArguments,
           directive: exactCallDirective(
             'Register one future dispatch for this acceptance run.',
-            'openagent_schedule_create',
+            'schedule_create',
             scheduleArguments,
             ['Do not start the Thread yourself and do not adjust executeAt.']
           )
@@ -95,11 +95,11 @@ export const scheduleSuite = {
         assert.equal(createOperation.result.schedule.executeAt, executeAt)
 
         const listOperation = await context.bart.askForTool({
-          name: 'openagent_schedule_list',
+          name: 'schedule_list',
           expectedArguments: {},
           directive: exactCallDirective(
             'List the pending dispatches for this acceptance run.',
-            'openagent_schedule_list',
+            'schedule_list',
             {}
           )
         })
@@ -130,11 +130,11 @@ export const scheduleSuite = {
         assert.equal(dispatched.harnessId, context.harness)
 
         const settledList = await context.bart.askForTool({
-          name: 'openagent_schedule_list',
+          name: 'schedule_list',
           expectedArguments: {},
           directive: exactCallDirective(
             'List the pending dispatches again.',
-            'openagent_schedule_list',
+            'schedule_list',
             {}
           )
         })
@@ -164,11 +164,11 @@ export const scheduleSuite = {
         }
         const before = await context.client.loadState()
         const createOperation = await context.bart.askForTool({
-          name: 'openagent_schedule_create',
+          name: 'schedule_create',
           expectedArguments: scheduleArguments,
           directive: exactCallDirective(
             'Register one future dispatch that will be cancelled.',
-            'openagent_schedule_create',
+            'schedule_create',
             scheduleArguments
           )
         })
@@ -177,12 +177,12 @@ export const scheduleSuite = {
         const [cancelOperation, listOperation] = await context.bart.askForTools({
           directive: [
             'Retire the pending acceptance dispatch.',
-            `First call openagent_schedule_cancel with this exact JSON: ${JSON.stringify({ scheduleId })}`,
-            'Then call openagent_schedule_list exactly once with {} and stop.'
+            `First call schedule_cancel with this exact JSON: ${JSON.stringify({ scheduleId })}`,
+            'Then call schedule_list exactly once with {} and stop.'
           ].join('\n'),
           expect: [
-            { name: 'openagent_schedule_cancel', expectedArguments: { scheduleId } },
-            { name: 'openagent_schedule_list', expectedArguments: {} }
+            { name: 'schedule_cancel', expectedArguments: { scheduleId } },
+            { name: 'schedule_list', expectedArguments: {} }
           ]
         })
         assert.equal(cancelOperation.result.schedule.scheduleId, scheduleId)

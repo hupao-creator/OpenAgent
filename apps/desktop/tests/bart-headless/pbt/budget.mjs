@@ -25,7 +25,7 @@ export const DEFAULT_SAMPLE_FLOOR_MS = 60_000
  * short regression's generated phase (not only its checkpoints) reaches each
  * property's required operations and states.
  */
-export const SHORT_REGRESSION_SEED = 16751
+export const SHORT_REGRESSION_SEED = 218006
 
 /**
  * The standalone runner enables defaultSizeToMaxWhenMaxSpecified, so the

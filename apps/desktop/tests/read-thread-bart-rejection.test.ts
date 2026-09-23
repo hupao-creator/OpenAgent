@@ -32,7 +32,7 @@ afterEach(async () => {
  * Thread Read targets ordinary Agent Threads, never the Bart Thread. A Bart id
  * must be rejected at the `readThread` entry instead of silently forwarding to
  * the Bart Handle (which carries the app-level mutation tools and
- * `openagent_thread_read` itself).
+ * `thread_read` itself).
  */
 describe('Thread Read rejects the Bart Thread', () => {
   it('rejects a Bart id on the Service entry without forwarding to its Handle', async () => {

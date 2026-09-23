@@ -151,7 +151,7 @@ describe('Report archive atomic persistence and command ordering', () => {
     expect(await reopen(fixture.directory)).toEqual(fixture.store.read())
   })
 
-  it('serializes Report relation edits, repeated archive and deletion without resurrecting stale snapshots', async () => {
+  it('serializes Report relation edits and repeated archive without resurrecting stale snapshots', async () => {
     let blocking = false
     const gate = barrier()
     const fixture = await setup({ beforePrepare: async key => {
@@ -164,13 +164,11 @@ describe('Report archive atomic persistence and command ordering', () => {
       { threadId: 'unrelated', executionId: 'E1' }
     ] }, signal)
     const repeat = fixture.reports.setArchived('report', true, signal)
-    const deletion = fixture.reports.delete('report', signal)
     gate.release()
-    await Promise.all([archive, update, repeat, deletion])
-    expect(fixture.store.read().reports).toEqual([])
+    await Promise.all([archive, update, repeat])
+    expect(fixture.store.read().reports[0]).toMatchObject({ title: 'Edited', archived: true })
     for (const id of ['a', 'b', 'unrelated']) expect(readAgentThread(fixture.store.read(), id).archived).toBe(true)
     expect(await reopen(fixture.directory)).toEqual(fixture.store.read())
-    await expect(fixture.reports.setArchived('report', true, signal)).rejects.toThrow(/不存在/)
   })
 
   it('rejects stale reference scopes before changing any archive flag', async () => {

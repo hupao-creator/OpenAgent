@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto'
 /** Interpret only the acceptance fixture grammar; never read product state or expected results. */
 export function installBartScript(llm) {
   const turns = new Map()
-  llm.expect(request => request.toolNames.some(name => name.endsWith('openagent_thread_list')), request => {
+  llm.expect(request => request.toolNames.some(name => name.endsWith('thread_list')), request => {
     const directive = request.lastMessage
     if (directive.includes('Terminal history verification VERIFY_')) {
       const batch = request.messages.findLastIndex(message => message.role === 'user' &&
@@ -29,7 +29,7 @@ export function installBartScript(llm) {
     const key = turnKey(request)
     let turn = turns.get(key)
     if (!turn) {
-      assert.ok(request.toolNames.every(name => /(?:^|__)openagent_/.test(name)),
+      assert.ok(request.toolNames.every(name => /(?:^|__)(?:thread|report|schedule)_[a-z_]+$/.test(name)),
         'Bart exclusive session exposed native tools: ' + request.toolNames.join(', '))
       const calls = parseBartDirective(directive, request.systemMessage)
       assert.ok(calls.length, `Unscripted Bart directive: ${directive.slice(0, 160)}`)
@@ -60,18 +60,18 @@ export function turnKey(request) {
 }
 
 function parseBartDirective(text, system) {
-  const batch = text.match(/Call (openagent_\w+) exactly three times/)
+  const batch = text.match(/Call ((?:thread|report|schedule)_\w+) exactly three times/)
   if (batch) return text.slice(batch.index).split('\n').filter(line => line.startsWith('{')).map(line => ({ name: batch[1], args: JSON.parse(line) }))
   if (text.includes('Verify the injected host instructions.')) {
     const receipt = system.match(/headless host injection receipt is ([a-f0-9]+)\./)?.[1]
     assert.ok(receipt, 'Host instruction receipt is missing from HTTP instructions')
-    return [{ name: 'openagent_report_create', args: {
+    return [{ name: 'report_create', args: {
       title: JSON.parse(text.match(/Use title (".*") and relatedExecutions/)[1]),
       html: `<p>${receipt}</p>`, relatedExecutions: []
     } }]
   }
   if (text.includes('Use exactly this title:')) {
-    return [{ name: 'openagent_report_create', args: {
+    return [{ name: 'report_create', args: {
       title: text.match(/Use exactly this title: (.+)/)[1],
       html: `<p>${text.match(/whose text is exactly ([^.]+)\./)[1]}</p>`,
       relatedExecutions: JSON.parse(text.match(/Set relatedExecutions to exactly (\[.*\])\./)[1])
@@ -79,7 +79,7 @@ function parseBartDirective(text, system) {
   }
   const calls = []
   for (const line of text.split('\n')) {
-    const match = line.match(/(?:First |Then )?[Cc]all (openagent_\w+)\b/)
+    const match = line.match(/(?:First |Then )?[Cc]all ((?:thread|report|schedule)_\w+)\b/)
     if (!match) continue
     const start = line.indexOf('{')
     if (start >= 0) {

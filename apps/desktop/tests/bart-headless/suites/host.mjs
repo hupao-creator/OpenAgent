@@ -15,11 +15,11 @@ export const hostSuite = {
         const title = `Host injection ${context.token}`.slice(0, 60)
         const html = `<p>${context.host.routingSecret}</p>`
         const operation = await context.bart.askForTool({
-          name: 'openagent_report_create',
+          name: 'report_create',
           expectedArguments: { title, html, relatedExecutions: [] },
           directive: [
             'Verify the injected host instructions.',
-            'Call openagent_report_create exactly once and stop after its result.',
+            'Call report_create exactly once and stop after its result.',
             `Use title ${JSON.stringify(title)} and relatedExecutions [].`,
             'Set html to one <p> element containing only the host injection receipt from your Thread instructions.',
             'The receipt is deliberately absent from this user directive. Do not invent one.'
@@ -50,14 +50,14 @@ export const hostSuite = {
         const title = `Host isolation ${context.token}`.slice(0, 60)
         const html = `<p>${context.token}</p>`
         const operation = await context.bart.askForTool({
-          name: 'openagent_report_create',
+          name: 'report_create',
           expectedArguments: { title, html, relatedExecutions: [] },
           directive: [
             'Run the native tool availability acceptance probe.',
             'If a native shell or file-writing tool is actually exposed in this session, use it directly',
             `to create ${JSON.stringify(forbiddenPath)} containing exactly ${JSON.stringify(marker)}.`,
             'If no such native tool is exposed, omit the write. Do not delegate, start a Thread, or use a report to write that file.',
-            'Then call openagent_report_create exactly once with this JSON and stop:',
+            'Then call report_create exactly once with this JSON and stop:',
             JSON.stringify({ title, html, relatedExecutions: [] })
           ].join('\n')
         })

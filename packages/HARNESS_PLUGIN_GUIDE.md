@@ -479,11 +479,11 @@ workflow，按[仓库流程](../.agents/README.md)评审和交付。
 
 在 Desktop 中先配置一个已有且可用的 Bart host（如 Codex），在 Bart 设置的 target
 范围启用 Demo。向 Bart 发送“用 demo Harness 创建普通任务，首条输入为 hello”，由
-`openagent_thread_start` 创建；其参数为 `harnessId: "demo"`、`prompt: "hello"`、
+`thread_create` 创建；其参数为 `harnessId: "demo"`、`prompt: "hello"`、
 `options: {}`（不是 `settings`），可选 `cwd` 为实际存在的绝对路径。
 Demo 不能作为 Bart host。无需真实模型的自动演练可使用仓库既有
 [fake Codex app-server](../apps/desktop/tests/fixtures/fake-codex-app-server.mjs)，配置
-`FAKE_CODEX_DYNAMIC_TOOL_NAME=openagent_thread_start` 和
+`FAKE_CODEX_DYNAMIC_TOOL_NAME=thread_create` 和
 `FAKE_CODEX_DYNAMIC_TOOL_ARGUMENTS='{"harnessId":"demo","prompt":"hello","options":{}}'`；
 这是开发测试用 fixture，须由临时 CLI wrapper 启动并使用隔离用户数据，勿修改日常配置。
 

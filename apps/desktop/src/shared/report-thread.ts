@@ -38,7 +38,7 @@ export interface ReportThreadRecord {
   relatedExecutions: ReportExecutionReference[]
   /**
    * 软归档标记：归档只把报告移出默认俯瞰，HTML、tags、relatedExecutions 与
-   * 时间戳一律原样保留，与 openagent_report_delete 的硬删除语义分离。
+   * 时间戳一律原样保留。
    */
   archived: boolean
 }

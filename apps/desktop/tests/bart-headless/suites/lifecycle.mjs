@@ -69,13 +69,13 @@ export const lifecycleSuite = {
         const [statusOperation, listOperation] = await context.bart.askForTools({
           directive: [
             'Inspect one committed acceptance Thread.',
-            `First call openagent_thread_status with this exact JSON: ${JSON.stringify({ threadId })}`,
-            'Then call openagent_thread_list exactly once with {} and stop.',
+            `First call thread_status with this exact JSON: ${JSON.stringify({ threadId })}`,
+            'Then call thread_list exactly once with {} and stop.',
             'Do not start, send, respond, interrupt, or delete anything.'
           ].join('\n'),
           expect: [
-            { name: 'openagent_thread_status', expectedArguments: { threadId } },
-            { name: 'openagent_thread_list', expectedArguments: {} }
+            { name: 'thread_status', expectedArguments: { threadId } },
+            { name: 'thread_list', expectedArguments: {} }
           ]
         })
 
@@ -115,13 +115,13 @@ export const lifecycleSuite = {
 
         const question = `Repeat the exact marker you already produced for ${context.token}.`
         const operation = await context.bart.askForTool({
-          name: 'openagent_thread_read',
+          name: 'thread_read',
           expectedArguments: { threadId, question },
           directive: exactCallDirective(
             'Read one acceptance Thread without giving it new work.',
-            'openagent_thread_read',
+            'thread_read',
             { threadId, question },
-            ['openagent_thread_read must not create a new Execution.']
+            ['thread_read must not create a new Execution.']
           )
         })
         assert.equal(typeof operation.result.answer, 'string')
@@ -149,11 +149,11 @@ export const lifecycleSuite = {
 
         const prompt = plainPrompt(context, second)
         const operation = await context.bart.askForTool({
-          name: 'openagent_thread_send',
+          name: 'thread_send',
           expectedArguments: { threadId, prompt },
           directive: exactCallDirective(
             'Continue one acceptance Thread with a second native task.',
-            'openagent_thread_send',
+            'thread_send',
             { threadId, prompt }
           )
         })
@@ -208,11 +208,11 @@ export const lifecycleSuite = {
           `Remember the marker STEER_RECEIVED:${context.token}, but do not start another task.`
         ].join('\n')
         const sendOperation = await context.bart.askForTool({
-          name: 'openagent_thread_send',
+          name: 'thread_send',
           expectedArguments: { threadId, prompt },
           directive: exactCallDirective(
             'Steer the currently running acceptance Thread.',
-            'openagent_thread_send',
+            'thread_send',
             { threadId, prompt }
           )
         })
@@ -224,11 +224,11 @@ export const lifecycleSuite = {
         assert.equal(sendOperation.result.executionId, executionId)
 
         await context.bart.askForTool({
-          name: 'openagent_thread_interrupt',
+          name: 'thread_interrupt',
           expectedArguments: { threadId },
           directive: exactCallDirective(
             'Stop the live-steering acceptance Thread.',
-            'openagent_thread_interrupt',
+            'thread_interrupt',
             { threadId }
           )
         })
@@ -259,11 +259,11 @@ export const lifecycleSuite = {
           `thread ${threadId} running`)
 
         await context.bart.askForTool({
-          name: 'openagent_thread_interrupt',
+          name: 'thread_interrupt',
           expectedArguments: { threadId },
           directive: exactCallDirective(
             'Stop one running acceptance Thread now.',
-            'openagent_thread_interrupt',
+            'thread_interrupt',
             { threadId }
           )
         })
@@ -311,42 +311,6 @@ export const lifecycleSuite = {
         )
         assert.ok(Array.isArray(thread.tags), `tags must be an array: ${bounded(thread)}`)
         return { threadId, title: thread.title, tags: thread.tags }
-      }
-    },
-    {
-      id: 'delete',
-      requires: ['plain'],
-      description: 'delete removes the Thread from every public projection',
-      async run(context) {
-        const marker = `DELETE_OK:${context.token}`
-        const { threadId } = await context.start({
-          cwd: context.repositoryRoot,
-          worktree: false,
-          options: context.options(),
-          prompt: plainPrompt(context, marker)
-        })
-        await context.waitForCompleted(threadId)
-
-        const [deleteOperation, listOperation] = await context.bart.askForTools({
-          directive: [
-            'Retire one finished acceptance Thread.',
-            `First call openagent_thread_delete with this exact JSON: ${JSON.stringify({ threadId })}`,
-            'Then call openagent_thread_list exactly once with {} and stop.'
-          ].join('\n'),
-          expect: [
-            { name: 'openagent_thread_delete', expectedArguments: { threadId } },
-            { name: 'openagent_thread_list', expectedArguments: {} }
-          ]
-        })
-        assert.equal(deleteOperation.result.threadId, threadId)
-        assert.ok(
-          !listOperation.result.threads.some(candidate => candidate.threadId === threadId),
-          'list still exposes the deleted Thread'
-        )
-        const state = await context.client.loadState()
-        assert.equal(findThread(state, threadId), undefined, 'renderer state kept the deleted Thread')
-        context.threads.delete(threadId)
-        return { threadId }
       }
     }
   ]

@@ -41,11 +41,11 @@ export const backgroundSuite = {
         )
 
         const statusOperation = await context.bart.askForTool({
-          name: 'openagent_thread_status',
+          name: 'thread_status',
           expectedArguments: { threadId },
           directive: exactCallDirective(
             'Inspect the native background-work acceptance Thread.',
-            'openagent_thread_status',
+            'thread_status',
             { threadId }
           )
         })
@@ -84,11 +84,11 @@ export const backgroundSuite = {
           `Reply with exactly ${followUpMarker} and nothing else.`
         ].join('\n')
         const sendOperation = await context.bart.askForTool({
-          name: 'openagent_thread_send',
+          name: 'thread_send',
           expectedArguments: { threadId, prompt },
           directive: exactCallDirective(
             'Give the background-work acceptance Thread a second foreground task.',
-            'openagent_thread_send',
+            'thread_send',
             { threadId, prompt }
           )
         })
@@ -117,12 +117,12 @@ export const backgroundSuite = {
         // work is not interruptible through the public surface, and the tool
         // has to say so instead of silently reporting success.
         const { message } = await context.bart.askForToolFailure({
-          name: 'openagent_thread_interrupt',
+          name: 'thread_interrupt',
           expectedArguments: { threadId },
           errorPattern: /active Execution|没有 active/,
           directive: exactCallDirective(
             'Try to interrupt a Thread whose only remaining work is in the background.',
-            'openagent_thread_interrupt',
+            'thread_interrupt',
             { threadId },
             ['Report the tool error verbatim. Do not delete the Thread.']
           )

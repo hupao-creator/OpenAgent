@@ -38,7 +38,7 @@ import {
 export const PROPERTIES = {
   lifecycle: {
     name: 'lifecycle',
-    description: 'Thread lifecycle: start, follow-up, steering, interruption, deletion',
+    description: 'Thread lifecycle: create, follow-up, steering, interruption',
     requires: [],
     commands: lifecycleCommands,
     commandFor: lifecycleCommand,
@@ -47,28 +47,26 @@ export const PROPERTIES = {
       // answer. The answered turn may never revive the cancelled Execution.
       [{ kind: 'start-hold' }, { kind: 'interrupt' }, { kind: 'release' }],
       [{ kind: 'start-hold' }, { kind: 'interrupt' }, { kind: 'send' }],
-      // The same parked turn, removed entirely instead of cancelled.
-      [{ kind: 'start-hold' }, { kind: 'delete' }],
       // Steering a running Execution must not be attributed to a new one.
       [{ kind: 'start-hold' }, { kind: 'steer' }, { kind: 'release' }],
       // A follow-up after a terminal Execution starts exactly one successor.
       [{ kind: 'start-plain' }, { kind: 'send' }],
-      // Projection and removal of a settled Thread.
-      [{ kind: 'start-plain' }, { kind: 'status' }, { kind: 'list' }, { kind: 'delete' }]
+      // Projection of a settled Thread.
+      [{ kind: 'start-plain' }, { kind: 'status' }, { kind: 'list' }]
     ],
     coverage: {
-      kinds: { 'start-plain': 1, 'start-hold': 1, send: 1, steer: 1, release: 1, interrupt: 1, delete: 1 },
-      states: ['completed', 'running', 'interrupted', 'deleted', 'successor-execution', 'late-result-after-successor', 'late-result-after-interrupt', 'late-result-after-delete']
+      kinds: { 'start-plain': 1, 'start-hold': 1, send: 1, steer: 1, release: 1, interrupt: 1 },
+      states: ['completed', 'running', 'interrupted', 'successor-execution', 'late-result-after-successor', 'late-result-after-interrupt']
     },
     sampleCoverage: {
-      kinds: { 'start-hold': 1, 'start-plain': 1, send: 1, steer: 1, interrupt: 1, release: 1, delete: 1 },
-      states: ['completed', 'running', 'interrupted', 'deleted', 'successor-execution', 'late-result-after-interrupt']
+      kinds: { 'start-hold': 1, 'start-plain': 1, send: 1, steer: 1, interrupt: 1, release: 1 },
+      states: ['completed', 'running', 'interrupted', 'successor-execution', 'late-result-after-interrupt']
     },
     exploreCoverage: {
-      // Exploration must also generate all three controlled late-result races;
+      // Exploration must also generate both controlled late-result races;
       // checkpoint reach cannot satisfy this independent requirement.
       kinds: { release: 1 },
-      states: ['late-result-after-interrupt', 'late-result-after-delete', 'late-result-after-successor']
+      states: ['late-result-after-interrupt', 'late-result-after-successor']
     }
   },
 
@@ -85,9 +83,7 @@ export const PROPERTIES = {
       [{ kind: 'start' }, { kind: 'respond-deny' }],
       // An unknown identifier is rejected without consuming the pending
       // interaction, and the real one still works afterwards.
-      [{ kind: 'start' }, { kind: 'respond-unknown' }, { kind: 'respond-allow' }, { kind: 'respond-consumed' }],
-      // Removing a Thread that is waiting on the user must not leave it pending.
-      [{ kind: 'start' }, { kind: 'delete' }]
+      [{ kind: 'start' }, { kind: 'respond-unknown' }, { kind: 'respond-allow' }, { kind: 'respond-consumed' }]
     ],
     coverage: {
       kinds: {
@@ -95,8 +91,7 @@ export const PROPERTIES = {
         'respond-allow': 1,
         'respond-deny': 1,
         'respond-unknown': 1,
-        'respond-consumed': 1,
-        delete: 1
+        'respond-consumed': 1
       },
       states: [
         'waiting-for-user',
@@ -107,8 +102,8 @@ export const PROPERTIES = {
       ]
     },
     sampleCoverage: {
-      kinds: { start: 1, 'respond-allow': 1, 'respond-deny': 1, 'respond-unknown': 1, 'respond-consumed': 1, delete: 1 },
-      states: ['waiting-for-user', 'approved-with-proof', 'denied-without-proof', 'rejected-unknown-interaction', 'rejected-consumed-interaction', 'deleted']
+      kinds: { start: 1, 'respond-allow': 1, 'respond-deny': 1, 'respond-unknown': 1, 'respond-consumed': 1 },
+      states: ['waiting-for-user', 'approved-with-proof', 'denied-without-proof', 'rejected-unknown-interaction', 'rejected-consumed-interaction']
     },
     exploreCoverage: {
       // Retain native approval evidence in the exploration requirement as well.
@@ -145,24 +140,16 @@ export const PROPERTIES = {
         { kind: 'start', thread: 'B' },
         { kind: 'interrupt', thread: 'A' },
         { kind: 'respond-allow', thread: 'B' }
-      ],
-      // Removing one Thread must not disturb the other Thread's parked turn.
-      [
-        { kind: 'start', thread: 'A' },
-        { kind: 'start', thread: 'B' },
-        { kind: 'delete', thread: 'A' },
-        { kind: 'respond-allow', thread: 'B' }
       ]
     ],
     coverage: {
-      kinds: { start: 2, 'respond-allow': 2, 'respond-deny': 1, 'respond-foreign': 1, interrupt: 1, delete: 1 },
+      kinds: { start: 2, 'respond-allow': 2, 'respond-deny': 1, 'respond-foreign': 1, interrupt: 1 },
       states: [
         'waiting-for-user',
         'approved-with-proof',
         'denied-without-proof',
         'rejected-foreign-interaction',
         'cancelled-beside-waiting',
-        'deleted-beside-waiting',
         'out-of-order-completion'
       ]
     },
@@ -171,10 +158,10 @@ export const PROPERTIES = {
       states: ['waiting-for-user', 'approved-with-proof', 'denied-without-proof', 'rejected-foreign-interaction', 'interrupted']
     },
     exploreCoverage: {
-      // The cross-Thread denial and the deletion of one Thread beside another
+      // The cross-Thread denial and interruption of one Thread beside another
       // need more picks than the short budget's six samples draw.
-      kinds: { 'respond-deny': 1, interrupt: 1, delete: 1 },
-      states: ['denied-without-proof', 'out-of-order-completion', 'cancelled-beside-waiting', 'deleted-beside-waiting']
+      kinds: { 'respond-deny': 1, interrupt: 1 },
+      states: ['denied-without-proof', 'out-of-order-completion', 'cancelled-beside-waiting']
     }
   }
 }

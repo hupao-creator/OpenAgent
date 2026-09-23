@@ -85,7 +85,7 @@ describe('headless PBT evidence', () => {
   })
 
   it('excludes host directives and metadata from target delivery evidence', () => {
-    expect(isTargetTurn({ toolNames: ['mcp__oa__openagent_thread_list'] })).toBe(false)
+    expect(isTargetTurn({ toolNames: ['mcp__oa__thread_list'] })).toBe(false)
     expect(isTargetTurn({ toolNames: [], systemMessage: 'You classify OpenAgent Agent Thread metadata.' })).toBe(false)
     expect(isTargetTurn({ toolNames: ['read'], systemMessage: 'native target' })).toBe(true)
   })

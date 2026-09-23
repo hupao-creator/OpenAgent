@@ -23,7 +23,6 @@ export function newThread(key, extra = {}) {
     executionId: null,
     status: null,
     archived: false,
-    deleted: false,
     // Native permission bookkeeping: identities observed on the public surface.
     interactionId: null,
     consumedInteractionId: null,
@@ -37,7 +36,6 @@ export function newThread(key, extra = {}) {
 }
 
 export function publicExpectation(entry) {
-  if (entry.deleted) return { exists: false }
   return {
     exists: true,
     archived: entry.archived,
@@ -55,10 +53,6 @@ export function statusMatches(expected, actual) {
 /** Asserts committed renderer state still equals the independently derived model. */
 export function assertPublicObservation(label, observed, entry) {
   const expected = publicExpectation(entry)
-  if (!expected.exists) {
-    check.equal('observation.deleted-absent', observed.exists, false, `${label}: deleted Thread is still committed`)
-    return
-  }
   check.equal('observation.thread-present', observed.exists, true, `${label}: committed Thread disappeared`)
   check.equal('observation.archived', observed.archived, expected.archived, `${label}: archived diverged`)
   if (expected.executionId === null) {

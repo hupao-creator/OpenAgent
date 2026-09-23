@@ -97,12 +97,12 @@ test('Bart batch ignores JSON context preceding the explicit directive and neste
     const response = await fetch(`${llm.url}/v1/chat/completions`, {
       method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer openagent-mock-key' },
       body: JSON.stringify({ model: 'mock-model', stream: false,
-        messages: [{ role: 'user', content: '{"namespace":"quota"}\nCall openagent_thread_start exactly three times, once with each JSON object below.\n' + args.map(arg => JSON.stringify(arg)).join('\n') }],
-        tools: ['openagent_thread_list', 'openagent_thread_start'].map(name => ({ type: 'function', function: { name, parameters: { type: 'object' } } })) })
+        messages: [{ role: 'user', content: '{"namespace":"quota"}\nCall thread_create exactly three times, once with each JSON object below.\n' + args.map(arg => JSON.stringify(arg)).join('\n') }],
+        tools: ['thread_list', 'thread_create'].map(name => ({ type: 'function', function: { name, parameters: { type: 'object' } } })) })
     })
     assert.equal(response.status, 200)
     const calls = (await response.json()).choices[0].message.tool_calls
-    assert.equal(calls?.[0]?.function.name, 'openagent_thread_start')
+    assert.equal(calls?.[0]?.function.name, 'thread_create')
     assert.deepEqual(JSON.parse(calls[0].function.arguments), args[0])
     llm.assertHealthy()
   } finally { await llm.close() }

@@ -290,7 +290,7 @@ async function runItem(input) {
               // Keep native evidence attached to this independently replayable
               // checkpoint, even if cleanup subsequently fails.
               await session.assertNativeModels(`${label} checkpoint ${index}`, {
-                requireEvidence: Object.values(model.threads).some(entry => !entry.deleted && entry.status === 'completed')
+                requireEvidence: Object.values(model.threads).some(entry => entry.status === 'completed')
               })
             } finally {
               recordAttempt(checkpointCoverage, attemptCoverage)

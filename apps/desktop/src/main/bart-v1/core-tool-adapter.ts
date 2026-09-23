@@ -19,13 +19,11 @@ export interface BartToolHandlers {
   readonly readThread: BartToolHandler
   readonly interruptThread: BartToolHandler
   readonly respondThread: BartToolHandler
-  readonly deleteThread: BartToolHandler
   readonly createReport: BartToolHandler
   readonly listReports: BartToolHandler
   readonly readReport: BartToolHandler
   readonly updateReport: BartToolHandler
   readonly setReportArchived: BartToolHandler
-  readonly deleteReport: BartToolHandler
   readonly createSchedule: BartToolHandler
   readonly listSchedules: BartToolHandler
   readonly cancelSchedule: BartToolHandler
@@ -46,29 +44,29 @@ export function createBartToolBindings(
     type: 'object', properties: {}, additionalProperties: false
   }
   return [
-    tool('openagent_thread_list', 'List compact committed Agent Thread snapshots.',
+    tool('thread_list', 'List compact committed Agent Thread snapshots.',
       emptySchema, (_value, signal) => handlers.listThreads(_value, signal)),
-    tool('openagent_thread_start',
+    tool('thread_create',
       'Create a normal Agent Thread using native Harness settings and dispatch its first task.',
       threadCreationSchema,
       (value, signal) => handlers.startThread(value, signal)),
-    tool('openagent_thread_status', 'Read one committed Thread status projection.',
+    tool('thread_status', 'Read one committed Thread status projection.',
       objectSchema({ threadId: idSchema }, ['threadId']),
       (value, signal) => handlers.threadStatus(value, signal)),
-    tool('openagent_thread_send', 'Send a follow-up through the Thread Handle.',
+    tool('thread_send', 'Send a follow-up through the Thread Handle.',
       objectSchema({ threadId: idSchema, prompt: textSchema }, ['threadId', 'prompt']),
       (value, signal) => handlers.sendThread(value, signal)),
-    tool('openagent_thread_set_archived', 'Archive or restore an Agent Thread without interrupting existing work.',
+    tool('thread_set_archived', 'Archive or restore an Agent Thread without interrupting existing work.',
       objectSchema({ threadId: idSchema, archived: { type: 'boolean' } }, ['threadId', 'archived']),
       (value, signal) => handlers.setThreadArchived(value, signal)),
-    tool('openagent_thread_read',
+    tool('thread_read',
       'Read a Thread without creating an Execution or mutating its state.',
       objectSchema({ threadId: idSchema, question: textSchema }, ['threadId', 'question']),
       (value, signal) => handlers.readThread(value, signal)),
-    tool('openagent_thread_interrupt', 'Interrupt the Thread current Execution.',
+    tool('thread_interrupt', 'Interrupt the Thread current Execution.',
       objectSchema({ threadId: idSchema }, ['threadId']),
       (value, signal) => handlers.interruptThread(value, signal)),
-    tool('openagent_thread_respond', 'Respond to the Thread current native interaction.',
+    tool('thread_respond', 'Respond to the Thread current native interaction.',
       objectSchema({
         threadId: idSchema,
         interactionId: idSchema,
@@ -88,10 +86,6 @@ export function createBartToolBindings(
         }
       }, ['threadId', 'interactionId', 'actionId']),
       (value, signal) => handlers.respondThread(value, signal)),
-    tool('openagent_thread_delete',
-      'Permanently remove a Thread after interrupting and disposing its Handle.',
-      objectSchema({ threadId: idSchema }, ['threadId']),
-      (value, signal) => handlers.deleteThread(value, signal)),
     ...reportToolBindings(handlers, idSchema, emptySchema),
     ...scheduleToolBindings(handlers, threadCreationSchema, idSchema, emptySchema)
   ]
@@ -138,23 +132,20 @@ function reportToolBindings(
     description: 'Optional explicit completed Execution references. A historical completed Execution remains eligible even after a newer Execution starts. One Execution per Thread.',
     items: objectSchema({ threadId: idSchema, executionId: idSchema }, ['threadId', 'executionId']) }
   return [
-    tool('openagent_report_create', 'Create a persistent read-only Report Thread.',
+    tool('report_create', 'Create a persistent read-only Report Thread.',
       objectSchema({ title, html, relatedExecutions: related }, ['title', 'html']),
       (value, signal) => handlers.createReport(value, signal)),
-    tool('openagent_report_list', 'List Report Thread summaries.', emptySchema,
+    tool('report_list', 'List Report Thread summaries.', emptySchema,
       (_value, signal) => handlers.listReports(_value, signal)),
-    tool('openagent_report_read', 'Read one complete Report Thread.',
+    tool('report_read', 'Read one complete Report Thread.',
       objectSchema({ reportId: idSchema }, ['reportId']),
       (value, signal) => handlers.readReport(value, signal)),
-    tool('openagent_report_update', 'Replace supplied Report Thread fields.',
+    tool('report_update', 'Replace supplied Report Thread fields.',
       objectSchema({ reportId: idSchema, title, html, relatedExecutions: related }, ['reportId']),
       (value, signal) => handlers.updateReport(value, signal)),
-    tool('openagent_report_set_archived', 'Archive or restore a Report Thread. Archiving also archives linked Agent Threads only when the referenced Execution is still their latest; restoring affects only the Report.',
+    tool('report_set_archived', 'Archive or restore a Report Thread. Archiving also archives linked Agent Threads only when the referenced Execution is still their latest; restoring affects only the Report.',
       objectSchema({ reportId: idSchema, archived: { type: 'boolean' } }, ['reportId', 'archived']),
-      (value, signal) => handlers.setReportArchived(value, signal)),
-    tool('openagent_report_delete', 'Permanently delete a Report Thread.',
-      objectSchema({ reportId: idSchema }, ['reportId']),
-      (value, signal) => handlers.deleteReport(value, signal))
+      (value, signal) => handlers.setReportArchived(value, signal))
   ]
 }
 
@@ -165,13 +156,13 @@ function scheduleToolBindings(
   emptySchema: JsonObject
 ): readonly HarnessToolBinding[] {
   return [
-    tool('openagent_schedule_create',
+    tool('schedule_create',
       'Register one immutable future dispatch; no Thread exists before it is due.',
       scheduleThreadCreationSchema(threadCreationSchema),
       (value, signal) => handlers.createSchedule(value, signal)),
-    tool('openagent_schedule_list', 'List future pending dispatches.', emptySchema,
+    tool('schedule_list', 'List future pending dispatches.', emptySchema,
       (_value, signal) => handlers.listSchedules(_value, signal)),
-    tool('openagent_schedule_cancel', 'Cancel one pending dispatch.',
+    tool('schedule_cancel', 'Cancel one pending dispatch.',
       objectSchema({ scheduleId: idSchema }, ['scheduleId']),
       (value, signal) => handlers.cancelSchedule(value, signal))
   ]

@@ -239,11 +239,6 @@ class PbtSession {
     check(finalObservation)
   }
 
-  /** The same elapsed-time window for a Thread that must not return. */
-  async assertAbsent(threadId, label) {
-    await this.assertStable({ threadId, deleted: true }, () => {}, label)
-  }
-
   /**
    * Teardown: stop the observation client, terminate the headless/native process
    * trees, then release every gate and drain the Mock LLM. Releasing a held turn

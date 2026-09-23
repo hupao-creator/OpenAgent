@@ -132,18 +132,6 @@ export class ReportService {
     })
   }
 
-  async delete(reportId: string, signal: AbortSignal): Promise<void> {
-    signal.throwIfAborted()
-    return this.commands.run(async () => {
-      signal.throwIfAborted()
-      const current = this.repository.readReports()
-      const reports = current.filter(report => report.id !== reportId)
-      if (reports.length === current.length) throw new Error(`Report Thread 不存在: ${reportId}`)
-      signal.throwIfAborted()
-      await this.repository.replaceReports(reports)
-    })
-  }
-
   /** A global history reset must hold the same mutation barrier as report writes. */
   withHistoryReset<Result>(reset: () => Promise<Result>): Promise<Result> {
     return this.commands.run(reset)

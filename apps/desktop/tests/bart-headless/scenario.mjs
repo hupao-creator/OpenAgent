@@ -104,12 +104,12 @@ export class ScenarioContext {
   async start(input) {
     const startArguments = this.startArguments(input)
     const operation = await this.bart.askForTool({
-      name: 'openagent_thread_start',
+      name: 'thread_create',
       expectedArguments: startArguments,
       timeoutMs: input.timeoutMs,
       directive: exactCallDirective(
         input.intro || `Run one native ${this.harness} acceptance case.`,
-        'openagent_thread_start',
+        'thread_create',
         startArguments,
         ['Do not call respond, interrupt, delete, or any direct IPC.']
       )
@@ -170,7 +170,7 @@ export class ScenarioContext {
 
   /**
    * Responds through the Bart, requiring it to observe the pending public
-   * interaction with `openagent_thread_status` before acting on it.
+   * interaction with `thread_status` before acting on it.
    */
   async respond(input) {
     const respondArguments = {
@@ -180,11 +180,11 @@ export class ScenarioContext {
       ...(input.answers ? { answers: input.answers } : {})
     }
     const operation = await this.bart.askForTool({
-      name: 'openagent_thread_respond',
+      name: 'thread_respond',
       expectedArguments: respondArguments,
       timeoutMs: input.timeoutMs,
       requiredBefore: {
-        name: 'openagent_thread_status',
+        name: 'thread_status',
         expectedArguments: { threadId: input.threadId },
         validate(statusOperation) {
           const observed = statusOperation.result?.thread?.observation?.latestExecution
@@ -201,8 +201,8 @@ export class ScenarioContext {
       },
       directive: orderedCallDirective(
         input.intro || 'Continue the native acceptance case.',
-        { name: 'openagent_thread_status', arguments: { threadId: input.threadId } },
-        { name: 'openagent_thread_respond', arguments: respondArguments }
+        { name: 'thread_status', arguments: { threadId: input.threadId } },
+        { name: 'thread_respond', arguments: respondArguments }
       )
     })
     return { operation, respondArguments }

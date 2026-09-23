@@ -5,7 +5,6 @@ import {
   assertSubsequence,
   bounded,
   containsToken,
-  findThread,
   latestExecution
 } from '../support.mjs'
 import {
@@ -46,11 +45,11 @@ export const combinationSuite = {
 
         const prompt = questionPrompt(context)
         const sendOperation = await context.bart.askForTool({
-          name: 'openagent_thread_send',
+          name: 'thread_send',
           expectedArguments: { threadId, prompt },
           directive: exactCallDirective(
             'Give the same acceptance Thread a native question task.',
-            'openagent_thread_send',
+            'thread_send',
             { threadId, prompt }
           )
         })
@@ -111,11 +110,11 @@ export const combinationSuite = {
           latestExecution(thread)?.status === 'running' ? thread : undefined,
           `thread ${threadId} running`)
         await context.bart.askForTool({
-          name: 'openagent_thread_interrupt',
+          name: 'thread_interrupt',
           expectedArguments: { threadId },
           directive: exactCallDirective(
             'Stop the running acceptance Thread.',
-            'openagent_thread_interrupt',
+            'thread_interrupt',
             { threadId }
           )
         })
@@ -127,11 +126,11 @@ export const combinationSuite = {
           `Reply with exactly ${marker} and nothing else.`
         ].join('\n')
         const sendOperation = await context.bart.askForTool({
-          name: 'openagent_thread_send',
+          name: 'thread_send',
           expectedArguments: { threadId, prompt },
           directive: exactCallDirective(
             'Resume the interrupted acceptance Thread with a new task.',
-            'openagent_thread_send',
+            'thread_send',
             { threadId, prompt }
           )
         })
@@ -219,11 +218,11 @@ export const combinationSuite = {
 
         const question = `State the exact marker you produced for ${context.token}.`
         const readOperation = await context.bart.askForTool({
-          name: 'openagent_thread_read',
+          name: 'thread_read',
           expectedArguments: { threadId, question },
           directive: exactCallDirective(
             'Read the journey acceptance Thread without giving it new work.',
-            'openagent_thread_read',
+            'thread_read',
             { threadId, question }
           )
         })
@@ -231,7 +230,7 @@ export const combinationSuite = {
 
         const title = `Journey ${context.token}`.slice(0, 60)
         const createOperation = await context.bart.askForTool({
-          name: 'openagent_report_create',
+          name: 'report_create',
           matchArguments(callArguments) {
             assert.equal(callArguments.title, title)
             assert.ok(containsToken(callArguments.html, context.token))
@@ -239,7 +238,7 @@ export const combinationSuite = {
           },
           directive: [
             'Record the journey acceptance Thread as a Report.',
-            'Call openagent_report_create exactly once and then stop.',
+            'Call report_create exactly once and then stop.',
             `Use exactly this title: ${title}`,
             `The html must be a single <p> element whose text is exactly ${context.token}.`,
             `Set relatedExecutions to exactly ${JSON.stringify(relatedExecutions)}.`
@@ -247,37 +246,14 @@ export const combinationSuite = {
         })
         const reportId = createOperation.result.report.id
 
-        await context.bart.askForTool({
-          name: 'openagent_thread_delete',
-          expectedArguments: { threadId },
-          directive: exactCallDirective(
-            'Retire the journey acceptance Thread.',
-            'openagent_thread_delete',
-            { threadId }
-          )
-        })
-        context.threads.delete(threadId)
-
-        const state = await context.client.waitForState(candidate =>
-          findThread(candidate, threadId) ? undefined : candidate,
-          `thread ${threadId} removed`)
+        const state = await context.client.loadState()
         const report = state.reports.find(candidate => candidate.id === reportId)
-        assert.ok(report, 'deleting a Thread removed the Report that referenced it')
+        assert.ok(report, 'created Report is missing')
         assert.deepEqual(
           report.relatedExecutions,
           relatedExecutions,
-          'the Report silently rewrote its related Thread references'
+          'the Report did not preserve its related Thread references'
         )
-
-        await context.bart.askForTool({
-          name: 'openagent_report_delete',
-          expectedArguments: { reportId },
-          directive: exactCallDirective(
-            'Delete the journey acceptance Report.',
-            'openagent_report_delete',
-            { reportId }
-          )
-        })
         return { threadId, reportId }
       }
     }

@@ -73,13 +73,12 @@ export function isDedicatedBartTool(name: string): boolean {
 
 function visualKind(name: string): BartVisualOperationKind | undefined {
   switch (name) {
-    case 'openagent_thread_list': return 'list'
-    case 'openagent_thread_start': return 'start'
-    case 'openagent_thread_send':
-    case 'openagent_thread_respond': return 'send'
-    case 'openagent_thread_status': return 'status'
-    case 'openagent_thread_interrupt': return 'interrupt'
-    case 'openagent_thread_delete': return 'delete'
+    case 'thread_list': return 'list'
+    case 'thread_create': return 'start'
+    case 'thread_send':
+    case 'thread_respond': return 'send'
+    case 'thread_status': return 'status'
+    case 'thread_interrupt': return 'interrupt'
     default: return undefined
   }
 }

@@ -116,7 +116,7 @@ async function call(name, args) {
   })
 }
 async function start(h, prompt, options = {}) {
-  const op = await call('openagent_thread_start', {
+  const op = await call('thread_create', {
     harnessId: h,
     cwd: `${dir}/workspace`,
     worktree: false,
@@ -241,7 +241,7 @@ try {
       if (!dialect.backgroundFollowUp) {
         throw new Error(`Adapter does not describe the background follow-up send`)
       }
-      await call('openagent_thread_send', {
+      await call('thread_send', {
         threadId: id,
         prompt: dialect.backgroundFollowUp,
       })
@@ -271,22 +271,14 @@ try {
         '</p>',
       related,
     ],
-    [
-      'missing',
-      '已删除任务的关联报告',
-      '<p>保留原始交付记录。</p>',
-      related.slice(0, 1),
-    ],
   ])
     await attempt(`report ${scenario}`, async () => {
-      const op = await call('openagent_report_create', {
+      const op = await call('report_create', {
         title,
         html: html || '<html><body></body></html>',
         relatedExecutions: relations,
       })
       const id = op.result.reportId ?? op.result.id
-      if (scenario === 'missing')
-        await call('openagent_thread_delete', { threadId: relations[0].threadId })
       const state = await client.loadState()
       const report =
         state.reports.find((r) => r.id === id) ??
@@ -300,7 +292,7 @@ try {
         file,
       })
       if (scenario === 'summary') {
-        await call('openagent_report_set_archived', {
+        await call('report_set_archived', {
           reportId: report.id,
           archived: true,
         })

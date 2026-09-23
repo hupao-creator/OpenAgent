@@ -796,8 +796,8 @@ export class OpenAgentService {
     this.assertOperational()
     // A Bart Thread is not a Thread Read target: read objects are ordinary Agent
     // Threads. The Bart Handle carries the app-level mutation tools and
-    // `openagent_thread_read` itself, so forwarding here would become a
-    // self-reading recursion once prefix-aligned reads keep the source toolset.
+    // `thread_read` itself, so forwarding here would become a
+    // self-reading recursion when a read inherits the source toolset.
     // This is the only entry that could hand such a Handle to read.
     const bart = readBartThread(this.store.read())
     if (bart.id === request.threadId) {
@@ -1985,13 +1985,11 @@ export class OpenAgentService {
       readThread: (value, signal) => this.bartReadThread(value, signal),
       interruptThread: (value, signal) => this.bartInterruptThread(value, signal),
       respondThread: (value, signal) => this.bartRespondThread(value, signal),
-      deleteThread: (value, signal) => this.bartDeleteThread(value, signal),
       createReport: (value, signal) => this.bartCreateReport(value, signal),
       listReports: (_value, signal) => this.bartListReports(signal),
       readReport: (value, signal) => this.bartReadReport(value, signal),
       updateReport: (value, signal) => this.bartUpdateReport(value, signal),
       setReportArchived: (value, signal) => this.bartSetReportArchived(value, signal),
-      deleteReport: (value, signal) => this.bartDeleteReport(value, signal),
       createSchedule: (value, signal) => this.bartCreateSchedule(value, signal, threadCreation),
       listSchedules: (_value, signal) => this.bartListSchedules(signal),
       cancelSchedule: (value, signal) => this.bartCancelSchedule(value, signal)
@@ -2011,7 +2009,7 @@ export class OpenAgentService {
   ): Promise<JsonValue> {
     signal.throwIfAborted()
     const target = parseThreadCreationRequest(value)
-    if (!target) throw new Error('openagent_thread_start 参数无效')
+    if (!target) throw new Error('thread_create 参数无效')
     this.assertAllowedTarget(target.harnessId)
     let temporaryCwd: string | undefined
     let dispatchStarted = false
@@ -2093,12 +2091,6 @@ export class OpenAgentService {
     return { ok: true, threadId }
   }
 
-  private async bartDeleteThread(value: JsonValue, signal: AbortSignal): Promise<JsonValue> {
-    const threadId = toolString(value, 'threadId')
-    await this.threadLifecycle.delete(threadId, this.agentLifecycleSignal(signal))
-    return { ok: true, threadId }
-  }
-
   private async bartCreateReport(value: JsonValue, signal: AbortSignal): Promise<JsonValue> {
     signal.throwIfAborted()
     const report = await this.reports.create(requiredToolObject(value), signal)
@@ -2140,13 +2132,6 @@ export class OpenAgentService {
     })
   }
 
-  private async bartDeleteReport(value: JsonValue, signal: AbortSignal): Promise<JsonValue> {
-    signal.throwIfAborted()
-    const reportId = toolString(value, 'reportId')
-    await this.reports.delete(reportId, signal)
-    return { ok: true, reportId }
-  }
-
   private async bartCreateSchedule(
     value: JsonValue,
     signal: AbortSignal,
@@ -2159,7 +2144,7 @@ export class OpenAgentService {
     delete targetObject.executeAt
     if (!isJsonValue(targetObject)) throw new Error('schedule target 必须是 JSON')
     const target = parseThreadCreationRequest(targetObject)
-    if (!target) throw new Error('openagent_schedule_create 参数无效')
+    if (!target) throw new Error('schedule_create 参数无效')
     this.assertAllowedTarget(target.harnessId)
     const now = this.wallClockTimestamp()
     if (executeAt <= now) throw new Error('executeAt 必须在未来')

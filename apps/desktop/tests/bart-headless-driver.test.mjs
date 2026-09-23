@@ -27,16 +27,16 @@ describe('Bart headless acceptance driver', () => {
 
   it('binds the exact completed tool sequence to the submitted Bart Execution', async () => {
     const client = new FakeBartClient([
-      operation('operation-1', 'execution-user', 'openagent_thread_status'),
-      operation('operation-2', 'execution-user', 'openagent_thread_list')
+      operation('operation-1', 'execution-user', 'thread_status'),
+      operation('operation-2', 'execution-user', 'thread_list')
     ])
     const driver = new BartDriver(client)
 
     await expect(driver.askForTools({
       directive: 'Run the exact two calls.',
       expect: [
-        { name: 'openagent_thread_status', expectedArguments: { threadId: 'thread-1' } },
-        { name: 'openagent_thread_list', expectedArguments: {} }
+        { name: 'thread_status', expectedArguments: { threadId: 'thread-1' } },
+        { name: 'thread_list', expectedArguments: {} }
       ]
     })).resolves.toEqual([
       expect.objectContaining({ id: 'operation-1', executionId: 'execution-user' }),
@@ -45,7 +45,7 @@ describe('Bart headless acceptance driver', () => {
   })
 
   it.each(['failed', 'interrupted'])('rejects a %s Bart host after the expected Core tool succeeds', async status => {
-    const completed = operation('operation-1', 'execution-user', 'openagent_thread_status')
+    const completed = operation('operation-1', 'execution-user', 'thread_status')
     const driver = new BartDriver(new FakeBartClient([completed], status))
 
     const result = driver.askForTools({
@@ -58,7 +58,7 @@ describe('Bart headless acceptance driver', () => {
 
   it.each(['completed', 'failed', 'interrupted'])('distinguishes an expected Core tool rejection from a %s host', async status => {
     const rejected = {
-      ...operation('operation-1', 'execution-user', 'openagent_thread_status'),
+      ...operation('operation-1', 'execution-user', 'thread_status'),
       isError: true,
       result: { ok: false, error: 'Thread does not exist' }
     }
@@ -92,23 +92,23 @@ describe('Bart headless acceptance driver', () => {
     {
       label: 'an unexpected extra call',
       operations: [
-        operation('operation-1', 'execution-user', 'openagent_thread_status'),
-        operation('operation-2', 'execution-user', 'openagent_thread_delete')
+        operation('operation-1', 'execution-user', 'thread_status'),
+        operation('operation-2', 'execution-user', 'report_list')
       ],
       error: /unexpected number of tool calls/
     },
     {
       label: 'a duplicate expected call',
       operations: [
-        operation('operation-1', 'execution-user', 'openagent_thread_status'),
-        operation('operation-2', 'execution-user', 'openagent_thread_status')
+        operation('operation-1', 'execution-user', 'thread_status'),
+        operation('operation-2', 'execution-user', 'thread_status')
       ],
       error: /unexpected number of tool calls/
     },
     {
       label: 'a matching call from another execution',
       operations: [
-        operation('operation-1', 'execution-other', 'openagent_thread_status')
+        operation('operation-1', 'execution-other', 'thread_status')
       ],
       error: /another Bart Execution/
     }
@@ -118,7 +118,7 @@ describe('Bart headless acceptance driver', () => {
     await expect(driver.askForTools({
       directive: 'Run one exact call.',
       expect: [{
-        name: 'openagent_thread_status',
+        name: 'thread_status',
         expectedArguments: { threadId: 'thread-1' }
       }]
     })).rejects.toThrow(error)
@@ -126,16 +126,16 @@ describe('Bart headless acceptance driver', () => {
 
   it('responds only to the current Bart host permission while preserving the exact Core tool sequence', async () => {
     const operations = [
-      operation('operation-1', 'execution-user', 'openagent_thread_status'),
-      operation('operation-2', 'execution-user', 'openagent_thread_list')
+      operation('operation-1', 'execution-user', 'thread_status'),
+      operation('operation-2', 'execution-user', 'thread_list')
     ]
     const client = new HostPermissionClient(operations)
     const driver = new BartDriver(client)
     await expect(driver.askForTools({
       directive: 'Run the exact two calls.',
       expect: [
-        { name: 'openagent_thread_status', expectedArguments: { threadId: 'thread-1' } },
-        { name: 'openagent_thread_list', expectedArguments: {} }
+        { name: 'thread_status', expectedArguments: { threadId: 'thread-1' } },
+        { name: 'thread_list', expectedArguments: {} }
       ]
     })).resolves.toEqual(operations)
 
@@ -174,7 +174,7 @@ describe('Bart headless acceptance driver', () => {
     const driver = new BartDriver(client)
     await expect(driver.askForTools({
       directive: 'Run one exact call.',
-      expect: [{ name: 'openagent_thread_list', expectedArguments: {} }]
+      expect: [{ name: 'thread_list', expectedArguments: {} }]
     })).rejects.toThrow('Unsupported Bart host interaction: question')
     expect(client.invocations.map(call => call.channel)).toEqual(['bart:submit'])
     expect(driver.hostInteractions[0]).toMatchObject({
@@ -466,7 +466,7 @@ function operation(id, executionId, name) {
     executionId,
     callId: `call-${id}`,
     name,
-    arguments: name === 'openagent_thread_status' ? { threadId: 'thread-1' } : {},
+    arguments: name === 'thread_status' ? { threadId: 'thread-1' } : {},
     createdAt: 1,
     completedAt: 2,
     result: { ok: true }

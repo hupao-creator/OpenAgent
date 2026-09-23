@@ -3,9 +3,9 @@
 This suite verifies the real control and observation chain:
 
 `bart:submit` → Bart tool call → Harness Plugin → native interaction →
-`openagent_thread_respond` → native completion.
+`thread_respond` → native completion.
 
-Delegated task responses always use Bart's `openagent_thread_respond` tool.
+Delegated task responses always use Bart's `thread_respond` tool.
 When Bart itself enters native permission waiting, the driver uses the normal
 GUI `thread:interaction-respond` command, after rechecking that the Thread id is
 the current Bart host. The observed waiting state, selected public allow action,
@@ -28,10 +28,7 @@ about — for example, Codex has no native question tool.
 
 Cancellation cases observe the public execution summary and durable terminal
 state. Core transcript entries are an orchestration audit, not the provider's
-assistant stream. Live deletion additionally requires the same execution to be
-generating with no background work; a yielded native shell command does not
-satisfy that precondition. These cases fail explicitly if generation finishes
-before the action, rather than counting deletion of a completed Thread as a pass.
+assistant stream.
 
 ## Layout
 
@@ -61,14 +58,14 @@ before the action, rather than counting deletion of a completed Thread as a pass
 | Suite | Tier | Covers |
 | --- | --- | --- |
 | `host` | core | instruction-only random nonce through a real Core tool; exclusive native file-write pressure |
-| `lifecycle` | core | start, status/list projection, read, follow-up, live steer, interrupt, metadata, delete |
+| `lifecycle` | core | create, status/list projection, read, follow-up, live steer, interrupt, metadata |
 | `permission` | core | approval, denial, and the follow-up guardrail while waiting |
 | `question` | core | first option, a non-default option, multi-select, and cancellation |
 | `background` | core | background work beside a completed Execution, and across a second one |
 | `workspace` | extended | temporary workspaces, Git worktrees, and rejected workspace requests |
-| `reports` | extended | Report list, create, read, update, archive, restore, delete |
+| `reports` | extended | Report list, create, read, update, archive, restore |
 | `schedule` | extended | rejected timestamps, a due dispatch, and cancellation |
-| `resilience` | extended | unknown ids, stale or consumed interactions, deleting live work, Bart cancel |
+| `resilience` | extended | unknown ids, stale or consumed interactions, Bart cancel |
 | `terminal-history` | complex | Codex provider facts, public observations, ordered Bart injection, exact recall |
 | `combination` | complex | chained interaction kinds, interrupt-and-resume, concurrent Threads, Thread-to-Report journeys |
 
@@ -174,9 +171,9 @@ and prints a command that reproduces it.
 
 | Property | Requires | Generated operations |
 | --- | --- | --- |
-| `lifecycle` | — | start (plain or parked), follow-up, steer, release, interrupt, delete, status and list projection over one Thread |
-| `permission` | `permission` | start, approval, denial, unknown and already-consumed responses, delete while waiting |
-| `isolation` | `permission` | two Threads, a cross-Thread response, approval and denial across Threads, deleting one Thread beside another |
+| `lifecycle` | — | create (plain or parked), follow-up, steer, release, interrupt, status and list projection over one Thread |
+| `permission` | `permission` | create, approval, denial, unknown and already-consumed responses |
+| `isolation` | `permission` | two Threads, a cross-Thread response, approval and denial across Threads, interrupting one Thread beside another |
 
 A property is never silently skipped: it runs on every target that declares the
 capability it needs, and the run fails when nothing can exercise it.
@@ -188,7 +185,7 @@ Select `--property lifecycle --harness pi` to run that supported subset.
 
 | Mode | Generated samples per property/target | Command ceiling | Seed |
 | --- | --- | --- | --- |
-| `run` (default) | 6 | 6 | fixed `16751` |
+| `run` (default) | 6 | 6 | fixed `218006` |
 | `explore` | complete batches of 40; at most 160 | 24 | fresh first seed; recorded successor seeds for added batches |
 | `replay` | one recorded counterexample | recorded | recorded |
 
@@ -222,9 +219,9 @@ property/target items.
 
 The mandatory checkpoint sequences and the generated samples have independent
 counters. `sampleCoverage` is required from generated commands at every budget;
-`exploreCoverage` additionally requires late responses after interrupt/delete
-and after successor creation, out-of-order completion, and cancelling/deleting
-one Thread while its sibling waits. A checkpoint cannot satisfy these generated
+`exploreCoverage` additionally requires late responses after interruption
+and successor creation, out-of-order completion, and interrupting one Thread
+while its sibling waits. A checkpoint cannot satisfy these generated
 requirements. Reports include executed kinds, reached states, and empty samples.
 Shrinking and replay each have another independent counter. The initial failing
 generated attempt counts as a sample; later shrink candidates cannot inflate
@@ -285,6 +282,9 @@ From the repository root, the verified generated replay is:
 ```sh
 PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$PATH" pnpm test:bart-headless:pbt:replay -- --property lifecycle --harness pi --host codex --samples 6 --max-commands 6 --seed 16751 --path '1:2:1' --failure-signature 2d99b534ae30cc67284def96 --replay-path 'ABABD:V'
 ```
+
+这组坐标对应 2026-09-13 的生成器版本；删除工具后当前生成器已改用新 seed，
+历史坐标不适用于当前代码。
 
 Versions were Codex `0.153.4`, Pi `0.83.0`, and Claude `2.1.267` for the full
 matrix. Local evidence directories: `openagent-bart-pbt-nwWqS6` (checkpoint
@@ -400,7 +400,7 @@ auto-detects the binary and only a created Thread pins one, so a Harness-level
 specific CLI must make it the one host discovery resolves instead, such as by
 putting it first on the host's `PATH`. The old acceptance `options` profile
 field is rejected with a migration error; the product's
-`openagent_thread_start.options` remains a flat native settings request.
+`thread_create.options` remains a flat native settings request.
 `hostProfiles.<id>` optionally selects a different generic profile for the host;
 otherwise it uses `providers.<id>`.
 

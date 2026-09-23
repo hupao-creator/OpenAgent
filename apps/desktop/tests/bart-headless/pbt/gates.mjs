@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
  *
  * A gate suspends one real native LLM turn inside the Mock HTTP endpoint until
  * the property releases it. The property therefore knows that a mutation (an
- * interrupt, a delete, a steer) happened while the target Execution was
+ * interrupt or steer) happened while the target Execution was
  * genuinely in flight, instead of hoping a random sleep landed inside the race
  * window. Gates inspect only the HTTP request, never product state.
  */
@@ -100,6 +100,6 @@ export class RequestGates {
  * turn embeds the Thread's initial user intent.
  */
 export function isTargetTurn(request) {
-  if (request.toolNames.some(name => name.endsWith('openagent_thread_list'))) return false
+  if (request.toolNames.some(name => name.endsWith('thread_list'))) return false
   return !(request.systemMessage ?? '').includes('You classify OpenAgent Agent Thread metadata.')
 }

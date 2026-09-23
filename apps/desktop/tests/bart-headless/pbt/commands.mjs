@@ -50,7 +50,6 @@ export const LIFECYCLE_WEIGHTS = {
   steer: 4,
   release: 12,
   interrupt: 5,
-  delete: 4,
   status: 1,
   list: 1
 }
@@ -60,7 +59,6 @@ export const PERMISSION_WEIGHTS = {
   'respond-deny': 5,
   'respond-unknown': 4,
   'respond-consumed': 4,
-  delete: 2,
   status: 2
 }
 export const ISOLATION_WEIGHTS = {
@@ -69,7 +67,6 @@ export const ISOLATION_WEIGHTS = {
   'respond-deny': 8,
   'respond-foreign': 6,
   interrupt: 5,
-  delete: 8,
   status: 2
 }
 
@@ -179,16 +176,15 @@ class LifecycleCommand {
       case 'start-hold':
         return entry === undefined
       case 'send':
-        return Boolean(entry) && !entry.deleted && isTerminal(entry.status)
+        return Boolean(entry) && isTerminal(entry.status)
       case 'release':
-        return Boolean(entry) && !entry.deleted && Boolean(entry.heldGate)
+        return Boolean(entry) && Boolean(entry.heldGate)
       case 'steer':
       case 'interrupt':
-        return Boolean(entry) && !entry.deleted && entry.status === 'running'
-      case 'delete':
+        return Boolean(entry) && entry.status === 'running'
       case 'status':
       case 'list':
-        return Boolean(entry) && !entry.deleted
+        return Boolean(entry)
       default:
         return false
     }
@@ -216,9 +212,6 @@ class LifecycleCommand {
         break
       case 'interrupt':
         await interruptRunning(this, real, model, entry)
-        break
-      case 'delete':
-        await deleteThread(this, real, model, entry)
         break
       case 'status':
         await projectStatus(this, real, entry)
@@ -300,7 +293,7 @@ async function sendAfterTerminal(command, real, model, entry, harness) {
   const prompt = plainPrompt(harness, marker)
   const operation = await ask(
     real.context,
-    'openagent_thread_send',
+    'thread_send',
     { threadId: entry.threadId, prompt },
     'Continue the PBT acceptance Thread with a second native task.'
   )
@@ -358,7 +351,7 @@ async function steerRunning(command, real, model, entry) {
   ].join('\n')
   const operation = await ask(
     real.context,
-    'openagent_thread_send',
+    'thread_send',
     { threadId: entry.threadId, prompt },
     'Steer the currently running PBT acceptance Thread.'
   )
@@ -420,7 +413,7 @@ async function interruptRunning(command, real, model, entry) {
   const mark = transitionMark(real.client, entry.threadId)
   await ask(
     real.context,
-    'openagent_thread_interrupt',
+    'thread_interrupt',
     { threadId: entry.threadId },
     'Stop the running PBT acceptance Thread.'
   )
@@ -449,44 +442,10 @@ async function assertInterruptedStable(real, entry) {
   }, 'after releasing a cancelled native turn')
 }
 
-async function deleteThread(command, real, model, entry) {
-  const threadId = entry.threadId
-  const wasWaiting = entry.status === 'waiting-for-user'
-  await ask(
-    real.context,
-    'openagent_thread_delete',
-    { threadId },
-    'Remove the PBT acceptance Thread.'
-  )
-  // The parked native turn is released after the removal was requested, so the
-  // removal races the in-flight result on purpose. Removing a running Thread
-  // may legitimately let the in-flight work complete first; what may never
-  // happen is the removed Thread coming back, so the window has to be quiet.
-  if (entry.heldGate) {
-    real.gates.record(entry.heldGate.marker, 'deleted')
-    entry.heldGate.release()
-    entry.heldGate = null
-    reach(command.coverage, 'late-result-after-delete')
-  }
-  await real.assertAbsent(threadId, 'deleted PBT Thread')
-  if (wasWaiting) {
-    if (entry.evidence.kind === 'read-secret') {
-      check.ok('permission.delete.secret-locked', !JSON.stringify(real.llm.requests).includes(entry.evidence.secret),
-        'deleting a pending Thread allowed its protected native read')
-    } else {
-      await assertEvidenceIsStillLocked(entry.evidence, entry.proofPath, {})
-    }
-  }
-  real.context.threads.delete(threadId)
-  entry.deleted = true
-  await real.assertObserved(entry, `after ${command.plan.kind}`)
-  reach(command.coverage, 'deleted')
-}
-
 async function projectStatus(command, real, entry) {
   const operation = await ask(
     real.context,
-    'openagent_thread_status',
+    'thread_status',
     { threadId: entry.threadId },
     'Inspect the PBT acceptance Thread.'
   )
@@ -509,12 +468,12 @@ async function projectStatus(command, real, entry) {
 async function projectList(command, real, entry) {
   const operation = await ask(
     real.context,
-    'openagent_thread_list',
+    'thread_list',
     {},
     'List the PBT acceptance Threads.'
   )
   const listed = operation.result.threads.find(thread => thread.threadId === entry.threadId)
-  check.equal('projection.list.membership', Boolean(listed), !entry.deleted, 'list disagreed with committed state about the PBT Thread')
+  check.equal('projection.list.membership', Boolean(listed), true, 'list disagreed with committed state about the PBT Thread')
   if (listed) {
     const execution = listed.observation?.latestExecution ?? null
     check.equal('projection.list.execution-id', execution?.executionId ?? null, entry.executionId, 'list projected a foreign or missing Execution')
@@ -545,12 +504,11 @@ class PermissionCommand {
       case 'respond-allow':
       case 'respond-deny':
       case 'respond-unknown':
-        return Boolean(entry) && !entry.deleted && entry.status === 'waiting-for-user'
+        return Boolean(entry) && entry.status === 'waiting-for-user'
       case 'respond-consumed':
-        return Boolean(entry) && !entry.deleted && entry.consumedInteractionId !== null
-      case 'delete':
+        return Boolean(entry) && entry.consumedInteractionId !== null
       case 'status':
-        return Boolean(entry) && !entry.deleted
+        return Boolean(entry)
       default:
         return false
     }
@@ -574,9 +532,6 @@ class PermissionCommand {
         break
       case 'respond-consumed':
         await rejectConsumedInteraction(this, real, entry)
-        break
-      case 'delete':
-        await deleteThread(this, real, model, entry)
         break
       case 'status':
         await projectStatus(this, real, entry)
@@ -720,9 +675,9 @@ async function assertRejected(real, entry, args, intro) {
   const before = await real.client.loadState()
   const beforeExecution = await real.observe(entry.threadId)
   const { message } = await real.bart.askForToolFailure({
-    name: 'openagent_thread_respond',
+    name: 'thread_respond',
     expectedArguments: args,
-    directive: exactCallDirective(intro, 'openagent_thread_respond', args,
+    directive: exactCallDirective(intro, 'thread_respond', args,
       ['Report the tool error verbatim. Do not retry with the real interaction id.'])
   })
   check.ok('permission.rejected.error-message', message.trim(), 'a rejected respond produced no error message')
@@ -772,13 +727,12 @@ class IsolationCommand {
       case 'respond-allow':
       case 'respond-deny':
       case 'interrupt':
-        return Boolean(entry) && !entry.deleted && entry.status === 'waiting-for-user'
+        return Boolean(entry) && entry.status === 'waiting-for-user'
       case 'respond-foreign':
-        return Boolean(entry) && !entry.deleted && entry.status === 'waiting-for-user' &&
-          Boolean(other) && !other.deleted && other.status === 'waiting-for-user'
-      case 'delete':
+        return Boolean(entry) && entry.status === 'waiting-for-user' &&
+          Boolean(other) && other.status === 'waiting-for-user'
       case 'status':
-        return Boolean(entry) && !entry.deleted
+        return Boolean(entry)
       default:
         return false
     }
@@ -805,9 +759,6 @@ class IsolationCommand {
       case 'respond-foreign':
         await rejectForeignInteraction(this, real, model, entry, key)
         break
-      case 'delete':
-        await deleteThread(this, real, model, entry)
-        break
       case 'status':
         await projectStatus(this, real, entry)
         break
@@ -819,10 +770,9 @@ class IsolationCommand {
     const other = model.threads[otherKey(key)]
     if (other) {
       await real.assertObserved(other, `after ${this.toString()} (untouched sibling)`)
-      if (!other.deleted && other.status === 'waiting-for-user') {
+      if (other.status === 'waiting-for-user') {
         await assertEvidenceStillLocked(real, other)
         if (this.plan.kind === 'interrupt') reach(this.coverage, 'cancelled-beside-waiting')
-        if (this.plan.kind === 'delete') reach(this.coverage, 'deleted-beside-waiting')
         if (['respond-allow', 'respond-deny'].includes(this.plan.kind) &&
             entry.startedOrder > other.startedOrder) {
           reach(this.coverage, 'out-of-order-completion')

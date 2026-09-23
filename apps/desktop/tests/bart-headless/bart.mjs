@@ -215,11 +215,11 @@ export class BartDriver {
       const execution = thread && latestExecution(thread)
       if (!execution || isTerminal(execution)) return
       await this.askForTool({
-        name: 'openagent_thread_interrupt',
+        name: 'thread_interrupt',
         expectedArguments: { threadId },
         directive: exactCallDirective(
           'Clean up an acceptance case that must stop now.',
-          'openagent_thread_interrupt',
+          'thread_interrupt',
           { threadId }
         )
       })

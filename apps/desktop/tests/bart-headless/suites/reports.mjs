@@ -10,7 +10,7 @@ import { bounded, containsToken } from '../support.mjs'
 export const reportsSuite = {
   id: 'reports',
   tier: 'extended',
-  description: 'Report Thread creation, update, archive, and deletion',
+  description: 'Report Thread creation, update, and archive',
   cases: [
     {
       id: 'list-projection',
@@ -22,11 +22,11 @@ export const reportsSuite = {
         const html = `<p>${context.token}</p>`
         const createArguments = { title, html, relatedExecutions: [] }
         const createOperation = await context.bart.askForTool({
-          name: 'openagent_report_create',
+          name: 'report_create',
           expectedArguments: createArguments,
           directive: exactCallDirective(
             'Create one Report used to verify list projection.',
-            'openagent_report_create',
+            'report_create',
             createArguments
           )
         })
@@ -36,11 +36,11 @@ export const reportsSuite = {
           `report ${reportId} committed`)
 
         const listOperation = await context.bart.askForTool({
-          name: 'openagent_report_list',
+          name: 'report_list',
           expectedArguments: {},
           directive: exactCallDirective(
             'List Report Threads for the projection acceptance case.',
-            'openagent_report_list',
+            'report_list',
             {}
           )
         })
@@ -54,15 +54,6 @@ export const reportsSuite = {
         assert.equal(listed.relatedThreadCount, committed.relatedExecutions.length)
         assert.equal(listed.tagCount, committed.tags.length)
 
-        await context.bart.askForTool({
-          name: 'openagent_report_delete',
-          expectedArguments: { reportId },
-          directive: exactCallDirective(
-            'Delete the Report list projection fixture.',
-            'openagent_report_delete',
-            { reportId }
-          )
-        })
         return { reportId }
       }
     },
@@ -88,7 +79,7 @@ export const reportsSuite = {
 
         const title = `Acceptance ${context.token}`.slice(0, 60)
         const createOperation = await context.bart.askForTool({
-          name: 'openagent_report_create',
+          name: 'report_create',
           matchArguments(callArguments) {
             assert.equal(callArguments.title, title)
             assert.ok(
@@ -99,7 +90,7 @@ export const reportsSuite = {
           },
           directive: [
             'Write one Report Thread for this acceptance run.',
-            'Call openagent_report_create exactly once and then stop.',
+            'Call report_create exactly once and then stop.',
             `Use exactly this title: ${title}`,
             `The html must be a single <p> element whose text is exactly ${context.token}.`,
             `Set relatedExecutions to exactly ${JSON.stringify(relatedExecutions)}.`
@@ -120,11 +111,11 @@ export const reportsSuite = {
         )
 
         const readOperation = await context.bart.askForTool({
-          name: 'openagent_report_read',
+          name: 'report_read',
           expectedArguments: { reportId },
           directive: exactCallDirective(
             'Read back the acceptance Report Thread.',
-            'openagent_report_read',
+            'report_read',
             { reportId }
           )
         })
@@ -135,11 +126,11 @@ export const reportsSuite = {
 
         const updatedTitle = `Acceptance ${context.token} v2`.slice(0, 60)
         await context.bart.askForTool({
-          name: 'openagent_report_update',
+          name: 'report_update',
           expectedArguments: { reportId, title: updatedTitle },
           directive: exactCallDirective(
             'Rename the acceptance Report Thread.',
-            'openagent_report_update',
+            'report_update',
             { reportId, title: updatedTitle }
           )
         })
@@ -150,11 +141,11 @@ export const reportsSuite = {
           `report ${reportId} renamed`)
 
         await context.bart.askForTool({
-          name: 'openagent_report_set_archived',
+          name: 'report_set_archived',
           expectedArguments: { reportId, archived: true },
           directive: exactCallDirective(
             'Archive the acceptance Report Thread.',
-            'openagent_report_set_archived',
+            'report_set_archived',
             { reportId, archived: true }
           )
         })
@@ -173,20 +164,6 @@ export const reportsSuite = {
             : undefined,
           `report ${reportId} restored`)
 
-        await context.bart.askForTool({
-          name: 'openagent_report_delete',
-          expectedArguments: { reportId },
-          directive: exactCallDirective(
-            'Delete the acceptance Report Thread.',
-            'openagent_report_delete',
-            { reportId }
-          )
-        })
-        const finalState = await context.client.waitForState(state =>
-          state.reports.some(report => report.id === reportId) ? undefined : state,
-          `report ${reportId} deleted`)
-        assert.ok(finalState.threads.some(thread => thread.id === threadId),
-          'deleting a Report removed its related Thread')
         return { threadId, reportId }
       }
     }

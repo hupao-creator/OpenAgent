@@ -91,11 +91,11 @@ export const workspaceSuite = {
         )
 
         const statusOperation = await context.bart.askForTool({
-          name: 'openagent_thread_status',
+          name: 'thread_status',
           expectedArguments: { threadId },
           directive: exactCallDirective(
             'Inspect the worktree acceptance Thread.',
-            'openagent_thread_status',
+            'thread_status',
             { threadId }
           )
         })
@@ -121,12 +121,12 @@ export const workspaceSuite = {
         })
         const before = await context.client.loadState()
         const { message } = await context.bart.askForToolFailure({
-          name: 'openagent_thread_start',
+          name: 'thread_create',
           expectedArguments: startArguments,
           errorPattern: /cwd/,
           directive: exactCallDirective(
             'Attempt one deliberately invalid Thread start.',
-            'openagent_thread_start',
+            'thread_create',
             startArguments,
             ['Report the tool error verbatim. Do not retry with a different cwd.']
           )
@@ -152,12 +152,12 @@ export const workspaceSuite = {
         })
         const before = await context.client.loadState()
         const { message } = await context.bart.askForToolFailure({
-          name: 'openagent_thread_start',
+          name: 'thread_create',
           expectedArguments: startArguments,
           errorPattern: /参数无效|invalid/i,
           directive: exactCallDirective(
             'Attempt one deliberately invalid Thread start.',
-            'openagent_thread_start',
+            'thread_create',
             startArguments,
             ['Report the tool error verbatim. Do not retry with a cwd.']
           )
@@ -187,12 +187,12 @@ export const workspaceSuite = {
         })
         const before = await context.client.loadState()
         const { message } = await context.bart.askForToolFailure({
-          name: 'openagent_thread_start',
+          name: 'thread_create',
           expectedArguments: startArguments,
           errorPattern: /git|repository|仓库|worktree/i,
           directive: exactCallDirective(
             'Attempt one worktree start from a non-Git directory.',
-            'openagent_thread_start',
+            'thread_create',
             startArguments,
             ['Report the tool error verbatim. Do not retry without worktree.']
           )
