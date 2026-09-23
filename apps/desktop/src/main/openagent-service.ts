@@ -4023,7 +4023,6 @@ function jsonObject(value: unknown): value is JsonObject {
 }
 
 interface BartWorkspaceHint {
-  readonly directoryTag: string
   readonly cwds: readonly string[]
 }
 
@@ -4050,11 +4049,9 @@ function resolveBartWorkspaceHint(
     )
   const cwds: string[] = []
   const seen = new Set<string>()
-  let canonicalTag = ''
   for (const { thread } of candidates) {
     const candidateTag = threadDirectoryTag(thread)
     if (!candidateTag || !sameThreadTag(candidateTag, requestedTag)) continue
-    canonicalTag ||= candidateTag
     const cwd = threadWorkspaceCwd(thread)
     if (cwd && !seen.has(cwd)) {
       seen.add(cwd)
@@ -4062,7 +4059,7 @@ function resolveBartWorkspaceHint(
     }
     if (cwds.length >= MAX_BART_WORKSPACE_HINT_CWDS) break
   }
-  return canonicalTag ? { directoryTag: canonicalTag, cwds } : undefined
+  return cwds.length ? { cwds } : undefined
 }
 
 function withBartWorkspaceHint(
@@ -4070,10 +4067,9 @@ function withBartWorkspaceHint(
   hint: BartWorkspaceHint | undefined
 ): readonly CollectedBartContextEntry[] {
   if (!hint) return entries
-  const content = [
-    'The user\'s entire request concerns the selected workspace directory.',
-    `<openagent_workspace_hint>${JSON.stringify(hint)}</openagent_workspace_hint>`
-  ].join('\n')
+  const content = hint.cwds.length === 1
+    ? `The user's entire request concerns work in ${hint.cwds[0]}.`
+    : `The user's entire request concerns work in these directories:\n${hint.cwds.map(cwd => `- ${cwd}`).join('\n')}`
   const index = entries.findIndex((entry) => entry.id === 'workspace')
   if (index < 0) {
     return [...entries, { id: 'workspace' satisfies BartContextEntryId, content }]

@@ -2820,13 +2820,9 @@ describe('OpenAgent Service Harness dispatch', () => {
       entry => entry.id === 'workspace'
     )
     expect(workspace).toBeDefined()
-    const encoded = workspace?.content.match(
-      /<openagent_workspace_hint>(.+)<\/openagent_workspace_hint>/
-    )?.[1]
-    expect(encoded && JSON.parse(encoded)).toEqual({
-      directoryTag: 'Alpha',
-      cwds: [newerCwd, olderCwd]
-    })
+    expect(workspace?.content).toContain(
+      `The user's entire request concerns work in these directories:\n- ${newerCwd}\n- ${olderCwd}`
+    )
     expect(readBartThread(fixture.store.read()).transcript).toContainEqual(
       expect.objectContaining({
         type: 'message',
@@ -2835,7 +2831,7 @@ describe('OpenAgent Service Harness dispatch', () => {
       })
     )
     expect(JSON.stringify(readBartThread(fixture.store.read()).transcript))
-      .not.toContain('openagent_workspace_hint')
+      .not.toContain(newerCwd)
 
   })
 
