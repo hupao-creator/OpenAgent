@@ -175,8 +175,13 @@ export function ThreadCardIdentity(props: {
   readonly selectedSize: ThreadCardSize
   readonly transitionTarget?: boolean
 }): React.JSX.Element {
+  const { t } = useI18n()
   const expanded = props.selectedSize.rows > 1
   const identity = props.identity
+  const effort = typeof identity.effort === 'string' &&
+    (!identity.effort.trim() || identity.effort.trim() === 'default')
+    ? undefined : identity.effort
+  const effortLabel = effort ?? (identity.model ? t('默认') : undefined)
   const title = useTextSwap<HTMLElement>(identity.title)
   const titleClass = [props.transitionTarget ? 'session-title-shared' : '', title.className]
     .filter(Boolean)
@@ -190,15 +195,15 @@ export function ThreadCardIdentity(props: {
         {identity.providerStatus}
         {identity.state}
       </span>
-      {identity.model || identity.effort || identity.fastMode ? (
+      {identity.model || effortLabel || identity.fastMode ? (
         <small>
           {identity.model ? <span className="thread-overview-meta-model">{identity.model}</span> : null}
-          {identity.effort || identity.fastMode ? (
+          {effortLabel || identity.fastMode ? (
             <>
               {identity.model ? <span className="thread-overview-meta-detail">{' \u00b7 '}</span> : null}
               <span className={'thread-overview-meta-effort' + (identity.fastMode ? ' fast' : '')}>
                 {identity.fastMode ? <Zap size={10} aria-hidden="true" /> : null}
-                {identity.effort}
+                {effortLabel}
               </span>
             </>
           ) : null}

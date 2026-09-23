@@ -7,7 +7,7 @@ import { ThreadCardExcerpt } from '../../../packages/openagent-plugin-kit/src/re
 
 /**
  * 五行裁剪是一份 DOM 契约而不是像素效果：excerpt 把裁剪交给原始文本元素，保留
- * Markdown 标记与换行。jsdom 不做排版，所以这里把随包
+ * 块级 Markdown 标记与换行；正文链接和行内强调缩成文本。jsdom 不做排版，所以这里把随包
  * 发布的 CSS 注入文档，断言它对真实渲染出的 markup 生效——覆盖选择器与行为，不
  * 覆盖像素。
  *
@@ -80,12 +80,12 @@ function clampMatches(excerpt: Element): ClampMatch[] {
 }
 
 const collapsedBlocks = [
-  ['prose', '概览卡片的摘要截断要与其它 harness 对齐，并补上 token 用量。'],
-  ['heading', '# 概览卡片的摘要截断要与其它 harness 对齐'],
-  ['blockquote', '> 概览卡片的摘要截断要与其它 harness 对齐'],
-  ['list', '- 概览卡片的摘要截断要与其它 harness 对齐'],
-  ['inline markup', '**粗体** `query` [链接](https://example.com)'],
-  ['HTML source', '<img src="example.png" onerror="alert(1)">']
+  ['prose', '概览卡片的摘要截断要与其它 harness 对齐，并补上 token 用量。', '概览卡片的摘要截断要与其它 harness 对齐，并补上 token 用量。'],
+  ['heading', '# 概览卡片的摘要截断要与其它 harness 对齐', '# 概览卡片的摘要截断要与其它 harness 对齐'],
+  ['blockquote', '> 概览卡片的摘要截断要与其它 harness 对齐', '> 概览卡片的摘要截断要与其它 harness 对齐'],
+  ['list', '- 概览卡片的摘要截断要与其它 harness 对齐', '- 概览卡片的摘要截断要与其它 harness 对齐'],
+  ['inline markup', '**粗体** `query` [链接](https://example.com)', '粗体 `query` 链接'],
+  ['HTML source', '<img src="example.png" onerror="alert(1)">', '<img src="example.png" onerror="alert(1)">']
 ] as const
 
 beforeAll(() => {
@@ -111,11 +111,11 @@ afterEach(() => {
   cleanup()
 })
 
-describe.each(collapsedBlocks)('a collapsed %s excerpt', (_kind, content) => {
-  it('renders literal text and clamps complete lines without interpreting markup', () => {
+describe.each(collapsedBlocks)('a collapsed %s excerpt', (_kind, content, expected) => {
+  it('renders the expected preview as text and clamps lines without creating markup elements', () => {
     const excerpt = renderExcerpt(content)
     const body = textBodyOf(excerpt)
-    expect(body.textContent).toBe(content)
+    expect(body.textContent).toBe(expected)
     expect(body.children).toHaveLength(0)
     expect(escapingRules(excerpt).map(rule => rule.selectorText)).not.toHaveLength(0)
 
