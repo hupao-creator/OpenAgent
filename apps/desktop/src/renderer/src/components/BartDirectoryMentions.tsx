@@ -8,7 +8,7 @@ import './BartDirectoryMentions.css'
 
 export interface BartDirectoryMentionProps {
   loadMentionDirectories?: () => Promise<readonly KnownDirectory[]>
-  onMentionSelect?: (query: MentionQuery, directory: KnownDirectory) => number
+  onMentionSelect?: (query: MentionQuery, directory: KnownDirectory) => number | undefined
 }
 
 /** Only the Dock's main input opts into this behavior. */
@@ -26,6 +26,7 @@ export function useBartDirectoryMentions(props: BartDirectoryMentionProps & {
   const [composing, setComposing] = useState(false)
   const composingRef = useRef(false)
   const [dismissed, setDismissed] = useState<string>()
+  const [limitRejectedKey, setLimitRejectedKey] = useState<string>()
   const [active, setActive] = useState({ key: '', index: 0 })
   useEffect(() => {
     if (!props.enabled || !props.loadMentionDirectories) return
@@ -42,7 +43,8 @@ export function useBartDirectoryMentions(props: BartDirectoryMentionProps & {
   const open = Boolean(props.enabled && props.onMentionSelect && focused && !composing && query && dismissed !== key)
   const needle = query?.query.toLocaleLowerCase() ?? ''
   const filtered = useMemo(() => directories.filter(item => item.path.toLocaleLowerCase().includes(needle) || item.name.toLocaleLowerCase().includes(needle)), [directories, needle])
-  const matches = useMemo(() => filtered.slice(0, 50), [filtered])
+  const limitRejected = limitRejectedKey === key
+  const matches = useMemo(() => limitRejected ? [] : filtered.slice(0, 50), [filtered, limitRejected])
   const index = Math.min(active.key === key ? active.index : 0, Math.max(0, matches.length - 1))
   const syncSelection = () => {
     const input = props.input.current
@@ -51,6 +53,7 @@ export function useBartDirectoryMentions(props: BartDirectoryMentionProps & {
   const choose = (directory: KnownDirectory) => {
     if (!query || !props.onMentionSelect) return
     const caret = props.onMentionSelect(query, directory)
+    if (caret === undefined) { setLimitRejectedKey(key); return }
     setDismissed(key)
     requestAnimationFrame(() => {
       props.input.current?.focus()
@@ -93,8 +96,8 @@ export function useBartDirectoryMentions(props: BartDirectoryMentionProps & {
       onCompositionEnd: () => { composingRef.current = false; setComposing(false); syncSelection() }
     },
     menu: open ? <DirectoryMenu id={id} input={props.input} directories={matches} active={index} onChoose={choose}
-      empty={status === 'loading' ? t('正在查找目录…') : status === 'error' ? t('读取目录失败，请重新打开输入框重试') : t('没有匹配的目录')}
-      label={t('已知目录')} more={filtered.length > matches.length ? t('仅显示前 50 项，继续输入以缩小范围') : undefined} /> : null
+      empty={limitRejected ? t('每条消息最多引用 50 个目录') : status === 'loading' ? t('正在查找目录…') : status === 'error' ? t('读取目录失败，请重新打开输入框重试') : t('没有匹配的目录')}
+      label={t('已知目录')} more={!limitRejected && filtered.length > matches.length ? t('仅显示前 50 项，继续输入以缩小范围') : undefined} /> : null
   }
 }
 

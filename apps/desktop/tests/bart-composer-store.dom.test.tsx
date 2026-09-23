@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { DesktopApi } from '../src/shared/desktop-api'
 import type { AgentAttachment } from '../src/shared/attachments'
 import { createBartComposerStore } from '../src/renderer/src/bart-composer-store'
+import { PublicAgentInputSchema } from '@openagent/contracts'
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void
@@ -18,6 +19,27 @@ function api(overrides: Partial<DesktopApi> = {}): DesktopApi {
 }
 
 describe('Bart shared composer', () => {
+  it('keeps the largest mention draft with all attachments inside the public input limit', async () => {
+    const store = createBartComposerStore()
+    for (let index = 0; index < 50; index++) {
+      const start = store.getState().text.length
+      store.setText(store.getState().text + '@')
+      expect(store.insertMention({ start, end: start + 1, query: '' }, { name: 'project', path: '/work/project' })).toBeDefined()
+    }
+    const start = store.getState().text.length
+    store.setText(store.getState().text + '@')
+    const previous = store.getState()
+    expect(store.insertMention({ start, end: start + 1, query: '' }, { name: 'extra', path: '/work/extra' })).toBeUndefined()
+    expect(store.getState()).toBe(previous)
+    const host = api({ chooseFiles: vi.fn(async () => Array.from({ length: 20 }, (_, index) => attachment(String(index)))) })
+    await store.chooseFiles(host, '')
+    await store.submit(host, '')
+    const input = vi.mocked(host.submitBartMessage).mock.calls[0][0].input
+    expect(input.parts.filter(part => part.kind === 'mention')).toHaveLength(50)
+    expect(input.parts.filter(part => part.kind === 'local-file')).toHaveLength(20)
+    expect(PublicAgentInputSchema.safeParse(input).success).toBe(true)
+  })
+
   it('retains failed mentions, tracks surrounding edits, and removes references edited into ordinary text', async () => {
     const store = createBartComposerStore()
     const directory = { name: 'project', path: '/work/project' }

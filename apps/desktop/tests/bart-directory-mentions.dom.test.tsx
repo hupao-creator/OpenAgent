@@ -131,3 +131,21 @@ it('bounds rendered options for large histories while still searching all known 
   fireEvent.keyDown(f.input, { key: 'Enter' })
   expect(f.store.getState().mentions[0]?.path).toBe('/work/project-1999')
 })
+
+it('explains the mention limit in the input without submitting or discarding the draft', async () => {
+  const f = fixture()
+  act(() => {
+    for (let index = 0; index < 50; index++) {
+      const start = f.store.getState().text.length
+      f.store.setText(f.store.getState().text + '@')
+      f.store.insertMention({ start, end: start + 1, query: '' }, directories[0])
+    }
+  })
+  f.type(f.store.getState().text + '@')
+  await screen.findByText('/work/one/project')
+  fireEvent.keyDown(f.input, { key: 'Enter' })
+  expect(screen.getByText('每条消息最多引用 50 个目录')).toBeVisible()
+  expect(f.submit).not.toHaveBeenCalled()
+  expect(f.store.getState().mentions).toHaveLength(50)
+  expect(f.store.getState().text).toMatch(/@$/)
+})

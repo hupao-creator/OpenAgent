@@ -6,6 +6,8 @@ import { directoryMentionParts, insertDirectoryMention, reconcileDirectoryMentio
 import type { KnownDirectory } from '../../shared/known-directory'
 
 const MAX_BART_ATTACHMENTS = 20
+// At most 101 interleaved text/mention parts plus 20 attachments: below the 128-part wire limit.
+const MAX_DIRECTORY_MENTIONS = 50
 export const ATTACHMENT_LIMIT_ERROR = '附件数量不能超过 20 个'
 export const ATTACHMENT_IMPORT_BUSY_ERROR = '附件正在处理中，请稍候'
 
@@ -32,9 +34,10 @@ export function createBartComposerStore() {
     }))
   return Object.assign(store, {
     setText,
-    insertMention(query: MentionQuery, directory: KnownDirectory): number {
+    insertMention(query: MentionQuery, directory: KnownDirectory): number | undefined {
       const state = store.getState()
       const inserted = insertDirectoryMention(state.text, state.mentions, query, directory)
+      if (inserted.mentions.length > MAX_DIRECTORY_MENTIONS) return undefined
       store.setState({ text: inserted.text, mentions: inserted.mentions, editRevision: state.editRevision + 1 })
       return inserted.caret
     },
