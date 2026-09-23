@@ -5,9 +5,17 @@
 import { createInterface } from 'node:readline'
 import { appendFileSync, writeFileSync } from 'node:fs'
 if (process.argv.includes('--version')) {
-  if (process.env.PI_RPC_FIXTURE_VERSION_HANG) await new Promise(() => setInterval(() => {}, 1_000))
-  if (process.env.PI_RPC_FIXTURE_VERSION_ERROR) process.exit(1)
   if (process.env.PI_RPC_FIXTURE_VERSION_MARKER) appendFileSync(process.env.PI_RPC_FIXTURE_VERSION_MARKER, 'probe\n')
+  if (process.env.PI_RPC_FIXTURE_VERSION_DELAY) await new Promise(resolve => setTimeout(resolve, Number(process.env.PI_RPC_FIXTURE_VERSION_DELAY)))
+  if (process.env.PI_RPC_FIXTURE_VERSION_HANG) await new Promise(() => setInterval(() => {}, 1_000))
+  if (process.env.PI_RPC_FIXTURE_VERSION_ERROR) {
+    process.stderr.write('SECRET_VERSION_DIAGNOSTIC\n')
+    process.exit(1)
+  }
+  if (process.env.PI_RPC_FIXTURE_VERSION_SIGNAL) process.kill(process.pid, 'SIGTERM')
+  if (process.env.PI_RPC_FIXTURE_VERSION_OVERSIZED) {
+    await new Promise(resolve => process.stderr.write('SECRET_VERSION_DIAGNOSTIC'.repeat(200), resolve))
+  }
   process.stdout.write(`${process.env.PI_RPC_FIXTURE_VERSION ?? '0.83.0'}\n`)
   process.exit(0)
 }
