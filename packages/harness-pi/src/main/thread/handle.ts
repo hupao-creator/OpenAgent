@@ -20,6 +20,7 @@ import { piHostExtensionSource } from '../runtime/host-extension.js'
 
 /** Longest call identifier the persisted foreground accepts; see `piState`. */
 const CALL_ID_CHARACTERS = 1_024
+const STREAM_COMMIT_MS = 50
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 const string = (value: unknown): string => typeof value === 'string' ? value : ''
@@ -56,6 +57,8 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
   let stopping: Promise<void> | undefined
   let pendingStop: { status: 'failed' | 'interrupted'; reason?: string } | undefined
   let queue: Promise<void> = Promise.resolve()
+  let streamCommitTimer: ReturnType<typeof setTimeout> | undefined
+  let streamDirty = false
   let sends: Promise<void> = Promise.resolve()
   let assistantId: string | undefined
   let lastStop: string | undefined
@@ -65,11 +68,33 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
   const pendingUserEchoes: { id: string; executionId: string; text: string; echoed: boolean }[] = []
   const latest = (): PublicExecution | undefined => state.executions.find(e => e.executionId === state.latestExecutionId)
   const active = (): PublicExecution | undefined => { const e = latest(); return e && ['running', 'waiting-for-user'].includes(e.status) ? e : undefined }
-  const commit = () => context.sessionState.commit(piJson(state))
+  const cancelStreamCommit = () => {
+    if (streamCommitTimer) clearTimeout(streamCommitTimer)
+    streamCommitTimer = undefined
+  }
+  const commit = () => {
+    cancelStreamCommit()
+    streamDirty = false
+    return context.sessionState.commit(piJson(state))
+  }
   const serialize = (operation: () => Promise<void>): Promise<void> => {
     const result = queue.then(operation)
     queue = result.catch(() => undefined)
     return result
+  }
+  // Reduce every native event (including Bart's semantic A → B → A activity),
+  // but snapshot the accumulated session at a fixed cadence. Boundaries below
+  // commit immediately and absorb pending text instead of waiting for the timer.
+  const scheduleStreamCommit = () => {
+    streamDirty = true
+    if (streamCommitTimer) return
+    streamCommitTimer = setTimeout(() => {
+      streamCommitTimer = undefined
+      void serialize(async () => {
+        if (streamDirty && !closing) await commit()
+      }).catch(failed)
+    }, STREAM_COMMIT_MS)
+    streamCommitTimer.unref()
   }
   const accept = (operation: () => Promise<void>): Promise<void> => {
     const result = sends.then(operation)
@@ -128,6 +153,7 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
     if (stopping) return stopping
     pendingStop = { status, reason }
     closing = true
+    cancelStreamCommit()
     stopping = Promise.resolve().then(async () => {
       connectionAbort?.abort()
       await rpc?.dispose()
@@ -200,7 +226,8 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
           if (echo >= 0) { pendingUserEchoes[echo]!.echoed = true; pendingUserEchoes.splice(echo, 1) }
           else state.messages.push({ id: `pi-${randomUUID()}`, executionId: execution.executionId, role: 'user', text })
         }
-        await commit()
+        if (type === 'message_update') scheduleStreamCommit()
+        else await commit()
       } else if (type.startsWith('tool_execution_')) {
         const id = `tool:${string(event.toolCallId)}`
         const index = state.messages.findIndex(m => m.id === id)
@@ -225,7 +252,8 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
             toolName: headPoints(toolName, MAX_BART_TOOL_NAME_POINTS)
           })
         }
-        await commit()
+        if (type === 'tool_execution_update') scheduleStreamCommit()
+        else await commit()
       } else if (type === 'extension_ui_request') {
         await handleInteraction(event, execution)
       } else if (type === 'extension_error') {
@@ -454,15 +482,20 @@ export async function openPiThread(host: HarnessPluginHostContext, context: Harn
     },
     async interrupt() { await stop('interrupted') },
     async read(_question, readSignal) {
-      readSignal.throwIfAborted(); await queue; readSignal.throwIfAborted()
+      readSignal.throwIfAborted()
+      await serialize(async () => { if (streamDirty && !closing) await commit() })
+      readSignal.throwIfAborted()
       return state.messages.map(m => `[${m.role}${m.toolName ? `:${m.toolName}` : ''}] ${m.text}`).join('\n\n')
     },
     async dispose() {
       if (disposed) return
       disposed = true
+      // Revoke native callbacks before aborting transport: an intentional close
+      // must not race its failure listener into a failed terminal commit.
+      const closingWork = stop('interrupted')
       lifetime.abort()
       context.signal.removeEventListener('abort', onContextAbort)
-      await stop('interrupted')
+      await closingWork
       unsubscribe(); unsubscribeFailure(); clearInteractions()
       await queue
     }

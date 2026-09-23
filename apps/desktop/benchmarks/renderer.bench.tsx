@@ -12,6 +12,7 @@ import type { DesktopApi } from '../src/shared/desktop-api'
 import type { RendererAppState, RendererStateMutation } from '../src/shared/renderer-state-contracts'
 import { createCodexPreview } from '../playgrounds/thread-detail/src/native-fixtures/codex'
 import { createClaudePreview } from '../playgrounds/thread-detail/src/native-fixtures/claude'
+import { createPiBenchmarkFixture } from './pi-fixture'
 import '../src/renderer/src/fonts.css'
 import '../src/renderer/src/styles.css'
 
@@ -19,21 +20,23 @@ import '../src/renderer/src/styles.css'
 // mutations. No agent is started and no real user data or backend is accessed.
 const query = new URLSearchParams(location.search)
 const fixtures = { codex: createCodexPreview, claude: createClaudePreview }
-const harness = query.get('harness') as keyof typeof fixtures || 'codex'
+const harness = query.get('harness') as keyof typeof fixtures | 'pi' || 'codex'
 const count = Math.max(1, Math.min(200, Number(query.get('threads')) || 48))
 const history = Math.max(1, Math.min(160, Number(query.get('turns')) || 24))
 const mode = query.get('mode') || 'overview'
+const concurrent = Math.max(1, Math.min(count, Number(query.get('streams')) || 1))
 /** A real probe asks the machine and takes time to answer; this one can be made to. */
 const probeDelay = Math.max(0, Math.min(10_000, Number(query.get('probeDelay')) || 0))
 const answer = '正在检查前端渲染性能。保留现有交互，减少重复投影与无效渲染。'
 const makeFixture = (text: string, threadId: string, phase: 'running' | 'completed' = 'running') => {
+  if (harness === 'pi') return createPiBenchmarkFixture(text, threadId, phase, history)
   const fixture = fixtures[harness]({ phase, history: true, answer: text, threadId })
   const data = fixture.sessionState as Record<string, unknown>
   return { ...fixture, sessionState: { ...data, turns: (data.turns as unknown[]).slice(-history) } } as typeof fixture
 }
 const threads: AgentThreadRecord[] = Array.from({ length: count }, (_, index) => ({
   id: `benchmark-${index}`, harnessId: harness, revision: 1, archived: false,
-  title: `渲染性能任务 ${index + 1}`, tags: ['性能优化'], settings: {},
+  title: `渲染性能任务 ${index + 1}`, tags: ['性能优化', `分组 ${index % 4 + 1}`], settings: {},
   cwd: '/workspace/OpenAgent', createdAt: 1_000 + index, updatedAt: 2_000,
   ...makeFixture(answer, `benchmark-${index}`)
 }))
@@ -132,6 +135,7 @@ window.openAgent = {
 
 let measuring = false
 let projectionCalls = 0
+let bartProjectionCalls = 0
 let commits: number[] = []
 const onRender: ProfilerOnRenderCallback = (_id, _phase, duration) => {
   if (measuring) commits.push(duration)
@@ -142,6 +146,11 @@ for (const binding of Object.values(harnessRendererPlugins)) {
     if (measuring) projectionCalls += 1
     return project(...args)
   }
+  const projectBart = binding.projectBartDock
+  binding.projectBartDock = (...args) => {
+    if (measuring) bartProjectionCalls += 1
+    return projectBart(...args)
+  }
 }
 function takeMutation(): RendererStateMutation {
   const mutation = createRendererStateMutation(publishedSnapshot, snapshot)
@@ -151,30 +160,37 @@ function takeMutation(): RendererStateMutation {
 function emit(mutation: RendererStateMutation): void {
   for (const listener of listeners) listener(mutation)
 }
-const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()))
+const frame = () => new Promise<number>((done) => requestAnimationFrame(done))
 const percentile = (values: number[], fraction: number) =>
   [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.floor(values.length * fraction))] ?? 0
+
+function advanceStreams(index: number): RendererStateMutation {
+  const targets = mode === 'background' ? threads.slice(1).slice(-concurrent) : threads.slice(0, concurrent)
+  const updates = new Map(targets.map(thread => [thread.id, makeFixture(`${answer}\n\n当前进度 ${index + 11}，继续检查。`, thread.id)]))
+  snapshot = { ...snapshot, revision: snapshot.revision + 1, threads: snapshot.threads.map(thread => {
+    const fixture = updates.get(thread.id)
+    return fixture ? { ...thread, ...fixture, revision: thread.revision + 1, updatedAt: thread.updatedAt + 1 } : thread
+  }) }
+  return takeMutation()
+}
 
 async function run(samples = 60) {
   await document.fonts.ready
   await new Promise((done) => setTimeout(done, 1_000))
   const updateMs: number[] = []
+  const frameMs: number[] = []
+  let previousFrame: number | undefined
   commits = []
   projectionCalls = 0
-  const target = mode === 'background' ? threads.at(-1)!.id : threads[0]!.id
+  bartProjectionCalls = 0
   // Warm the same update path before recording, including lazy Markdown imports.
   for (let index = -10; index < samples; index += 1) {
-    await frame()
-    const fixture = makeFixture(`${answer}\n\n当前进度 ${index + 11}，继续检查。`, target)
-    snapshot = {
-      ...snapshot, revision: snapshot.revision + 1,
-      threads: snapshot.threads.map((thread) => thread.id === target
-        ? { ...thread, ...fixture, revision: thread.revision + 1, updatedAt: thread.updatedAt + 1 }
-        : thread)
-    }
+    const frameTime = await frame()
+    if (index >= 0 && previousFrame !== undefined) frameMs.push(frameTime - previousFrame)
+    previousFrame = frameTime
     // IPC structured cloning happens before delivery; exclude fixture/transport
     // creation from the measured renderer notification + React commit duration.
-    const incoming = takeMutation()
+    const incoming = advanceStreams(index)
     measuring = index >= 0
     const start = performance.now()
     flushSync(() => emit(incoming))
@@ -182,10 +198,11 @@ async function run(samples = 60) {
   }
   measuring = false
   const result = {
-    harness, mode, threads: count, turnsPerThread: history, samples,
+    harness, mode, threads: count, streams: concurrent, turnsPerThread: history, samples,
     updateMedianMs: percentile(updateMs, .5), updateP95Ms: percentile(updateMs, .95),
+    frameMedianMs: percentile(frameMs, .5), frameP95Ms: percentile(frameMs, .95), framesOver50Ms: frameMs.filter(ms => ms > 50).length,
     reactTotalMs: commits.reduce((sum, value) => sum + value, 0),
-    reactCommits: commits.length, projectionCalls,
+    reactCommits: commits.length, projectionCalls, bartProjectionCalls,
     domElements: document.querySelectorAll('*').length,
     renderedTurns: document.querySelectorAll('[data-turn-id]').length,
     revision: document.querySelector('.app-shell')?.getAttribute('data-state-revision')
@@ -208,7 +225,14 @@ function setBartOperation(kind: string | null): void {
   flushSync(() => emit(takeMutation()))
 }
 
-Object.assign(window, { rendererBenchmark: { run, setBartOperation } })
+let streaming: ReturnType<typeof setInterval> | undefined
+const stopStreaming = () => { clearInterval(streaming); streaming = undefined }
+const startStreaming = () => {
+  stopStreaming()
+  let index = 0
+  streaming = setInterval(() => emit(advanceStreams(index++)), 50)
+}
+Object.assign(window, { rendererBenchmark: { run, setBartOperation, startStreaming, stopStreaming } })
 const rendererCapabilities: RendererCapabilities = { openExternal: noop }
 createRoot(document.querySelector('#root')!).render(
   <RendererCapabilitiesProvider capabilities={rendererCapabilities}>

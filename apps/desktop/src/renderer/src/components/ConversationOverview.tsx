@@ -80,7 +80,7 @@ import {
 } from '@openagent/contracts/renderer'
 import { providerVisualTheme } from '../provider-visual-theme'
 import {
-  OVERVIEW_LAYOUT_PLANNER, overviewGridPositionStyle, planOverviewSnapshot, type OverviewGridPosition,
+  OVERVIEW_LAYOUT_PLANNER, overviewGridPositionStyle, planOverviewSnapshot, planOverviewSnapshotAsync, type OverviewGridPosition,
   type OverviewLayoutPlanner, type OverviewLayoutPlanningState, type PlannedOverviewLayout
 } from '../overview-layout-planner'
 import type { LayoutPlacement } from '../overview-layout'
@@ -629,8 +629,9 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       let target: PlannedOverviewLayout
       try {
         // Resolve against the last presented revision only when its planning lease arrives.
-        target = planOverviewSnapshot(snapshot, layoutPlanner, previous.plan?.placements)
+        target = await planOverviewSnapshotAsync(snapshot, layoutPlanner, previous.plan?.placements ?? [], signal)
       } catch (error) {
+        if (signal.aborted) { planningLease.release(); throw abortError() }
         // No verified candidate: keep the last successful geometry and let later revisions retry.
         failedLayoutRef.current = {
           snapshot,
@@ -1235,6 +1236,7 @@ export const ConversationOverview = memo(function ConversationOverview(props: Co
       )}
       <div className="thread-overview-scroll" ref={scrollRef}>
         <OverviewFilterTransition selectionKey={selectedSelectionKey} sceneKey={sceneKey}
+          memberIds={desiredLayout.items.map(item => item.entityId)}
           enabled={(props.tagTransition ?? 'spatial') === 'spatial' && props.cameraVisible !== false}
           playbackRate={props.tagTransitionPlaybackRate ?? 1} viewport={scrollRef} motion={filterMotion}>
         <div className={'thread-overview-scroll-content ' + tagTransitionDirection} key={selectedSelectionKey || '__all__'}>

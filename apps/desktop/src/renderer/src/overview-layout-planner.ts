@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { OVERVIEW_CARD_GEOMETRY, type OverviewLayoutContext } from '@openagent/contracts/renderer'
 import type { OverviewLayoutSnapshot } from './conversation-overview-layout'
 import { layoutOverview, type LayoutPlacement, type LayoutResult } from './overview-layout'
+import { planOverviewInWorker } from './overview-layout-worker'
 
 /** Geometric policy only. The Overview owner still commits and plays every revision. */
 export interface OverviewLayoutPlanner {
@@ -28,6 +29,23 @@ export function planOverviewSnapshot(
   return { ...target, plan: planner.plan(previous, target.items.map(item => ({
     id: item.entityId, cols: item.size.cols, rows: item.size.rows
   })), OVERVIEW_CARD_GEOMETRY) }
+}
+
+export async function planOverviewSnapshotAsync(
+  target: OverviewLayoutSnapshot,
+  planner: OverviewLayoutPlanner,
+  previous: readonly LayoutPlacement[],
+  signal: AbortSignal
+): Promise<PlannedOverviewLayout> {
+  signal.throwIfAborted()
+  // Injected planners and non-browser renderers keep the synchronous test seam.
+  // A worker failure is reported normally, never retried on the UI thread.
+  if (planner.plan !== layoutOverview || typeof Worker === 'undefined') return planOverviewSnapshot(target, planner, previous)
+  const plan = await planOverviewInWorker({ previous, next: target.items.map(item => ({
+    id: item.entityId, cols: item.size.cols, rows: item.size.rows
+  })), geometry: OVERVIEW_CARD_GEOMETRY }, signal)
+  signal.throwIfAborted()
+  return { ...target, plan }
 }
 
 export function overviewGridPositionStyle(position?: OverviewGridPosition): CSSProperties {

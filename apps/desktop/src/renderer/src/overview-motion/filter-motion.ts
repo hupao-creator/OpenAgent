@@ -37,7 +37,7 @@ export class OverviewFilterMotion {
   private run: FilterMotionRun | null = null
 
   /** Called by getSnapshotBeforeUpdate, while the outgoing React tree still exists. */
-  capture(viewport: HTMLElement | null, playbackRate = 1): (() => void) | null {
+  capture(viewport: HTMLElement | null, playbackRate = 1, nextIds?: ReadonlySet<string>): (() => void) | null {
     const content = viewport?.querySelector<HTMLElement>(':scope > .thread-overview-scroll-content:not(.overview-filter-exits)')
     if (!viewport || !content || !viewport.clientWidth || !viewport.clientHeight || document.hidden ||
       typeof HTMLElement.prototype.animate !== 'function' ||
@@ -50,16 +50,28 @@ export class OverviewFilterMotion {
     // a surviving card at its current screen position rather than its old destination.
     const before = cardsIn(content)
     const contentStyle = getComputedStyle(content)
-    const exits = content.cloneNode(true) as HTMLElement
+    const plane = content.querySelector<HTMLElement>('.thread-overview-plane')
+    const grid = plane?.querySelector<HTMLElement>('.thread-overview-grid')
+    // Survivors animate as live cards. Copy only exiting cards, preserving the
+    // grid/plane coordinate system without cloning every transcript and control.
+    const exits = content.cloneNode(!grid) as HTMLElement
+    if (plane && grid) {
+      const copiedPlane = plane.cloneNode(false) as HTMLElement
+      copiedPlane.style.transform = getComputedStyle(plane).transform
+      const copiedGrid = grid.cloneNode(false) as HTMLElement
+      for (const [id, geometry] of before) {
+        if (nextIds?.has(id)) continue
+        copiedGrid.append(geometry.element.cloneNode(true))
+      }
+      copiedPlane.append(copiedGrid)
+      exits.append(copiedPlane)
+    }
     exits.classList.add('overview-filter-exits')
     // Empty-state entry animates the content itself, so its interrupted frame
     // must be frozen before cancelling the previous run as well.
     exits.style.opacity = contentStyle.opacity
     exits.style.transform = contentStyle.transform
     exits.style.transformOrigin = contentStyle.transformOrigin
-    const plane = content.querySelector<HTMLElement>('.thread-overview-plane')
-    const copiedPlane = exits.querySelector<HTMLElement>('.thread-overview-plane')
-    if (plane && copiedPlane) copiedPlane.style.transform = getComputedStyle(plane).transform
     const copies = exits.querySelectorAll<HTMLElement>('[data-overview-card-id]')
     for (const copy of copies) {
       const id = copy.dataset.overviewCardId!

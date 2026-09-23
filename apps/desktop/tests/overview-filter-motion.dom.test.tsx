@@ -88,6 +88,7 @@ it('animates the live survivors, keeps exits inert, and owns the shared stage un
   expect(motions.filter(motion => liveCards().includes(motion.element))).toHaveLength(2)
   expect(document.querySelector<HTMLElement>('.overview-filter-exits')?.inert).toBe(true)
   expect(document.querySelector('.overview-filter-exits [data-overview-card-id]')).toBeNull()
+  expect(document.querySelectorAll('.overview-filter-exits .report-overview-item')).toHaveLength(1)
   expect(document.querySelector<HTMLElement>('.thread-overview-scroll-content:not(.overview-filter-exits)')?.inert).toBe(true)
   expect(coordinator.stageBusy).toBe(true)
   let nextAcquired = false

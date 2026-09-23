@@ -26,11 +26,76 @@ function lineLayer(snapshot: Snapshot): HTMLElement {
   return layer
 }
 
-function snapshot(body: HTMLElement, excerpt: HTMLElement): Snapshot {
-  const copy = body.cloneNode(true) as HTMLElement
+interface Reveal {
+  readonly node: HTMLElement
+  readonly text: HTMLElement
+  readonly previousContent: string
+  readonly settled: () => void
+  cancelled: boolean
+  restore?: () => void
+}
+const pending = new Set<Reveal>()
+
+function textCopy(body: HTMLElement, content: string): HTMLElement {
+  const copy = body.cloneNode(false) as HTMLElement
+  copy.textContent = content
   copy.style.removeProperty('opacity')
-  return { body: copy, height: Math.min(body.getBoundingClientRect().height, excerpt.getBoundingClientRect().height),
-    lineHeight: Number.parseFloat(getComputedStyle(body).lineHeight) || 18 }
+  return copy
+}
+
+/** React commits all card effects before this microtask. Batch reads and writes
+ * across cards so a multi-Thread boundary pays for layout once per phase. */
+function flushReveals(): void {
+  const jobs = [...pending].filter(job => !job.cancelled)
+  pending.clear()
+  const measured = jobs.map(job => {
+    const { text, node } = job
+    const lineHeight = Number.parseFloat(getComputedStyle(text).lineHeight) || 18
+    const height = node.getBoundingClientRect().height
+    const incoming = { body: textCopy(text, text.textContent ?? ''), height: Math.min(text.getBoundingClientRect().height, height), lineHeight }
+    const oldBody = textCopy(text, job.previousContent)
+    const probe = oldBody.cloneNode(true) as HTMLElement
+    probe.style.position = 'absolute'
+    probe.style.width = `${text.offsetWidth}px`
+    probe.style.opacity = '0'
+    return { job, incoming, oldBody, probe, height, lineHeight }
+  })
+  // Previous text is measured only at a reveal boundary, never for each token.
+  for (const item of measured) item.job.node.append(item.probe)
+  const prepared = measured.map(item => ({ ...item,
+    outgoing: { body: item.oldBody, height: Math.min(item.probe.getBoundingClientRect().height, item.height), lineHeight: item.lineHeight }
+  }))
+  for (const item of prepared) item.probe.remove()
+  const layers = prepared.map(({ job, incoming, outgoing }) => ({ job,
+    incoming: lineLayer(incoming), outgoing: lineLayer(outgoing), opacity: job.text.style.opacity
+  }))
+  for (const item of layers) {
+    item.outgoing.classList.add('is-shown', 'thread-card-reveal-previous')
+    item.job.node.append(item.outgoing, item.incoming)
+    item.job.node.dataset.bufferTransitioning = 'texts'
+    item.job.text.style.opacity = '0'
+  }
+  // A single style/layout checkpoint establishes every layer's start frame.
+  if (layers[0]) void layers[0].incoming.offsetHeight
+  for (const item of layers) {
+    item.incoming.classList.add('is-shown')
+    item.outgoing.classList.remove('is-shown')
+    item.outgoing.classList.add('is-hiding')
+  }
+  for (const { job, incoming, outgoing, opacity } of layers) {
+    const animations = [...incoming.getAnimations({ subtree: true }), ...outgoing.getAnimations({ subtree: true })]
+    const restore = (): void => {
+      outgoing.remove(); incoming.remove()
+      job.text.style.opacity = opacity
+      delete job.node.dataset.bufferTransitioning
+    }
+    job.restore = () => { animations.forEach(animation => animation.cancel()); restore() }
+    void Promise.all(animations.map(animation => animation.finished)).then(() => {
+      if (job.cancelled) return
+      restore()
+      job.settled()
+    }).catch(() => { /* A newer message or unmount cancelled this reveal. */ })
+  }
 }
 
 /** Animation layers never participate in layout, accessibility, or parent state. */
@@ -40,7 +105,7 @@ export function useExcerptReveal(
   const [settledKey, setSettledKey] = useState(key)
   const [reduced, setReduced] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const previousKey = useRef(key)
-  const previous = useRef<Snapshot | null>(null)
+  const previousContent = useRef(content)
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
@@ -59,40 +124,14 @@ export function useExcerptReveal(
       setSettledKey(key)
       return
     }
-    const incoming = lineLayer(snapshot(text, node))
-    const outgoing = lineLayer(previous.current ?? snapshot(text, node))
-    outgoing.classList.add('is-shown', 'thread-card-reveal-previous')
-    node.append(outgoing, incoming)
-    node.dataset.bufferTransitioning = 'texts'
-    const opacity = text.style.opacity
-    text.style.opacity = '0'
-    void incoming.offsetHeight
-    incoming.classList.add('is-shown')
-    outgoing.classList.remove('is-shown')
-    outgoing.classList.add('is-hiding')
-    const animations = [...incoming.getAnimations({ subtree: true }), ...outgoing.getAnimations({ subtree: true })]
-    let disposed = false
-    const restore = (): void => {
-      outgoing.remove()
-      incoming.remove()
-      text.style.opacity = opacity
-      delete node.dataset.bufferTransitioning
-    }
-    void Promise.all(animations.map(animation => animation.finished)).then(() => {
-      if (disposed) return
-      restore()
-      setSettledKey(key)
-    }).catch(() => { /* A newer message or unmount cancelled this reveal. */ })
-    return () => {
-      disposed = true
-      animations.forEach(animation => animation.cancel())
-      restore()
-    }
+    const job: Reveal = { node, text, previousContent: previousContent.current,
+      cancelled: false, settled: () => setSettledKey(key) }
+    if (!pending.size) queueMicrotask(flushReveals)
+    pending.add(job)
+    return () => { job.cancelled = true; pending.delete(job); job.restore?.() }
     // Settling must not restart the boundary animation.
   }, [excerpt, body, key, reduced])
 
-  useLayoutEffect(() => {
-    if (body.current && excerpt.current) previous.current = snapshot(body.current, excerpt.current)
-  }, [content, body, excerpt])
+  useLayoutEffect(() => { previousContent.current = content }, [content])
   return settledKey === key
 }

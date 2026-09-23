@@ -12,11 +12,57 @@ import type { OverviewCameraMemory } from '../src/renderer/src/overview-motion/c
 import { getOverviewMotionCoordinator } from '../src/renderer/src/overview-motion/coordinator'
 import { layoutOverview, LayoutSearchLimitError } from '../src/renderer/src/overview-layout'
 import type { OverviewLayoutPlanningState } from '../src/renderer/src/overview-layout-planner'
+import type { OverviewLayoutRequest, OverviewLayoutResponse } from '../src/renderer/src/overview-layout-worker'
 import type { RendererReport } from '../src/shared/renderer-state-contracts'
 import { createOverviewOrchestrationStore } from '../src/renderer/src/overview-orchestration-store'
 import { fitOverviewCanvasTransform } from '../src/shared/thread-overview-canvas'
 
-afterEach(() => { cleanup(); document.body.replaceChildren(); vi.restoreAllMocks(); vi.useRealTimers() })
+afterEach(() => { cleanup(); document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers() })
+
+it('plans queued revisions against the preceding presented layout and cancels a pending scene', async () => {
+  const workers: DelayedWorker[] = []
+  class DelayedWorker {
+    onmessage?: ((event: MessageEvent<OverviewLayoutResponse>) => void) | null
+    onerror?: ((event: { message: string }) => void) | null
+    request!: OverviewLayoutRequest
+    terminate = vi.fn()
+    constructor() { workers.push(this) }
+    postMessage(value: OverviewLayoutRequest) { this.request = value }
+    finish() {
+      const { previous, next, geometry } = this.request
+      const plan = layoutOverview(previous, next, geometry)
+      this.onmessage?.({ data: { plan } } as MessageEvent<OverviewLayoutResponse>)
+      return plan
+    }
+  }
+  vi.stubGlobal('Worker', DelayedWorker)
+  const reports = makeReports(4)
+  const common = { threads: [], motionSceneKey: 'all', transitionId: null,
+    interrupt: async () => {}, respond: async () => {}, onSelect: () => {} }
+  const view = render(<ConversationOverview {...common} reports={reports.slice(0, 1)} />)
+  view.rerender(<ConversationOverview {...common} reports={reports.slice(0, 2)} />)
+  await waitFor(() => expect(workers).toHaveLength(1))
+  view.rerender(<ConversationOverview {...common} reports={reports.slice(0, 3)} />)
+  expect(workers).toHaveLength(1)
+  expect(document.querySelectorAll('[data-overview-card-id]')).toHaveLength(1)
+  let firstPlan!: ReturnType<typeof layoutOverview>
+  await act(async () => { firstPlan = workers[0]!.finish() })
+  await waitFor(() => expect(workers).toHaveLength(2))
+  expect(workers[1]!.request.previous).toEqual(firstPlan.placements)
+  expect(document.querySelectorAll('[data-overview-card-id]')).toHaveLength(2)
+  await act(async () => { workers[1]!.finish() })
+  await waitFor(() => expect(document.querySelectorAll('[data-overview-card-id]')).toHaveLength(3))
+  await waitFor(() => expect(getOverviewMotionCoordinator().stageBusy).toBe(false))
+  view.rerender(<ConversationOverview {...common} reports={reports} />)
+  await waitFor(() => expect(workers).toHaveLength(3))
+  const staleResponse = workers[2]!.onmessage!
+  view.rerender(<ConversationOverview {...common} motionSceneKey="filtered" reports={reports.slice(0, 1)} />)
+  expect(workers[2]!.terminate).toHaveBeenCalledTimes(1)
+  await act(async () => { staleResponse({ data: { error: 'late result from old scene' } } as MessageEvent<OverviewLayoutResponse>) })
+  expect(document.querySelectorAll('[data-overview-card-id]')).toHaveLength(1)
+  expect(view.queryByRole('alert')).toBeNull()
+  await waitFor(() => expect(getOverviewMotionCoordinator().stageBusy).toBe(false))
+})
 
 it('binds the camera when the first card arrives and when filtering replaces its plane', async () => {
   for (const [property, size] of [['clientWidth', 1000], ['clientHeight', 800], ['offsetWidth', 360], ['offsetHeight', 200]] as const) {
