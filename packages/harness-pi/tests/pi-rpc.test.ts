@@ -133,8 +133,54 @@ describe('Pi RPC subprocess protocol', () => {
   })
 
   it('bounds a silent version probe', async () => {
-    await expect(getPiVersion({ executablePath: fixture, cwd: process.cwd(), env: { ...process.env, PI_RPC_FIXTURE_VERSION_HANG: '1' }, signal: new AbortController().signal })).rejects.toThrow('version could not be verified')
-  }, 8_000)
+    await expect(getPiVersion({ executablePath: fixture, cwd: process.cwd(), env: { ...process.env, PI_RPC_FIXTURE_VERSION_HANG: '1' }, signal: new AbortController().signal })).rejects.toThrow('version probe timed out after 15000 ms')
+  }, 20_000)
+
+  it('accepts a supported version after a cold start longer than five seconds', async () => {
+    await expect(getPiVersion({ executablePath: fixture, cwd: process.cwd(), env: { ...process.env, PI_RPC_FIXTURE_VERSION_DELAY: '5500' }, signal: new AbortController().signal })).resolves.toBe('0.83.0')
+  }, 20_000)
+
+  it.each([
+    ['PI_RPC_FIXTURE_VERSION_ERROR', 'exited with code 1'],
+    ['PI_RPC_FIXTURE_VERSION_SIGNAL', 'terminated by SIGTERM'],
+    ['PI_RPC_FIXTURE_VERSION_OVERSIZED', 'exceeded the 1024-byte output limit']
+  ])('reports %s without exposing process output or suggesting reinstall', async (mode, message) => {
+    const error = await getPiVersion({ executablePath: fixture, cwd: process.cwd(), env: { ...process.env, [mode]: '1' }, signal: new AbortController().signal }).catch(error => error)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toContain(message)
+    expect(error.message).not.toMatch(/SECRET|install Pi/)
+    expect(error.cause).toBeUndefined()
+  })
+
+  it('retries a failed probe instead of caching the failure', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'pi-version-retry-'))
+    const marker = join(directory, 'probes.log')
+    const options = { executablePath: fixture, cwd: process.cwd(), env: { ...process.env, PI_RPC_FIXTURE_VERSION_ERROR: '1', PI_RPC_FIXTURE_VERSION_MARKER: marker }, signal: new AbortController().signal }
+    try {
+      await expect(getPiVersion(options)).rejects.toThrow('exited with code 1')
+      await expect(getPiVersion(options)).rejects.toThrow('exited with code 1')
+      expect(await probes(marker)).toBe(2)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('cancels one waiter without cancelling another caller sharing the probe', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'pi-version-shared-'))
+    const marker = join(directory, 'probes.log')
+    const options = { executablePath: fixture, cwd: process.cwd(), env: { ...process.env, PI_RPC_FIXTURE_VERSION_DELAY: '100', PI_RPC_FIXTURE_VERSION_MARKER: marker } }
+    const controller = new AbortController()
+    try {
+      const first = getPiVersion({ ...options, signal: controller.signal })
+      const second = getPiVersion({ ...options, signal: new AbortController().signal })
+      controller.abort()
+      await expect(first).rejects.toThrow('cancelled')
+      await expect(second).resolves.toBe('0.83.0')
+      expect(await probes(marker)).toBe(1)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 
   it('reads the version again for a caller asking about the installation as it is now', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'pi-version-refresh-'))

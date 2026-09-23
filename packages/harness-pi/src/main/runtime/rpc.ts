@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process'
+import { execFile, spawn, type ExecFileException } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { StringDecoder } from 'node:string_decoder'
 import type { Duplex } from 'node:stream'
@@ -31,6 +31,9 @@ type PiProcessOptions = {
  * against its own instead.
  */
 const VERSION_TTL_MS = 5 * 60 * 1_000
+// Several isolated prompts can cold-start the CLI together. Keep this within
+// discovery's 30-second budget without mistaking brief load for incompatibility.
+const VERSION_TIMEOUT_MS = 15_000
 const versionProbes = new Map<string, { at: number; probe: Promise<string> }>()
 
 /**
@@ -67,17 +70,35 @@ function probeVersion(executablePath: string, cwd: string, env: NodeJS.ProcessEn
   return new Promise<string>((resolve, reject) => {
     execFile(executablePath, ['--version'], {
       cwd, env, encoding: 'utf8',
-      timeout: 5_000, maxBuffer: 1_024, killSignal: 'SIGKILL', windowsHide: true
+      timeout: VERSION_TIMEOUT_MS, maxBuffer: 1_024, killSignal: 'SIGKILL', windowsHide: true
     }, (error, stdout) => {
       if (error) {
-        reject(new Error((error as NodeJS.ErrnoException).code === 'ENOENT' ? 'Pi CLI version probe could not start' :
-          'Pi CLI version could not be verified; install Pi 0.83.x so the detected executable reports a supported version'))
+        reject(versionProbeError(error))
       } else resolve(stdout.trim())
     })
   }).then(output => {
     if (!/^0\.83\.\d+$/.test(output)) throw new Error('Unsupported Pi CLI version; install Pi 0.83.x (tested with 0.83.0) for the required RPC completion protocol')
     return output
   })
+}
+
+function versionProbeError(error: ExecFileException): Error {
+  // Raw errors include the command and stderr, which may contain credentials.
+  // Keep only bounded process facts; installation advice belongs exclusively
+  // to a successfully read but unsupported version below the probe boundary.
+  if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+    return new Error('Pi CLI version probe exceeded the 1024-byte output limit')
+  }
+  if (error.killed && error.signal === 'SIGKILL') {
+    return new Error(`Pi CLI version probe timed out after ${VERSION_TIMEOUT_MS} ms; retry when the CLI can start`)
+  }
+  if (typeof error.code === 'number') {
+    return new Error(`Pi CLI version probe exited with code ${error.code}`)
+  }
+  if (error.signal) return new Error(`Pi CLI version probe terminated by ${error.signal}`)
+  if (error.code === 'ENOENT') return new Error('Pi CLI version probe could not start: executable or working directory is missing')
+  if (error.code === 'EACCES' || error.code === 'EPERM') return new Error('Pi CLI version probe could not start: permission denied')
+  return new Error('Pi CLI version probe could not start')
 }
 
 /** Environment values may hold credentials, so only their digest is retained. */
