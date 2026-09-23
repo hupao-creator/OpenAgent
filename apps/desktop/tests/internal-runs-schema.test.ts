@@ -68,7 +68,7 @@ describe('internal model output boundaries', () => {
     expect(metadataSchema.required).toEqual(['title', 'emoji', 'tags'])
     expect(metadataSchema.additionalProperties).toBe(false)
     expect(metadataProperties.title).toMatchObject({ minLength: 1, maxLength: 60 })
-    expect(metadataProperties.tags).toMatchObject({ minItems: 1, maxItems: 3 })
+    expect(metadataProperties.tags).toMatchObject({ minItems: 1, maxItems: 1 })
     const autoSchema = buildAutoInterventionPrompt({ bartTranscript: [], threadStatus: null }).outputFormat.schema
     expect(autoSchema.required).toEqual(['decision', 'response', 'reason'])
     expect(autoSchema.additionalProperties).toBe(false)
@@ -108,13 +108,26 @@ describe('internal model output boundaries', () => {
     }
   })
 
-  it('parses valid metadata and normalizes title and tag-pool choices', () => {
+  it('normalizes metadata and reuses the first valid tag without adding extra candidates to the pool', () => {
     expect(validated(metadata({ title: '  ## Query **planner**  ', tags: [
       { name: 'existing', description: '' },
       { name: '# Database', description: ' Database\n query planning ' },
       { name: 'DATABASE', description: 'Duplicate' }
     ] }))).toEqual({
-      title: 'Query planner', emoji: '🔍', tags: ['Existing', 'Database'],
+      title: 'Query planner', emoji: '🔍', tags: ['Existing'],
+      tagPool: input.tagPool
+    })
+  })
+
+  it('skips invalid candidates and adds only the first valid new tag to the pool', () => {
+    expect(validated(metadata({ tags: [
+      { name: 'Development', description: 'Broad category' },
+      { name: 'project', description: 'Workspace name' },
+      { name: 'Invalid', description: '' },
+      { name: '# Database', description: ' Database\n query planning ' },
+      { name: 'SQL', description: 'SQL query syntax' }
+    ] }))).toEqual({
+      title: 'Query planner', emoji: '🔍', tags: ['Database'],
       tagPool: [...input.tagPool, { name: 'Database', description: 'Database query planning' }]
     })
   })
@@ -179,7 +192,7 @@ describe('internal model output boundaries', () => {
     }).title).toBe(ATTACHMENT_ONLY_THREAD_TITLE)
   })
 
-  it('counts metadata title/tag/description Unicode code points and keeps valid tags up to three', () => {
+  it('counts metadata title/tag/description Unicode code points and keeps only one valid tag', () => {
     const astral = '𠮷'
     expect(validated(metadata({ title: astral.repeat(60), tags: [
       { name: astral.repeat(32), description: astral.repeat(120) },
@@ -187,7 +200,7 @@ describe('internal model output boundaries', () => {
       { name: 'Indexing', description: 'Database indexes' },
       { name: 'Storage', description: 'Storage format' }
     ] }))).toMatchObject({
-      title: astral.repeat(60), tags: [astral.repeat(32), 'SQL', 'Indexing']
+      title: astral.repeat(60), tags: [astral.repeat(32)]
     })
     expect(validated(metadata({ title: astral.repeat(61) })).title).toBe(PLACEHOLDER_TITLE)
     expect(validated(metadata({ tags: [{ name: astral.repeat(33), description: 'Too long' }] })).tags)

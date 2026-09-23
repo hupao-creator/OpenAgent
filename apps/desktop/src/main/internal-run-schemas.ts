@@ -9,7 +9,7 @@ import {
 export const MAX_THREAD_TITLE_LENGTH = 60
 export const MAX_THREAD_TAG_LENGTH = 32
 export const MAX_THREAD_TAG_DESCRIPTION_LENGTH = 120
-export const MAX_THREAD_SEMANTIC_TAGS = 3
+export const MAX_THREAD_SEMANTIC_TAGS = 1
 export const MAX_AUTO_INTERVENTION_REASON_LENGTH = 240
 
 export const GeneratedThreadTagSchema = z.strictObject({
