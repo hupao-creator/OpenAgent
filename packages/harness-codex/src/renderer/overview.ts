@@ -1,4 +1,3 @@
-import type { HarnessOverviewDisplayPolicy } from '@openagent/contracts/renderer'
 import type {
   HarnessOverviewProjection,
   HarnessRendererThreadInput
@@ -47,7 +46,6 @@ export interface CodexOverviewView {
 /** Codex-private state projection; Core receives only the opaque presentation result. */
 export function projectCodexOverview(
   input: HarnessRendererThreadInput & {
-    readonly displayPolicy?: HarnessOverviewDisplayPolicy
     readonly layout: { readonly availableColumns: number }
   }
 ): HarnessOverviewProjection<CodexOverviewView> {
@@ -73,7 +71,7 @@ export function projectCodexOverview(
     publicInteractionsByNativeId
   )
   const presentation = composeThreadCard(projection, {
-    displayPolicy: input.displayPolicy, availableCols: input.layout.availableColumns
+    availableCols: input.layout.availableColumns
   })
   const status = codexOverviewStatus(turn)
   // Inherited history supplies a preview until the child starts its own work.

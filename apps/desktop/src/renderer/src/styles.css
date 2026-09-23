@@ -128,17 +128,6 @@
   background: light-dark(#efeee9, #292b25);
 }
 
-/* auto 放行聚合：低对比、无背景/边框/动画，99+ 封顶控制宽度；最近摘要只在 title/aria 中 */
-.bart-auto-approval-summary {
-  flex: 0 0 auto;
-  color: var(--faint);
-  font-size: 9px;
-  font-weight: 400;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .platform-darwin .workspace-header {
   padding-left: 94px;
 }

@@ -2,7 +2,6 @@ import { ResidentCharacter } from './resident-character'
 import { createMotionState, seatDescriptor, interactionDescriptor, renderMotionFrame, applyDescriptor,
   snapMotionToTargets, poseOf, adoptPose, BODY_COLOR, EYE_COLOR, type BartElements, type MotionPart } from './character-model'
 import type { CharacterDescription } from './worker-types'
-import { paintInterventionTokens, transformInterventionBody } from './intervention-canvas'
 import { paintTravelTrail } from './travel-trail'
 import { CAPSULE_DOT_AT, LAUNCH_DURATION, launchBodyOffset, sampleLaunch, sampleLaunchCapsule } from './launch-story'
 import { RUNNING_BEAT_MS, RUNNING_DOT_RADIUS, sampleRunningStory } from './running-story'
@@ -10,7 +9,6 @@ import { RUNNING_BEAT_MS, RUNNING_DOT_RADIUS, sampleRunningStory } from './runni
 interface CharacterSeed {
   state: ReturnType<typeof createMotionState>
   changedAt: number
-  interventionAt: number
   eyeMotionAt: number
   travelTrailAt: number
   runningElapsed: number
@@ -54,14 +52,14 @@ function transform(ctx: OffscreenCanvasRenderingContext2D, value: string | null)
 }
 
 const descriptorFor = (value: CharacterDescription) => value.layout === 'permission' || value.layout === 'question'
-  ? interactionDescriptor(value.layout) : seatDescriptor(value.activity, value.phase, value.intervention)
+  ? interactionDescriptor(value.layout) : seatDescriptor(value.activity, value.phase)
 const keyOf = (value: CharacterDescription): string => value.key ?? `${value.activity}:${value.phase}`
 
 /** Everything `descriptorFor` and `applyDescriptor` read. A change here is a new
  * semantic state — a change to the eye track is not. */
 function samePose(left: CharacterDescription, right: CharacterDescription): boolean {
   return left.key === right.key && left.activity === right.activity && left.phase === right.phase
-    && left.layout === right.layout && left.intervention === right.intervention
+    && left.layout === right.layout
     && left.animate === right.animate && left.role === right.role && left.launch?.key === right.launch?.key
 }
 
@@ -71,22 +69,21 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
   let state = seed?.state ?? createMotionState(keyOf(initial), descriptorFor(initial), initial.layout ?? 'mark')
   state.restBetweenGestures = true
   let changedAt = seed?.changedAt ?? performance.now()
-  let interventionAt = seed?.interventionAt ?? changedAt
   let eyeMotionAt = seed?.eyeMotionAt ?? changedAt
   let travelTrailAt = seed?.travelTrailAt ?? changedAt
   let runningElapsed = seed?.runningElapsed ?? 0
   let runningPaintAt = seed?.runningPaintAt ?? changedAt
   const acceptsResident = (value: CharacterDescription): boolean => !!value.resident &&
-    (value.layout ?? 'mark') === 'mark' && !value.intervention
+    (value.layout ?? 'mark') === 'mark'
   let resident = seed?.resident ?? (acceptsResident(initial) ? new ResidentCharacter(initial.resident!, changedAt) : undefined)
   const running = (): boolean => description.role === 'running' && description.phase === 'running'
-    && (description.layout ?? 'mark') === 'mark' && !description.intervention
+    && (description.layout ?? 'mark') === 'mark'
   const parts = { body: new CanvasPart(), satellite: new CanvasPart(), leftEye: new CanvasPart(),
     rightEye: new CanvasPart(), thoughtDot: new CanvasPart(), bot: new CanvasPart(),
     orbits: new CanvasPart(), orbitEllipses: Array.from({ length: 5 }, () => new CanvasPart()) } satisfies BartElements
   return {
     capture: () => resident?.capture(poseOf(state)) ?? poseOf(state),
-    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, interventionAt, eyeMotionAt, travelTrailAt, runningElapsed, runningPaintAt, resident: resident?.clone() }),
+    fork: () => createCanvasCharacter(description, { state: structuredClone(state), changedAt, eyeMotionAt, travelTrailAt, runningElapsed, runningPaintAt, resident: resident?.clone() }),
     description: () => description,
     update(value: CharacterDescription): void {
       const now = performance.now()
@@ -100,7 +97,6 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       }
       if (description.eyeMotion?.key !== value.eyeMotion?.key) eyeMotionAt = performance.now()
       if (description.travelTrail?.key !== value.travelTrail?.key) travelTrailAt = performance.now()
-      if (description.intervention !== value.intervention || description.key !== value.key) interventionAt = performance.now()
       // An eye-track update is not a new semantic state: restamping the clock
       // would re-arm nextWake's follow window and repaint at frame rate for it.
       const poseUnchanged = samePose(description, value) && wasResident === Boolean(resident)
@@ -122,7 +118,6 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
       if (description.animate === false) return Infinity
       if (resident) return resident.nextWake(now)
       if (running()) return now
-      if ((description.layout ?? 'mark') === 'mark' && description.intervention === 'processing') return now
       if (description.eyeMotion && now - eyeMotionAt < description.eyeMotion.duration) return now
       if (description.travelTrail && now - travelTrailAt < description.travelTrail.duration) return now
       if (state.orbitActive || now - changedAt < 1800 || now - state.blinkStarted < 1400 ||
@@ -179,11 +174,6 @@ export function createCanvasCharacter(initial: CharacterDescription, seed?: Char
         ctx.restore()
       }
       ctx.restore()
-      if (state.layout === 'mark') {
-        const elapsed = description.animate === false ? (description.intervention === 'processing' ? 0 : 2000) : now - interventionAt
-        paintInterventionTokens(ctx, description.intervention, elapsed)
-        if (description.animate !== false) transformInterventionBody(ctx, description.intervention, elapsed)
-      }
       ctx.save()
       if (launch && intro && !intro.running) {
         const offset = launchBodyOffset(launch, runningElapsed)

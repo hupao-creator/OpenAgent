@@ -91,7 +91,6 @@ async function runTrial({ id, root, variantMain }) {
         ...before.settings.bart,
         hostHarnessPreference: 'codex',
         targetHarnessIds: ['codex'],
-        autoIntervention: false,
         routingGuidance: null
       }
     }

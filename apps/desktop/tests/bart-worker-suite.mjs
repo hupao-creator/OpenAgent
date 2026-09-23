@@ -24,7 +24,7 @@ run(process.execPath, ['tests/bart-regressions.electron.mjs'])
 run(process.execPath, ['tests/bart-handoff.electron.mjs'])
 for (const scenario of [
   ['0', '1500'],
-  ['2000', '2600'], ['5000', '1500'], ['--residents'],
+  ['2000', '2600'], ['5000', '1500'],
   ['--message', '2000'], ['--message', '5000'],
   ['--generation', '2000', '2500'], ['--generation', '5000', '1400'],
   ['--generation', '2000', 'relay'],

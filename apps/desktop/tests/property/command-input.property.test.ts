@@ -328,7 +328,6 @@ const structuredCommands: readonly {
       bart: {
         hostHarnessPreference: 'codex',
         targetHarnessIds: [],
-        autoIntervention: false,
         routingGuidance: null
       },
       harnesses: {}

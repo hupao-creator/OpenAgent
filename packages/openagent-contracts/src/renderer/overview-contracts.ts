@@ -16,14 +16,8 @@ export interface HarnessOverviewEnvelope {
   readonly excerpt: string
 }
 
-/** Core presentation policy; does not alter pending requests or Thread detail. */
-export interface HarnessOverviewDisplayPolicy {
-  readonly hideInterventions: boolean
-}
-
 /** Immutable Core facts supplied to one Harness overview projector. */
 export interface HarnessOverviewThreadInput {
-  readonly displayPolicy?: HarnessOverviewDisplayPolicy
   readonly thread: DeepReadonly<AgentThreadRecord>
 }
 

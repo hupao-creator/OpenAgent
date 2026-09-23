@@ -73,7 +73,7 @@ export const piOverviewCardModule: HarnessOverviewCardModule<PiOverviewView> = {
         step: todo.text, status: todo.done ? 'completed' : 'pending'
       })) })
     }
-    const presentation = composeThreadCard({ kind: 'standard', identity: usage ? { usage } : {}, extensions }, { displayPolicy: input.displayPolicy, availableCols: input.layout.availableColumns })
+    const presentation = composeThreadCard({ kind: 'standard', identity: usage ? { usage } : {}, extensions }, { availableCols: input.layout.availableColumns })
     return { footprint: { columns: presentation.size.cols, rows: presentation.size.rows }, structureKey: presentation.key, excerpt,
       view: { presentation, excerpt, message, model: [settings.provider, settings.model].filter(Boolean).join('/') || 'Pi', status: latest?.status || 'idle', pendingInteractionId: pending?.id } }
   },

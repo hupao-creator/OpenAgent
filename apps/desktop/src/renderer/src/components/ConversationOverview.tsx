@@ -1581,7 +1581,6 @@ export const HarnessThreadOverviewCard = memo(function HarnessThreadOverviewCard
       <ThreadCardAnchorProvider register={registerSemanticAnchor}>
         <ThreadCardFollowUpProvider onOpen={props.followUpBlocked || thread.archived ? null : openFollowUp}>
           <HarnessOverviewCardHost
-            displayPolicy={props.source.displayPolicy}
             actions={actions}
             availableColumns={props.availableColumns}
             envelope={motionEnvelope}

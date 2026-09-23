@@ -1,5 +1,4 @@
 import type { ComponentType } from 'react'
-import type { HarnessOverviewDisplayPolicy } from './overview-contracts.js'
 import type { HarnessBartPresentation } from './bart-presentation.js'
 import type {
   DeepReadonly,
@@ -65,7 +64,6 @@ export interface HarnessOverviewCardModule<OverviewView> {
   readonly executionTokenUsage?: (thread: DeepReadonly<HarnessThreadRecord>, executionId: string) =>
     { readonly value: string; readonly count: number; readonly suffix: string } | undefined
   project(input: HarnessRendererThreadInput & {
-    readonly displayPolicy?: HarnessOverviewDisplayPolicy
     readonly layout: { readonly availableColumns: number }
   }): HarnessOverviewProjection<OverviewView>
   readonly Card: ComponentType<

@@ -51,7 +51,6 @@ export function createDefaultOpenAgentSettings(): OpenAgentSettings {
     bart: {
       hostHarnessPreference: 'auto',
       targetHarnessIds: [...HARNESS_IDS],
-      autoIntervention: true,
       routingGuidance: null
     },
     harnesses

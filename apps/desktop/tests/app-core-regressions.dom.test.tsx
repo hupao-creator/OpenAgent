@@ -168,11 +168,11 @@ vi.mock('../src/renderer/src/components/BartDock', () => ({
 }))
 vi.mock('../src/renderer/src/harness-composition', () => ({
   harnessRendererTranslations: {},
-  projectHarnessOverviewThread: vi.fn(({ thread, displayPolicy }: { readonly thread: { readonly id: string }; readonly displayPolicy?: { readonly hideInterventions: boolean } }) => ({
+  projectHarnessOverviewThread: vi.fn(({ thread }: { readonly thread: { readonly id: string } }) => ({
     thread,
     envelope: {
       footprint: { columns: 1, rows: 1 },
-      structureKey: `thread:${thread.id}:${(thread as AgentThreadRecord).title}${displayPolicy?.hideInterventions === false ? ':interactive' : ''}`,
+      structureKey: `thread:${thread.id}:${(thread as AgentThreadRecord).title}`,
       excerpt: ''
     }
   })),
@@ -461,28 +461,10 @@ describe('App Renderer Core regressions', () => {
     expect(document.querySelector('.app-shell')).toHaveAttribute('data-state-revision', '3')
   })
 
-  it('captures settings-only display policy switches in one React batch', async () => {
+  it('keeps overview projections stable when only locale changes', async () => {
     const fixture = installApi(appState(false))
     render(<App />)
     await screen.findByText('overview')
-    const originalThreads = fixture.current().threads
-    act(() => {
-      for (const autoIntervention of [false, true]) {
-        const current = fixture.current()
-        fixture.emit({ ...current, revision: current.revision + 1,
-          settings: { ...current.settings, bart: { ...current.settings.bart, autoIntervention } }
-        })
-      }
-    })
-    const props = vi.mocked(ConversationOverview).mock.calls.at(-1)![0]
-    expect(props.layoutRevisions?.map((revision) => revision.snapshot.items.find(
-      (item) => item.kind === 'card' && item.entityId === 'agent'
-    ))).toEqual([
-      expect.objectContaining({ structureKey: 'thread:agent:Agent:interactive' }),
-      expect.objectContaining({ structureKey: 'thread:agent:Agent' })
-    ])
-    expect(fixture.current().threads).toBe(originalThreads)
-    expect(props.threads[0]?.displayPolicy).toEqual({ hideInterventions: true })
     const projections = vi.mocked(projectHarnessOverviewThread).mock.calls.length
     act(() => {
       const current = fixture.current()

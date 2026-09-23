@@ -133,7 +133,7 @@ describe('Core Renderer shell localization', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Bart' }))
     expect(screen.getByRole('radiogroup', { name: 'Coordinating agent' })).toBeVisible()
     expect(screen.getByRole('group', { name: 'Dispatchable threads' })).toBeVisible()
-    expect(screen.getByText('Automatic approvals and answers')).toBeVisible()
+    expect(screen.queryByRole('switch', { name: 'Automatic approvals and answers' })).not.toBeInTheDocument()
     expect(screen.getByText('Custom model routing guidance')).toBeVisible()
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ locale: 'en-US' })))

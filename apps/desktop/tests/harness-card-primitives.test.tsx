@@ -310,18 +310,17 @@ it('fits questions and combined extensions into one available column', () => {
   }
 })
 
-it('removes interventions before packing while preserving identity, plans and derived work', () => {
+it('keeps pending interventions alongside plans and derived work at every width', () => {
   const projection: ThreadCardProjection = { kind: 'standard', identity: {}, extensions: [
     { kind: 'intervention', intervention: { id: 'permission', title: 'Allow?', actions: [] } },
     { kind: 'todo', steps: [{ step: 'Check workspace', status: 'inProgress' }] },
     { kind: 'derived', rows: [{ id: 'bg', kind: 'task', label: 'Background', status: 'running', commandLine: false }] }
   ] }
-  const expected = { ...projection, extensions: projection.extensions.slice(1) }
   for (const availableCols of [1, 2, 3]) {
-    const hidden = composeThreadCard(projection, { availableCols, displayPolicy: { hideInterventions: true } })
-    expect(hidden).toEqual(composeThreadCard(expected, { availableCols }))
-    expect(composeThreadCard(projection, { availableCols, displayPolicy: { hideInterventions: false } }).projection)
-      .toEqual(projection)
+    const card = composeThreadCard(projection, { availableCols })
+    expect(card.projection).toEqual(projection)
+    expect(card.composition.kind).toBe('standard')
+    if (card.composition.kind !== 'standard') throw new Error('Expected standard composition')
+    expect(card.composition.placements.map(item => item.kind)).toContain('intervention')
   }
-  expect(projection.extensions).toHaveLength(3)
 })

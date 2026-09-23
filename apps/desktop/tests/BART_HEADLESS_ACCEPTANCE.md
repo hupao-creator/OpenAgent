@@ -5,9 +5,8 @@ This suite verifies the real control and observation chain:
 `bart:submit` → Bart tool call → Harness Plugin → native interaction →
 GUI `thread:interaction-respond` command → native completion.
 
-The headless suite disables Bart automatic intervention so it can exercise the
-manual response path deterministically. Delegated task responses use the same
-public command as the GUI. When Bart itself enters native permission waiting,
+The headless suite exercises explicit interaction responses. Delegated task
+responses use the same public command as the GUI. When Bart itself enters native permission waiting,
 the driver uses that command after rechecking that the Thread id is
 the current Bart host. The observed waiting state, selected public allow action,
 and command response are retained in each case's `host.interactions` evidence.

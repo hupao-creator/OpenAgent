@@ -74,7 +74,7 @@ export function CharacterCanvas({ width, height, description }: {
           .then(() => {
             if (!current || revision !== version) return
             svg.setAttribute('data-worker-ready', 'true')
-            if (config.resident && (config.layout ?? 'mark') === 'mark' && !config.intervention) svg.setAttribute('data-resident-ready', 'true')
+            if (config.resident && (config.layout ?? 'mark') === 'mark') svg.setAttribute('data-resident-ready', 'true')
             else svg.removeAttribute('data-resident-ready')
           }, failed)
       } catch { failed() }
@@ -111,7 +111,7 @@ export function CharacterCanvas({ width, height, description }: {
   useLayoutEffect(() => {
     refresh.current?.()
   }, [width, height, description.activity, description.phase, description.key, description.layout,
-    description.intervention, description.role, description.resident, description.animate, description.launch, description.viewport])
+    description.role, description.resident, description.animate, description.launch, description.viewport])
   return <foreignObject className="bart-worker-character" x={x} y={y} width={w} height={h} pointerEvents="none">
     <canvas ref={canvas} style={{ display: 'block', width: '100%', height: '100%' }} />
   </foreignObject>

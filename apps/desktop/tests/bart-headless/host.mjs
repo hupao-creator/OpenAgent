@@ -25,7 +25,6 @@ export async function configureHost(client, requestedHost, config) {
     bart: {
       ...before.settings.bart,
       hostHarnessPreference: requestedHost,
-      autoIntervention: false,
       routingGuidance: [
         `The headless host injection receipt is ${routingSecret}.`,
         'When an acceptance directive asks for the host injection receipt, use this exact value.',

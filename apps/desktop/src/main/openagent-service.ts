@@ -1,7 +1,6 @@
 import { RendererStatePublisher } from './services/renderer-state-publisher'
 import { mergeKnownDirectories } from './services/known-directories'
 import type { KnownDirectory } from '../shared/known-directory'
-import { AutoInterventionService } from './use-cases/auto-intervention-service'
 import { publicThreadEnvelope } from './use-cases/thread-observation'
 import { errorMessage } from './services/error-message'
 import { normalizeThreadResponse, type ThreadResponseCommand } from './use-cases/thread-response'
@@ -248,7 +247,6 @@ export class OpenAgentService {
   private readonly bartCommands = new SerialQueue()
   private readonly reports: ReportService
   private readonly metadata: ThreadMetadataService
-  private readonly autoIntervention: AutoInterventionService
   private readonly terminalEvents = new SerialQueue()
   private readonly agentCommands = new Map<string, SerialQueue>()
   private readonly agentInterruptRuns = new Map<string, Set<Promise<void>>>()
@@ -316,7 +314,6 @@ export class OpenAgentService {
         this.runAgentInterrupt(threadId, signal, cancellation, expectedExecutionId, allowDeleting),
       admit: (threadId, harnessId, signal) =>
         this.admitCurrentThreadExecution(threadId, harnessId, signal),
-      forgetIntervention: threadId => this.autoIntervention.forgetThread(threadId),
       releaseWorkspace: async thread => {
         if (thread.worktree?.native === false && thread.worktree.cwd) {
           await this.worktrees.unregisterOwnedWorktree({
@@ -326,42 +323,6 @@ export class OpenAgentService {
         }
       }
     })
-    this.autoIntervention = new AutoInterventionService({
-      operational: () => !this.shuttingDown && !this.clearingHistory,
-      enabled: () => this.store.read().settings.bart.autoIntervention,
-      pendingAdmissions: () => this.pendingBartUserAdmissions,
-      hasThread: threadId => this.store.read().threads.some(
-        thread => thread.id === threadId && isAgentThreadRecord(thread)),
-      readThread: threadId => readAgentThread(this.store.read(), threadId),
-      readBart: () => readBartThread(this.store.read())
-    }, {
-      openExecution: async threadId => (await this.agentInstance(threadId)).execution,
-      execution: threadId => this.agentInstances.get(threadId)?.execution,
-      activeThreadIds: () => [...this.agentInstances]
-        .filter(([, instance]) => instance.execution)
-        .map(([id]) => id),
-      withThread: (threadId, operation) => this.runAgentCommand(threadId, async () =>
-        operation(await this.agentInstance(threadId)))
-    }, {
-      run: operation => this.bartCommands.run(operation),
-      append: message => this.appendBartLocalSystemMessage(message)
-    },
-    async (harnessId, request) => {
-      // Automatic decisions are standalone prompts, not Bart Handle turns.
-      // Their settings are read fresh by completePrompt, including automatic
-      // Host fallback when a saved provider/model change removes availability.
-      const { settings, bartAppliedSettings: applied } = this.store.read()
-      const preference = settings.bart.hostHarnessPreference
-      const changedHostSettings = !applied ||
-        !sameJson(applied.harnesses[harnessId], settings.harnesses[harnessId])
-      const resolveHost = preference === 'auto' ? changedHostSettings : preference !== harnessId
-      const host = resolveHost
-        ? await this.resolveBartHost(settings, request.signal, harnessId)
-        : harnessId
-      request.signal.throwIfAborted()
-      return this.completePrompt(host, request)
-    },
-    error => this.reportFailure('auto-intervention', error))
     this.metadata = new ThreadMetadataService({
       readThread: threadId => readAgentThread(this.store.read(), threadId),
       readAgentThreads: () => this.agentRecords(),
@@ -567,9 +528,8 @@ export class OpenAgentService {
           this.store.read(),
           request.directoryTag
         )
-        // Claim authority before entering the shared Bart queue. An older auto
-        // decision may already be queued behind another operation and must observe
-        // this newer user input before it is allowed to respond.
+        // Track queued input before canonicalization so clearing cannot discard
+        // a user message that has not reached native admission yet.
         const admission = this.beginBartUserAdmission()
         try {
           const input = await this.attachments.canonicalizeInput(request.input)
@@ -654,7 +614,6 @@ export class OpenAgentService {
     this.cancelAllAgentSendClaims(ownershipLoss)
     this.bartUseCaseController.abort(new Error('OpenAgent history cleared'))
     this.metadata.cancel(new Error('OpenAgent history cleared'))
-    this.autoIntervention.cancel(new Error('OpenAgent history cleared'))
     this.bartThreadController?.abort(new Error('OpenAgent history cleared'))
     this.bartThreadController = undefined
     this.abortBartExecutionScopes(new Error('OpenAgent history cleared'))
@@ -700,7 +659,6 @@ export class OpenAgentService {
         await this.worktrees.clearOwnedWorktrees().catch(error =>
           this.reportFailure('managed-worktree-clear', error)
         )
-        this.autoIntervention.clearHistory()
         this.publisher.publish()
         }))
       )
@@ -711,7 +669,6 @@ export class OpenAgentService {
       await this.drainBackgroundRuns()
     } finally {
       this.metadata.resetAfterClear()
-      this.autoIntervention.resetAfterClear()
       this.agentCommands.clear()
       this.agentInterruptRuns.clear()
       this.forkingAgentThreads.clear()
@@ -894,20 +851,9 @@ export class OpenAgentService {
       throw new Error(`${harnessDescriptors[preference].displayName} 不支持 Bart Host`)
     }
     await this.bartCommands.run(async () => {
-      const previous = this.store.read().settings
       // Saving is a durable configuration boundary, never runtime admission.
       // bartAppliedSettings remains unchanged until the next relevant send.
       await this.commit({ type: 'replace-settings', settings: normalized })
-      if (sameJson(previous.bart, normalized.bart) &&
-          sameJson(previous.harnesses, normalized.harnesses)) return
-      if (previous.bart.autoIntervention && !normalized.bart.autoIntervention) {
-        this.autoIntervention.cancel(new Error('Bart auto intervention disabled'))
-      }
-      if (!previous.bart.autoIntervention && normalized.bart.autoIntervention) {
-        this.autoIntervention.renewAuthority()
-        this.autoIntervention.invalidateDecisions()
-        this.autoIntervention.requestActive()
-      }
     })
   }
 
@@ -1252,7 +1198,6 @@ export class OpenAgentService {
     this.cancelAllAgentSendClaims(ownershipLoss)
     this.bartUseCaseController.abort(new Error('OpenAgent Service shutting down'))
     this.metadata.close(new Error('OpenAgent Service shutting down'))
-    this.autoIntervention.close(new Error('OpenAgent Service shutting down'))
     this.bartThreadController?.abort(new Error('OpenAgent Service shutting down'))
     this.abortBartExecutionScopes(new Error('OpenAgent Service shutting down'))
     await capture('initialization-join', async () => {
@@ -1447,14 +1392,6 @@ export class OpenAgentService {
       enteredRuntime: admission.enteredRuntime,
       pendingCount: this.pendingBartUserAdmissions
     }))
-    if (this.pendingBartUserAdmissions === 0) {
-      // A decision invalidated while admission was pending must be rebuilt
-      // even when native admission rejects and the durable transcript stays
-      // unchanged; otherwise its previously consumed fingerprint suppresses
-      // the retry forever.
-      this.autoIntervention.invalidateDecisions()
-      this.autoIntervention.requestActive()
-    }
   }
 
   private async ensureBartThreadForUserAdmission(
@@ -3187,13 +3124,6 @@ export class OpenAgentService {
       ).catch(error => this.reportFailure('terminal-event', error))
       return
     }
-    if (
-      !this.shuttingDown &&
-      !this.clearingHistory &&
-      this.store.read().settings.bart.autoIntervention
-    ) {
-      this.autoIntervention.request(change.record.id)
-    }
   }
 
   private onBartCommitted(change: HarnessThreadCommitted): void {
@@ -3417,7 +3347,6 @@ export class OpenAgentService {
     this.bartOpening = undefined
     this.startupBartRecoveryEpoch += 1
     this.bartUseCaseController.abort(new Error('Bart Thread replaced'))
-    this.autoIntervention.cancel(new Error('Bart Thread replaced'))
     this.bartThreadController?.abort(new Error('Bart Thread replaced'))
     this.bartThreadController = undefined
     this.abortBartExecutionScopes(new Error('Bart Thread replaced'))
@@ -3447,9 +3376,6 @@ export class OpenAgentService {
       this.publisher.publish()
     } finally {
       this.bartUseCaseController = new AbortController()
-      this.autoIntervention.renewAuthority()
-      this.autoIntervention.invalidateDecisions()
-      this.autoIntervention.requestActive()
     }
   }
 
@@ -3482,9 +3408,6 @@ export class OpenAgentService {
     } finally {
       if (this.bartUseCaseController.signal.aborted) {
         this.bartUseCaseController = new AbortController()
-        this.autoIntervention.renewAuthority()
-        this.autoIntervention.invalidateDecisions()
-        this.autoIntervention.requestActive()
       }
     }
   }
@@ -3531,9 +3454,6 @@ export class OpenAgentService {
     this.bartOpening = undefined
     this.startupBartRecoveryEpoch += 1
     this.bartUseCaseController.abort(
-      new Error('Bart Thread composition changed')
-    )
-    this.autoIntervention.cancel(
       new Error('Bart Thread composition changed')
     )
     this.bartThreadController?.abort(new Error('Bart Thread composition changed'))
@@ -3889,10 +3809,7 @@ export class OpenAgentService {
   }
 
   private async drainBackgroundRuns(): Promise<void> {
-    await Promise.allSettled([
-      this.metadata.drainRuns(),
-      this.autoIntervention.drain()
-    ])
+    await this.metadata.drainRuns()
   }
 
   private reportFailure(kind: string, error: unknown): void {

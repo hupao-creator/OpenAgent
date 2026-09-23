@@ -4,7 +4,6 @@ import type { BartVisualOperation } from '../bart-visual-operation'
 export type BartLogoActivity = BartVisualOperation['kind'] | 'idle' | 'thinking' | 'tool'
 export type BartLogoPhase = BartVisualOperation['phase'] | 'idle'
 export type BartLogoLayout = 'mark' | 'message' | 'permission' | 'question'
-export type BartInterventionVisualState = 'processing' | 'allow' | 'deny' | 'answer'
 
 export type BartLogoExpression =
   | 'idle'
@@ -191,25 +190,6 @@ export function primaryOperation(
   return operations?.findLast((candidate) => candidate.phase === 'running') || operations?.at(-1)
 }
 
-export function interventionDescriptor(state: BartInterventionVisualState): BartDescriptor {
-  if (state === 'processing') {
-    return {
-      expression: 'deliberating',
-      shape: 'circle',
-      action: 'none',
-      thought: true,
-      orbit: false
-    }
-  }
-  if (state === 'allow') {
-    return { expression: 'happy', shape: 'circle', action: 'bounce', thought: false, orbit: false }
-  }
-  if (state === 'deny') {
-    return { expression: 'idle', shape: 'circle', action: 'none', thought: false, orbit: false }
-  }
-  return { expression: 'curious', shape: 'circle', action: 'bounce', thought: false, orbit: false }
-}
-
 export function interactionDescriptor(
   layout: Extract<BartLogoLayout, 'permission' | 'question'>
 ): BartDescriptor {
@@ -222,24 +202,13 @@ export function interactionDescriptor(
   }
 }
 
-/**
- * What a seat is showing, given what it is doing and anything it is waiting on
- * an answer for. The waiting outranks the doing: a seat answering a permission is
- * drawing the answer, not the operation underneath it. Both a seat and the copy
- * aimed at it come through here, so the rule lives in one place rather than being
- * spelled twice and drifting apart.
- */
+/** Shared descriptor for a seat and the character moving toward it. */
 export function seatDescriptor(
   activity: BartLogoActivity,
-  phase: BartLogoPhase,
-  interventionState?: BartInterventionVisualState
+  phase: BartLogoPhase
 ): BartDescriptor {
-  if (interventionState) return interventionDescriptor(interventionState)
   const descriptor = descriptorFor(activity, phase)
-  // Waiting on the model is the one pose where the wait is the whole of what Bart
-  // is doing, and the clock it blinks on belongs to that pose rather than to the
-  // activity that resolved it. An intervention answer outranks the activity it was
-  // asked about, so a Bart drawing one over a `thinking` activity waits on nothing.
+  // Model waiting owns its blink clock independently of the preceding activity.
   return activity === 'thinking' ? { ...descriptor, eagerBlink: true } : descriptor
 }
 

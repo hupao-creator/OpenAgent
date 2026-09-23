@@ -250,17 +250,14 @@ it('honors explicit execution navigation and never falls back from missing histo
   view.rerender(<I18nProvider locale="en-US"><PiThreadView thread={thread()} actions={a} readingTarget={{ requestId: 'read-2', executionId: 'missing', mode: 'history' }} /></I18nProvider>)
   expect(view.container.querySelector('.thread-detail-subpage')).toHaveTextContent(/unavailable/i)
 })
-it('projects waiting requests through shared overview cards and obeys intervention visibility', async () => {
+it('projects waiting requests through shared overview cards and accepts manual responses', async () => {
   const a = { ...actions(), openThread: vi.fn() }
   const waiting = thread({ executionId: 'second', startedAt: 3, status: 'waiting-for-user', interactions: [{ id: 'permission', kind: 'permission', title: 'Allow native action?', questions: [], actions: [{ id: 'yes', intent: 'allow', label: 'Allow action' }, { id: 'no', intent: 'deny', label: 'Deny action' }] }] })
   const projection = piOverviewCardModule.project({ thread: waiting, layout: { availableColumns: 2 } })
   const Card = piOverviewCardModule.Card
-  const view = render(<I18nProvider locale="en-US"><Card thread={waiting} projection={projection.view} actions={a} /></I18nProvider>)
+  render(<I18nProvider locale="en-US"><Card thread={waiting} projection={projection.view} actions={a} /></I18nProvider>)
   fireEvent.click(screen.getByRole('button', { name: 'Allow action' }))
   await waitFor(() => expect(a.respond).toHaveBeenCalledWith({ interactionId: 'permission', actionId: 'yes' }))
-  const hidden = piOverviewCardModule.project({ thread: waiting, layout: { availableColumns: 2 }, displayPolicy: { hideInterventions: true } })
-  view.rerender(<I18nProvider locale="en-US"><Card thread={waiting} projection={hidden.view} actions={a} /></I18nProvider>)
-  expect(screen.queryByRole('button', { name: 'Allow action' })).not.toBeInTheDocument()
 })
 
 it('preserves raw overview whitespace and marks the cut', () => {

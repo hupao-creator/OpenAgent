@@ -269,7 +269,6 @@ export const OpenAgentSettingsShellSchema = closedObject({
     hostHarnessPreference: z.string({ error: 'OpenAgent Bart Host Harness preference 无效' }),
     targetHarnessIds: commandArray(z.string({ error: 'OpenAgent Bart Target Harness 集合无效' }), 0, Infinity, 'OpenAgent Bart Target Harness 集合无效')
       .refine(value => new Set(value).size === value.length, 'OpenAgent Bart Target Harness 集合无效').readonly(),
-    autoIntervention: z.boolean({ error: 'OpenAgent Bart autoIntervention 无效' }),
     // Settings guidance historically permits embedded NUL; its own rule uses UTF-16 length.
     routingGuidance: z.string().nullable().transform(normalizeBartRoutingGuidance)
   }, 'OpenAgent Bart settings'),

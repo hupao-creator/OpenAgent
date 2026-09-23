@@ -61,10 +61,9 @@ function BartTransitionWorkspace(props: {
 
   const agentThreads = useRendererState((state) => state.agentThreads)
   const reports = useRendererState((state) => state.reports)
-  const settings = useRendererState((state) => state.settings)
   const threadInputs = useMemo(() => agentThreads.map((thread) => ({
-    thread, displayPolicy: { hideInterventions: settings.bart.autoIntervention }
-  })), [agentThreads, settings.bart.autoIntervention])
+    thread
+  })), [agentThreads])
 
   useEffect(() => {
     const url = new URL(location.href)

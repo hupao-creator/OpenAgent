@@ -224,8 +224,8 @@ function AppContent(): React.JSX.Element {
   )
   const allOverviewInputs = useMemo<HarnessOverviewThreadInput[]>(
     () => agentThreads.map((thread) => ({
-      thread, displayPolicy: { hideInterventions: settings.bart.autoIntervention }
-    })), [agentThreads, settings.bart.autoIntervention]
+      thread
+    })), [agentThreads]
   )
   const agentCatalog = useRendererAgentCatalog()
   const catalogThreadInputs = useMemo(
@@ -840,7 +840,7 @@ function projectOverviewAggregate(
 ): ProjectedOverviewAggregate {
   const inputs = state.threads.flatMap((thread): HarnessOverviewThreadInput[] =>
     isBartThread(thread) ? [] : [{
-      thread, displayPolicy: { hideInterventions: state.settings.bart.autoIntervention }
+      thread
     }]
   )
   const selected = selectOverviewItems(inputs, state.reports, view.view, view.selectedTags)

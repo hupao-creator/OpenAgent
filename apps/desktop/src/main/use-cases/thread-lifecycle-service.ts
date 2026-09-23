@@ -19,7 +19,6 @@ interface ThreadLifecycleRuntime<Cancellation> {
   interrupt(threadId: string, signal: AbortSignal, cancellation: Cancellation,
     expectedExecutionId: string | null, allowDeleting?: boolean): Promise<void>
   admit(threadId: string, harnessId: string, signal: AbortSignal): Promise<unknown>
-  forgetIntervention(threadId: string): void
   releaseWorkspace(thread: DeepReadonly<AgentThreadRecord>): Promise<void>
 }
 
@@ -37,7 +36,6 @@ export class ThreadLifecycleService<Cancellation> {
   reserveDeletion(threadId: string): () => void {
     if (this.deleting.has(threadId)) throw new Error(`Agent Thread 正在删除: ${threadId}`)
     this.deleting.add(threadId)
-    this.runtime.forgetIntervention(threadId)
     return () => this.deleting.delete(threadId)
   }
 

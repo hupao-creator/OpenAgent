@@ -311,8 +311,8 @@ function printHelp() {
   console.log(`Usage: node tests/bart-headless-acceptance.mjs [options]
 
 Runs real Bart -> Harness -> native interaction -> GUI response acceptance
-cases. No fake Harness or transport is used. Automatic intervention is disabled
-so delegated targets and the Bart host use the public GUI response command.
+cases. No fake Harness or transport is used. Delegated targets and the Bart
+host use the public GUI response command for pending interactions.
 Each worker owns one isolated headless process.
 
 Options:

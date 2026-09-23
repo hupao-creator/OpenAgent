@@ -237,7 +237,7 @@ describe('Harness Renderer static composition', () => {
     view.rerender(
       <PresentationFixture defaultCwd="/tmp" harnessId="codex" load={load} settings={{
         ...initial,
-        bart: { ...initial.bart, autoIntervention: !initial.bart.autoIntervention },
+        bart: { ...initial.bart, routingGuidance: 'Changed Bart guidance' },
         harnesses: { ...initial.harnesses, claude: {
           ...initial.harnesses.claude, threadSettings: { model: 'other-model' }
         } }
