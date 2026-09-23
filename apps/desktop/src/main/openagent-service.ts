@@ -4068,8 +4068,8 @@ function withBartWorkspaceHint(
 ): readonly CollectedBartContextEntry[] {
   if (!hint) return entries
   const content = hint.cwds.length === 1
-    ? `The user's entire request concerns work in ${hint.cwds[0]}.`
-    : `The user's entire request concerns work in these directories:\n${hint.cwds.map(cwd => `- ${cwd}`).join('\n')}`
+    ? `The user's entire request concerns work in the directory ${JSON.stringify(hint.cwds[0])}.`
+    : `The user's entire request concerns work in these directories:\n${hint.cwds.map(cwd => `- ${JSON.stringify(cwd)}`).join('\n')}`
   const index = entries.findIndex((entry) => entry.id === 'workspace')
   if (index < 0) {
     return [...entries, { id: 'workspace' satisfies BartContextEntryId, content }]
