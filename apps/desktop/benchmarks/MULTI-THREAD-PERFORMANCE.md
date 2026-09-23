@@ -70,7 +70,9 @@ Browser font loading uses fallback fonts because the Electron-only
   to 2×2: 2,000,000 search steps took 113.9 ms while the UI delivered 14 animation
   frames. All 48 placements were returned with the enlarged footprint.
 - Filter regression preserves live survivors and clones only exiting cards;
-  interrupted, empty, reduced-motion and hidden-view behavior remains covered.
+  detached outgoing survivor nodes keep the pending frame visible until playback
+  owns the shared stage. Interrupted, empty, reduced-motion and hidden-view
+  behavior remains covered.
 - With `rendererBenchmark.startStreaming()` delivering eight updates every
   50 ms, real mouse dragging moved the Overview plane by the exact gesture
   delta (160, 50). Selecting a tag changed 48 cards to 12, with no hidden live
