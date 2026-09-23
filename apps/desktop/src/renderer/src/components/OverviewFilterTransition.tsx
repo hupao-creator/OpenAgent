@@ -4,6 +4,7 @@ import type { OverviewFilterMotion } from '../overview-motion/filter-motion'
 interface Props {
   selectionKey: string
   sceneKey: string
+  memberIds: readonly string[]
   enabled: boolean
   playbackRate: number
   viewport: RefObject<HTMLDivElement | null>
@@ -18,7 +19,7 @@ export class OverviewFilterTransition extends Component<Props, Record<string, ne
   getSnapshotBeforeUpdate(previous: Props): Start {
     const props = this.props
     if (props.enabled && previous.selectionKey !== props.selectionKey) {
-      return props.motion.capture(props.viewport.current, props.playbackRate)
+      return props.motion.capture(props.viewport.current, props.playbackRate, new Set(props.memberIds))
     }
     if (!props.enabled || previous.sceneKey !== props.sceneKey || previous.playbackRate !== props.playbackRate) props.motion.cancel()
     return null

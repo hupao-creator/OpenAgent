@@ -12,16 +12,24 @@ const displayItem = (activity: HarnessBartActivity): BartDisplayItem => ({
 
 /** Observe delivery synchronously; no React render is needed to accept an item. */
 export function connectBartDisplay(queue: BartDisplayQueue, store: RendererStateStore): () => void {
+  let previousThread: NormalizedRendererState['threadsById'][string] | undefined
+  let activity: HarnessBartActivity | null | undefined
   const receive = (state: NormalizedRendererState, mutation: RendererStateMutation | null): void => {
     const thread = state.bartThreadId ? state.threadsById[state.bartThreadId] : undefined
     const execution = thread?.observation.latestExecution
+    const events = mutation?.bartActivities?.filter(event => event.threadId === thread?.id &&
+      event.harnessId === thread?.harnessId && event.activity.executionId === execution?.executionId) ?? []
+    if (mutation && thread === previousThread && !events.length) return
+    // Private Harness projections decode the entire session. An unrelated
+    // Agent patch must not repeatedly parse an unchanged Bart history.
+    if (thread !== previousThread || mutation === null) {
+      activity = thread ? projectHarnessBartPresentation(thread)?.activity : null
+      previousThread = thread
+    }
     const scope = JSON.stringify([thread?.id, thread?.harnessId, execution?.executionId])
-    const activity = thread ? projectHarnessBartPresentation(thread)?.activity : null
     const latest = activity && activity.executionId === execution?.executionId ? displayItem(activity)
       : execution?.status === 'running' ? RUNNING_DISPLAY_ITEM : IDLE_DISPLAY_ITEM
     const input = { scope, status: execution?.status ?? null, latest }
-    const events = mutation?.bartActivities?.filter(event => event.threadId === thread?.id &&
-      event.harnessId === thread?.harnessId && event.activity.executionId === execution?.executionId) ?? []
     // The last dedicated call is an explicit catch-up boundary even if its
     // brief ownership began and ended inside one transport/React batch.
     const takeover = events.findLastIndex(event => event.activity.kind === 'tool-call' &&

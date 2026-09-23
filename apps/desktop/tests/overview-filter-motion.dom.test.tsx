@@ -88,6 +88,7 @@ it('animates the live survivors, keeps exits inert, and owns the shared stage un
   expect(motions.filter(motion => liveCards().includes(motion.element))).toHaveLength(2)
   expect(document.querySelector<HTMLElement>('.overview-filter-exits')?.inert).toBe(true)
   expect(document.querySelector('.overview-filter-exits [data-overview-card-id]')).toBeNull()
+  expect(document.querySelectorAll('.overview-filter-exits .report-overview-item')).toHaveLength(1)
   expect(document.querySelector<HTMLElement>('.thread-overview-scroll-content:not(.overview-filter-exits)')?.inert).toBe(true)
   expect(coordinator.stageBusy).toBe(true)
   let nextAcquired = false
@@ -112,6 +113,32 @@ it('captures pre-mutation screen geometry and compensates for the new camera sca
   expect(survivor.frames[0]!.transform).toBe('translate(-40px, -48px) scale(0.6, 0.6)')
   expect(survivor.frames.at(-1)!.transform).toBe('translate(0, 0) scale(1)')
   await settle()
+})
+
+it('retains detached survivor cards while waiting for the stage without cloning their subtrees', async () => {
+  const view = await mount()
+  const originals = new Map(liveCards().map(card => [card.dataset.overviewCardId, card]))
+  const cloneOne = vi.spyOn(originals.get('one')!, 'cloneNode')
+  const cloneThree = vi.spyOn(originals.get('three')!, 'cloneNode')
+  const lease = await getOverviewMotionCoordinator().acquireStage('test:hold-filter')
+  try {
+    await view.select('front')
+    const exits = document.querySelector<HTMLElement>('.overview-filter-exits')!
+    expect(document.querySelector('[data-overview-filter-motion]')?.getAttribute('data-overview-filter-motion')).toBe('pending')
+    expect(exits.querySelectorAll('.report-overview-item')).toHaveLength(3)
+    expect(exits.contains(originals.get('one')!)).toBe(true)
+    expect(exits.contains(originals.get('three')!)).toBe(true)
+    expect(exits.querySelector('[data-overview-card-id], [data-report-id], [id]')).toBeNull()
+    expect(exits.inert).toBe(true)
+    expect(cloneOne).not.toHaveBeenCalled()
+    expect(cloneThree).not.toHaveBeenCalled()
+    expect(liveCards().map(card => card.dataset.overviewCardId)).toEqual(['one', 'three'])
+    lease.release()
+    await act(async () => { await vi.advanceTimersByTimeAsync(40) })
+    expect(exits.querySelectorAll('.report-overview-item')).toHaveLength(1)
+    expect(originals.get('one')!.isConnected).toBe(false)
+    await settle()
+  } finally { lease.release() }
 })
 
 it('replaces interrupted work without letting old completions reveal or delete the latest view', async () => {

@@ -84,15 +84,16 @@ export class AutoInterventionService {
       !this.context.enabled()
     ) return
     this.dirty.add(threadId)
-    withDebugContext(ensureDebugContext({ threadId }), () => debugLog(
-      'bart.auto-intervention.queued',
-      { threadId, pendingBartUserAdmissions: this.context.pendingAdmissions() }
-    ))
     if (
       this.controller.signal.aborted ||
       this.context.pendingAdmissions() > 0 ||
       this.runs.has(threadId)
     ) return
+
+    withDebugContext(ensureDebugContext({ threadId }), () => debugLog(
+      'bart.auto-intervention.queued',
+      { threadId, pendingBartUserAdmissions: this.context.pendingAdmissions() }
+    ))
 
     const signal = this.controller.signal
     let tracked!: Promise<void>

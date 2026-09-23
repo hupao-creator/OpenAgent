@@ -32,12 +32,27 @@ function cardsIn(content: HTMLElement): Map<string, CardGeometry> {
     }))
 }
 
+function freezeCard(element: HTMLElement, geometry: CardGeometry): void {
+  element.removeAttribute('data-overview-card-id')
+  element.style.transform = geometry.transform
+  element.style.transformOrigin = geometry.transformOrigin
+  element.style.opacity = geometry.opacity
+}
+
+function stripSnapshotIdentity(exits: HTMLElement): void {
+  exits.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'))
+  exits.querySelectorAll('[data-report-id], [data-thread-id]').forEach(element => {
+    element.removeAttribute('data-report-id')
+    element.removeAttribute('data-thread-id')
+  })
+}
+
 /** Tag changes bridge old screen geometry to live cards in the new fitted Canvas. */
 export class OverviewFilterMotion {
   private run: FilterMotionRun | null = null
 
   /** Called by getSnapshotBeforeUpdate, while the outgoing React tree still exists. */
-  capture(viewport: HTMLElement | null, playbackRate = 1): (() => void) | null {
+  capture(viewport: HTMLElement | null, playbackRate = 1, nextIds?: ReadonlySet<string>): (() => void) | null {
     const content = viewport?.querySelector<HTMLElement>(':scope > .thread-overview-scroll-content:not(.overview-filter-exits)')
     if (!viewport || !content || !viewport.clientWidth || !viewport.clientHeight || document.hidden ||
       typeof HTMLElement.prototype.animate !== 'function' ||
@@ -50,32 +65,38 @@ export class OverviewFilterMotion {
     // a surviving card at its current screen position rather than its old destination.
     const before = cardsIn(content)
     const contentStyle = getComputedStyle(content)
-    const exits = content.cloneNode(true) as HTMLElement
+    const plane = content.querySelector<HTMLElement>('.thread-overview-plane')
+    const grid = plane?.querySelector<HTMLElement>('.thread-overview-grid')
+    // Survivors animate as live cards. Copy only exiting cards, preserving the
+    // grid/plane coordinate system without cloning every transcript and control.
+    const exits = content.cloneNode(!grid) as HTMLElement
+    let copiedGrid: HTMLElement | undefined
+    if (plane && grid) {
+      const copiedPlane = plane.cloneNode(false) as HTMLElement
+      copiedPlane.style.transform = getComputedStyle(plane).transform
+      copiedGrid = grid.cloneNode(false) as HTMLElement
+      for (const [id, geometry] of before) {
+        if (nextIds?.has(id)) continue
+        copiedGrid.append(geometry.element.cloneNode(true))
+      }
+      copiedPlane.append(copiedGrid)
+      exits.append(copiedPlane)
+    }
     exits.classList.add('overview-filter-exits')
     // Empty-state entry animates the content itself, so its interrupted frame
     // must be frozen before cancelling the previous run as well.
     exits.style.opacity = contentStyle.opacity
     exits.style.transform = contentStyle.transform
     exits.style.transformOrigin = contentStyle.transformOrigin
-    const plane = content.querySelector<HTMLElement>('.thread-overview-plane')
-    const copiedPlane = exits.querySelector<HTMLElement>('.thread-overview-plane')
-    if (plane && copiedPlane) copiedPlane.style.transform = getComputedStyle(plane).transform
     const copies = exits.querySelectorAll<HTMLElement>('[data-overview-card-id]')
     for (const copy of copies) {
       const id = copy.dataset.overviewCardId!
       const geometry = before.get(id)
-      copy.removeAttribute('data-overview-card-id')
       if (!geometry) { copy.remove(); continue }
-      copy.style.transform = geometry.transform
-      copy.style.transformOrigin = geometry.transformOrigin
-      copy.style.opacity = geometry.opacity
+      freezeCard(copy, geometry)
       before.set(id, { ...geometry, element: copy })
     }
-    exits.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'))
-    exits.querySelectorAll('[data-report-id], [data-thread-id]').forEach(element => {
-      element.removeAttribute('data-report-id')
-      element.removeAttribute('data-thread-id')
-    })
+    stripSnapshotIdentity(exits)
     exits.setAttribute('aria-hidden', 'true')
     exits.inert = true
     this.cancel()
@@ -86,7 +107,25 @@ export class OverviewFilterMotion {
     this.run = run
     viewport.append(exits)
     viewport.dataset.overviewFilterMotion = 'pending'
-    return () => { if (this.run === run) void this.play(run) }
+    return () => {
+      if (this.run !== run) return
+      // The keyed React content has now unmounted, before the next paint. Keep
+      // its detached survivor nodes visible while the live content is hidden
+      // pending the stage lease. Adopting them avoids copying those subtrees.
+      // Callers that retain their source tree get an independent copy instead.
+      if (copiedGrid) {
+        for (const [id, geometry] of before) {
+          if (!nextIds?.has(id)) continue
+          const copy = geometry.element.isConnected
+            ? geometry.element.cloneNode(true) as HTMLElement : geometry.element
+          freezeCard(copy, geometry)
+          copiedGrid.append(copy)
+          before.set(id, { ...geometry, element: copy })
+        }
+        stripSnapshotIdentity(exits)
+      }
+      void this.play(run)
+    }
   }
 
   cancel(): void {
@@ -154,7 +193,7 @@ export class OverviewFilterMotion {
         jobs.push(animation.finished.catch(() => {}))
       }
       for (const [id, old] of run.before) {
-        if (after.has(id)) old.element.style.visibility = 'hidden'
+        if (after.has(id)) old.element.remove()
         else {
           const transform = old.transform === 'none' ? '' : old.transform
           animate(old.element, [

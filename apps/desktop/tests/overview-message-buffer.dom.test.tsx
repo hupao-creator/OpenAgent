@@ -8,10 +8,44 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstub
 const text = (): string => document.querySelector('.thread-overview-excerpt > .thread-card-excerpt-text')?.textContent ?? ''
 const tick = async (ms: number): Promise<void> => { await act(async () => { await vi.advanceTimersByTimeAsync(ms) }) }
 
+it('does not measure or clone the DOM while filling the same text batch', () => {
+  const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+  const clone = vi.spyOn(Node.prototype, 'cloneNode')
+  const view = render(<ThreadCardExcerpt content="first" messageId="message" messageText="first" />)
+  for (let index = 1; index <= 50; index++) {
+    view.rerender(<ThreadCardExcerpt content="bounded" messageId="message" messageText={`first${'x'.repeat(index)}`} />)
+  }
+  expect(text()).toBe(`first${'x'.repeat(50)}`)
+  expect(measure).not.toHaveBeenCalled()
+  expect(clone).not.toHaveBeenCalled()
+})
+
 it('keeps initial historical snapshots static and does not replay their backlog', async () => {
   render(<ThreadCardExcerpt content="saved bounded excerpt" messageId="old" messageText={'a'.repeat(2000)} />)
   await tick(8000)
   expect(text()).toBe('saved bounded excerpt')
+})
+
+it('batches simultaneous card reveals into one animation checkpoint and cancels uncommitted work', async () => {
+  const checkpoint = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+  const cancel = vi.fn()
+  const finished = new Promise<void>(() => {})
+  Object.defineProperty(HTMLElement.prototype, 'getAnimations', { configurable: true, value: () => [{ finished, cancel }] })
+  const cards = (messageId: string) => <>{Array.from({ length: 8 }, (_, index) =>
+    <ThreadCardExcerpt key={index} content={messageId} messageId={messageId} messageText={messageId} />)}</>
+  try {
+    const view = render(cards('previous'))
+    view.rerender(cards('next'))
+    await tick(0)
+    expect(document.querySelectorAll('.thread-card-text-reveal')).toHaveLength(16)
+    expect(checkpoint).toHaveBeenCalledTimes(1)
+    view.rerender(cards('cancel before microtask'))
+    view.unmount()
+    await tick(0)
+    expect(document.querySelector('.thread-card-text-reveal')).toBeNull()
+    expect(checkpoint).toHaveBeenCalledTimes(1)
+    expect(cancel).toHaveBeenCalled()
+  } finally { Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations') }
 })
 
 it('fills 600 Unicode characters, waits 800ms, and retains the final partial batch', async () => {

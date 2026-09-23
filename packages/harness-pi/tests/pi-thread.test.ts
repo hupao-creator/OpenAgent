@@ -97,6 +97,85 @@ function answer(native: Native, text: string, stopReason = 'stop') {
 }
 
 describe('Pi native Thread boundary', () => {
+  it('bounds cumulative streaming commits without postponing the first deadline or losing Bart boundaries', async () => {
+    const test = await owner(); const handle = await test.open()
+    await send(handle); const native = natives.at(-1)!
+    native.emit({ type: 'message_start', message: { role: 'assistant', content: [] } })
+    await drain(handle)
+    const committed = vi.spyOn(test.context.sessionState, 'commit')
+    vi.useFakeTimers()
+    try {
+      const update = (text: string, thinking = '') => native.emit({ type: 'message_update',
+        message: { role: 'assistant', content: [{ type: 'thinking', thinking }, { type: 'text', text }] } })
+      for (let index = 1; index <= 250; index++) update('', `Thought ${index}`)
+      await vi.advanceTimersByTimeAsync(25)
+      for (let index = 1; index <= 250; index++) update(`Text ${index}`, 'Thought 250')
+      await vi.advanceTimersByTimeAsync(24)
+      expect(committed).not.toHaveBeenCalled()
+      update('Text 250', 'Thought 250; next thought')
+      await vi.advanceTimersByTimeAsync(1)
+      expect(committed).toHaveBeenCalledTimes(1)
+      expect(test.state().messages.at(-1)).toMatchObject({ text: 'Text 250', thinking: 'Thought 250; next thought' })
+      const kinds = test.display.map(item => item.kind).filter((kind, index, all) => index === 0 || kind !== all[index - 1])
+      expect(kinds.slice(-3)).toEqual(['reasoning', 'assistant-text', 'reasoning'])
+      update('Text 251', 'Thought 250; next thought')
+      await vi.advanceTimersByTimeAsync(50)
+      expect(committed).toHaveBeenCalledTimes(2)
+      expect(test.state().messages.at(-1)?.text).toBe('Text 251')
+      await vi.advanceTimersByTimeAsync(500)
+      expect(committed).toHaveBeenCalledTimes(2)
+    } finally { vi.useRealTimers() }
+  })
+
+  it.each(['read', 'interrupt', 'dispose'] as const)('flushes a pending stream at %s and leaves no late commit', async boundary => {
+    const test = await owner(); const handle = await test.open()
+    await send(handle); const native = natives.at(-1)!
+    native.emit({ type: 'message_start', message: { role: 'assistant', content: [] } })
+    await drain(handle)
+    const committed = vi.spyOn(test.context.sessionState, 'commit')
+    vi.useFakeTimers()
+    try {
+      native.emit({ type: 'message_update', message: { role: 'assistant', content: [{ type: 'text', text: 'Pending tail' }] } })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(committed).not.toHaveBeenCalled()
+      if (boundary === 'read') expect(await drain(handle)).toContain('Pending tail')
+      else await handle[boundary]()
+      expect(test.state().messages.at(-1)?.text).toBe('Pending tail')
+      expect(committed).toHaveBeenCalledTimes(1)
+      expect(test.execution()?.status).toBe(boundary === 'read' ? 'running' : 'interrupted')
+      await vi.advanceTimersByTimeAsync(200)
+      expect(committed).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
+  })
+
+  it('commits message and tool boundaries immediately while absorbing pending streamed content', async () => {
+    const test = await owner(); const handle = await test.open()
+    await send(handle); const native = natives.at(-1)!
+    native.emit({ type: 'message_start', message: { role: 'assistant', content: [] } })
+    await drain(handle)
+    const committed = vi.spyOn(test.context.sessionState, 'commit')
+    vi.useFakeTimers()
+    try {
+      native.emit({ type: 'message_update', message: { role: 'assistant', content: [{ type: 'text', text: 'partial' }] } })
+      native.emit({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: 'complete' }],
+        stopReason: 'toolUse', usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0 } } })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(committed).toHaveBeenCalledTimes(1)
+      expect(test.state().messages.at(-1)).toMatchObject({ text: 'complete', usage: { output: 5 } })
+      native.emit({ type: 'tool_execution_start', toolCallId: 'read', toolName: 'read_file', args: {} })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(committed).toHaveBeenCalledTimes(2)
+      for (let index = 0; index < 100; index++) native.emit({ type: 'tool_execution_update', toolCallId: 'read', toolName: 'read_file',
+        partialResult: { content: [{ type: 'text', text: `partial ${index}` }] } })
+      native.emit({ type: 'tool_execution_end', toolCallId: 'read', toolName: 'read_file', result: { content: [{ type: 'text', text: 'final output' }] } })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(committed).toHaveBeenCalledTimes(3)
+      expect(test.state().messages.at(-1)?.text).toBe('final output')
+      await vi.advanceTimersByTimeAsync(200)
+      expect(committed).toHaveBeenCalledTimes(3)
+    } finally { vi.useRealTimers() }
+  })
+
   it('projects confirmed native todo snapshots through persistence and the live card lifecycle', async () => {
     const test = await owner(); const handle = await test.open()
     await send(handle); const native = natives.at(-1)!
