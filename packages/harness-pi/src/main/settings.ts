@@ -11,10 +11,12 @@ const discoveryArgs = ['--no-session', '--no-extensions', '--no-skills', '--no-p
 /**
  * Pi answers discovery questions in milliseconds; the session that carries them
  * costs most of a second to boot. Availability, resolve and the settings page
- * ask about the same configuration back to back during one user action, so one
- * observation is shared for a short window rather than booting per caller.
+ * ask about the same configuration during successive Bart turns. Keep a
+ * complete, usable discovery for the native catalog's five-minute window;
+ * partial or unavailable observations only share a short retry window.
  */
-const discoveryTtlMs = 15_000
+const stateObservationTtlMs = 15_000
+const discoveryTtlMs = 5 * 60 * 1_000
 type SettingsApi = HarnessSettingsApi<PiHarnessSettings, PiThreadSettings, PiThreadSettingsUpdate, PiThreadSettingsUpdate, PiThreadSettings>
 
 /** Native facts for one (executable, cwd, provider/model/thinking) configuration. */
@@ -67,6 +69,13 @@ export function createPiSettings(host: HarnessPluginHostContext): {
   const started = new Map<string, number>()
   let sequence = 0
 
+  function invalidateObservations(): void {
+    observations.clear()
+    // A foreground refresh can use a different cwd than Bart. Retire every
+    // in-flight publisher too, including keys the refresh never reads itself.
+    started.clear()
+  }
+
   function observationKey(settings: PiThreadSettings, cwd: string): string {
     return [settings.executablePath ?? '', settings.provider ?? '', settings.model ?? '', settings.thinkingLevel ?? '', cwd].join('\0')
   }
@@ -83,10 +92,11 @@ export function createPiSettings(host: HarnessPluginHostContext): {
       // and this session may fail before it learns any of it. Retire the
       // observation up front so a broken refresh leaves the next read probing
       // instead of replaying the state it set out to replace.
-      observations.delete(key)
+      invalidateObservations()
     }
     const cached = refresh ? undefined : observations.get(key)
-    if (cached && Date.now() - cached.at < discoveryTtlMs && (!needCatalog || cached.value.discovery)) return cached.value
+    const ttl = cached && reusableDiscovery(settings, cached.value) ? discoveryTtlMs : stateObservationTtlMs
+    if (cached && Date.now() - cached.at < ttl && (!needCatalog || cached.value.discovery)) return cached.value
     // Only a caller about to talk to the native session can decide what the
     // window remembers. The hit above answers from what is already there and
     // writes nothing, so counting it as the newest request would make a probe
@@ -236,6 +246,8 @@ export function createPiSettings(host: HarnessPluginHostContext): {
     } },
     async detectInstallation(input) {
       input.signal.throwIfAborted()
+      invalidateObservations()
+      retirePiVersions()
       try {
         const executablePath = await host.resolveExecutable('pi', input.cwd)
         input.signal.throwIfAborted()
@@ -247,6 +259,16 @@ export function createPiSettings(host: HarnessPluginHostContext): {
       }
     }
   }
+}
+
+function reusableDiscovery(settings: PiThreadSettings, observation: PiObservation): boolean {
+  const { discovery, provider, model, thinkingLevel } = observation
+  return discovery !== undefined &&
+    discovery.models.some(entry => entry.provider === provider && entry.id === model) &&
+    thinkingLevel !== undefined && discovery.levels.includes(thinkingLevel) &&
+    (settings.provider === undefined || settings.provider === provider) &&
+    (settings.model === undefined || settings.model === model) &&
+    (settings.thinkingLevel === undefined || settings.thinkingLevel === thinkingLevel)
 }
 
 function normalizeHarnessSettings(value: PiHarnessSettings): PiHarnessSettings {
