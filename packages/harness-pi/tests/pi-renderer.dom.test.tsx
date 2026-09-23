@@ -55,7 +55,7 @@ it('uses the official adaptive Pi mark everywhere the Renderer exposes its logo'
   })
   const projection = piOverviewCardModule.project({ thread: current, layout: { availableColumns: 2 } })
   const Card = piOverviewCardModule.Card
-  render(<I18nProvider locale="en-US"><Card thread={current} projection={projection.view} actions={{ ...actions(), openThread: vi.fn() }} /></I18nProvider>)
+  const view = render(<I18nProvider locale="en-US"><Card thread={current} projection={projection.view} actions={{ ...actions(), openThread: vi.fn() }} /></I18nProvider>)
   expect(view.container.querySelector('.thread-provider-logo img')).toHaveAttribute('src', piLogo)
   // Running retains the recognizable static logo without an extra status row.
   expect(view.container.querySelector('.thread-provider-status.running .thread-provider-logo')).not.toBeNull()
