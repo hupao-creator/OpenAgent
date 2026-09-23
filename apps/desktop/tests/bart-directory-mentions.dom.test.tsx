@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useCallback, useState } from 'react'
 import { useStore } from 'zustand'
 import { afterEach, expect, it, vi } from 'vitest'
 import { BartDock } from '../src/renderer/src/components/BartDock'
@@ -17,10 +18,12 @@ function fixture(load = vi.fn(async () => directories)) {
   const close = vi.fn()
   function View() {
     const text = useStore(store, state => state.text)
+    const [inputOpen, setInputOpen] = useState(true)
+    const onInputOpenChange = useCallback((open: boolean) => { close(open); setInputOpen(open) }, [])
     return <div className="app-shell"><BartDock
-      activityContext={{ threadKey: 'mention-test', execution: null }} threadOpen={false} sessionIdle inputOpen
+      activityContext={{ threadKey: 'mention-test', execution: null }} threadOpen={false} sessionIdle inputOpen={inputOpen}
       inputValue={text} bartAttachments={[]} onInputChange={store.setText} onThreadOpenChange={() => {}}
-      onInputOpenChange={close} onChooseFiles={() => {}} onRemoveBartAttachment={() => {}}
+      onInputOpenChange={onInputOpenChange} onChooseFiles={() => {}} onRemoveBartAttachment={() => {}}
       onSubmit={() => store.submit(api, '')} loadMentionDirectories={load} onMentionSelect={store.insertMention}
     /></div>
   }
@@ -64,10 +67,22 @@ it('supports mouse selection and paths with spaces and Chinese characters', asyn
   const f = fixture()
   f.type('@中文')
   const option = await screen.findByRole('option')
-  fireEvent.pointerDown(option)
+  fireEvent.pointerDown(screen.getByText('/work/中文 项目'))
+  expect(f.close).not.toHaveBeenCalled()
+  expect(screen.getByRole('listbox')).toBeInTheDocument()
   fireEvent.click(option)
+  expect(f.input.value).toBe('@"/work/中文 项目" ')
   await act(() => f.store.submit(f.api, ''))
   expect(f.submit).toHaveBeenCalledWith({ input: { parts: [{ kind: 'mention', pathType: 'directory', name: '中文 项目', path: '/work/中文 项目' }] } })
+})
+
+it('still closes the composer when the pointer is outside both the dock and its menu', async () => {
+  const f = fixture()
+  f.type('@')
+  await screen.findByRole('listbox')
+  fireEvent.pointerDown(document.body)
+  expect(f.close).toHaveBeenCalledWith(false)
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
 })
 
 it('Escape dismisses the menu before closing the composer and editing reopens it', async () => {

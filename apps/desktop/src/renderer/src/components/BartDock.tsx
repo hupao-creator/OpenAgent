@@ -619,6 +619,9 @@ export const BartDock = memo(function BartDock({
     if (!bartInputVisible) return
     const dismiss = (event: PointerEvent): void => {
       if (dockRef.current?.contains(event.target as Node)) return
+      // The field's portaled listbox remains part of its composer interaction.
+      const popupId = textareaRef.current?.getAttribute('aria-controls')
+      if (popupId && document.getElementById(popupId)?.contains(event.target as Node)) return
       onInputOpenChange(false)
     }
     document.addEventListener('pointerdown', dismiss, true)
