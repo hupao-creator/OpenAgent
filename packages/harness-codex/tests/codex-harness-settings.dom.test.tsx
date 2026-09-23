@@ -254,6 +254,41 @@ describe('Codex custom Thread defaults gate', () => {
     expect(screen.getByLabelText('Codex Thread 默认配置 模型')).toBeTruthy()
   })
 
+  it('keeps model and service tier labels stable while their catalog reloads after a selection', () => {
+    const value: CodexHarnessSettings = {
+      useDefaultThreadSettings: false,
+      threadSettings: { model: 'gpt-test', effort: 'high', serviceTier: 'priority' }
+    }
+    const show = (resource: HarnessSettingsResource<CodexSettingsPresentationData>, cwd = '/workspace') => (
+      <SettingsFormScope>
+        <CodexHarnessSettingsView section="thread" value={value} resource={resource}
+          host={{ cwd, invokeExtension: async () => null, openExternal: async () => undefined }}
+          change={() => undefined} />
+      </SettingsFormScope>
+    )
+    const view = render(show(RESOURCE))
+    const selectedText = (label: string): string =>
+      (screen.getByLabelText(label) as HTMLSelectElement).selectedOptions[0].textContent ?? ''
+
+    expect(selectedText('Codex Thread 默认配置 模型')).toBe('GPT Test')
+    expect(selectedText('Codex Thread 默认配置 服务层级')).toBe('Priority · priority')
+
+    view.rerender(show({ status: 'loading', reload: async () => undefined }))
+    expect(selectedText('Codex Thread 默认配置 模型')).toBe('GPT Test')
+    expect(selectedText('Codex Thread 默认配置 服务层级')).toBe('Priority · priority')
+
+    view.rerender(show({
+      status: 'ready',
+      value: { ...PRESENTATION, models: PRESENTATION.models.map(model => model.value === 'gpt-test'
+        ? { ...model, displayName: 'GPT Test Updated' } : model) },
+      reload: async () => undefined
+    }))
+    expect(selectedText('Codex Thread 默认配置 模型')).toBe('GPT Test Updated')
+
+    view.rerender(show({ status: 'loading', reload: async () => undefined }, '/another-workspace'))
+    expect(selectedText('Codex Thread 默认配置 模型')).toBe('gpt-test · 目录中不可用')
+  })
+
   it('clears stored Thread defaults and the flag when the switch returns to the Agent defaults', () => {
     const change = vi.fn()
     render(

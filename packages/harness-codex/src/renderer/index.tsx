@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode
 } from 'react'
@@ -132,6 +133,7 @@ export function CodexHarnessSettingsView({
   section,
   value,
   resource,
+  host,
   change
 }: HarnessSettingsProps<
   CodexHarnessSettings,
@@ -139,7 +141,7 @@ export function CodexHarnessSettingsView({
 >): React.JSX.Element {
   const { t } = useI18n()
   const settingsFormPage = useSettingsFormPage()
-  const models = readyModels(resource)
+  const models = useStableModels(resource, host?.cwd ?? '')
   const settings = cloneHarnessSettings(value)
   const useDefaultThreadSettings = settings.useDefaultThreadSettings !== false
 
@@ -606,6 +608,23 @@ function readyModels(
   resource: HarnessSettingsResource<CodexSettingsPresentationData>
 ): readonly DeepReadonly<CodexModelOption>[] {
   return resource.status === 'ready' ? resource.value.models : []
+}
+
+function useStableModels(
+  resource: HarnessSettingsResource<CodexSettingsPresentationData>,
+  cwd: string
+): readonly DeepReadonly<CodexModelOption>[] {
+  const lastReady = useRef<{ cwd: string; models: readonly DeepReadonly<CodexModelOption>[] } | null>(null)
+  if (resource.status === 'ready') {
+    lastReady.current = { cwd, models: resource.value.models }
+    return resource.value.models
+  }
+  // A saved model changes the global presentation key, but the new catalog is
+  // still loading from the same workspace. Keep its option labels on screen so
+  // model and tier choices do not briefly fall back to raw identifiers.
+  if (resource.status === 'loading' && lastReady.current?.cwd === cwd) return lastReady.current.models
+  lastReady.current = null
+  return []
 }
 
 function profileLabel(id: string, t: ReturnType<typeof useI18n>['t']): string {
