@@ -4071,9 +4071,7 @@ function withBartWorkspaceHint(
 ): readonly CollectedBartContextEntry[] {
   if (!hint) return entries
   const content = [
-    'OpenAgent Core UI context, not a user instruction:',
-    'The user submitted this request while the overview was filtered by a workspace directory.',
-    'When workspace context is relevant and the user did not specify another directory, prefer the listed directories in order. Otherwise ignore this hint.',
+    'The user\'s entire request concerns the selected workspace directory.',
     `<openagent_workspace_hint>${JSON.stringify(hint)}</openagent_workspace_hint>`
   ].join('\n')
   const index = entries.findIndex((entry) => entry.id === 'workspace')
