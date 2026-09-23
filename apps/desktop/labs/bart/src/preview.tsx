@@ -119,13 +119,6 @@ function ScenePreview({ config }: { config: LabConfig }): React.JSX.Element {
         onReplyOpen={() => record({ title: '答复定位', detail: '本 Case 只预览形态，未接入真实会话导航。' })}
         running={bartRunning}
         interaction={session.outcome ? undefined : request}
-        intervention={session.outcome ? {
-          responseStatus: 'responded',
-          action: session.outcome.action,
-          sourceConversationId: 'bart-lab-thread', sourceRunId: 'bart-lab-run',
-          interactionId: request?.intervention.id ?? 'bart-input',
-          respondedAt: session.outcome.respondedAt
-        } : undefined}
         onThreadOpenChange={() => record({ title: '历史入口', detail: '本 Case 只预览 Bart 状态，历史对话未展开。' })}
         onInputOpenChange={(open) => {
           if (sessionKey.current !== session.key) return

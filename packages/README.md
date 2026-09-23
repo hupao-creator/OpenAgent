@@ -112,13 +112,10 @@ Card owners register semantic spatial anchors (`status`, `excerpt-end`) through
 registered visibility operations without reading another component's private
 DOM structure or CSS geometry.
 
-Core supplies `HarnessOverviewDisplayPolicy` to Agent card projections from the
-Butler automatic-intervention setting. Harness renderers apply it through the
-shared card composer before packing: hidden interventions are absent from both
-presentation and geometry. Core projection caches include the policy alongside
-Thread identity and column count; live and mutation-snapshot inputs use the same
-setting. This policy does not change pending requests, Thread detail or Butler
-interaction surfaces.
+Harness-native modes own automatic approval. Pending permissions and questions
+remain visible and actionable in overview cards, Thread detail and the Bart dock.
+Bart does not evaluate or answer pending interactions in the background. Core
+projection caches use Thread identity and column count.
 
 Desktop persistence uses independent Thread, Report, settings, and UI records;
 see [state persistence boundaries](../apps/desktop/docs/STATE_PERSISTENCE.md).

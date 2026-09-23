@@ -609,12 +609,6 @@ function BartSettings(props: {
             ? t('当前 Bart provider 值不可用，请重新选择。')
             : t('当前值不可用，请选择')}</SettingsNotice>}
       <SettingsGroup>
-        <SettingsRow label={t('自动审批与代答')}>
-          <SettingsToggle checked={props.value.bart.autoIntervention}
-            onChange={(event) => changeBart({ autoIntervention: event.currentTarget.checked })} />
-        </SettingsRow>
-      </SettingsGroup>
-      <SettingsGroup>
         <SettingsRow label={t('自定义模型路由指导')}>
           <SettingsToggle checked={props.value.bart.routingGuidance !== null} onChange={(event) => {
             changeBart({ routingGuidance: event.currentTarget.checked ? '' : null })

@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import type { HarnessOverviewDisplayPolicy } from '@openagent/contracts/renderer'
 
 /** Integer grid footprint. Sizes are always written as columns x rows. */
 export interface ThreadCardSize {
@@ -11,7 +10,6 @@ export const SINGLE_CARD_SIZE: ThreadCardSize = { cols: 1, rows: 1 }
 
 /** Discrete responsive input shared by live rendering and mutation snapshots. */
 export interface ThreadCardLayoutContext {
-  readonly displayPolicy?: HarnessOverviewDisplayPolicy
   readonly availableCols: number
 }
 

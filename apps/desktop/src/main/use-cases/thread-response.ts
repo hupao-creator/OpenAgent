@@ -6,7 +6,7 @@ import {
 
 export type { ThreadInteractionResponseRequest as ThreadResponseCommand } from '@openagent/contracts'
 
-/** One validated command boundary shared by GUI and Bart protocol adapters. */
+/** Validated command boundary for explicit user replies to Agent and Bart Threads. */
 export function normalizeThreadResponse(value: unknown): {
   readonly threadId: string
   readonly response: HarnessRespondRequest

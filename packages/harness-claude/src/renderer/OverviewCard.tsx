@@ -1,4 +1,3 @@
-import type { HarnessOverviewDisplayPolicy } from '@openagent/contracts/renderer'
 import type { DeepReadonly, PublicInteraction } from '@openagent/contracts'
 import type { HarnessRendererThreadActions, HarnessRendererThreadInput } from '@openagent/contracts/renderer'
 import { isPublicExecutionActive } from '@openagent/contracts/renderer'
@@ -41,7 +40,6 @@ type OverviewCardProps = HarnessRendererThreadInput & {
 }
 
 export function projectClaudeOverview(input: HarnessRendererThreadInput & {
-  readonly displayPolicy?: HarnessOverviewDisplayPolicy
   readonly layout: { readonly availableColumns: number }
 }) {
   if (input.thread.harnessId !== 'claude') {
@@ -63,7 +61,7 @@ export function projectClaudeOverview(input: HarnessRendererThreadInput & {
   const steer = visiblePrompts.length > 1 ? visiblePrompts.at(-1) : undefined
   const presentation = composeThreadCard(
     claudeCardProjection(turn, state.runtime?.backgroundTasks ?? [], pending, publicInteraction),
-    { displayPolicy: input.displayPolicy, availableCols: input.layout.availableColumns }
+    { availableCols: input.layout.availableColumns }
   )
   const view: ClaudeOverviewView = {
     status,

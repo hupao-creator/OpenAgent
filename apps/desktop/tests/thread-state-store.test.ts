@@ -26,23 +26,6 @@ afterEach(async () => {
 })
 
 describe('ThreadStateStore', () => {
-  it('enables Bart auto intervention by default and preserves an explicit opt-out after reload', async () => {
-    const directory = await temporaryDirectory()
-    const store = trackedStore(directory)
-    const initial = stateWithAgent()
-    expect(initial.settings.bart.autoIntervention).toBe(true)
-    await store.save(initial)
-    await store.commit({
-      type: 'replace-settings',
-      settings: {
-        ...initial.settings,
-        bart: { ...initial.settings.bart, autoIntervention: false }
-      }
-    })
-    const reloaded = await trackedStore(directory).load()
-    expect(reloaded?.settings.bart.autoIntervention).toBe(false)
-  })
-
   it('persists v6 SQLite and leaves every legacy namespace untouched', async () => {
     const directory = await temporaryDirectory()
     const legacy = join(directory, 'openagent-state-v5')

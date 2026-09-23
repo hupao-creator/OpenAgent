@@ -2,7 +2,6 @@ import { applyRendererStatePatch } from '../src/shared/renderer-state-patch'
 import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
-import type { AutoInterventionService } from '../src/main/use-cases/auto-intervention-service'
 import { dirname, join, parse } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -33,7 +32,6 @@ import {
   type AgentThreadRecord,
   type HarnessExecutionClaims,
   type HarnessThreadRecord,
-  type HarnessPromptCompleteResult,
   type HarnessPromptMessage,
   type HarnessRespondRequest,
   type HarnessToolBinding,
@@ -76,6 +74,50 @@ afterEach(async () => {
 })
 
 describe('OpenAgent Service Harness dispatch', () => {
+  it.each(['permission', 'question'] as const)('leaves pending %s interactions for explicit user replies without background completions', async kind => {
+    const trace: HarnessTrace = { runBartTools: async () => undefined }
+    const main = mainHarnessComposition(trace)
+    const completions = HARNESS_IDS.map(id => vi.spyOn(main[id], 'completePrompt'))
+    const fixture = await serviceFixture(trace, [], settings => settings, { main })
+    await fixture.service.initialize()
+    await drainStartupRecovery(fixture.service)
+    await fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Continue the task with the existing Harness permissions.' }] } })
+    const actionId = kind === 'permission' ? 'allow' : 'submit'
+    const observation: ThreadPublicObservation = {
+      latestExecution: {
+        executionId: 'manual-execution', status: 'waiting-for-user', startedAt: 1,
+        interactions: [{
+          id: 'manual-interaction', kind, title: 'User response required',
+          actions: [{ id: actionId, intent: actionId, label: 'Continue' }],
+          questions: kind === 'question' ? [{
+            id: 'target', prompt: 'Which target?', multiple: false, allowOther: true,
+            secret: false, options: []
+          }] : []
+        }]
+      },
+      backgroundWork: null
+    }
+    const thread = fixtureThreadWithObservation({
+      ...fixtureAgentThread('manual-thread', fixture.defaultCwd, 1),
+      observation: { latestExecution: {
+        executionId: 'manual-execution', status: 'running' as const, startedAt: 1
+      }, backgroundWork: null }
+    })
+    await fixture.store.commit({ type: 'add-agent-thread', thread })
+    await fixture.service.readThread({ threadId: thread.id, question: 'Read current progress.' })
+    await trace.commitAgentObservation!(observation)
+    await new Promise<void>(resolve => setImmediate(resolve))
+    for (const complete of completions) expect(complete).not.toHaveBeenCalled()
+    expect(trace.threadResponses ?? []).toEqual([])
+    expect(readAgentThread(fixture.store.read(), thread.id).observation).toEqual(observation)
+    const response = {
+      interactionId: 'manual-interaction', actionId,
+      ...(kind === 'question' ? { answers: { target: 'staging' } } : {})
+    }
+    await fixture.service.respondToThreadInteraction({ threadId: thread.id, ...response })
+    expect(trace.threadResponses).toEqual([response])
+  })
+
   it('unions native workspace discovery with live directory tags, shares scans, and isolates source failures', async () => {
     const main = mainHarnessComposition({})
     const scan = vi.spyOn(main.codex, 'discoverWorkspaceDirectories')
@@ -105,8 +147,7 @@ describe('OpenAgent Service Harness dispatch', () => {
         telemetryContextFactory: input => JSON.stringify(input.settings) }
       const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
       const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
-      const f = await serviceFixture(trace, [], settings => ({ ...settings,
-        bart: { ...settings.bart, autoIntervention: false } }), { main })
+      const f = await serviceFixture(trace, [], settings => settings, { main })
       await f.service.initialize()
       await drainBartRunContext(f.service)
       await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start a live turn' }] } })
@@ -144,32 +185,11 @@ describe('OpenAgent Service Harness dispatch', () => {
     }
   )
 
-  it('falls back to an available automatic Host for standalone intervention after a saved model change', async () => {
-    const trace: HarnessTrace = { autoInterventionCompletion: Promise.resolve(waitDecision('Wait')) }
-    const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
-    const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
-    const f = await serviceFixture(trace, [], settings => ({ ...settings,
-      bart: { ...settings.bart, hostHarnessPreference: 'auto' } }), { main })
-    await f.service.initialize()
-    await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start agent work' }] } })
-    await vi.waitFor(() => expect(trace.autoInterventionRequests).toBeGreaterThan(0))
-    await vi.waitFor(() => expect(trace.autoInterventionInFlight || 0).toBe(0))
-    const alternateComplete = vi.spyOn(main.claude, 'completePrompt')
-    const availability = vi.spyOn(main.codex, 'availability').mockResolvedValue({ available: false })
-    const before = f.store.read()
-    await f.service.updateAppSettings(changedCodexSettings(before.settings, 'model'))
-    expect(availability).not.toHaveBeenCalled()
-    await trace.commitAgentState?.({ changedAutomaticProvider: true })
-    await vi.waitFor(() => expect(alternateComplete).toHaveBeenCalled())
-    expect(readBartThread(f.store.read()).harnessId).toBe('codex')
-    expect(f.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
-  })
-
-  it.each(['appearance', 'locale', 'autoIntervention', 'guidance', 'targets'] as const)(
+  it.each(['appearance', 'locale', 'guidance', 'targets'] as const)(
     'still resolves the automatic Host after restart with pending %s changes', async preference => {
       const trace: HarnessTrace = { runBartTools: async () => undefined }
       const f = await serviceFixture(trace, [], settings => ({ ...settings,
-        bart: { ...settings.bart, hostHarnessPreference: 'auto', autoIntervention: false } }))
+        bart: { ...settings.bart, hostHarnessPreference: 'auto' } }))
       await f.service.initialize()
       const settings = f.store.read().settings
       await f.service.updateAppSettings({ ...settings, bart: { ...settings.bart, targetHarnessIds: ['codex', 'claude'] } })
@@ -177,8 +197,6 @@ describe('OpenAgent Service Harness dispatch', () => {
       const applied = f.store.read().settings
       await f.service.updateAppSettings(preference === 'guidance' || preference === 'targets'
         ? changedCodexSettings(applied, preference)
-        : preference === 'autoIntervention'
-        ? { ...applied, bart: { ...applied.bart, autoIntervention: true } }
         : { ...applied, [preference]: preference === 'appearance' ? 'dark' : 'en-US' })
       await f.service.shutdown()
       const fresh: HarnessTrace = { runBartTools: async () => undefined }
@@ -201,7 +219,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
     const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
     const f = await serviceFixture(trace, [], settings => ({ ...settings,
-      bart: { ...settings.bart, hostHarnessPreference: 'auto', autoIntervention: false }
+      bart: { ...settings.bart, hostHarnessPreference: 'auto' }
     }), { main })
     await f.service.initialize()
     await drainStartupRecovery(f.service)
@@ -252,8 +270,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     const trace: HarnessTrace = { runBartTools: async () => undefined }
     const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
     const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
-    const f = await serviceFixture(trace, [], settings => ({ ...settings,
-      bart: { ...settings.bart, autoIntervention: false } }), { main })
+    const f = await serviceFixture(trace, [], settings => settings, { main })
     await f.service.initialize()
     await drainStartupRecovery(f.service)
     const before = f.store.read()
@@ -287,7 +304,7 @@ describe('OpenAgent Service Harness dispatch', () => {
       const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
       const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
       const f = await serviceFixture(trace, [], settings => ({ ...settings,
-        bart: { ...settings.bart, hostHarnessPreference: 'auto', autoIntervention: false }
+        bart: { ...settings.bart, hostHarnessPreference: 'auto' }
       }), { main })
       await f.service.initialize()
       await drainStartupRecovery(f.service)
@@ -339,72 +356,26 @@ describe('OpenAgent Service Harness dispatch', () => {
     }
   )
 
-  it.each(['appearance', 'locale'] as const)('persists only %s without revoking pending auto intervention or run context', async preference => {
-    let resolveDecision!: (result: HarnessPromptCompleteResult) => void
-    let releaseMetadata!: () => void
-    const trace: HarnessTrace = {
-      autoInterventionCompletion: Promise.resolve(waitDecision('Initial evaluation.')),
-      metadataCompletionGate: new Promise(resolve => { releaseMetadata = resolve })
-    }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings, bart: { ...settings.bart, autoIntervention: true }
-    }))
-    try {
-      await fixture.service.initialize()
-      await fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start pending work.' }] } })
-      await vi.waitFor(() => expect(trace.autoInterventionInFlight || 0).toBe(0))
-      const initialRequests = trace.autoInterventionRequests || 0
-      trace.autoInterventionCompletion = new Promise(resolve => { resolveDecision = resolve })
-      await trace.commitAgentState?.({ viewPreferenceEvidence: true })
-      await vi.waitFor(() => expect(trace.autoInterventionRequests).toBe(initialRequests + 1))
-      const intervention = Reflect.get(fixture.service, 'autoIntervention') as AutoInterventionService
-      const cancel = vi.spyOn(intervention, 'cancel')
-      const invalidate = vi.spyOn(intervention, 'invalidateDecisions')
-      const renew = vi.spyOn(intervention, 'renewAuthority')
-      const request = vi.spyOn(intervention, 'requestActive')
-      const authority = Reflect.get(intervention, 'controller') as AbortController
-      const runContext = Reflect.get(fixture.service, 'bartRunContextController') as AbortController
-      const generation = Reflect.get(fixture.service, 'bartRunContextGeneration')
-      const fingerprints = new Map(Reflect.get(intervention, 'fingerprints') as Map<string, string>)
-      const before = fixture.store.read()
-      const settings = { ...before.settings, [preference]: preference === 'appearance' ? 'dark' : 'en-US' }
-
-      await fixture.service.updateAppSettings(settings)
-
-      expect(cancel).not.toHaveBeenCalled()
-      expect(invalidate).not.toHaveBeenCalled()
-      expect(renew).not.toHaveBeenCalled()
-      expect(request).not.toHaveBeenCalled()
-      expect(authority.signal.aborted).toBe(false)
-      expect(Reflect.get(intervention, 'controller')).toBe(authority)
-      expect(Reflect.get(intervention, 'fingerprints')).toEqual(fingerprints)
-      expect(runContext.signal.aborted).toBe(false)
-      expect(Reflect.get(fixture.service, 'bartRunContextController')).toBe(runContext)
-      expect(Reflect.get(fixture.service, 'bartRunContextGeneration')).toBe(generation)
-      expect((await trackedStore(fixture.root).load())?.settings).toEqual(settings)
-      expect(fixture.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
-      resolveDecision(waitDecision('The in-flight evaluation remains current.'))
-      await intervention.drain()
-      intervention.requestActive()
-      await intervention.drain()
-      expect(trace.autoInterventionRequests).toBe(initialRequests + 1)
-    } finally {
-      resolveDecision?.(waitDecision('Cleanup.'))
-      releaseMetadata()
-    }
-  })
-
-  it.each(['bart', ...HARNESS_IDS])('defers run context for saved %s until admission without renewing enabled auto intervention', async change => {
-    const fixture = await serviceFixture({}, [], settings => ({
-      ...settings, bart: { ...settings.bart, autoIntervention: true }
-    }))
+  it.each(['appearance', 'locale'] as const)('persists only %s without replacing run context', async preference => {
+    const fixture = await serviceFixture({}, [])
     await fixture.service.initialize()
     await drainStartupRecovery(fixture.service)
-    const intervention = Reflect.get(fixture.service, 'autoIntervention') as AutoInterventionService
-    const cancel = vi.spyOn(intervention, 'cancel')
-    const renew = vi.spyOn(intervention, 'renewAuthority')
-    const invalidate = vi.spyOn(intervention, 'invalidateDecisions')
-    const request = vi.spyOn(intervention, 'requestActive')
+    const runContext = Reflect.get(fixture.service, 'bartRunContextController') as AbortController
+    const generation = Reflect.get(fixture.service, 'bartRunContextGeneration')
+    const before = fixture.store.read()
+    const settings = { ...before.settings, [preference]: preference === 'appearance' ? 'dark' : 'en-US' }
+    await fixture.service.updateAppSettings(settings)
+    expect(runContext.signal.aborted).toBe(false)
+    expect(Reflect.get(fixture.service, 'bartRunContextController')).toBe(runContext)
+    expect(Reflect.get(fixture.service, 'bartRunContextGeneration')).toBe(generation)
+    expect((await trackedStore(fixture.root).load())?.settings).toEqual(settings)
+    expect(fixture.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+  })
+
+  it.each(['bart', ...HARNESS_IDS])('defers run context for saved %s until admission', async change => {
+    const fixture = await serviceFixture({}, [], settings => settings)
+    await fixture.service.initialize()
+    await drainStartupRecovery(fixture.service)
     const runContext = Reflect.get(fixture.service, 'bartRunContextController') as AbortController
     const before = fixture.store.read()
     const settings = change === 'bart'
@@ -414,40 +385,8 @@ describe('OpenAgent Service Harness dispatch', () => {
     await fixture.service.updateAppSettings(settings)
     expect(runContext.signal.aborted).toBe(false)
     expect(Reflect.get(fixture.service, 'bartRunContextController')).toBe(runContext)
-    expect(cancel).not.toHaveBeenCalled()
-    expect(renew).not.toHaveBeenCalled()
-    expect(invalidate).not.toHaveBeenCalled()
-    expect(request).not.toHaveBeenCalled()
     expect(fixture.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
     expect((await trackedStore(fixture.root).load())?.settings).toEqual(settings)
-  })
-
-  it('renews auto-intervention authority only when enabling it', async () => {
-    const fixture = await serviceFixture({}, [], settings => ({
-      ...settings, bart: { ...settings.bart, autoIntervention: true }
-    }))
-    await fixture.service.initialize()
-    await drainStartupRecovery(fixture.service)
-    const intervention = Reflect.get(fixture.service, 'autoIntervention') as AutoInterventionService
-    const cancel = vi.spyOn(intervention, 'cancel')
-    const renew = vi.spyOn(intervention, 'renewAuthority')
-    const invalidate = vi.spyOn(intervention, 'invalidateDecisions')
-    const request = vi.spyOn(intervention, 'requestActive')
-    const settings = fixture.store.read().settings
-    await fixture.service.updateAppSettings({ ...settings, bart: { ...settings.bart, autoIntervention: false } })
-    expect(cancel).toHaveBeenCalledExactlyOnceWith(new Error('Bart auto intervention disabled'))
-    expect(renew).not.toHaveBeenCalled()
-    expect(invalidate).not.toHaveBeenCalled()
-    expect(request).not.toHaveBeenCalled()
-    await fixture.service.updateAppSettings(settings)
-    expect(cancel).toHaveBeenCalledTimes(1)
-    expect(renew).toHaveBeenCalledTimes(1)
-    expect(invalidate).toHaveBeenCalledTimes(1)
-    expect(request).toHaveBeenCalledTimes(1)
-    await fixture.service.updateAppSettings(settings)
-    expect(renew).toHaveBeenCalledTimes(1)
-    expect(invalidate).toHaveBeenCalledTimes(1)
-    expect(request).toHaveBeenCalledTimes(1)
   })
 
   it('loads handwritten legacy SQLite parts and persists applied settings only after the first send resolves them', async () => {
@@ -652,39 +591,11 @@ describe('OpenAgent Service Harness dispatch', () => {
     expect(f.probe).not.toHaveBeenCalled()
   })
 
-  it('uses saved model and Host settings for automatic decisions without waiting for a Bart user turn', async () => {
-    const trace: HarnessTrace = { autoInterventionCompletion: Promise.resolve(waitDecision('Wait')) }
-    const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
-    const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
-    const fixture = await serviceFixture(trace, [], settings => settings, { main })
-    await fixture.service.initialize()
-    await fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start agent work' }] } })
-    await vi.waitFor(() => expect(trace.autoInterventionRequests).toBeGreaterThan(0))
-    await vi.waitFor(() => expect(trace.autoInterventionInFlight || 0).toBe(0))
-    const complete = vi.spyOn(main.codex, 'completePrompt')
-    const settings = changedCodexSettings(fixture.store.read().settings, 'effort')
-    await fixture.service.updateAppSettings(settings)
-    // A new observation triggers evaluation with the saved configuration;
-    // saving alone must preserve consumed-decision fingerprints.
-    await trace.commitAgentState?.({ savedModelEvidence: true })
-    await vi.waitFor(() => expect(complete).toHaveBeenCalledWith(
-      expect.objectContaining({ harnesses: expect.objectContaining({ codex: settings.harnesses.codex }) }),
-      expect.anything(), undefined
-    ))
-    expect(fixture.store.read().bartAppliedSettings).not.toEqual(fixture.store.read().settings)
-    const alternateComplete = vi.spyOn(main.claude, 'completePrompt')
-    await fixture.service.updateAppSettings({ ...settings, bart: { ...settings.bart, hostHarnessPreference: 'claude' } })
-    await trace.commitAgentState?.({ savedHostEvidence: true })
-    await vi.waitFor(() => expect(alternateComplete).toHaveBeenCalled())
-    expect(readBartThread(fixture.store.read()).harnessId).toBe('codex')
-  })
-
   it('saves a new Host while unavailable and preserves the old Handle until replacement can resolve', async () => {
     const trace: HarnessTrace = { runBartTools: async () => undefined }
     const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
     const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
-    const fixture = await serviceFixture(trace, [], settings => ({ ...settings,
-      bart: { ...settings.bart, autoIntervention: false } }), { main })
+    const fixture = await serviceFixture(trace, [], settings => settings, { main })
     await fixture.service.initialize()
     await drainStartupRecovery(fixture.service)
     const before = readBartThread(fixture.store.read())
@@ -3410,7 +3321,7 @@ describe('OpenAgent Service Harness dispatch', () => {
     const trace: HarnessTrace = {}
     const fixture = await serviceFixture(trace, [], settings => ({
       ...settings,
-      bart: { ...settings.bart, autoIntervention: false },
+      bart: { ...settings.bart },
       harnesses: {
         ...settings.harnesses,
         codex: { threadSettings: {} }
@@ -3462,10 +3373,7 @@ describe('OpenAgent Service Harness dispatch', () => {
         releaseInitialMetadata = resolve
       })
     }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings,
-      bart: { ...settings.bart, autoIntervention: false }
-    }))
+    const fixture = await serviceFixture(trace, [], settings => settings)
     await addFixtureAgent(fixture, 'active-follow-up-metadata')
     try {
       await fixture.service.initialize()
@@ -5237,13 +5145,8 @@ describe('OpenAgent Service Harness dispatch', () => {
   })
 
   it('records one complete Core user message for Bart text and attachments', async () => {
-    const trace: HarnessTrace = {
-      autoInterventionCompletion: Promise.resolve(waitDecision('User context captured.'))
-    }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings,
-      bart: { ...settings.bart, autoIntervention: true }
-    }))
+    const trace: HarnessTrace = {}
+    const fixture = await serviceFixture(trace, [], settings => settings)
     await fixture.service.initialize()
     const source = join(fixture.root, 'policy.txt')
     await writeFile(source, 'Only use the narrow permission.', 'utf8')
@@ -5287,14 +5190,6 @@ describe('OpenAgent Service Harness dispatch', () => {
       }]
     })])
 
-    await vi.waitFor(() => expect(trace.autoInterventionMessages?.length).toBeGreaterThan(0))
-    const context = autoInterventionContext(trace.autoInterventionMessages!.at(-1)!)
-    expect(context.bartHistory).toEqual([{
-      role: 'user',
-      content: 'Only approve the read-only option.\nDo not grant broader access.',
-      status: 'complete',
-      attachments: [{ name: 'policy.txt', mimeType: 'text/plain', kind: 'document' }]
-    }])
   })
 
   it('records Bart user history only after send acceptance and not on retry failure', async () => {
@@ -5356,167 +5251,11 @@ describe('OpenAgent Service Harness dispatch', () => {
     expect(trace.bartSendAttempts).toBe(1)
   })
 
-  it('retries an in-flight auto-intervention fingerprint after Bart admission rejects', async () => {
-    let resolveFirst!: (result: HarnessPromptCompleteResult) => void
-    let releaseBartSend!: () => void
-    const rejection = new Error('fixture overlapping Bart admission rejected')
-    const trace: HarnessTrace = {
-      autoInterventionCompletion: new Promise(resolve => { resolveFirst = resolve }),
-      bartSendGate: new Promise<void>(resolve => { releaseBartSend = resolve }),
-      bartSendErrors: [rejection],
-      runBartTools: async () => undefined
-    }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings,
-      bart: { ...settings.bart, autoIntervention: true }
-    }))
-    await fixture.service.initialize()
-    const createdAt = Date.now()
-    await fixture.store.commit({
-      type: 'add-agent-thread',
-      thread: {
-        id: 'admission-fingerprint-thread',
-        harnessId: 'codex',
-        archived: false,
-        revision: 0,
-        sessionState: null,
-        observation: { latestExecution: null, backgroundWork: null },
-        title: 'Admission fingerprint',
-        tags: [],
-        cwd: fixture.defaultCwd,
-        settings: { model: 'fixture-model' },
-        createdAt,
-        updatedAt: createdAt
-      }
-    })
-    await fixture.service.followUpThread({
-      threadId: 'admission-fingerprint-thread',
-      input: { parts: [{ kind: 'text', text: 'Keep this Agent active.' }] }
-    })
-    await vi.waitFor(() => expect(trace.autoInterventionRequests).toBe(1))
-
-    const submit = fixture.service.submitBartMessage({
-      input: { parts: [{ kind: 'text', text: 'This rejected input is not authority.' }] }
-    })
-    try {
-      await vi.waitFor(() => expect(trace.bartSendAttempts).toBe(1))
-      trace.autoInterventionCompletion = Promise.resolve(waitDecision('Re-evaluated.'))
-      resolveFirst(waitDecision('Invalidated by pending admission.'))
-      await vi.waitFor(() => expect(trace.autoInterventionInFlight).toBe(0))
-      expect(trace.autoInterventionRequests).toBe(1)
-
-      releaseBartSend()
-      await expect(submit).rejects.toBe(rejection)
-      await vi.waitFor(() => expect(trace.autoInterventionRequests).toBe(2))
-      expect(readBartThread(fixture.store.read()).transcript).toEqual([])
-    } finally {
-      releaseBartSend()
-      await submit.catch(() => undefined)
-    }
-  })
-
-  it('claims queued user authority before an older auto response enters Bart commands', async () => {
-    const trace: HarnessTrace = {
-      autoInterventionCompletion: Promise.resolve(respondDecision({
-        interactionId: 'queued-authority-interaction',
-        actionId: 'allow'
-      }, 'Old decision must be invalidated.')),
-      runBartTools: async () => undefined
-    }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings,
-      bart: { ...settings.bart, autoIntervention: true }
-    }))
-    await fixture.service.initialize()
-    const createdAt = Date.now()
-    await fixture.store.commit({
-      type: 'add-agent-thread',
-      thread: fixtureThreadWithObservation({
-        id: 'queued-authority-thread',
-        harnessId: 'codex',
-        archived: false,
-        revision: 0,
-        sessionState: null,
-        observation: {
-          latestExecution: {
-            executionId: 'queued-authority-execution',
-            status: 'waiting-for-user',
-            startedAt: createdAt,
-            interactions: [{
-              id: 'queued-authority-interaction',
-              kind: 'permission',
-              title: 'Allow queued action?',
-              actions: [
-                { id: 'allow', intent: 'allow', label: 'Allow' },
-                { id: 'deny', intent: 'deny', label: 'Deny' }
-              ],
-              questions: []
-            }]
-          },
-          backgroundWork: null
-        },
-        title: 'Queued authority',
-        tags: [],
-        cwd: fixture.defaultCwd,
-        settings: { model: 'fixture-model' },
-        createdAt,
-        updatedAt: createdAt
-      })
-    })
-    await fixture.service.readThread({
-      threadId: 'queued-authority-thread',
-      question: 'Prime the persisted active handle.'
-    })
-
-    let releaseQueue!: () => void
-    let reportBlocked!: () => void
-    const queueGate = new Promise<void>(resolve => { releaseQueue = resolve })
-    const queueBlocked = new Promise<void>(resolve => { reportBlocked = resolve })
-    const bartCommands = Reflect.get(fixture.service, 'bartCommands') as {
-      run<Result>(operation: () => Promise<Result>): Promise<Result>
-    }
-    const run = vi.spyOn(bartCommands, 'run')
-    const blocker = bartCommands.run(async () => {
-      reportBlocked()
-      await queueGate
-    })
-    await queueBlocked
-    const intervention = Reflect.get(fixture.service, 'autoIntervention') as {
-      request(threadId: string): void
-    }
-    intervention.request('queued-authority-thread')
-    await vi.waitFor(() => expect(trace.autoInterventionReturns).toBe(1))
-    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2))
-
-    trace.autoInterventionCompletion = Promise.resolve(waitDecision('Use new authority.'))
-    const submit = fixture.service.submitBartMessage({
-      input: { parts: [{ kind: 'text', text: 'Do not approve the queued action.' }] }
-    })
-    try {
-      expect(Reflect.get(fixture.service, 'pendingBartUserAdmissions')).toBe(1)
-      // The synchronous authority claim must precede validation. Queue admission
-      // follows in the next microtask once canonicalization completes.
-      expect(run).toHaveBeenCalledTimes(2)
-      await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(3))
-      releaseQueue()
-      await blocker
-      await submit
-      await vi.waitFor(() => expect(trace.autoInterventionRequests).toBe(2))
-      expect(trace.threadResponses || []).toEqual([])
-    } finally {
-      releaseQueue()
-      await blocker.catch(() => undefined)
-      await submit.catch(() => undefined)
-    }
-  })
-
   it.each((['completed', 'failed', 'interrupted'] as const).flatMap(status =>
     [false, true].map(background => ({ status, background }))
   ))('freezes a $status terminal event and report guidance with background=$background', async ({ status, background }) => {
     const trace: HarnessTrace = { runBartTools: async () => undefined }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings, bart: { ...settings.bart, autoIntervention: false }
-    }))
+    const fixture = await serviceFixture(trace, [], settings => settings)
     await fixture.service.initialize()
     const createdAt = Date.now()
     await fixture.store.commit({
@@ -6584,7 +6323,7 @@ describe('OpenAgent Service Harness dispatch', () => {
         await fixture.store.commit({
           type: 'replace-settings',
           settings: change === 'bart'
-            ? { ...settings, bart: { ...settings.bart, autoIntervention: !settings.bart.autoIntervention } }
+            ? { ...settings, bart: { ...settings.bart, routingGuidance: 'Changed Bart guidance' } }
             : { ...settings, harnesses: {
                 ...settings.harnesses,
                 [harnessId]: { ...settings.harnesses[harnessId], threadSettings: { model: 'changed-model' } }
@@ -6639,158 +6378,6 @@ describe('OpenAgent Service Harness dispatch', () => {
     expect(trace.settingsPresentationLoads).toHaveLength(1)
   })
 
-  it('records a current auto-intervention failure and allows a later retry', async () => {
-    let rejectDecision!: (error: Error) => void
-    let releaseMetadata!: () => void
-    const trace: HarnessTrace = {
-      autoInterventionCompletion: Promise.resolve(waitDecision('Initial evaluation.')),
-      metadataCompletionGate: new Promise(resolve => { releaseMetadata = resolve })
-    }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings,
-      bart: { ...settings.bart, autoIntervention: true }
-    }))
-    try {
-      await fixture.service.initialize()
-      await fixture.service.submitBartMessage({
-        input: { parts: [{ kind: 'text', text: 'Start pending work.' }] }
-      })
-      await vi.waitFor(() => expect(trace.autoInterventionInFlight || 0).toBe(0))
-      const baselineRequests = trace.autoInterventionRequests || 0
-      trace.autoInterventionCompletion = new Promise((_resolve, reject) => {
-        rejectDecision = reject
-      })
-      await new Promise(resolve => setTimeout(resolve, 2))
-      await trace.commitAgentState?.({ failureEvidence: true })
-      await vi.waitFor(() => {
-        expect(trace.autoInterventionRequests).toBe(baselineRequests + 1)
-      })
-      rejectDecision(new Error('prompt fixture failed'))
-      await vi.waitFor(() => {
-        expect(readBartThread(fixture.store.read()).transcript.some(item =>
-          item.type === 'message' &&
-          item.systemEvent === true &&
-          item.content.includes('控制权保留给用户')
-        )).toBe(true)
-      })
-
-      trace.autoInterventionCompletion = Promise.resolve(waitDecision('Retry accepted.'))
-      await new Promise(resolve => setTimeout(resolve, 2))
-      await trace.commitAgentState?.({ retryEvidence: true })
-      await vi.waitFor(() => {
-        expect(trace.autoInterventionRequests).toBe(baselineRequests + 2)
-      })
-      expect(trace.threadResponses || []).toEqual([])
-    } finally {
-      releaseMetadata()
-    }
-  })
-
-  it('coalesces pending auto-intervention changes into one current rerun', async () => {
-    let resolveFirst!: (result: HarnessPromptCompleteResult) => void
-    let releaseMetadata!: () => void
-    const trace: HarnessTrace = {
-      autoInterventionCompletion: new Promise(resolve => { resolveFirst = resolve }),
-      metadataCompletionGate: new Promise(resolve => { releaseMetadata = resolve })
-    }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings,
-      bart: { ...settings.bart, autoIntervention: true }
-    }))
-    try {
-      await fixture.service.initialize()
-      await fixture.service.submitBartMessage({
-        input: { parts: [{ kind: 'text', text: 'Start coalesced work.' }] }
-      })
-      await vi.waitFor(() => expect(trace.autoInterventionRequests).toBe(1))
-      await new Promise(resolve => setTimeout(resolve, 2))
-      await trace.commitAgentState?.({ newestEvidence: true })
-      trace.autoInterventionCompletion = Promise.resolve(waitDecision('Use latest evidence.'))
-      resolveFirst(waitDecision('Old evidence.'))
-
-      await vi.waitFor(() => expect(trace.autoInterventionRequests).toBe(2))
-      expect(trace.maxAutoInterventionInFlight).toBe(1)
-      expect(trace.autoInterventionRequests).toBe(2)
-    } finally {
-      releaseMetadata()
-    }
-  })
-
-  it('clears auto-intervention ownership when its Thread is deleted', async () => {
-    let resolveDecision!: (result: HarnessPromptCompleteResult) => void
-    let reportDeleted!: (threadId: string) => void
-    let continueAfterDelete!: () => void
-    const deleted = new Promise<string>(resolve => { reportDeleted = resolve })
-    const deletionObserved = new Promise<void>(resolve => { continueAfterDelete = resolve })
-    const trace: HarnessTrace = {
-      autoInterventionCompletion: new Promise(resolve => { resolveDecision = resolve }),
-      async runBartTools(tools, signal) {
-        const started = await requiredTool(tools, 'thread_create').execute({
-          callId: 'auto-delete-start',
-          arguments: {
-            prompt: 'Start work that will be deleted during evaluation.',
-            harnessId: 'codex',
-            options: {}
-          },
-          signal
-        })
-        const threadId = jsonObject(started) && typeof started.threadId === 'string'
-          ? started.threadId
-          : undefined
-        if (!threadId) throw new Error('Start tool did not return threadId')
-        await vi.waitFor(() => expect(trace.autoInterventionRequests).toBe(1))
-        if (!trace.commitAgentState) throw new Error('Agent commit boundary was not installed')
-        await trace.commitAgentState({ dirtyWhilePromptPending: true })
-        await fixture.service.deleteThread(threadId)
-        reportDeleted(threadId)
-        await deletionObserved
-      }
-    }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings,
-      bart: { ...settings.bart, autoIntervention: true }
-    }))
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    await fixture.service.initialize()
-    const submit = fixture.service.submitBartMessage({
-      input: { parts: [{ kind: 'text', text: 'Delete the delegated Thread.' }] }
-    })
-    try {
-      const threadId = await deleted
-      const fingerprints = Reflect.get(
-        Reflect.get(fixture.service, 'autoIntervention'),
-        'fingerprints'
-      ) as Map<string, string>
-      const dirty = Reflect.get(
-        Reflect.get(fixture.service, 'autoIntervention'),
-        'dirty'
-      ) as Set<string>
-      expect(fingerprints.has(threadId)).toBe(false)
-      expect(dirty.has(threadId)).toBe(false)
-      expect(fixture.store.read().threads.some(thread => thread.id === threadId)).toBe(false)
-
-      resolveDecision(waitDecision('Deleted Thread must not be evaluated again.'))
-      continueAfterDelete()
-      await submit
-      await new Promise<void>(resolve => setImmediate(resolve))
-
-      const runs = Reflect.get(
-        Reflect.get(fixture.service, 'autoIntervention'),
-        'runs'
-      ) as Map<string, Promise<void>>
-      expect(runs.has(threadId)).toBe(false)
-      expect(dirty.has(threadId)).toBe(false)
-      expect(consoleError.mock.calls.some(call =>
-        String(call[0]).includes('auto-intervention failure')
-      )).toBe(false)
-    } finally {
-      resolveDecision(waitDecision('Test cleanup.'))
-      continueAfterDelete()
-      await submit.catch(() => undefined)
-      consoleError.mockRestore()
-    }
-  })
-
   it('claims deletion before a blocked send and suppresses its interrupt terminal event', async () => {
     let reportRunning!: () => void
     let releaseSend!: () => void
@@ -6837,90 +6424,6 @@ describe('OpenAgent Service Harness dispatch', () => {
     }
   })
 
-  it('records a current auto-intervention respond failure', async () => {
-    let releaseMetadata!: () => void
-    const trace: HarnessTrace = {
-      autoInterventionCompletion: Promise.resolve(waitDecision('Initial evaluation.')),
-      metadataCompletionGate: new Promise(resolve => { releaseMetadata = resolve })
-    }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings,
-      bart: { ...settings.bart, autoIntervention: true }
-    }))
-    try {
-      await fixture.service.initialize()
-      await fixture.service.submitBartMessage({
-        input: { parts: [{ kind: 'text', text: 'Start response-failure work.' }] }
-      })
-      await vi.waitFor(() => expect(trace.autoInterventionInFlight || 0).toBe(0))
-      const baselineRequests = trace.autoInterventionRequests || 0
-      trace.threadRespondError = new Error('fixture respond failed')
-      trace.autoInterventionCompletion = Promise.resolve(respondDecision(
-        {
-          interactionId: 'fixture-interaction',
-          actionId: 'submit',
-          answers: { answer: 'attempted' }
-        },
-        'Try the current response.'
-      ))
-      await new Promise(resolve => setTimeout(resolve, 2))
-      await trace.commitAgentState?.({ respondFailureEvidence: true })
-
-      await vi.waitFor(() => {
-        expect(trace.autoInterventionRequests).toBe(baselineRequests + 1)
-        expect(readBartThread(fixture.store.read()).transcript.some(item =>
-          item.type === 'message' &&
-          item.systemEvent === true &&
-          item.content.includes('没有等待响应')
-        )).toBe(true)
-      })
-      expect(trace.threadResponses || []).toEqual([])
-    } finally {
-      releaseMetadata()
-    }
-  })
-
-  it('rejects a late auto-intervention decision after Bart Thread replacement', async () => {
-    let resolveDecision!: (result: HarnessPromptCompleteResult) => void
-    const lateDecision = new Promise<HarnessPromptCompleteResult>(resolve => {
-      resolveDecision = resolve
-    })
-    const trace: HarnessTrace = { autoInterventionCompletion: lateDecision }
-    const fixture = await serviceFixture(trace, [], settings => ({
-      ...settings,
-      bart: { ...settings.bart, autoIntervention: true }
-    }))
-    await fixture.service.initialize()
-    await fixture.service.submitBartMessage({
-      input: { parts: [{ kind: 'text', text: 'Start a Thread requiring intervention.' }] }
-    })
-    await vi.waitFor(() => expect(trace.autoInterventionRequested).toBe(true))
-
-    const previousThread = readBartThread(fixture.store.read())
-    await fixture.service.clearBartSession()
-    resolveDecision({
-      output: {
-        type: 'json',
-        value: {
-          decision: 'respond',
-          response: {
-            interactionId: 'late-interaction',
-            actionId: 'submit',
-            answers: { answer: 'late' }
-          },
-          reason: 'Late stale decision.'
-        }
-      },
-      finishReason: 'stop'
-    })
-    await Promise.resolve()
-    await Promise.resolve()
-
-    const currentThread = readBartThread(fixture.store.read())
-    expect(currentThread.id).not.toBe(previousThread.id)
-    expect(trace.threadResponses || []).toEqual([])
-    expect(currentThread.transcript).toEqual([])
-  })
 })
 
 interface HarnessTrace {
@@ -7030,13 +6533,6 @@ interface HarnessTrace {
     readonly id: string
     readonly content: string
   }[]>
-  autoInterventionCompletion?: Promise<HarnessPromptCompleteResult>
-  autoInterventionMessages?: Array<readonly HarnessPromptMessage[]>
-  autoInterventionRequested?: boolean
-  autoInterventionRequests?: number
-  autoInterventionReturns?: number
-  autoInterventionInFlight?: number
-  maxAutoInterventionInFlight?: number
   metadataCompletionGate?: Promise<void>
   promptSourceThreadSettings?: Array<JsonValue | null>
   metadataMessages?: Array<readonly HarnessPromptMessage[]>
@@ -7418,31 +6914,6 @@ function mainHarnessComposition(
     },
     prompt: {
       async complete(request) {
-        const properties = request.outputFormat.type === 'json_schema'
-          ? request.outputFormat.schema.properties
-          : undefined
-        if (
-          jsonObject(properties) &&
-          Object.hasOwn(properties, 'decision') &&
-          trace.autoInterventionCompletion
-        ) {
-          trace.autoInterventionMessages ??= []
-          trace.autoInterventionMessages.push(structuredClone(request.messages))
-          trace.autoInterventionRequested = true
-          trace.autoInterventionRequests = (trace.autoInterventionRequests || 0) + 1
-          trace.autoInterventionInFlight = (trace.autoInterventionInFlight || 0) + 1
-          trace.maxAutoInterventionInFlight = Math.max(
-            trace.maxAutoInterventionInFlight || 0,
-            trace.autoInterventionInFlight
-          )
-          try {
-            const result = await trace.autoInterventionCompletion
-            trace.autoInterventionReturns = (trace.autoInterventionReturns || 0) + 1
-            return result
-          } finally {
-            trace.autoInterventionInFlight -= 1
-          }
-        }
         trace.metadataMessages ??= []
         trace.metadataMessages.push(structuredClone(request.messages))
         trace.metadataInFlight = (trace.metadataInFlight || 0) + 1
@@ -7765,7 +7236,6 @@ async function codexSettingsFixture(useDefaults = false) {
     ({ ...await api.resolveThreadSettings({ merged: api.defaultThreadSettings(input.settings.harnesses.codex as unknown as CodexHarnessSettings),
       cwd: input.cwd, sessionState: input.current?.sessionState ?? null, signal: input.signal }) }) as JsonObject)
   const fixture = await serviceFixture(trace, [], settings => ({ ...settings,
-    bart: { ...settings.bart, autoIntervention: false },
     harnesses: { ...settings.harnesses, codex: { ...(useDefaults ? {} : { useDefaultThreadSettings: false }), threadSettings: {} } }
   }), { main })
   await fixture.service.initialize()
@@ -7952,33 +7422,6 @@ function readAgentSettings(store: ThreadStateStore, threadId: string): unknown {
   return readAgentThread(store.read(), threadId).settings
 }
 
-function waitDecision(reason: string): HarnessPromptCompleteResult {
-  return {
-    output: {
-      type: 'json',
-      value: { decision: 'wait', response: null, reason }
-    },
-    finishReason: 'stop'
-  }
-}
-
-function respondDecision(
-  response: HarnessRespondRequest,
-  reason: string
-): HarnessPromptCompleteResult {
-  return {
-    output: {
-      type: 'json',
-      value: {
-        decision: 'respond',
-        response,
-        reason
-      }
-    },
-    finishReason: 'stop'
-  }
-}
-
 function requiredTool(
   tools: readonly HarnessToolBinding[],
   name: string
@@ -7995,22 +7438,6 @@ function exposedHarnessIds(schema: JsonObject | undefined): unknown[] {
     const harness = variant.properties.harnessId
     return jsonObject(harness) ? [harness.const] : []
   })
-}
-
-function autoInterventionContext(
-  messages: readonly HarnessPromptMessage[]
-): { readonly bartHistory: JsonValue } {
-  const content = messages.find(message => message.role === 'user')?.content
-  const prefix = '<auto_intervention_context>'
-  const suffix = '</auto_intervention_context>'
-  if (!content?.startsWith(prefix) || !content.endsWith(suffix)) {
-    throw new Error('Missing auto-intervention context')
-  }
-  const value: unknown = JSON.parse(content.slice(prefix.length, -suffix.length))
-  if (!jsonObject(value) || !Object.hasOwn(value, 'bartHistory')) {
-    throw new Error('Invalid auto-intervention context')
-  }
-  return { bartHistory: value.bartHistory }
 }
 
 function threadMetadataContext(

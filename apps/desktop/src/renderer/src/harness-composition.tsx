@@ -28,7 +28,6 @@ import type {
   HarnessSettingsResource
 } from '@openagent/contracts/renderer'
 import type {
-  HarnessOverviewDisplayPolicy,
   HarnessOverviewEnvelope,
   HarnessOverviewThread,
   HarnessOverviewThreadInput
@@ -93,7 +92,7 @@ function bindRendererHarness<
     Map<string, ReturnType<HarnessRendererBinding['executionTokenUsage']>>
   >()
   const projectOverview = (input: HarnessOverviewThreadInput, columns: number) => {
-    const key = overviewProjectionKey(input, columns)
+    const key = overviewProjectionKey(columns)
     let widths = projections.get(input.thread)
     if (!widths) {
       widths = new Map()
@@ -342,7 +341,6 @@ export const HarnessThreadViewHost = memo(function HarnessThreadViewHost(
 export type { HarnessOverviewEnvelope, HarnessOverviewThread, HarnessOverviewThreadInput }
 
 export interface HarnessOverviewCardHostProps extends HarnessThreadHostProps {
-  readonly displayPolicy?: HarnessOverviewDisplayPolicy
   readonly thread: HarnessOverviewThreadInput['thread']
   readonly availableColumns: number
   /** Structure/footprint selected by the queued Core layout revision. */
@@ -360,7 +358,7 @@ export function projectHarnessOverviewThread(
   input: HarnessOverviewThreadInput,
   availableColumns: number
 ): HarnessOverviewThread {
-  const key = overviewProjectionKey(input, availableColumns)
+  const key = overviewProjectionKey(availableColumns)
   let widths = overviewThreads.get(input.thread)
   const cached = widths?.get(key)
   if (cached) return cached
@@ -380,8 +378,8 @@ export function projectHarnessOverviewThread(
   return result
 }
 
-function overviewProjectionKey(input: { readonly displayPolicy?: HarnessOverviewDisplayPolicy }, columns: number): string {
-  return `${columns}:${Boolean(input.displayPolicy?.hideInterventions)}`
+function overviewProjectionKey(columns: number): string {
+  return String(columns)
 }
 
 /** Harness-owned Bart presentation: current activity and last final reply. */
@@ -414,7 +412,6 @@ function renderOverviewBranch<View>(
   module: {
     readonly project: (input: {
       readonly thread: DeepReadonly<HarnessThreadRecord>
-      readonly displayPolicy?: HarnessOverviewDisplayPolicy
       readonly layout: { readonly availableColumns: number }
     }) => {
       readonly footprint: { readonly columns: number; readonly rows: number }
@@ -538,7 +535,6 @@ function projectOverviewBranch<View>(
   module: {
     readonly project: (input: {
       readonly thread: DeepReadonly<HarnessThreadRecord>
-      readonly displayPolicy?: HarnessOverviewDisplayPolicy
       readonly layout: { readonly availableColumns: number }
     }) => {
       readonly footprint: { readonly columns: number; readonly rows: number }
@@ -547,7 +543,7 @@ function projectOverviewBranch<View>(
       readonly view: View
     }
   },
-  input: { readonly thread: DeepReadonly<HarnessThreadRecord>; readonly displayPolicy?: HarnessOverviewDisplayPolicy },
+  input: { readonly thread: DeepReadonly<HarnessThreadRecord> },
   availableColumns: number
 ): {
   readonly projection: ReturnType<typeof module.project>
@@ -556,7 +552,6 @@ function projectOverviewBranch<View>(
   try {
     const projection = module.project({
       thread: input.thread,
-      displayPolicy: input.displayPolicy,
       layout: { availableColumns }
     })
     const maximumColumns = positiveInteger(availableColumns) ? availableColumns : 1

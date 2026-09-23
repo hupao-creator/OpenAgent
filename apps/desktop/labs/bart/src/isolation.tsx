@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
+import { useEffect, useMemo, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RendererCapabilitiesProvider } from '@openagent/plugin-kit/renderer'
 import { AppI18nProvider } from '../../../src/renderer/src/i18n'
@@ -9,7 +8,7 @@ import { createMotionSurface, inspectMotionRuntime } from '../../../src/renderer
 import { prepareMotionCard, prewarmMotionCards, motionCardRevision } from '../../../src/renderer/src/bart-motion/card-assets'
 import { prepareWithinBudget, sealGeometry, sealMotionScene } from '../../../src/renderer/src/bart-motion/scene-host'
 import { compileGenerationProgram } from '../../../src/renderer/src/bart-motion/generation-program'
-import type { BartLogoActivity, BartInterventionVisualState } from '../../../src/renderer/src/bart-motion/character-model'
+import type { BartLogoActivity } from '../../../src/renderer/src/bart-motion/character-model'
 import { BartLogo } from '../../../src/renderer/src/components/BartLogo'
 import { BartDock } from '../../../src/renderer/src/components/BartDock'
 import { BartReplyBadge } from '../../../src/renderer/src/components/BartReplyBadge'
@@ -33,7 +32,6 @@ const globals = window as unknown as { bartIsolation?: {
   reply(open: boolean): void; staleRelease(): boolean; invalidate(): void
   inspect: typeof inspectMotionRuntime
   stress(): Promise<unknown>
-  intervention(state: BartInterventionVisualState): void
 } }
 
 function Character({ size, activity = 'list' }: { size: number; activity?: BartLogoActivity }) {
@@ -43,7 +41,6 @@ function Character({ size, activity = 'list' }: { size: number; activity?: BartL
 function IsolationLab() {
   const stage = useRef<HTMLDivElement>(null)
   const output = useRef<HTMLCanvasElement>(null)
-  const [intervention, setIntervention] = useState<{ state: BartInterventionVisualState; key: number }>()
   const fixture = useMemo(() => generationFixture(), [])
   const sources = useMemo(() => [0, 1].map(index => projectHarnessOverviewThread({ thread: {
     ...fixture, id: `isolation-card-${index}`, title: index ? '验证任务接力与归位' : fixture.title
@@ -135,7 +132,6 @@ function IsolationLab() {
       },
       release: handoff,
       inspect: inspectMotionRuntime,
-      intervention(state) { flushSync(() => setIntervention(previous => ({ state, key: (previous?.key ?? 0) + 1 }))) },
       async stress() {
         const results = []
         for (let round = 0; round < 3; round++) {
@@ -185,8 +181,7 @@ function IsolationLab() {
         bartAttachments={[]} onThreadOpenChange={noAction} onInputOpenChange={noAction}
         onInputChange={noAction} onChooseFiles={noAction} onRemoveBartAttachment={noAction}
         onSubmit={noAction} onInteractionResponse={noRequest} />
-      <aside className="isolation-settings"><BartLogo size={110} resolvedActivity="list" resolvedPhase="running"
-        interventionState={intervention?.state} resolvedKey={`intervention:${intervention?.key ?? 0}`} />
+      <aside className="isolation-settings"><BartLogo size={110} resolvedActivity="list" resolvedPhase="running" />
         <span>设置层 / 透明合成</span><b data-occlusion>设置</b></aside>
       <div className="isolation-reply"><BartLogo size={145} />
         <BartReplyBadge excerpt="这是静态未读提醒，点击后进入对应答复。" onOpen={noAction} /></div>

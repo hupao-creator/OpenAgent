@@ -4,7 +4,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HarnessBartActivity } from '@openagent/contracts/renderer'
 import { BartLogo } from '../src/renderer/src/components/BartLogo'
-import { BartDock, interventionVisualState } from '../src/renderer/src/components/BartDock'
+import { BartDock } from '../src/renderer/src/components/BartDock'
 
 let frameTime = 0
 
@@ -139,45 +139,5 @@ describe('BartLogo idle eye behavior', () => {
     expect(translateY).toBeLessThanOrEqual(4.1)
   })
 
-  it.each(['processing', 'allow', 'deny', 'answer'] as const)(
-    'renders the request-transit visual for %s',
-    (interventionState) => {
-      const logo = render(
-        <BartLogo
-          size={210}
-          interventionState={interventionState}
-          interventionKey={`decision:${interventionState}`}
-        />
-      )
-
-      const svg = logo.container.querySelector('.bart-logo')
-      expect(svg).toHaveAttribute('data-intervention-state', interventionState)
-      expect(logo.container.querySelector('.bart-intervention-request-token')).toBeInTheDocument()
-      expect(logo.container.querySelector('.bart-intervention-answer-token')).toBeInTheDocument()
-    }
-  )
-
-  it('maps structured auto-intervention results to the four production visuals', () => {
-    const base = {
-      mode: 'auto' as const,
-      sourceConversationId: 'conversation-1',
-      sourceRunId: 'run-1',
-      interactionId: 'interaction-1',
-      threadTitle: 'Thread',
-      interventionTitle: 'Permission'
-    }
-
-    expect(interventionVisualState({ ...base, responseStatus: 'pending' })).toBe('processing')
-    expect(
-      interventionVisualState({ ...base, responseStatus: 'responded', action: 'allow' })
-    ).toBe('allow')
-    expect(
-      interventionVisualState({ ...base, responseStatus: 'responded', action: 'deny' })
-    ).toBe('deny')
-    expect(
-      interventionVisualState({ ...base, responseStatus: 'responded', action: 'submit' })
-    ).toBe('answer')
-    expect(interventionVisualState({ ...base, responseStatus: 'fallback' })).toBeUndefined()
-  })
 
 })

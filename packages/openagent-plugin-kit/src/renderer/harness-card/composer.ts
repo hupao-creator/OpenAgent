@@ -111,13 +111,6 @@ export function composeThreadCard(
     }
   }
 
-  if (layoutContext.displayPolicy?.hideInterventions) {
-    projection = {
-      ...projection,
-      extensions: projection.extensions.filter((extension) => extension.kind !== 'intervention')
-    }
-  }
-
   const extensions = canonicalExtensions(projection.extensions).map((extension) =>
     threadCardExtensionSizeContract(extension)
   )

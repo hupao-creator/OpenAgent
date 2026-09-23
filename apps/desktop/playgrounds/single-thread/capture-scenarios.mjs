@@ -158,7 +158,6 @@ try {
       hostHarnessPreference: Object.keys(adapters).find(
         (id) => canHostBart(adapters[id].descriptor.threadCapabilities),
       ),
-      autoIntervention: false,
     },
   })
   console.log('HOST', host.port, dir)

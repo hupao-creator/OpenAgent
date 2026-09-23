@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { expectOverviewPolicyToggle } from './overview-display-policy-support'
+import { expectOverviewInteraction } from './overview-interaction-support'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -16,8 +16,8 @@ import type { HarnessRendererThreadActions } from '@openagent/contracts/renderer
 afterEach(cleanup)
 
 describe('Claude overview interactions', () => {
-  it.each(['question', 'permission'])('toggles the %s extension through the Core overview policy', async (kind) => {
-    await expectOverviewPolicyToggle(kind === 'permission' ? waitingClaudeThread() : waitingClaudeThread({
+  it.each(['question', 'permission'])('shows the %s extension and submits manual responses through the Core overview', async (kind) => {
+    await expectOverviewInteraction(kind === 'permission' ? waitingClaudeThread() : waitingClaudeThread({
       id: 'policy-question', kind: 'question', title: 'Choose', status: 'pending',
       questions: [{ header: 'Target', question: 'Where?', multiSelect: false, options: [{ label: 'Here' }] }]
     }))

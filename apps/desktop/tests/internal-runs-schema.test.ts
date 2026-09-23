@@ -3,16 +3,13 @@ import { z } from 'zod'
 import { modelJsonSchema } from '../src/main/internal-run-schemas'
 import {
   DEFAULT_THREAD_EMOJI,
-  MAX_HARNESS_RESPONSE_MESSAGE_CHARACTERS,
   type JsonObject,
   type JsonValue
 } from '@openagent/contracts'
 import {
   ATTACHMENT_ONLY_THREAD_TITLE,
   FALLBACK_THREAD_TITLE,
-  buildAutoInterventionPrompt,
   buildThreadMetadataPrompt,
-  parseAutoInterventionOutput,
   parseThreadMetadataOutput,
   placeholderThreadTitle,
   validateThreadMetadata,
@@ -36,13 +33,6 @@ const metadata = (patch: JsonObject = {}): JsonObject => ({
 })
 const validated = (value: JsonValue, context = input) =>
   validateThreadMetadata(parseThreadMetadataOutput(value), context)
-const decision = (response: JsonValue, reason = 'Previously authorized.'): JsonObject => ({
-  decision: 'respond', response, reason
-})
-const response = (patch: JsonObject = {}): JsonObject => ({
-  interactionId: 'interaction', actionId: 'submit', ...patch
-})
-
 describe('internal model output boundaries', () => {
   it('fails loudly when model conversion encounters nested runtime refinements or transforms', () => {
     for (const text of [
@@ -69,21 +59,11 @@ describe('internal model output boundaries', () => {
     expect(metadataSchema.additionalProperties).toBe(false)
     expect(metadataProperties.title).toMatchObject({ minLength: 1, maxLength: 60 })
     expect(metadataProperties.tags).toMatchObject({ minItems: 1, maxItems: 1 })
-    const autoSchema = buildAutoInterventionPrompt({ bartTranscript: [], threadStatus: null }).outputFormat.schema
-    expect(autoSchema.required).toEqual(['decision', 'response', 'reason'])
-    expect(autoSchema.additionalProperties).toBe(false)
-    expect((autoSchema.properties as JsonObject).response).toMatchObject({
-      anyOf: [expect.objectContaining({
-        required: ['interactionId', 'actionId'], additionalProperties: false
-      }), { type: 'null' }]
-    })
   })
 
   it('requires own envelope fields rather than accepting inherited required values', () => {
     const inheritedMetadata = Object.assign(Object.create({ title: 'Query planner' }), { emoji: '🔍', tags: [] })
     expect(() => parseThreadMetadataOutput(inheritedMetadata)).toThrow('封闭 JSON object')
-    const inheritedDecision = Object.assign(Object.create({ reason: 'No pending interaction' }), { decision: 'wait', response: null })
-    expect(() => parseAutoInterventionOutput(inheritedDecision)).toThrow('封闭 JSON object')
   })
 
   it.each(['name', 'description'])('rejects inherited or nonenumerable tag %s', field => {
@@ -95,16 +75,11 @@ describe('internal model output boundaries', () => {
     expect(() => parseThreadMetadataOutput(metadata({ tags: [tag] }))).toThrow('tag 形状无效')
   })
 
-  it('rejects nonenumerable required metadata and decision envelope fields', () => {
+  it('rejects nonenumerable required metadata envelope fields', () => {
     for (const field of ['title', 'emoji', 'tags']) {
       const value = metadata()
       Object.defineProperty(value, field, { enumerable: false })
       expect(() => parseThreadMetadataOutput(value)).toThrow('封闭 JSON object')
-    }
-    for (const field of ['decision', 'response', 'reason']) {
-      const value = { decision: 'wait', response: null, reason: 'No pending interaction' }
-      Object.defineProperty(value, field, { enumerable: false })
-      expect(() => parseAutoInterventionOutput(value)).toThrow('封闭 JSON object')
     }
   })
 
@@ -207,38 +182,4 @@ describe('internal model output boundaries', () => {
       .toEqual(['Existing'])
   })
 
-  it('enforces wait/respond semantics while retaining reason normalization and identifier policy', () => {
-    expect(parseAutoInterventionOutput({ decision: 'wait', response: null, reason: '  No\n pending request. ' }))
-      .toEqual({ respond: false, response: null, reason: 'No pending request.' })
-    expect(parseAutoInterventionOutput(decision(response({ interactionId: 'i'.repeat(129) }), '𠮷'.repeat(240))))
-      .toMatchObject({ respond: true, reason: '𠮷'.repeat(240) })
-    for (const value of [
-      { decision: 'wait', response: response(), reason: 'Wait' },
-      decision(null), decision(response(), ''), decision(response(), 'unsafe\0reason'),
-      decision(response(), '𠮷'.repeat(241)),
-      { decision: 'wait', reason: 'Missing response' },
-      { decision: 'wait', response: null, reason: 'Extra field', extra: true },
-      decision(response({ interactionId: '  ' })), decision(response({ actionId: null }))
-    ]) expect(() => parseAutoInterventionOutput(value)).toThrow()
-  })
-
-  it('retains public response UTF-16 feedback limits, JSON validation and opaque answers', () => {
-    const message = '𠮷'.repeat(MAX_HARNESS_RESPONSE_MESSAGE_CHARACTERS / 2)
-    expect(parseAutoInterventionOutput(decision(response({ message })))).toMatchObject({ response: { message } })
-    expect(() => parseAutoInterventionOutput(decision(response({ message: `${message}𠮷` })))).toThrow('message 无效')
-    expect(() => parseAutoInterventionOutput(decision(response({ message: 'bad\0feedback' })))).toThrow('message 无效')
-    const invalidResponses: JsonObject[] = [{ answers: null }, { message: null }, { answers: { ' ': 'empty key' } },
-      { answers: { choices: [1] } }, { nativeAction: true }]
-    for (const patch of invalidResponses) {
-      expect(() => parseAutoInterventionOutput(decision(response(patch)))).toThrow()
-    }
-    const answers = JSON.parse('{"__proto__":["one","one"],"answer":""}') as JsonObject
-    const result = parseAutoInterventionOutput(decision(response({ answers, message: '' })))
-    expect(result.response).not.toHaveProperty('message')
-    expect(Object.hasOwn(result.response!.answers!, '__proto__')).toBe(true)
-    expect(result.response!.answers).toEqual(answers)
-    expect(() => parseAutoInterventionOutput(decision(response({ answers: JSON.parse('{"__proto__":1}') })))).toThrow()
-    expect(() => parseAutoInterventionOutput(decision({ ...response(), answers: undefined } as unknown as JsonObject)))
-      .toThrow()
-  })
 })

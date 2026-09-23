@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { expectOverviewPolicyToggle } from './overview-display-policy-support'
+import { expectOverviewInteraction } from './overview-interaction-support'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -44,8 +44,8 @@ describe('Codex renderer interactions', () => {
     expect(screen.queryByRole('button', { name: '中断' })).not.toBeInTheDocument()
   })
 
-  it.each(['question', 'permission'])('toggles the %s extension through the Core overview policy', async (kind) => {
-    await expectOverviewPolicyToggle(kind === 'question' ? codexQuestionThread()
+  it.each(['question', 'permission'])('shows the %s extension and submits manual responses through the Core overview', async (kind) => {
+    await expectOverviewInteraction(kind === 'question' ? codexQuestionThread()
       : codexInteractionThread(codexPermissionInteraction()))
   })
   it('keeps Codex overview context on the latest execution without changing Bart dock summaries', () => {

@@ -83,7 +83,7 @@ export async function lifecycleDriver() {
     run: async (_id, operation) => operation(), open: async () => instance,
     peek: () => instance, forget: () => undefined, cancelPending: () => undefined,
     interrupt: async (_id, _signal, _cancel, expectedId) => instance.interrupt(expectedId),
-    admit: async () => undefined, forgetIntervention: () => undefined, releaseWorkspace: async () => undefined
+    admit: async () => undefined, releaseWorkspace: async () => undefined
   })
   return {
     store, io, service, options, observation, publish, open,

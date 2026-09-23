@@ -4,10 +4,10 @@ import {
   primaryOperation, motionKeyFor, interactionDescriptor, seatDescriptor, createMotionState,
   eyeTargetOf, layoutSvgMessage, applyDescriptor, snapMotionToTargets, renderMotionFrame,
   pointsToPath, eyeAttributes, BODY_COLOR, EYE_COLOR,
-  type BartLogoActivity, type BartLogoPhase, type BartLogoLayout, type BartInterventionVisualState,
+  type BartLogoActivity, type BartLogoPhase, type BartLogoLayout,
   type BartLogoEye, type BartMotionState, type BartElements
 } from '../bart-motion/character-model'
-export type { BartLogoActivity, BartLogoPhase, BartLogoLayout, BartInterventionVisualState,
+export type { BartLogoActivity, BartLogoPhase, BartLogoLayout,
   BartLogoPose, BartLogoEye, BartLogoExpression, BartLogoShape } from '../bart-motion/character-model'
 import './BartLogo.css'
 import type { CharacterDescription } from '../bart-motion/worker-types'
@@ -34,8 +34,6 @@ interface BartLogoProps {
   message?: string
   messagePulse?: 'a' | 'b'
   layout?: BartLogoLayout
-  interventionState?: BartInterventionVisualState
-  interventionKey?: string
   /** Semantic state identity, shared with the resident Worker character. */
   resolvedKey?: string
   /** Role appearance; spatial transforms belong to the containing scene. */
@@ -61,8 +59,6 @@ export const BartLogo = memo(function BartLogo({
   message,
   messagePulse,
   layout = typeof message === 'string' ? 'message' : 'mark',
-  interventionState,
-  interventionKey,
   resolvedKey,
   roleKind,
   resident,
@@ -95,12 +91,11 @@ export const BartLogo = memo(function BartLogo({
   const motionKey = resolvedKey ?? motionKeyFor(
     layout,
     visibleOperation?.id || activity,
-    phase,
-    interventionKey || interventionState || ''
+    phase
   )
   const descriptor = layout === 'permission' || layout === 'question'
     ? interactionDescriptor(layout)
-    : seatDescriptor(activity, phase, interventionState)
+    : seatDescriptor(activity, phase)
   const motionRef = useRef<BartMotionState | null>(null)
   motionRef.current ||= createMotionState(motionKey, descriptor, layout)
   const motion = motionRef.current
@@ -165,7 +160,6 @@ export const BartLogo = memo(function BartLogo({
       data-expanded={expanded ? 'true' : 'false'}
       data-layout={layout}
       data-message-pulse={messagePulse}
-      data-intervention-state={interventionState}
       data-motion-key={motionKey}
       data-role={roleKind}
       aria-hidden="true"
@@ -210,18 +204,7 @@ export const BartLogo = memo(function BartLogo({
         ))}
       </g>
 
-      <g className="bart-intervention-transit" aria-hidden="true">
-        <g className="bart-intervention-request-token">
-          <rect x="106" y="276" width="72" height="52" rx="15" />
-          <path d="M124 302H157M147 291L159 302L147 313" />
-        </g>
-        <g className="bart-intervention-answer-token">
-          <path d="M466 274H532C544 274 554 284 554 296V319C554 331 544 341 532 341H502L486 354L489 341H466C454 341 444 331 444 319V296C444 284 454 274 466 274Z" />
-          <path d="M468 296H530M468 310H518M468 324H506" />
-        </g>
-      </g>
-
-      {roleKind === 'running' && phase === 'running' && layout === 'mark' && !interventionState ? (
+      {roleKind === 'running' && phase === 'running' && layout === 'mark' ? (
         <g className="bart-running-fallback">
           {STILL_RUNNING_DOTS.map((dot, index) => <circle key={index} cx={dot.x} cy={dot.y}
             r={RUNNING_DOT_RADIUS} fill={dot.color} opacity={dot.opacity} />)}
@@ -229,7 +212,7 @@ export const BartLogo = memo(function BartLogo({
       ) : null}
       <g className="bart-body-motion">
         <CharacterCanvas width={renderWidth} height={renderHeight} description={{
-          activity, phase, key: motionKey, layout, intervention: interventionState, role: roleKind, resident, animate: shouldAnimate, launch, viewport: canvasViewport
+          activity, phase, key: motionKey, layout, role: roleKind, resident, animate: shouldAnimate, launch, viewport: canvasViewport
         }} />
         <g
           ref={botRef}

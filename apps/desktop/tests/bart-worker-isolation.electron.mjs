@@ -78,48 +78,6 @@ async function verifyMessageArrival(contents, output) {
   console.log('BART_MESSAGE', JSON.stringify({ output, motion, negative, early, late }))
 }
 
-async function verifyResidentInterventions(contents, output) {
-  const results = []
-  for (const state of ['processing', 'allow', 'deny', 'answer']) {
-    const frames = [], images = []
-    const started = performance.now()
-    let lastSaved = -Infinity
-    contents.beginFrameSubscription(false, image => {
-      const at = performance.now() - started
-      const size = image.getSize(), sx = size.width / 1180, sy = size.height / 780
-      const region = image.crop({ x: Math.round(735 * sx), y: Math.round(295 * sy), width: Math.round(160 * sx), height: Math.round(140 * sy) })
-      const pixels = region.toBitmap()
-      let purple = 0
-      for (let offset = 0; offset < pixels.length; offset += 4) {
-        // Electron bitmap is BGRA on this desktop; the answer token is #6f5bdd.
-        if (pixels[offset] > 150 && pixels[offset + 1] > 40 && pixels[offset + 1] < 120 && pixels[offset + 2] > 70 && pixels[offset + 2] < 170) purple++
-      }
-      const negative = image.crop({ x: Math.round(70 * sx), y: Math.round(440 * sy), width: Math.round(160 * sx), height: Math.round(36 * sy) }).toBitmap()
-      frames.push({ at, purple, hash: { character: createHash('sha256').update(pixels).digest('hex'), negative: createHash('sha256').update(negative).digest('hex') } })
-      if (at - lastSaved >= 180) { lastSaved = at; images.push({ at, data: pixels, size: region.getSize() }) }
-    })
-    await contents.executeJavaScript(`window.bartIsolation.intervention('${state}')`)
-    const blockedAt = performance.now() - started
-    await contents.executeJavaScript('window.bartIsolation.block(2000)')
-    const finishedAt = performance.now() - started
-    await delay(100)
-    contents.endFrameSubscription()
-    await Promise.all(images.map((image, index) => writeFile(path.join(output, `${state}-${index}-${Math.round(image.at)}.png`),
-      nativeImage.createFromBitmap(image.data, image.size).toPNG())))
-    const negative = regionMetrics(frames, 'negative', blockedAt + 400, finishedAt - 75)
-    const motion = regionMetrics(frames, 'character', blockedAt + 80, blockedAt + 1050)
-    const answer = { early: Math.max(0, ...frames.filter(frame => frame.at < blockedAt + 400).map(frame => frame.purple)),
-      arriving: Math.max(0, ...frames.filter(frame => frame.at > blockedAt + 650 && frame.at < blockedAt + 1400).map(frame => frame.purple)),
-      finished: Math.max(0, ...frames.filter(frame => frame.at > blockedAt + 1650).map(frame => frame.purple)) }
-    results.push({ state, blockedAt, finishedAt, negative, motion, answer, frames })
-    await writeFile(path.join(output, 'residents.json'), JSON.stringify(results, null, 2))
-    if (negative.maxObservedHold < 1400 || motion.unique < 8 || motion.maxObservedHold >= 100) throw new Error(`Resident ${state} froze during its active Worker clip: ${JSON.stringify({ negative, motion })}`)
-    if (state === 'answer' && (answer.early > 2 || answer.arriving < 8 || answer.finished > 2)) throw new Error(`Delayed answer token failed to execute autonomously: ${JSON.stringify(answer)}`)
-  }
-  await writeFile(path.join(output, 'residents.json'), JSON.stringify(results, null, 2))
-  console.log('BART_RESIDENTS', JSON.stringify({ output, results: results.map(({ frames, ...result }) => ({ ...result, frames: frames.length })) }))
-}
-
 async function verifyProductionGeneration(contents, output) {
   await deadline((async () => {
     while (!(await contents.executeJavaScript('Boolean(window.bartProduction)'))) await delay(30)
@@ -582,14 +540,6 @@ try {
   })()`)
   await writeFile(path.join(output, 'mounted.png'), (await contents.capturePage()).toPNG())
   const firstCapturedMs = performance.now() - launchedAt
-  if (process.argv[2] === '--residents') {
-    await contentTracing.startRecording({ included_categories: ['cc', 'viz', 'gpu', 'blink', 'blink.user_timing', 'devtools.timeline'] })
-    tracing = true
-    await verifyResidentInterventions(contents, output)
-    await contentTracing.stopRecording(path.join(output, 'trace.json'))
-    tracing = false
-    window.destroy(); app.exit(0); return
-  }
   const nativeFocusAvailable = await contents.executeJavaScript(`(() => {
     const button = document.querySelector('.thread-overview-item-open'); button.focus();
     return document.activeElement === button;

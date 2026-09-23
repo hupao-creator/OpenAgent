@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { isJsonValue, threadDirectoryTag, type HarnessThreadRecord, type BartThreadRecord, type DeepReadonly, type JsonObject } from '@openagent/contracts'
+import { isJsonValue, threadDirectoryTag, type HarnessThreadRecord, type DeepReadonly, type JsonObject } from '@openagent/contracts'
 
 export function publicThreadEnvelope(
   thread: DeepReadonly<HarnessThreadRecord>
@@ -20,12 +19,4 @@ export function publicThreadEnvelope(
     updatedAt: thread.updatedAt,
     observation: structuredClone(observation)
   }
-}
-
-export function bartTranscriptFingerprint(
-  record: DeepReadonly<BartThreadRecord>
-): string {
-  return createHash('sha256')
-    .update(JSON.stringify(record.transcript))
-    .digest('hex')
 }

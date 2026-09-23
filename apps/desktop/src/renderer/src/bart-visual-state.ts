@@ -22,7 +22,6 @@ export function sameVisualOperations(left: readonly BartVisualOperation[], right
 export function overviewTransitionChanged(
   current: RendererAppState, next: RendererAppState, mutation: RendererStateMutation
 ): boolean {
-  if (current.settings.bart.autoIntervention !== next.settings.bart.autoIntervention) return true
   if (mutation.effect || mutation.reports) return true
   if (mutation.threads?.upserts.some((thread) => !isBartThread(thread))) return true
   if (mutation.threads?.removedIds.some((id) => current.threads.some(

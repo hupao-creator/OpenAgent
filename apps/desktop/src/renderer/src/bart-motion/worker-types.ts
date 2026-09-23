@@ -3,7 +3,7 @@ import type { CharacterLaunch } from './launch-story'
 import type { MotionTimeline } from './motion-timeline'
 import type { DispatchDescription } from './dispatch-canvas'
 import type { BartWebGLPose } from './webgl-renderer'
-import type { BartLogoActivity, BartLogoPhase, BartLogoLayout, BartInterventionVisualState } from './character-model'
+import type { BartLogoActivity, BartLogoPhase, BartLogoLayout } from './character-model'
 import type { CameraDive } from '../bart-thread-transition/camera-model'
 import type { CameraFrame } from '../overview-motion/camera-track'
 
@@ -12,7 +12,6 @@ export interface CharacterDescription {
   phase: BartLogoPhase
   key?: string
   layout?: BartLogoLayout
-  intervention?: BartInterventionVisualState
   role?: string
   resident?: ResidentDescription
   animate?: boolean
