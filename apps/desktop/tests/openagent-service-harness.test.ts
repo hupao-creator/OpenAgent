@@ -5219,6 +5219,23 @@ describe('OpenAgent Service Harness dispatch', () => {
     )
   })
 
+  it.each([false, true])('preserves directory references in persisted Bart history with surrounding text: %s', async withText => {
+    const fixture = await serviceFixture({ runBartTools: async () => undefined }, [])
+    await fixture.service.initialize()
+    const mention: AgentInput['parts'][number] = { kind: 'mention', name: '项目', path: '/work/中文 项目', pathType: 'directory' }
+    await fixture.service.submitBartMessage({ input: { parts: withText
+      ? [{ kind: 'text', text: 'Read ' }, mention, { kind: 'text', text: ' carefully.' }]
+      : [mention]
+    } })
+    const message = expect.objectContaining({ type: 'message', role: 'user',
+      content: withText ? 'Read @"/work/中文 项目" carefully.' : '@"/work/中文 项目"'
+    })
+    expect(readBartThread(fixture.store.read()).transcript).toContainEqual(message)
+    await fixture.store.flush()
+    const restored = await trackedStore(fixture.root).load()
+    expect(readBartThread(restored!).transcript).toContainEqual(message)
+  })
+
   it('records one complete Core user message for Bart text and attachments', async () => {
     const trace: HarnessTrace = {
       autoInterventionCompletion: Promise.resolve(waitDecision('User context captured.'))

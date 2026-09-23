@@ -34,6 +34,12 @@ export function reconcileDirectoryMentions(
   return mentions.flatMap(mention => {
     if (mention.end <= start) return [mention]
     if (mention.start >= oldEnd) return [{ ...mention, start: mention.start + delta, end: mention.end + delta }]
+    // A boundary insertion/deletion can share the reference's leading @,
+    // making the common prefix appear to end inside an unchanged reference.
+    if (delta !== 0 && (oldEnd === start || newEnd === start) && mention.start + delta >= 0 &&
+      next.slice(mention.start + delta, mention.end + delta) === previous.slice(mention.start, mention.end)) {
+      return [{ ...mention, start: mention.start + delta, end: mention.end + delta }]
+    }
     return []
   })
 }

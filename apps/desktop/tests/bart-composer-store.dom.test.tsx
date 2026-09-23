@@ -19,6 +19,26 @@ function api(overrides: Partial<DesktopApi> = {}): DesktopApi {
 }
 
 describe('Bart shared composer', () => {
+  it.each(['', 'Read '])('preserves an existing mention when inserting another at its boundary after %j', async prefix => {
+    const store = createBartComposerStore()
+    store.setText(prefix + '@')
+    store.insertMention({ start: prefix.length, end: prefix.length + 1, query: '' }, { name: 'old', path: '/work/old' })
+    const draft = store.getState().text
+    store.setText(draft.slice(0, prefix.length) + '@' + draft.slice(prefix.length))
+    expect(store.getState().mentions).toHaveLength(1)
+    store.setText(draft)
+    expect(store.getState().mentions).toHaveLength(1)
+    store.setText(draft.slice(0, prefix.length) + '@' + draft.slice(prefix.length))
+    store.insertMention({ start: prefix.length, end: prefix.length + 1, query: '' }, { name: 'new', path: '/work/new' })
+    const host = api()
+    await store.submit(host, '')
+    const input = vi.mocked(host.submitBartMessage).mock.calls[0][0].input
+    expect(input.parts.filter(part => part.kind === 'mention')).toEqual([
+      { kind: 'mention', pathType: 'directory', name: 'new', path: '/work/new' },
+      { kind: 'mention', pathType: 'directory', name: 'old', path: '/work/old' }
+    ])
+  })
+
   it('keeps the largest mention draft with all attachments inside the public input limit', async () => {
     const store = createBartComposerStore()
     for (let index = 0; index < 50; index++) {

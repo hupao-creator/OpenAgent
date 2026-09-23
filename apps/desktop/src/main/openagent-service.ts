@@ -3946,14 +3946,25 @@ function bartUserMessage(
     type: 'message',
     id,
     role: 'user',
-    content: inputTextContent(input),
+    content: inputDisplayContent(input),
     status: 'complete',
     ...(attachments.length ? { attachments } : {})
   }
 }
 
-function inputTextContent(input: AgentInput): string {
-  return input.parts.flatMap(part => part.kind === 'text' ? [part.text] : []).join('\n')
+function inputDisplayContent(input: AgentInput): string {
+  let content = ''
+  let previousKind: 'text' | 'mention' | undefined
+  for (const part of input.parts) {
+    if (part.kind !== 'text' && part.kind !== 'mention') continue
+    // Keep existing paragraph boundaries between text parts; mention-adjacent
+    // fragments already contain the spacing from the draft.
+    if (previousKind === 'text' && part.kind === 'text') content += '\n'
+    if (previousKind === 'mention' && part.kind === 'mention') content += ' '
+    content += part.kind === 'text' ? part.text : `@${JSON.stringify(part.path)}`
+    previousKind = part.kind
+  }
+  return content
 }
 
 function assertAgentInput(input: AgentInput): void {
