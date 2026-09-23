@@ -40,7 +40,10 @@ beforeEach(async () => {
   host = { resolveExecutable: vi.fn(async (_command, _cwd, configured) => configured ?? '/bin/pi'), environment: vi.fn(async () => ({})), harnessDataRoot: await mkdtemp(join(tmpdir(), 'pi-settings-')), temporaryWorkspaceRoot: '/tmp/pi' }
 })
 
-afterEach(async () => { await rm(host.harnessDataRoot, { recursive: true, force: true }) })
+afterEach(async () => {
+  vi.restoreAllMocks()
+  await rm(host.harnessDataRoot, { recursive: true, force: true })
+})
 
 describe('Pi settings public contract', () => {
   it('scopes evaluation identities to the selected native provider even when another has the same id', async () => {
@@ -259,6 +262,111 @@ describe('Pi settings public contract', () => {
     // warmed the cache, so the hit cannot skip cancellation.
     await expect(availability.probe({ settings: { threadSettings: {} }, cwd: '/workspace', signal: controller.signal })).rejects.toThrow()
     expect(startPiRpc).toHaveBeenCalledOnce()
+  })
+  it('reuses a complete Bart target discovery across conversational gaps until its five-minute expiry', async () => {
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const { availability, settings } = createPiSettings(host)
+    const input = { settings: { threadSettings: {} }, cwd: '/bart', signal: signal() }
+    const prepare = async () => {
+      expect(await availability.probe(input)).toEqual({ available: true })
+      return settings.describe(input)
+    }
+    const description = await prepare()
+    expect(startPiRpc).toHaveBeenCalledTimes(2)
+    for (const elapsed of [30_000, 90_000, 179_999]) {
+      now += elapsed
+      await expect(prepare()).resolves.toEqual(description)
+      expect(startPiRpc).toHaveBeenCalledTimes(2)
+    }
+    // Cache reads do not extend native facts' original freshness deadline.
+    now += 1
+    await expect(prepare()).resolves.toEqual(description)
+    expect(startPiRpc).toHaveBeenCalledTimes(4)
+    expect(disposal).toHaveBeenCalledTimes(4)
+  })
+  it.each(['missing-model', 'unlisted-model', 'unsupported-thinking', 'unapplied-selection', 'catalog-error'])(
+    'does not extend the retry window for a %s observation', async failure => {
+      let now = Date.now()
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      const native = request.getMockImplementation()!
+      request.mockImplementation(async command => {
+        if (command.type === 'get_state') {
+          if (failure === 'missing-model') return { thinkingLevel: 'medium' }
+          if (failure === 'unsupported-thinking') return { model: selected, thinkingLevel: 'invalid' }
+          if (failure === 'unapplied-selection') return { model: models[0], thinkingLevel: 'medium' }
+        }
+        if (command.type === 'get_available_models') {
+          if (failure === 'unlisted-model') return { models: [] }
+          if (failure === 'catalog-error') throw new Error('Catalog unavailable')
+        }
+        return native(command)
+      })
+      const { settingsPresentation } = createPiSettings(host)
+      const input = { settings: failure === 'unapplied-selection'
+        ? { useDefaultThreadSettings: false, threadSettings: { provider: 'openai', model: 'fast' } }
+        : { threadSettings: {} }, cwd: '/bart', signal: signal() }
+      await settingsPresentation.load(input)
+      now += 20_000
+      await settingsPresentation.load(input)
+      expect(startPiRpc).toHaveBeenCalledTimes(2)
+    }
+  )
+  it('keeps state-only availability on the short retry window', async () => {
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const { availability } = createPiSettings(host)
+    const input = { settings: { threadSettings: {} }, cwd: '/bart', signal: signal() }
+    await expect(availability.probe(input)).resolves.toEqual({ available: true })
+    now += 20_000
+    await expect(availability.probe(input)).resolves.toEqual({ available: true })
+    expect(startPiRpc).toHaveBeenCalledTimes(2)
+    expect(request.mock.calls.map(([command]) => command.type)).toEqual(['get_state', 'get_state'])
+  })
+  it('retires Bart discovery when settings refresh in another workspace', async () => {
+    const { availability, settingsPresentation } = createPiSettings(host)
+    const bart = { settings: { threadSettings: {} }, cwd: '/bart', signal: signal() }
+    await settingsPresentation.load(bart)
+    await settingsPresentation.load({ ...bart, cwd: '/settings', refresh: true })
+    expect(startPiRpc).toHaveBeenCalledTimes(2)
+    await expect(availability.probe(bart)).resolves.toEqual({ available: true })
+    expect(startPiRpc).toHaveBeenCalledTimes(3)
+  })
+  it.each([false, true])('retires discovery and version facts before installation rediscovery (fails=%s)', async fails => {
+    const { availability, detectInstallation, settingsPresentation } = createPiSettings(host)
+    const input = { settings: { threadSettings: {} }, cwd: '/bart', signal: signal() }
+    await settingsPresentation.load(input)
+    if (fails) vi.mocked(host.resolveExecutable).mockRejectedValueOnce(new Error('Permission denied'))
+    const detection = detectInstallation({ cwd: '/settings', signal: signal() })
+    if (fails) await expect(detection).rejects.toThrow('Permission denied')
+    else await expect(detection).resolves.toMatchObject({ status: 'installed' })
+    expect(retirePiVersions).toHaveBeenCalledOnce()
+    await expect(availability.probe(input)).resolves.toEqual({ available: true })
+    expect(startPiRpc).toHaveBeenCalledTimes(2)
+  })
+  it.each(['refresh', 'installation'] as const)('prevents a retired in-flight Bart catalog from refilling after failed %s in another workspace', async invalidate => {
+    let release!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    const native = request.getMockImplementation()!
+    request.mockImplementation(async command => {
+      if (command.type === 'get_available_models') await held
+      return native(command)
+    })
+    const { availability, detectInstallation, settingsPresentation } = createPiSettings(host)
+    const input = { settings: { threadSettings: {} }, cwd: '/bart', signal: signal() }
+    const older = settingsPresentation.load(input)
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith({ type: 'get_available_models' }, expect.any(AbortSignal)))
+    vi.mocked(host.resolveExecutable).mockRejectedValueOnce(new Error('Permission denied'))
+    if (invalidate === 'refresh') {
+      await expect(settingsPresentation.load({ ...input, cwd: '/settings', refresh: true }))
+        .resolves.toMatchObject({ cli: { status: 'unavailable' } })
+    } else {
+      await expect(detectInstallation({ cwd: '/settings', signal: signal() })).rejects.toThrow('Permission denied')
+    }
+    release()
+    await expect(older).resolves.toMatchObject({ cli: { status: 'ready' } })
+    await expect(availability.probe(input)).resolves.toEqual({ available: true })
+    expect(startPiRpc).toHaveBeenCalledTimes(2)
   })
   it('keeps the newest observation when an earlier one finishes last', async () => {
     let release!: () => void

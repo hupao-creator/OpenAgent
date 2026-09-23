@@ -46,6 +46,15 @@ Execution. Omitted options inherit configured defaults; `null` clears a selectio
 and restores its native default through the resolver. Changing provider or model
 clears inherited thinking unless `thinkingLevel` is explicitly supplied.
 
+Complete, usable native discoveries are reused for up to five minutes per
+executable, workspace and provider/model/thinking selection. This lets Bart
+prepare consecutive turns without booting discovery processes after every
+short reading pause. Partial or unavailable observations retain a 15-second
+retry window. Refreshing settings or redetecting the installation retires all
+Pi discoveries, including other workspaces and older probes still in flight;
+use Refresh after changing native login or configuration to read it immediately.
+Discovery RPC processes are disposed after each actual probe.
+
 A startup probe is independent of presentation and catalog discovery. It checks
 startup and the configured model. Native catalog/auth presence is not proof that
 a remote service will accept an expired token: actual model errors remain failed
