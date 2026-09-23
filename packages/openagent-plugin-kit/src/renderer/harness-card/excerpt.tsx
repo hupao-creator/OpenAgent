@@ -82,7 +82,9 @@ export const ThreadCardExcerpt = memo(function ThreadCardExcerpt(props: ExcerptP
   const snapshotOffset = frame.snapshot.startsWith('…')
     ? frame.text.lastIndexOf(snapshotText) : frame.text.indexOf(snapshotText)
   const contextOffset = !props.messageId ? 0 : frame.initial ? Math.max(0, snapshotOffset) : frame.offset
-  const content = excerptPreview(rawContent, frame.text.slice(0, contextOffset))
+  const tailMarker = Boolean(props.messageId && frame.initial && frame.snapshot.startsWith('…') && snapshotOffset >= 0)
+  const content = (tailMarker ? '…' : '') + excerptPreview(
+    tailMarker ? rawContent.slice(1) : rawContent, frame.text.slice(0, contextOffset))
   const key = JSON.stringify([frame.id, frame.revision, frame.origin + frame.offset])
   const excerpt = useRef<HTMLDivElement>(null)
   const body = useRef<HTMLDivElement>(null)

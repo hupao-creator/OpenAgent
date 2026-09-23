@@ -68,6 +68,16 @@ describe('thread card preview', () => {
     expect(excerptPreview('[file](/tmp/a\\)b) **prose**')).toBe('file prose')
   })
 
+  it('preserves code when the preview boundary splits its delimiter', () => {
+    const source = '` **raw** [file](/tmp/file) `` **prose**'
+    expect(excerptPreview(source, 'prefix `')).toBe('` **raw** [file](/tmp/file) `` prose')
+    const view = render(<ThreadCardExcerpt content={'…' + source} messageId="split-delimiter"
+      messageText={'prefix `' + source} />)
+    expect(view.container.querySelector('.thread-card-excerpt-text')?.textContent)
+      .toBe('…` **raw** [file](/tmp/file) `` prose')
+    expect(excerptPreview('ts:86](/tmp/file)', '[file.')).toBe('ts:86](/tmp/file)')
+  })
+
   it('uses natural wrapping and a line clamp for the rendered text', () => {
     const testPath = expect.getState().testPath!
     const css = readFileSync(resolve(dirname(testPath), '../../../packages/openagent-plugin-kit/src/renderer/components.css'), 'utf8')
