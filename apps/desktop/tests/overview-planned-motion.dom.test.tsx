@@ -101,7 +101,7 @@ it('skips an obsolete card expansion after a blocked motion queue has aged', asy
   await waitFor(() => expect(coordinator.stageBusy).toBe(false))
 })
 
-it('binds the camera when the first card arrives and when filtering replaces its plane', async () => {
+it('keeps the camera on cards across first arrival, filtering, and empty states', async () => {
   for (const [property, size] of [['clientWidth', 1000], ['clientHeight', 800], ['offsetWidth', 360], ['offsetHeight', 200]] as const) {
     vi.spyOn(HTMLElement.prototype, property, 'get').mockImplementation(function (this: HTMLElement) {
       return this.classList.contains(property.startsWith('client') ? 'thread-overview-scroll' : 'thread-overview-grid') ||
@@ -122,8 +122,22 @@ it('binds the camera when the first card arrives and when filtering replaces its
     expect(plane).not.toBe(first)
     expect(plane?.style.transform).toBe('translate(320px, 244.8px) scale(1)')
   })
-  fireEvent.wheel(document.querySelector('.thread-overview-scroll')!, { clientX: 500, clientY: 400, deltaY: 300 })
-  expect(document.querySelector<HTMLElement>('.thread-overview-plane')?.style.transform).not.toBe('translate(320px, 244.8px) scale(1)')
+  for (const manual of [false, true]) {
+    if (manual) {
+      fireEvent.wheel(document.querySelector('.thread-overview-scroll')!, { clientX: 500, clientY: 400, deltaY: 300 })
+      expect(document.querySelector<HTMLElement>('.thread-overview-plane')?.style.transform).not.toBe('translate(320px, 244.8px) scale(1)')
+    }
+    // Keep the same selection: removing the final card must not reuse its
+    // camera-controlled DOM node as the viewport-centered empty state.
+    view.rerender(<StrictMode><ConversationOverview {...common} reports={[]} selectedTag="work" /></StrictMode>)
+    await waitFor(() => {
+      const empty = document.querySelector<HTMLElement>('.thread-overview-empty')
+      expect(empty).not.toBeNull()
+      expect(empty?.style.transform).toBe('')
+    })
+    view.rerender(<StrictMode><ConversationOverview {...common} reports={tagged} selectedTag="work" /></StrictMode>)
+    await waitFor(() => expect(document.querySelector<HTMLElement>('.thread-overview-plane')?.style.transform).toBe('translate(320px, 244.8px) scale(1)'))
+  }
 })
 
 it('单卡片在真实 Overview 入口避让工具栏，并允许拖出视野后找回', async () => {
