@@ -17,6 +17,15 @@ describe('thread card preview', () => {
   })
 
   it.each([
+    '**[docs](https://example.com/long/path)**',
+    '[**docs**](https://example.com/long/path)',
+    '**[docs](https://example.com/path(with-parens))**'
+  ])('shortens both nested prose wrappers: %s', source => {
+    expect(excerptPreview(source)).toBe('docs')
+    expect(excerptPreview('`' + source + '`')).toBe('`' + source + '`')
+  })
+
+  it.each([
     ['literal bracket punctuation', 'before ](literal) after', 'before ](literal) after'],
     ['missing link opener', 'ts:86](/Users/felix/file.ts:86)', 'ts:86](/Users/felix/file.ts:86)'],
     ['unfinished link', '[file](/Users/felix/file…', '[file](/Users/felix/file…'],

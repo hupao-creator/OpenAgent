@@ -38,9 +38,14 @@ export function excerptPreview(source: string, precedingText = ''): string {
     const text = input.slice(start, end)
     const tokens = /\\[^\r\n]|(?<!!)\[([^[\]\r\n]+)\]\((?:\\[^\r\n]|[^()\\\r\n]|\([^()\r\n]*\))*\)|(?<!\*)\*\*([^*`\r\n]+)\*\*(?!\*)/g
     let offset = 0
+    const shortenNested = (value: string): string => value.replace(tokens,
+      (literal, label: string | undefined, emphasis: string | undefined) =>
+        label !== undefined ? shortenNested(label) : emphasis !== undefined ? shortenNested(emphasis) : literal)
     for (const token of text.matchAll(tokens)) {
       emit(start + offset, start + token.index)
-      emit(start + token.index, start + token.index + token[0].length, token[1] ?? token[2])
+      const replacement = token[1] ?? token[2]
+      emit(start + token.index, start + token.index + token[0].length,
+        replacement === undefined ? undefined : shortenNested(replacement))
       offset = token.index + token[0].length
     }
     emit(start + offset, end)
