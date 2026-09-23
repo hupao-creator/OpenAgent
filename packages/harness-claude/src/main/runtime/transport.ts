@@ -228,6 +228,8 @@ export class ClaudeTransport {
   private disposePromise?: Promise<void>
   private stopping = false
   private initialized?: Promise<unknown>
+  private inputDirectories = new Set<string>()
+  private directoryScopeUpdate: Promise<void> = Promise.resolve()
   private failedProcessShutdown?: Promise<void>
   private sessionEstablished: boolean
   private active?: ActiveNativeExecution
@@ -729,6 +731,8 @@ export class ClaudeTransport {
       if (this.child && !this.child.killed) {
         await abortable(Promise.resolve(this.initialized), signal)
         throwIfAborted(signal)
+        await this.extendDirectoryScope(input, signal)
+        throwIfAborted(signal)
         span.end({ reused: true, initialized: true })
         return
       }
@@ -748,13 +752,34 @@ export class ClaudeTransport {
     }
   }
 
+  private async extendDirectoryScope(input: AgentInput, signal: AbortSignal): Promise<void> {
+    const child = this.child
+    const update = this.directoryScopeUpdate.catch(() => undefined).then(async () => {
+      throwIfAborted(signal)
+      this.assertOpen()
+      if (!child || this.child !== child || child.killed) throw new Error('Claude directory scope 连接已关闭')
+      const directories = new Set([...this.inputDirectories, ...inputDirectoryScopes(input, this.options.cwd)])
+      if (directories.size === this.inputDirectories.size) return
+      // The native flag layer is session-only. Await its acknowledgement before
+      // admitting the message, and serialize cumulative updates across callers.
+      await this.requestControl({
+        subtype: 'apply_flag_settings',
+        settings: { permissions: { additionalDirectories: [...directories] } }
+      })
+      if (this.child === child) this.inputDirectories = directories
+    })
+    this.directoryScopeUpdate = update
+    await abortable(update, signal)
+  }
+
   private spawn(input: AgentInput): void {
     const environment = withSystemProxy({ ...this.options.environment, ...this.options.providerInjection?.environment })
+    const directories = new Set([...this.inputDirectories, ...inputDirectoryScopes(input, this.options.cwd)])
     const args = buildClaudeArguments(
       this.options,
       this.settings,
       this.sessionEstablished,
-      input,
+      directories,
       environment
     )
     if (this.options.providerInjection) {
@@ -793,6 +818,7 @@ export class ClaudeTransport {
       this.processGroupIds.add(processGroupId)
     }
     this.child = child
+    this.inputDirectories = directories
     this.decoder = new JsonLines()
     this.stderr = ''
     this.stopping = false
@@ -1913,7 +1939,7 @@ function buildClaudeArguments(
   options: ClaudeTransportOptions,
   settings: ClaudeThreadSettings,
   resume: boolean,
-  firstInput: AgentInput,
+  directories: ReadonlySet<string>,
   environment: NodeJS.ProcessEnv,
 ): string[] {
   const args = [
@@ -1985,17 +2011,20 @@ function buildClaudeArguments(
     args.push('--worktree')
     if (options.nativeWorktreeName) args.push(options.nativeWorktreeName)
   }
+  for (const directory of directories) args.push('--add-dir', directory)
+  return args
+}
+
+function inputDirectoryScopes(input: AgentInput, cwd: string): Set<string> {
   const directories = new Set<string>()
-  for (const part of firstInput.parts) {
+  for (const part of input.parts) {
     if ('file' in part) directories.add(dirname(part.file.path))
     if (part.kind === 'mention' || part.kind === 'skill') {
       directories.add(part.kind === 'mention' && part.pathType === 'directory' ? part.path : dirname(part.path))
     }
   }
-  for (const directory of directories) {
-    if (directory !== options.cwd) args.push('--add-dir', directory)
-  }
-  return args
+  directories.delete(cwd)
+  return directories
 }
 
 function debugSpawnArguments(args: readonly string[]): string[] {

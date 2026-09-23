@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, utime
 import { tmpdir } from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
 import type { AutoInterventionService } from '../src/main/use-cases/auto-intervention-service'
-import { dirname, join } from 'node:path'
+import { dirname, join, parse } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   bindMainHarnessComposition,
@@ -93,6 +93,9 @@ describe('OpenAgent Service Harness dispatch', () => {
     await f.store.commit({ type: 'add-agent-thread', thread: fixtureAgentThread('new-tag', '/work/new-tag', 3) })
     expect(await f.service.listKnownDirectories()).toContainEqual({ name: 'new-tag', path: '/work/new-tag' })
     expect(scan).toHaveBeenCalledOnce()
+    const root = parse(f.root).root
+    await f.store.commit({ type: 'add-agent-thread', thread: fixtureAgentThread('filesystem-root', root, 4) })
+    expect(await f.service.listKnownDirectories()).toContainEqual({ name: root, path: root })
   })
 
   it.each(['model', 'guidance', 'targets', 'host'].flatMap(change =>

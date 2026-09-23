@@ -1023,7 +1023,7 @@ export class OpenAgentService {
     }
     const native = await this.knownWorkspaceCache.promise
     const threads = this.store.read().threads.filter(isAgentThreadRecord)
-    return mergeKnownDirectories([...native, ...threads.map(threadWorkspaceCwd)], [
+    return mergeKnownDirectories([...native, ...threads.map(thread => thread.worktree?.baseCwd || thread.cwd)], [
       this.paths.temporaryWorkspaceRoot, this.paths.bartCwd, ...this.worktrees.managedWorkspaceRoots(),
       ...threads.flatMap(thread => thread.worktree?.cwd ? [thread.worktree.cwd] : [])
     ])
