@@ -38,6 +38,7 @@ describe('Harness Plugin public command boundary', () => {
       'thread:update-settings',
       'app:update-settings',
       'harness:detect-installations',
+      'workspace:list-known-directories',
       'harness:install',
       'harness:settings-presentation',
       'harness:extension',

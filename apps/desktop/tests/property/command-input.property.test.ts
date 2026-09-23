@@ -351,6 +351,7 @@ const argumentlessOrScalarChannels = [
   'thread:interrupt',
   'harness:install',
   'harness:detect-installations',
+  'workspace:list-known-directories',
   'thread:set-archived',
   'report:set-archived',
   'state:load',

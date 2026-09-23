@@ -733,6 +733,7 @@ function AppContent(): React.JSX.Element {
           <div data-bart-camera-dock inert={bartThreadOpen || camera.active} aria-hidden={bartThreadOpen || camera.active} style={{ opacity: bartThreadOpen || camera.active ? 0 : undefined }}>
           <SubscribedBartDock
             composer={composer}
+            loadMentionDirectories={window.openAgent.listKnownDirectories}
             inputDisabled={false}
             inputOpen={bartInputOpen}
             onChooseFiles={chooseBartFiles}

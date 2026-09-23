@@ -88,7 +88,7 @@ export function SubscribedBartDock(
   return <BartDock {...props} displayQueue={displayQueue} inputValue={inputValue} bartAttachments={bartAttachments}
     activityContext={{ threadKey: JSON.stringify([bart?.id, bart?.harnessId]), execution }}
     submitting={submitting} sessionIdle={!executionActive && !submitting}
-    loadMentionDirectories={window.openAgent.listKnownDirectories} onMentionSelect={props.composer.insertMention}
+    onMentionSelect={props.composer.insertMention}
     onInputChange={props.composer.setText} interaction={interaction} reply={reply}
     operations={operations} foregroundActivity={presentation?.activity} />
 }
