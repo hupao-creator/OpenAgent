@@ -51,6 +51,7 @@ function fixture(
     return <AppI18nProvider locale="zh-CN">
       <button onClick={() => setOpen(true)}>Reopen</button>
       <button onClick={() => report('Codex 安装失败')}>Another failure</button>
+      <button onClick={() => report('Codex auto_review 执行不可用')}>Execution failure</button>
       <button onClick={() => report('disk full')}>Another failure with the same text</button>
       <HarnessSettingsPage open={open} value={value} defaultCwd="/workspace" resources={{}}
         loadHarnessInstallations={async () => ({})}
@@ -79,7 +80,26 @@ function deferred() {
 }
 
 describe('Settings automatic save', () => {
-  it('keeps newly enabled empty guidance neutral until blur, then saves a completed rule', async () => {
+  it('keeps a successful save separate from a later execution failure', async () => {
+    // Service tests cover the real resolver/store chain; this test only checks
+    // that an independent execution notice never becomes an autosave error.
+    const f = fixture()
+    const input = guidance()
+    fireEvent.change(input, { target: { value: 'Persisted before execution' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(f.persisted().bart.routingGuidance).toBe('Persisted before execution'))
+    fireEvent.click(screen.getByRole('button', { name: '返回' }))
+    await waitFor(() => expect(f.onClose).toHaveBeenCalledOnce())
+    fireEvent.click(screen.getByRole('button', { name: 'Execution failure' }))
+    expect(f.notice()).toBe('Codex auto_review 执行不可用')
+    expect(screen.queryByRole('button', { name: '重试保存' })).toBeNull()
+    expect(f.onSaveError).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen' }))
+    expect(guidance()).toHaveValue('Persisted before execution')
+    expect(f.onSave).toHaveBeenCalledOnce()
+  })
+
+  it('uses default guidance when enabled empty, then saves a completed rule', async () => {
     const f = fixture()
     guidance()
     const toggle = screen.getByRole('switch', { name: '自定义模型路由指导' })
@@ -92,14 +112,15 @@ describe('Settings automatic save', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     expect(f.persisted().bart.routingGuidance).toBeNull()
     fireEvent.blur(input)
-    expect(input).toBeInvalid()
+    expect(input).not.toBeInvalid()
+    expect(screen.queryByRole('alert')).toBeNull()
     fireEvent.change(input, { target: { value: 'Prefer a small model for routine work' } })
     fireEvent.blur(input)
     await waitFor(() => expect(f.persisted().bart.routingGuidance).toBe('Prefer a small model for routine work'))
     expect(input).not.toBeInvalid()
   })
 
-  it('reveals untouched empty guidance when closing from another tab', async () => {
+  it('allows closing with newly enabled empty guidance and keeps the default', async () => {
     const f = fixture()
     guidance()
     const toggle = screen.getByRole('switch', { name: '自定义模型路由指导' })
@@ -108,12 +129,21 @@ describe('Settings automatic save', () => {
     fireEvent.click(toggle)
     fireEvent.click(screen.getByRole('tab', { name: '通用' }))
     fireEvent.click(screen.getByRole('button', { name: '返回' }))
-    const input = screen.getByRole('textbox', { name: 'Bart 模型路由指导' })
-    expect(input).toBeVisible()
-    expect(input).toBeInvalid()
-    expect(input).toHaveFocus()
-    expect(f.onClose).not.toHaveBeenCalled()
+    await waitFor(() => expect(f.onClose).toHaveBeenCalledTimes(1))
+    expect(f.onSaveError).not.toHaveBeenCalled()
     expect(f.persisted().bart.routingGuidance).toBeNull()
+  })
+
+  it.each(['', ' \n\t ', '  First rule\nSecond rule\n '])('normalizes guidance %j on save and immediate close', async value => {
+    const f = fixture()
+    fireEvent.change(guidance(), { target: { value } })
+    fireEvent.click(screen.getByRole('button', { name: '返回' }))
+    await waitFor(() => expect(f.onClose).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(f.persisted().bart.routingGuidance).toBe(value.trim() || null))
+    expect(f.onSaveError).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen' }))
+    expect((screen.getByRole('switch', { name: '自定义模型路由指导' }) as HTMLInputElement).checked).toBe(Boolean(value.trim()))
+    if (value.trim()) expect(guidance()).toHaveValue(value.trim())
   })
 
   it('serializes rapid multi-field choices and never replaces newer drafts with old responses', async () => {
@@ -187,11 +217,14 @@ describe('Settings automatic save', () => {
   it('keeps invalid input visible without overwriting valid guidance, while saving other preferences', async () => {
     const f = fixture()
     const input = guidance()
-    fireEvent.change(input, { target: { value: '   ' } })
+    const tooLong = 'x'.repeat(12_001)
+    fireEvent.change(input, { target: { value: tooLong } })
     fireEvent.blur(input)
     await act(async () => {})
     expect(input).toBeInvalid()
-    expect(screen.getAllByRole('alert').some(node => node.textContent?.includes('请输入模型路由指导，或关闭自定义指导。'))).toBe(true)
+    expect(input).toHaveAccessibleDescription('模型路由指导最多 12000 个字符（UTF-16 计数），当前 12001 个。')
+    expect(input).not.toHaveAttribute('maxlength')
+    expect(screen.queryByRole('button', { name: '重试保存' })).toBeNull()
     expect(f.onSave).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('tab', { name: '通用' }))
     fireEvent.change(screen.getByLabelText('外观'), { target: { value: 'dark' } })
@@ -200,7 +233,7 @@ describe('Settings automatic save', () => {
     fireEvent.click(screen.getByRole('button', { name: '返回' }))
     await act(async () => {})
     expect(f.onClose).not.toHaveBeenCalled()
-    expect(guidance()).toHaveValue('   ')
+    expect(guidance()).toHaveValue(tooLong)
     fireEvent.change(input, { target: { value: 'Corrected rule' } })
     fireEvent.blur(input)
     await waitFor(() => expect(f.persisted().bart.routingGuidance).toBe('Corrected rule'))
@@ -378,7 +411,7 @@ describe('Settings automatic save', () => {
   it('keeps the field an invalid close points at in view after switching tabs', async () => {
     fixture()
     const input = guidance()
-    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.change(input, { target: { value: 'x'.repeat(12_001) } })
     fireEvent.blur(input)
     await act(async () => {})
     fireEvent.click(screen.getByRole('tab', { name: '通用' }))

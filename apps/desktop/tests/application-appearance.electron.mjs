@@ -263,10 +263,41 @@ try {
   await page.getByRole('tab', { name: '通用', exact: true }).click()
   assert.equal(await page.getByLabel('外观', { exact: true }).inputValue(), 'light')
   await screenshot(page, 'settings-light')
-  // Completing text and immediately pressing Escape flushes the debounce over real IPC.
+  // Raw IPC callers and stored settings share the same normalization and limit.
+  for (const routingGuidance of ['  First rule\nSecond rule\n ', '', ' \n\t ']) {
+    const saved = await page.evaluate(async routingGuidance => {
+      const { settings } = await window.openAgent.loadState()
+      await window.openAgent.updateAppSettings({ ...settings, bart: { ...settings.bart, routingGuidance } })
+      return (await window.openAgent.loadState()).settings.bart.routingGuidance
+    }, routingGuidance)
+    assert.equal(saved, routingGuidance.trim() || null)
+  }
+  await assert.rejects(page.evaluate(async () => {
+    const { settings } = await window.openAgent.loadState()
+    await window.openAgent.updateAppSettings({ ...settings, bart: { ...settings.bart, routingGuidance: 'x'.repeat(12_001) } })
+  }), /模型路由指导最多 12000 个字符（UTF-16 计数），当前 12001 个。/)
+  // Reopen to load the settings saved directly through IPC.
+  await page.getByRole('button', { name: '返回', exact: true }).click()
+  await page.waitForSelector('.settings-page', { state: 'detached' })
+  await page.locator('[data-settings-trigger]').click()
+  await page.waitForSelector('.settings-page[data-phase=open]')
   await page.getByRole('tab', { name: 'Bart', exact: true }).click()
   await page.getByRole('switch', { name: '自定义模型路由指导', exact: true }).check()
-  await page.getByRole('textbox', { name: 'Bart 模型路由指导', exact: true }).fill('Prefer a small model for simple tasks.')
+  const guidance = page.getByRole('textbox', { name: 'Bart 模型路由指导', exact: true })
+  await guidance.fill('x'.repeat(12_001))
+  assert.equal((await guidance.inputValue()).length, 12_001)
+  assert.equal(await guidance.getAttribute('aria-invalid'), 'true')
+  assert.match(await page.getByRole('alert').innerText(), /最多 12000.*当前 12001/)
+  await page.getByRole('switch', { name: '自动审批与代答', exact: true }).uncheck()
+  await page.waitForFunction(async () => !(await window.openAgent.loadState()).settings.bart.autoIntervention)
+  assert.equal((await page.evaluate(() => window.openAgent.loadState())).settings.bart.routingGuidance, null)
+  assert.equal(await page.getByRole('button', { name: '重试保存', exact: true }).count(), 0)
+  await guidance.fill(' \n\t ')
+  await guidance.blur()
+  assert.equal(await guidance.getAttribute('aria-invalid'), null)
+  assert.equal((await page.evaluate(() => window.openAgent.loadState())).settings.bart.routingGuidance, null)
+  // Completing padded text and immediately pressing Escape flushes normalized text.
+  await guidance.fill('  Prefer a small model for simple tasks.\n')
   await page.keyboard.press('Escape')
   await page.waitForSelector('.settings-page', { state: 'detached' })
   assert.equal((await page.evaluate(() => window.openAgent.loadState())).settings.bart.routingGuidance,
@@ -278,6 +309,7 @@ try {
   assert.equal(restored.settings.appearance, 'light')
   assert.equal(restored.settings.bart.routingGuidance, 'Prefer a small model for simple tasks.')
   result.cases.push('UI autosave stays open; appearance and immediate-close text survive reopen and cold start')
+  result.cases.push('guidance normalizes over IPC; over-limit drafts retain full text and do not block other preferences')
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+b' : 'Control+Shift+b')
   const composer = page.getByRole('textbox', { name: '给 Bart 发消息', exact: true })
   await composer.fill('Appearance keeps this unsent draft')

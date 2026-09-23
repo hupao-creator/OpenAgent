@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createChannelHandlers, type CommandService } from '../src/main/command-router'
+import { createDefaultOpenAgentSettings } from '../src/shared/openagent-settings'
 
 function boundary() {
   const methods = {
@@ -16,6 +17,31 @@ function boundary() {
 const input = { parts: [{ kind: 'text', text: 'hello' }] }
 
 describe('command schema behavior', () => {
+  it('normalizes routing guidance over settings IPC without mutating the request', async () => {
+    const { handlers, methods } = boundary()
+    const defaults = createDefaultOpenAgentSettings()
+    for (const routingGuidance of [null, '', ' \n\t ', '  First rule\nSecond rule\n ', 'x'.repeat(12_000), ` ${'😀'.repeat(6_000)}\n`]) {
+      const settings = { ...defaults, bart: { ...defaults.bart, routingGuidance } }
+      await handlers['app:update-settings'](settings)
+      expect(methods.updateAppSettings).toHaveBeenLastCalledWith({
+        ...settings, bart: { ...settings.bart, routingGuidance: routingGuidance?.trim() || null }
+      })
+      expect(settings.bart.routingGuidance).toBe(routingGuidance)
+      expect(methods.updateAppSettings.mock.lastCall?.[0].harnesses).not.toBe(settings.harnesses)
+    }
+  })
+
+  it('rejects over-limit guidance with localized limit and current UTF-16 length', async () => {
+    const { handlers, methods } = boundary()
+    const defaults = createDefaultOpenAgentSettings()
+    const bart = { ...defaults.bart, routingGuidance: ` ${'😀'.repeat(6_000)}x\n` }
+    await expect(handlers['app:update-settings']({ ...defaults, bart })).rejects.toThrow(
+      '模型路由指导最多 12000 个字符（UTF-16 计数），当前 12001 个。')
+    await expect(handlers['app:update-settings']({ ...defaults, locale: 'en-US', bart })).rejects.toThrow(
+      'Model routing guidance must be at most 12000 UTF-16 code units; current length: 12001.')
+    expect(methods.updateAppSettings).not.toHaveBeenCalled()
+  })
+
   it('preserves absent, undefined, null and normalized optional command fields', async () => {
     const { handlers, methods } = boundary()
     for (const extra of [{}, { directoryTag: undefined }]) {

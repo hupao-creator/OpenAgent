@@ -8,7 +8,10 @@ import { z } from 'zod'
 import type { HarnessInstallation } from '@openagent/contracts'
 import { HARNESS_IDS, isHarnessId, type HarnessId } from './harnesses'
 
-export { OPENAGENT_APPEARANCES, OPENAGENT_LOCALES, MAX_BART_ROUTING_GUIDANCE_LENGTH } from '@openagent/contracts'
+export {
+  OPENAGENT_APPEARANCES, OPENAGENT_LOCALES, MAX_BART_ROUTING_GUIDANCE_LENGTH,
+  normalizeBartRoutingGuidance, bartRoutingGuidanceError
+} from '@openagent/contracts'
 type Settings = z.infer<typeof OpenAgentSettingsSchema>
 export type OpenAgentSettings = Readonly<Omit<Settings, 'bart'> & { bart: Readonly<Settings['bart']> }>
 export type OpenAgentLocale = OpenAgentSettings['locale']
@@ -74,7 +77,10 @@ export const OpenAgentSettingsSchema = OpenAgentSettingsShellSchema.transform((s
   }, harnesses: settings.harnesses as HarnessSettingsMap }
 })
 export function assertOpenAgentSettingsShell(value: unknown): asserts value is OpenAgentSettings {
-  parseCommand(OpenAgentSettingsSchema, value)
+  parseOpenAgentSettings(value)
+}
+export function parseOpenAgentSettings(value: unknown): OpenAgentSettings {
+  return parseCommand(OpenAgentSettingsSchema, value)
 }
 export const UpdateThreadSettingsRequestSchema = PublicUpdateThreadSettingsRequestSchema.transform(value => ({
   ...value, harnessId: parseCommand(registeredHarness, value.harnessId)

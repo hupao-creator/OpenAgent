@@ -15,7 +15,7 @@ import {
   isHarnessId,
   type HarnessId
 } from '../../../shared/harnesses'
-import type { HarnessInstallationMap, OpenAgentSettings } from '../../../shared/openagent-settings'
+import { bartRoutingGuidanceError, type HarnessInstallationMap, type OpenAgentSettings } from '../../../shared/openagent-settings'
 import {
   HarnessSettingsHost,
   harnessRendererTranslations,
@@ -89,7 +89,6 @@ export function HarnessSettingsPage(
   const [confirmClear, setConfirmClear] = useState(false)
   const [error, setError] = useState('')
   const [focusRequest, setFocusRequest] = useState(0)
-  const [routingTouched, setRoutingTouched] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const noticeRef = useRef<HTMLDivElement>(null)
   const revealingRef = useRef(false)
@@ -117,7 +116,6 @@ export function HarnessSettingsPage(
     // sitting on the tab the user is not looking at.
     const invalid = invalidField()
     if (invalid) {
-      if (invalidRoutingGuidance(draft)) setRoutingTouched(true)
       const owner = invalid.closest<HTMLElement>('[data-section]')?.dataset.section
       if (owner === 'general' || owner === 'bart') {
         // Switching tabs normally returns the reader to the top of the new one;
@@ -158,7 +156,6 @@ export function HarnessSettingsPage(
     setClearing(false)
     setConfirmClear(false)
     setError('')
-    setRoutingTouched(false)
     setFocusRequest(0)
   }, [props.open])
 
@@ -311,8 +308,6 @@ export function HarnessSettingsPage(
                 resources={props.resources}
                 value={draft}
                 onChange={autosave.change}
-                routingTouched={routingTouched}
-                onRoutingTouchedChange={setRoutingTouched}
               />
             </div>
             </fieldset>
@@ -443,8 +438,6 @@ function BartSettings(props: {
   readonly resources: HarnessPresentationResources
   readonly value: OpenAgentSettings
   readonly onChange: (settings: OpenAgentSettings) => void
-  readonly routingTouched: boolean
-  readonly onRoutingTouchedChange: (touched: boolean) => void
 }): React.JSX.Element {
   const { t } = useI18n(props.value.locale)
   const hostGroupId = useId()
@@ -624,15 +617,12 @@ function BartSettings(props: {
       <SettingsGroup>
         <SettingsRow label={t('自定义模型路由指导')}>
           <SettingsToggle checked={props.value.bart.routingGuidance !== null} onChange={(event) => {
-            props.onRoutingTouchedChange(false)
             changeBart({ routingGuidance: event.currentTarget.checked ? '' : null })
           }} />
         </SettingsRow>
         {props.value.bart.routingGuidance !== null && <SettingsRow label={t('Bart 模型路由指导')} layout="stacked"
-          error={props.routingTouched && invalidRoutingGuidance(props.value)
-            ? t('请输入模型路由指导，或关闭自定义指导。') : undefined}>
-          <SettingsTextarea data-routing-guidance maxLength={12_000} placeholder={t('输入 Bart 选择模型时应遵循的规则')}
-            onBlur={() => props.onRoutingTouchedChange(true)}
+          error={bartRoutingGuidanceError(props.value.bart.routingGuidance, props.value.locale)}>
+          <SettingsTextarea data-routing-guidance placeholder={t('输入 Bart 选择模型时应遵循的规则')}
             value={props.value.bart.routingGuidance} onChange={(event) => changeBart({ routingGuidance: event.currentTarget.value })} />
         </SettingsRow>}
       </SettingsGroup>
