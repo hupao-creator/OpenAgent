@@ -53,11 +53,12 @@ export class SqliteStatePersistence {
       const ui = parts.get('ui')
       if (!Array.isArray(threadOrder) || !Array.isArray(reportOrder) || !isRecord(ui) ||
           Object.keys(ui).length !== 2 || !Object.hasOwn(ui, 'tagPool') || !Object.hasOwn(ui, 'selectedThreadId') ||
-          parts.size !== threadOrder.length + reportOrder.length + 4 ||
+          parts.size !== threadOrder.length + reportOrder.length + 4 + (parts.has('bart-applied-settings') ? 1 : 0) ||
           !threadOrder.every(id => isRecord(parts.get(`thread:${id}`)) && (parts.get(`thread:${id}`) as { id: unknown }).id === id) ||
           !reportOrder.every(id => isRecord(parts.get(`report:${id}`)) && (parts.get(`report:${id}`) as { id: unknown }).id === id)) throw invalidState()
       const state = parseOpenAgentState({ threads: threadOrder.map(id => parts.get(`thread:${id}`)),
-        reports: reportOrder.map(id => parts.get(`report:${id}`)), settings: parts.get('settings'), ...ui })
+        reports: reportOrder.map(id => parts.get(`report:${id}`)), settings: parts.get('settings'),
+        ...(parts.has('bart-applied-settings') ? { bartAppliedSettings: parts.get('bart-applied-settings') } : {}), ...ui })
       if (!state) throw invalidState()
       for (const [key, value] of partition(state)) { this.values.set(key, value); this.versions.set(key, 1) }
       return state
@@ -256,6 +257,7 @@ function partition(state: OpenAgentState): Parts {
     ['thread-order', state.threads.map(thread => thread.id)],
     ['report-order', state.reports.map(report => report.id)],
     ['settings', state.settings],
+    ...(state.bartAppliedSettings === undefined ? [] : [['bart-applied-settings', state.bartAppliedSettings] as const]),
     ['ui', { selectedThreadId: state.selectedThreadId, tagPool: state.tagPool }],
     ...state.threads.map(thread => [`thread:${thread.id}`, thread] as const),
     ...state.reports.map(report => [`report:${report.id}`, report] as const)
@@ -297,4 +299,3 @@ function serializePart(key: string, value: unknown): string[] {
   }
   return values
 }
-

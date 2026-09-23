@@ -3,6 +3,7 @@ import type { AgentThreadRecord, ThreadPublicObservation } from '@openagent/cont
 import {
   createOpenAgentState,
   isOpenAgentState,
+  parseOpenAgentState,
   MAX_TAG_POOL_SIZE,
   readAgentThread,
   readBartThread,
@@ -13,6 +14,26 @@ import {
 import { createDefaultOpenAgentSettings } from '../src/shared/openagent-settings'
 
 describe('OpenAgent state', () => {
+  it.each(['  First rule\nSecond rule\n ', '', ' \n\t '])('normalizes stored and updated guidance %j', routingGuidance => {
+    const initial = initialState()
+    const settings = { ...initial.settings, bart: { ...initial.settings.bart, routingGuidance } }
+    const legacy = { ...initial, settings }
+    expect(isOpenAgentState(legacy)).toBe(true)
+    const loaded = parseOpenAgentState(legacy)
+    expect(loaded?.settings.bart.routingGuidance).toBe(routingGuidance.trim() || null)
+    expect(settings.bart.routingGuidance).toBe(routingGuidance)
+    const updated = reduceOpenAgentState(initial, { type: 'replace-settings', settings })
+    expect(updated.settings.bart.routingGuidance).toBe(routingGuidance.trim() || null)
+    expect(parseOpenAgentState(updated)).toEqual(updated)
+  })
+
+  it('still rejects persisted guidance beyond the UTF-16 limit', () => {
+    const initial = initialState()
+    expect(parseOpenAgentState({ ...initial, settings: {
+      ...initial.settings, bart: { ...initial.settings.bart, routingGuidance: 'x'.repeat(12_001) }
+    } })).toBeNull()
+  })
+
   it('keeps exactly one Bart distinguished only by kind', () => {
     let state = initialState()
     state = reduceOpenAgentState(state, {
@@ -323,13 +344,16 @@ describe('OpenAgent state', () => {
       }
     })
     expect(state.settings.locale).toBe('en-US')
-    expect(() => reduceOpenAgentState(state, {
+    const pending = reduceOpenAgentState(state, {
       type: 'replace-settings',
       settings: {
         ...state.settings,
         bart: { ...state.settings.bart, hostHarnessPreference: 'claude' }
       }
-    })).toThrow('必须同时替换')
+    })
+    expect(pending.settings.bart.hostHarnessPreference).toBe('claude')
+    expect(pending.bartAppliedSettings).toEqual(state.bartAppliedSettings)
+    expect(readBartThread(pending)).toEqual(readBartThread(state))
   })
 
   it('rejects a tag pool beyond the fixed product limit', () => {

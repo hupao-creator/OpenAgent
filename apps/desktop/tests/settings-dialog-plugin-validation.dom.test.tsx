@@ -490,6 +490,10 @@ describe('Settings page', () => {
         [host]: { useDefaultThreadSettings: false, threadSettings: {} }
       }
     }))
+    expect(onSave.mock.calls).toHaveLength(1)
+    // The complete payload above must keep permission implicit even though the
+    // editor displays the provider's default permission choice.
+    expect(JSON.stringify(onSave.mock.calls[0])).not.toContain('permissionMode')
   })
 
   it('flushes the draft on close and lets the user cancel history deletion separately', async () => {

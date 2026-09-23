@@ -11,6 +11,7 @@ import {
 import { isHarnessId, type HarnessId } from './harnesses'
 import {
   assertOpenAgentSettingsShell,
+  parseOpenAgentSettings,
   type OpenAgentSettings
 } from './openagent-settings'
 import {
@@ -54,6 +55,8 @@ export interface OpenAgentState {
   readonly tagPool: readonly OpenAgentTagPoolEntry[]
   readonly selectedThreadId: string | null
   readonly settings: OpenAgentSettings
+  /** Last configuration applied to Bart, independent of newly saved preferences. */
+  readonly bartAppliedSettings?: OpenAgentSettings
 }
 
 export type OpenAgentStateMutation =
@@ -110,6 +113,7 @@ export type OpenAgentStateMutation =
       readonly threadId: string
       readonly expectedRevision: number
       readonly settings: JsonValue
+      readonly bartAppliedSettings?: OpenAgentSettings
       readonly updatedAt: number
     }
   | {
@@ -229,18 +233,19 @@ export function createOpenAgentState(
     reports: [],
     tagPool: [],
     selectedThreadId: input.selectedThreadId,
-    settings: immutable(input.settings)
+    settings: immutable(parseOpenAgentSettings(input.settings)),
+    bartAppliedSettings: immutable(parseOpenAgentSettings(input.settings))
   })
 }
 
 export function parseOpenAgentState(value: unknown): OpenAgentState | null {
   if (!isOpenAgentState(value)) return null
-  return immutable(value)
+  return immutable({ ...value, settings: parseOpenAgentSettings(value.settings) })
 }
 
 export function isOpenAgentState(value: unknown): value is OpenAgentState {
   if (!isRecord(value) || !hasOnlyKeys(value, [
-    'threads', 'reports', 'tagPool', 'selectedThreadId', 'settings'
+    'threads', 'reports', 'tagPool', 'selectedThreadId', 'settings', 'bartAppliedSettings'
   ])) return false
   if (!Array.isArray(value.threads) || !Array.isArray(value.reports) ||
       !Array.isArray(value.tagPool)) return false
@@ -255,7 +260,9 @@ export function isOpenAgentState(value: unknown): value is OpenAgentState {
       !value.tagPool.every(isTagPoolEntry) ||
       !unique(value.tagPool.map(entry => threadTagKey(entry.name)))) return false
   if (!isSettings(value.settings)) return false
-  if (!bartHostMatchesPreference(value.settings, barts[0].harnessId)) return false
+  if (value.bartAppliedSettings !== undefined &&
+      (!isSettings(value.bartAppliedSettings) ||
+       !bartHostMatchesPreference(value.bartAppliedSettings, barts[0].harnessId))) return false
   return value.selectedThreadId === null || (
     typeof value.selectedThreadId === 'string' &&
     value.threads.some(thread => thread.id === value.selectedThreadId)
@@ -568,12 +575,20 @@ function replaceThreadSettings(
   }
   if (!isJson(mutation.settings)) throw new Error('Thread settings 必须是 JSON value')
   assertMonotonicTimestamp(mutation.updatedAt, current.updatedAt, 'Thread updatedAt')
-  return replaceThreadAt(state, current.id, immutable({
+  const next = replaceThreadAt(state, current.id, immutable({
     ...current,
     revision: current.revision + 1,
     settings: immutable(mutation.settings),
     updatedAt: mutation.updatedAt
   }))
+  if (mutation.bartAppliedSettings === undefined) return next
+  if (!current.bart) throw new Error('只有 Bart 可以应用应用设置')
+  assertSettings(mutation.bartAppliedSettings)
+  assertBartHostMatchesPreference(mutation.bartAppliedSettings, current.harnessId as HarnessId)
+  if (JSON.stringify(state.settings) !== JSON.stringify(mutation.bartAppliedSettings)) {
+    throw new Error('Bart settings source conflict')
+  }
+  return shallowState(next, { bartAppliedSettings: immutable(mutation.bartAppliedSettings) })
 }
 
 function deleteAgentThread(state: OpenAgentState, threadId: string): OpenAgentState {
@@ -623,7 +638,8 @@ function replaceBartThread(
   })
   const replaced = replaceThreadAt(state, current.id, next)
   return shallowState(replaced, {
-    settings: immutable(mutation.settings),
+    settings: immutable(parseOpenAgentSettings(mutation.settings)),
+    bartAppliedSettings: immutable(parseOpenAgentSettings(mutation.settings)),
     selectedThreadId: state.selectedThreadId === current.id
       ? next.id
       : state.selectedThreadId
@@ -850,10 +866,7 @@ function replaceSettings(
   settings: OpenAgentSettings
 ): OpenAgentState {
   assertSettings(settings)
-  if (!bartHostMatchesPreference(settings, readBartThread(state).harnessId)) {
-    throw new Error('切换 Bart Host 必须同时替换 Bart Thread')
-  }
-  return shallowState(state, { settings: immutable(settings) })
+  return shallowState(state, { settings: immutable(parseOpenAgentSettings(settings)) })
 }
 
 function assertBartHostMatchesPreference(

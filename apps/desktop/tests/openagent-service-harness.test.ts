@@ -1,6 +1,8 @@
 import { applyRendererStatePatch } from '../src/shared/renderer-state-patch'
 import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { DatabaseSync } from 'node:sqlite'
+import type { AutoInterventionService } from '../src/main/use-cases/auto-intervention-service'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -57,6 +59,8 @@ import {
   testSessionStateWithObservation
 } from '@openagent/test-kit'
 import { selectOverviewItems } from '../src/renderer/src/conversation-overview-layout'
+import { createCodexSettingsApi } from '../../../packages/harness-codex/src/main/settings'
+import type { CodexHarnessSettings } from '../../../packages/harness-codex/src/shared/types'
 
 const directories: string[] = []
 const services: OpenAgentService[] = []
@@ -72,6 +76,382 @@ afterEach(async () => {
 })
 
 describe('OpenAgent Service Harness dispatch', () => {
+  it.each(['appearance', 'locale'] as const)('persists only %s without revoking pending auto intervention or run context', async preference => {
+    let resolveDecision!: (result: HarnessPromptCompleteResult) => void
+    let releaseMetadata!: () => void
+    const trace: HarnessTrace = {
+      autoInterventionCompletion: Promise.resolve(waitDecision('Initial evaluation.')),
+      metadataCompletionGate: new Promise(resolve => { releaseMetadata = resolve })
+    }
+    const fixture = await serviceFixture(trace, [], settings => ({
+      ...settings, bart: { ...settings.bart, autoIntervention: true }
+    }))
+    try {
+      await fixture.service.initialize()
+      await fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start pending work.' }] } })
+      await vi.waitFor(() => expect(trace.autoInterventionInFlight || 0).toBe(0))
+      const initialRequests = trace.autoInterventionRequests || 0
+      trace.autoInterventionCompletion = new Promise(resolve => { resolveDecision = resolve })
+      await trace.commitAgentState?.({ viewPreferenceEvidence: true })
+      await vi.waitFor(() => expect(trace.autoInterventionRequests).toBe(initialRequests + 1))
+      const intervention = Reflect.get(fixture.service, 'autoIntervention') as AutoInterventionService
+      const cancel = vi.spyOn(intervention, 'cancel')
+      const invalidate = vi.spyOn(intervention, 'invalidateDecisions')
+      const renew = vi.spyOn(intervention, 'renewAuthority')
+      const request = vi.spyOn(intervention, 'requestActive')
+      const authority = Reflect.get(intervention, 'controller') as AbortController
+      const runContext = Reflect.get(fixture.service, 'bartRunContextController') as AbortController
+      const generation = Reflect.get(fixture.service, 'bartRunContextGeneration')
+      const fingerprints = new Map(Reflect.get(intervention, 'fingerprints') as Map<string, string>)
+      const before = fixture.store.read()
+      const settings = { ...before.settings, [preference]: preference === 'appearance' ? 'dark' : 'en-US' }
+
+      await fixture.service.updateAppSettings(settings)
+
+      expect(cancel).not.toHaveBeenCalled()
+      expect(invalidate).not.toHaveBeenCalled()
+      expect(renew).not.toHaveBeenCalled()
+      expect(request).not.toHaveBeenCalled()
+      expect(authority.signal.aborted).toBe(false)
+      expect(Reflect.get(intervention, 'controller')).toBe(authority)
+      expect(Reflect.get(intervention, 'fingerprints')).toEqual(fingerprints)
+      expect(runContext.signal.aborted).toBe(false)
+      expect(Reflect.get(fixture.service, 'bartRunContextController')).toBe(runContext)
+      expect(Reflect.get(fixture.service, 'bartRunContextGeneration')).toBe(generation)
+      expect((await trackedStore(fixture.root).load())?.settings).toEqual(settings)
+      expect(fixture.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+      resolveDecision(waitDecision('The in-flight evaluation remains current.'))
+      await intervention.drain()
+      intervention.requestActive()
+      await intervention.drain()
+      expect(trace.autoInterventionRequests).toBe(initialRequests + 1)
+    } finally {
+      resolveDecision?.(waitDecision('Cleanup.'))
+      releaseMetadata()
+    }
+  })
+
+  it.each(['bart', ...HARNESS_IDS])('refreshes run context for %s without renewing enabled auto intervention', async change => {
+    const fixture = await serviceFixture({}, [], settings => ({
+      ...settings, bart: { ...settings.bart, autoIntervention: true }
+    }))
+    await fixture.service.initialize()
+    await drainStartupRecovery(fixture.service)
+    const intervention = Reflect.get(fixture.service, 'autoIntervention') as AutoInterventionService
+    const cancel = vi.spyOn(intervention, 'cancel')
+    const renew = vi.spyOn(intervention, 'renewAuthority')
+    const invalidate = vi.spyOn(intervention, 'invalidateDecisions')
+    const request = vi.spyOn(intervention, 'requestActive')
+    const runContext = Reflect.get(fixture.service, 'bartRunContextController') as AbortController
+    const before = fixture.store.read()
+    const settings = change === 'bart'
+      ? { ...before.settings, bart: { ...before.settings.bart, routingGuidance: 'Updated guidance' } }
+      : { ...before.settings, harnesses: { ...before.settings.harnesses,
+          [change]: { ...before.settings.harnesses[change as HarnessId], threadSettings: { model: 'updated' } } } }
+    await fixture.service.updateAppSettings(settings)
+    expect(runContext.signal.aborted).toBe(true)
+    expect(Reflect.get(fixture.service, 'bartRunContextController')).not.toBe(runContext)
+    expect(cancel).not.toHaveBeenCalled()
+    expect(renew).not.toHaveBeenCalled()
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+    expect(fixture.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+    expect((await trackedStore(fixture.root).load())?.settings).toEqual(settings)
+  })
+
+  it('renews auto-intervention authority only when enabling it', async () => {
+    const fixture = await serviceFixture({}, [], settings => ({
+      ...settings, bart: { ...settings.bart, autoIntervention: true }
+    }))
+    await fixture.service.initialize()
+    await drainStartupRecovery(fixture.service)
+    const intervention = Reflect.get(fixture.service, 'autoIntervention') as AutoInterventionService
+    const cancel = vi.spyOn(intervention, 'cancel')
+    const renew = vi.spyOn(intervention, 'renewAuthority')
+    const invalidate = vi.spyOn(intervention, 'invalidateDecisions')
+    const request = vi.spyOn(intervention, 'requestActive')
+    const settings = fixture.store.read().settings
+    await fixture.service.updateAppSettings({ ...settings, bart: { ...settings.bart, autoIntervention: false } })
+    expect(cancel).toHaveBeenCalledExactlyOnceWith(new Error('Bart auto intervention disabled'))
+    expect(renew).not.toHaveBeenCalled()
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+    await fixture.service.updateAppSettings(settings)
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(renew).toHaveBeenCalledTimes(1)
+    expect(invalidate).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledTimes(1)
+    await fixture.service.updateAppSettings(settings)
+    expect(renew).toHaveBeenCalledTimes(1)
+    expect(invalidate).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads handwritten legacy SQLite parts and persists applied settings only after the first send resolves them', async () => {
+    const trace: HarnessTrace = { runBartTools: async () => undefined }
+    const main = mainHarnessComposition(trace)
+    const resolve = vi.spyOn(main.codex, 'resolveThreadSettings')
+    const fixture = await serviceFixture(trace, [], settings => settings, { main, seedLegacyDatabase: true })
+    const loaded = await fixture.store.load()
+    expect(loaded).not.toBeNull()
+    expect(loaded?.bartAppliedSettings).toBeUndefined()
+    const appliedRow = () => {
+      const db = new DatabaseSync(fixture.store.statePath, { readOnly: true })
+      try { return db.prepare("SELECT body FROM records WHERE key='bart-applied-settings'").get() }
+      finally { db.close() }
+    }
+    expect(appliedRow()).toBeUndefined()
+    await fixture.service.initialize()
+    await drainStartupRecovery(fixture.service)
+    expect(fixture.store.read().bartAppliedSettings).toBeUndefined()
+    expect(resolve).not.toHaveBeenCalled()
+    expect(appliedRow()).toBeUndefined()
+    resolve.mockResolvedValueOnce({ model: 'resolved-legacy-host' })
+    await fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'First legacy send' }] } })
+    expect(resolve).toHaveBeenCalledTimes(1)
+    expect(readBartThread(fixture.store.read()).settings).toEqual({ model: 'resolved-legacy-host' })
+    expect(trace.injectedThreadSettings?.at(-1)).toEqual({ model: 'resolved-legacy-host' })
+    expect(fixture.store.read().bartAppliedSettings).toEqual(fixture.store.read().settings)
+    const row = appliedRow()
+    expect(row).toBeDefined()
+    expect(JSON.parse(Buffer.from(row!.body as Uint8Array).toString('utf8'))).toEqual(fixture.store.read().settings)
+    expect((await trackedStore(fixture.root).load())?.bartAppliedSettings).toEqual(fixture.store.read().settings)
+  })
+
+  it.each(['defaults-on', 'defaults-off', 'model', 'effort', 'tier', 'guidance', 'targets', 'non-host'])(
+    'persists %s without runtime probes or revoking a warm Handle', async change => {
+      const f = await codexSettingsFixture(change === 'defaults-off')
+      const before = f.store.read()
+      const settings = changedCodexSettings(before.settings, change)
+      await expect(f.service.updateAppSettings(settings)).resolves.toBeUndefined()
+      const expected = f.main.codex.normalizeSettings(settings)
+      expect(f.store.read().settings).toEqual(expected)
+      expect(f.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+      expect(readBartThread(f.store.read())).toEqual(readBartThread(before))
+      expect(f.probe).not.toHaveBeenCalled()
+      expect(f.resolve).not.toHaveBeenCalled()
+      expect(f.trace.nativeDisposeCount || 0).toBe(0)
+      const disk = trackedStore(f.root)
+      expect((await disk.load())?.settings).toEqual(expected)
+      if (['guidance', 'targets', 'non-host'].includes(change)) {
+        f.trace.runBartTools = async tools => {
+          f.trace.exposedTargetSets = [exposedHarnessIds(requiredTool(tools, 'openagent_thread_start').inputSchema)]
+        }
+        await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Apply composition' }] } })
+        expect(f.resolve).not.toHaveBeenCalled()
+        expect(readBartThread(f.store.read()).settings).toEqual(readBartThread(before).settings)
+        expect(f.trace.nativeDisposeCount).toBe(1)
+        if (change === 'guidance') {
+          expect(f.trace.injectionSnapshots?.at(-1)?.instructions).toContain('Model routing guidance:\nNew guidance')
+        }
+        if (change === 'targets') expect(f.trace.exposedTargetSets).toEqual([['codex', 'claude']])
+      }
+    }
+  )
+
+  it.each([false, true])('keeps saved settings and the old Handle on admission failure (system=%s), then applies the latest save', async system => {
+    const f = await codexSettingsFixture()
+    if (system) await addFixtureAgent(f, 'terminal-source')
+    const before = f.store.read()
+    await f.service.updateAppSettings(changedCodexSettings(before.settings, 'model'))
+    const send = () => system
+      ? Reflect.apply(Reflect.get(f.service, 'deliverAgentTerminal'), f.service,
+          ['terminal-source', { status: 'completed' }, false]) as Promise<void>
+      : f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'User input' }] } })
+    await expect(send()).rejects.toThrow('auto_review')
+    expect(f.trace.bartSendAttempts || 0).toBe(0)
+    expect(f.trace.nativeDisposeCount || 0).toBe(0)
+    expect(readBartThread(f.store.read())).toEqual(readBartThread(before))
+    expect(f.store.read().settings.harnesses.codex?.threadSettings).toEqual({ model: 'model-a' })
+    await f.service.updateAppSettings(changedCodexSettings(f.store.read().settings, 'effort'))
+    f.probe.mockResolvedValue(true)
+    await expect(send()).resolves.toBeUndefined()
+    expect(f.trace.injectedThreadSettings?.at(-1)).toMatchObject({ model: 'model-a', effort: 'high', approvalsReviewer: 'auto_review' })
+    expect(f.store.read().bartAppliedSettings).toEqual(f.store.read().settings)
+  })
+
+  it('loads pending settings from SQLite on restart and applies them before sending', async () => {
+    const f = await codexSettingsFixture()
+    await f.service.updateAppSettings(changedCodexSettings(f.store.read().settings, 'model'))
+    await f.service.shutdown()
+    const store = trackedStore(f.root)
+    const trace: HarnessTrace = { runBartTools: async () => undefined }
+    // Use a fresh runtime binding, while retaining the real settings resolver.
+    const freshMain = mainHarnessComposition(trace)
+    freshMain.codex.normalizeSettings = f.main.codex.normalizeSettings
+    freshMain.codex.resolveThreadSettings = f.main.codex.resolveThreadSettings
+    const service = new OpenAgentService(store, freshMain, new WorktreeManager(), f.attachments,
+      new ScheduledDispatchStore(f.root), { defaultCwd: f.defaultCwd, bartCwd: join(f.root, 'bart'),
+        temporaryWorkspaceRoot: f.temporaryWorkspaceRoot })
+    services.push(service)
+    await service.initialize()
+    await drainStartupRecovery(service)
+    expect(store.read().bartAppliedSettings).not.toEqual(store.read().settings)
+    await expect(service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'After restart' }] } }))
+      .rejects.toThrow('auto_review')
+    f.probe.mockResolvedValue(true)
+    await service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Recovered' }] } })
+    expect(trace.injectedThreadSettings?.at(-1)).toMatchObject({ model: 'model-a' })
+    expect(store.read().bartAppliedSettings).toEqual(store.read().settings)
+  })
+
+  it.each(['resolving', 'committing', 'retry-fails'])('re-resolves Bart settings after source revision changes while %s', async phase => {
+    const f = await codexSettingsFixture()
+    let release!: () => void
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const revisions: number[] = []
+    f.resolve.mockImplementation(async input => {
+      const revision = input.current!.revision
+      revisions.push(revision)
+      if (phase !== 'committing' && revisions.length === 1) await gate
+      if (phase === 'retry-fails' && revisions.length === 2) throw new Error('capability lost during retry')
+      return { model: `resolved-at-${revision}` }
+    })
+    let committing = false
+    const commit = f.store.commit.bind(f.store)
+    if (phase === 'committing') vi.spyOn(f.store, 'commit').mockImplementation(async (...args) => {
+      if (args[0].type === 'replace-thread-settings' && !committing) {
+        committing = true
+        await gate
+      }
+      return commit(...args)
+    })
+    await f.service.updateAppSettings(changedCodexSettings(f.store.read().settings, 'model'))
+    const sending = f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Use current source' }] } })
+    try {
+      await vi.waitFor(() => expect(phase !== 'committing' ? revisions.length : committing).toBeTruthy())
+      const current = readBartThread(f.store.read())
+      await f.store.commit(fixtureObservationMutation(current, current.observation, current.updatedAt + 1))
+      const latestRevision = readBartThread(f.store.read()).revision
+      expect(f.trace.nativeDisposeCount || 0).toBe(0)
+      release()
+      if (phase === 'retry-fails') {
+        await expect(sending).rejects.toThrow('capability lost during retry')
+        expect(f.trace.nativeDisposeCount || 0).toBe(0)
+        expect(f.trace.bartSendAttempts || 0).toBe(0)
+        expect(f.store.read().bartAppliedSettings).not.toEqual(f.store.read().settings)
+        return
+      }
+      await sending
+      expect(revisions).toEqual([current.revision, latestRevision])
+      expect(f.trace.injectedThreadSettings?.at(-1)).toEqual({ model: `resolved-at-${latestRevision}` })
+      expect(f.store.read().bartAppliedSettings).toEqual(f.store.read().settings)
+    } finally {
+      release()
+      await sending.catch(() => undefined)
+    }
+  })
+
+  it('preserves pending settings across history clear without probing the unavailable runtime', async () => {
+    const f = await codexSettingsFixture()
+    await f.service.updateAppSettings(changedCodexSettings(f.store.read().settings, 'model'))
+    const before = f.store.read()
+    await f.service.clearAllHistory()
+    expect(f.store.read().settings).toEqual(before.settings)
+    expect(f.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+    expect(f.probe).not.toHaveBeenCalled()
+    await expect(f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Still pending' }] } }))
+      .rejects.toThrow('auto_review')
+    f.probe.mockResolvedValue(true)
+    await f.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Now available' }] } })
+    expect(f.trace.injectedThreadSettings?.at(-1)).toMatchObject({ model: 'model-a' })
+  })
+
+  it.each([false, true])('preserves a pending Host preference when clearing history (legacy=%s)', async legacy => {
+    const trace: HarnessTrace = { runBartTools: async () => undefined }
+    const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
+    const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
+    const fixture = await serviceFixture(trace, [], settings => ({
+      ...settings, bart: { ...settings.bart, hostHarnessPreference: 'codex' }
+    }), { main, seedLegacyDatabase: legacy })
+    await fixture.service.initialize()
+    await drainStartupRecovery(fixture.service)
+    const before = fixture.store.read()
+    const settings = { ...before.settings, bart: { ...before.settings.bart, hostHarnessPreference: 'claude' as const } }
+    await fixture.service.updateAppSettings(settings)
+    await fixture.service.clearAllHistory()
+    expect(fixture.store.read().settings).toEqual(settings)
+    expect(fixture.store.read().bartAppliedSettings).toEqual(before.bartAppliedSettings)
+    expect(readBartThread(fixture.store.read()).harnessId).toBe('codex')
+    expect(await trackedStore(fixture.root).load()).toEqual(fixture.store.read())
+  })
+
+  it('does not publish a failed settings write and can retry without runtime probes', async () => {
+    const f = await codexSettingsFixture()
+    const before = f.store.read()
+    const settings = changedCodexSettings(before.settings, 'model')
+    const commit = vi.spyOn(f.store, 'commit').mockRejectedValueOnce(new Error('disk full'))
+    await expect(f.service.updateAppSettings(settings)).rejects.toThrow('disk full')
+    expect(f.store.read()).toEqual(before)
+    commit.mockRestore()
+    await f.service.updateAppSettings(settings)
+    expect(f.store.read().settings).toEqual(f.main.codex.normalizeSettings(settings))
+    expect(f.probe).not.toHaveBeenCalled()
+  })
+
+  it('uses saved model and Host settings for automatic decisions without waiting for a Bart user turn', async () => {
+    const trace: HarnessTrace = { autoInterventionCompletion: Promise.resolve(waitDecision('Wait')) }
+    const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
+    const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
+    const fixture = await serviceFixture(trace, [], settings => settings, { main })
+    await fixture.service.initialize()
+    await fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Start agent work' }] } })
+    await vi.waitFor(() => expect(trace.autoInterventionRequests).toBeGreaterThan(0))
+    await vi.waitFor(() => expect(trace.autoInterventionInFlight || 0).toBe(0))
+    const complete = vi.spyOn(main.codex, 'completePrompt')
+    const settings = changedCodexSettings(fixture.store.read().settings, 'effort')
+    await fixture.service.updateAppSettings(settings)
+    // A new observation triggers evaluation with the saved configuration;
+    // saving alone must preserve consumed-decision fingerprints.
+    await trace.commitAgentState?.({ savedModelEvidence: true })
+    await vi.waitFor(() => expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({ harnesses: expect.objectContaining({ codex: settings.harnesses.codex }) }),
+      expect.anything(), undefined
+    ))
+    expect(fixture.store.read().bartAppliedSettings).not.toEqual(fixture.store.read().settings)
+    const alternateComplete = vi.spyOn(main.claude, 'completePrompt')
+    await fixture.service.updateAppSettings({ ...settings, bart: { ...settings.bart, hostHarnessPreference: 'claude' } })
+    await trace.commitAgentState?.({ savedHostEvidence: true })
+    await vi.waitFor(() => expect(alternateComplete).toHaveBeenCalled())
+    expect(readBartThread(fixture.store.read()).harnessId).toBe('codex')
+  })
+
+  it('saves a new Host while unavailable and preserves the old Handle until replacement can resolve', async () => {
+    const trace: HarnessTrace = { runBartTools: async () => undefined }
+    const alternate = mainHarnessComposition(trace, { ...baseFixtureRoles, host: 'claude', nonHost: 'codex' })
+    const main: MainHarnessComposition = { ...mainHarnessComposition(trace), claude: alternate.claude }
+    const fixture = await serviceFixture(trace, [], settings => ({ ...settings,
+      bart: { ...settings.bart, autoIntervention: false } }), { main })
+    await fixture.service.initialize()
+    await drainStartupRecovery(fixture.service)
+    const before = readBartThread(fixture.store.read())
+    const availability = vi.spyOn(main.claude, 'availability').mockResolvedValue({ available: false })
+    const settings = fixture.store.read().settings
+    await fixture.service.updateAppSettings({ ...settings, bart: { ...settings.bart, hostHarnessPreference: 'claude' } })
+    expect(availability).not.toHaveBeenCalled()
+    expect(fixture.store.read().settings.bart.hostHarnessPreference).toBe('claude')
+    const send = () => fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Use new Host' }] } })
+    await expect(send()).rejects.toThrow('不可用')
+    availability.mockResolvedValue({ available: true })
+    const resolve = vi.spyOn(main.claude, 'resolveThreadSettings').mockRejectedValueOnce(new Error('capability unavailable'))
+    await expect(send()).rejects.toThrow('capability unavailable')
+    expect(trace.nativeDisposeCount || 0).toBe(0)
+    expect(readBartThread(fixture.store.read())).toEqual(before)
+    resolve.mockRestore()
+    await send()
+    expect(readBartThread(fixture.store.read()).harnessId).toBe('claude')
+    expect(readBartThread(fixture.store.read()).id).not.toBe(before.id)
+    expect(fixture.store.read().bartAppliedSettings).toEqual(fixture.store.read().settings)
+  })
+
+  it('keeps the warm Handle when clearing only Bart fails capability resolution', async () => {
+    const f = await codexSettingsFixture()
+    const before = f.store.read()
+    await expect(f.service.clearBartSession()).rejects.toThrow('auto_review')
+    expect(f.store.read()).toEqual(before)
+    expect(f.trace.nativeDisposeCount || 0).toBe(0)
+  })
+
   it.each(['missing', 'corrupt'] as const)(
     'keeps Service available while preserving attachments with a %s owner index',
     async condition => {
@@ -1843,10 +2223,14 @@ describe('OpenAgent Service Harness dispatch', () => {
       }
     })
     try {
-      await new Promise<void>(resolve => setImmediate(resolve))
-      expect(trace.nativeOpenCount).toBe(1)
-      releaseOpen()
       await expect(update).resolves.toBeUndefined()
+      expect(trace.nativeOpenCount).toBe(1)
+      await fixture.service.updateAppSettings({
+        ...fixture.store.read().settings,
+        bart: { ...current.bart, routingGuidance: 'Latest saved generation.' }
+      })
+      releaseOpen()
+      await fixture.service.submitBartMessage({ input: { parts: [{ kind: 'text', text: 'Use latest' }] } })
     } finally {
       releaseOpen()
       await update.catch(() => undefined)
@@ -1856,7 +2240,8 @@ describe('OpenAgent Service Harness dispatch', () => {
     expect(trace.nativeOpenCount).toBe(2)
     expect(trace.nativeDisposeCount).toBe(1)
     expect(fixture.store.read().settings.bart.routingGuidance)
-      .toBe('Use the new settings generation only.')
+      .toBe('Latest saved generation.')
+    expect(fixture.store.read().bartAppliedSettings?.bart.routingGuidance).toBe('Latest saved generation.')
     expect(consoleError.mock.calls.some(([message]) =>
       message === 'OpenAgent bart-recovery failure'
     )).toBe(false)
@@ -2901,6 +3286,73 @@ describe('OpenAgent Service Harness dispatch', () => {
       vi.useRealTimers()
     }
   })
+
+  it.each(['auto-review rejection', 'unavailable host'] as const)(
+    'clears durable history without resolving the Codex host during %s', async failure => {
+      const trace: HarnessTrace = { runBartTools: async () => undefined }
+      const roles: FixtureRoles = { ...baseFixtureRoles, host: 'codex', nonHost: 'claude' }
+      const main = mainHarnessComposition(trace, roles)
+      const fixture = await serviceFixture(trace, [], settings => settings, { main, roles })
+      await fixture.service.initialize()
+      await drainStartupRecovery(fixture.service)
+      await fixture.service.submitBartMessage({
+        input: { parts: [{ kind: 'text', text: 'Old Bart session' }] }
+      })
+      await addFixtureAgent(fixture, 'history-to-clear')
+      await fixture.store.commit({ type: 'replace-reports', reports: [{
+        id: 'report-to-clear', title: 'Old report', html: '<p>Old report</p>',
+        tags: [], createdAt: 1, updatedAt: 1, archived: false, relatedExecutions: []
+      }] })
+      const before = fixture.store.read()
+      const oldBart = readBartThread(before)
+      expect(oldBart.sessionState).not.toBeNull()
+      expect(oldBart.transcript.length).toBeGreaterThan(0)
+      const opened = trace.nativeOpenCount
+      const disposed = trace.nativeDisposeCount || 0
+      const resolve = vi.spyOn(main.codex, 'resolveThreadSettings').mockRejectedValue(
+        new Error('Codex approve-for-me 自动审批不可用：目标 runtime 不支持或禁止 auto_review')
+      )
+      const availability = HARNESS_IDS.map(id => {
+        const probe = vi.spyOn(main[id], 'availability')
+        if (failure === 'unavailable host') probe.mockResolvedValue({ available: false })
+        return probe
+      })
+
+      await expect(fixture.service.clearAllHistory()).resolves.toBeUndefined()
+
+      const cleared = fixture.store.read()
+      const bart = readBartThread(cleared)
+      expect(cleared.threads).toEqual([bart])
+      expect(cleared.reports).toEqual([])
+      expect(cleared.tagPool).toEqual([])
+      expect(cleared.settings).toEqual(before.settings)
+      expect(cleared.selectedThreadId).toBe(bart.id)
+      expect(bart.id).not.toBe(oldBart.id)
+      expect(bart).toMatchObject({
+        harnessId: oldBart.harnessId, settings: oldBart.settings,
+        sessionState: null, transcript: [],
+        observation: { latestExecution: null, backgroundWork: null }
+      })
+      expect(resolve).not.toHaveBeenCalled()
+      for (const probe of availability) expect(probe).not.toHaveBeenCalled()
+      expect(trace.nativeOpenCount).toBe(opened)
+      expect(trace.nativeDisposeCount).toBe(disposed + 1)
+      expect(fixture.service.loadRendererState().threads).toHaveLength(1)
+      await fixture.store.flush()
+      expect(await trackedStore(fixture.root).load()).toEqual(cleared)
+
+      // Once the provider is usable, the next message opens the new empty
+      // Thread lazily. Codex's real launch/runtime rejection is tested separately.
+      resolve.mockRestore()
+      for (const probe of availability) probe.mockRestore()
+      await expect(fixture.service.submitBartMessage({
+        input: { parts: [{ kind: 'text', text: 'Fresh Bart session' }] }
+      })).resolves.toBeUndefined()
+      expect(trace.openedBartThreadId).toBe(bart.id)
+      expect(trace.nativeOpenCount).toBe((opened || 0) + 1)
+      expect(trace.injectedThreadSettings?.at(-1)).toEqual(oldBart.settings)
+    }
+  )
 
   it('does not prune managed ownership when durable history replacement fails', async () => {
     const clearOwnedWorktrees = vi.fn(async () => undefined)
@@ -6832,6 +7284,7 @@ interface ServiceFixture {
 interface ServiceFixtureOptions {
   readonly storeOptions?: ThreadStateStoreOptions
   readonly stateCreatedAt?: number
+  readonly seedLegacyDatabase?: boolean
   readonly worktrees?: WorktreeManager
   readonly main?: MainHarnessComposition
   /** Role assignment the fixture state is seeded with; must match `main`. */
@@ -6849,6 +7302,44 @@ function fixtureWorktreeManager(overrides: object): WorktreeManager {
       repositoryIdentity: 'fixture-repository'
     })
   }, overrides)
+}
+
+function changedCodexSettings(settings: OpenAgentSettings, change: string): OpenAgentSettings {
+  if (change === 'guidance') return { ...settings, bart: { ...settings.bart, routingGuidance: 'New guidance' } }
+  if (change === 'targets') return { ...settings, bart: { ...settings.bart, targetHarnessIds: ['codex', 'claude'] } }
+  const slice = change === 'non-host' ? 'claude' : 'codex'
+  return { ...settings, harnesses: { ...settings.harnesses, [slice]: {
+    ...(change === 'defaults-on' ? {} : { useDefaultThreadSettings: false }),
+    threadSettings: change === 'defaults-on' || change === 'defaults-off' ? {} : {
+      model: 'model-a',
+      ...(change === 'effort' ? { effort: 'high' } : {}),
+      ...(change === 'tier' ? { serviceTier: 'priority' } : {})
+    }
+  } } }
+}
+
+async function codexSettingsFixture(useDefaults = false) {
+  const trace: HarnessTrace = { runBartTools: async () => undefined }
+  const main = mainHarnessComposition(trace)
+  const probe = vi.fn(async () => false)
+  const api = createCodexSettingsApi({
+    probeAutoReview: probe,
+    load: async () => ({ models: [{ value: 'model-a', displayName: 'A', isDefault: true,
+      supportedReasoningEfforts: [{ value: 'high' }], serviceTiers: [{ value: 'priority' }] }], computerUse: false }),
+    invalidate: () => undefined, adoptModels: () => undefined
+  })
+  main.codex.normalizeSettings = settings => ({ ...settings, harnesses: { ...settings.harnesses,
+    codex: { ...api.normalizeHarnessSettings((settings.harnesses.codex ?? { threadSettings: {} }) as unknown as CodexHarnessSettings) } as unknown as JsonObject } })
+  const resolve = vi.spyOn(main.codex, 'resolveThreadSettings').mockImplementation(async input =>
+    ({ ...await api.resolveThreadSettings({ merged: api.defaultThreadSettings(input.settings.harnesses.codex as unknown as CodexHarnessSettings),
+      cwd: input.cwd, sessionState: input.current?.sessionState ?? null, signal: input.signal }) }) as JsonObject)
+  const fixture = await serviceFixture(trace, [], settings => ({ ...settings,
+    bart: { ...settings.bart, autoIntervention: false },
+    harnesses: { ...settings.harnesses, codex: { ...(useDefaults ? {} : { useDefaultThreadSettings: false }), threadSettings: {} } }
+  }), { main })
+  await fixture.service.initialize()
+  await drainStartupRecovery(fixture.service)
+  return { ...fixture, main, trace, probe, resolve }
 }
 
 async function serviceFixture(
@@ -6870,7 +7361,7 @@ async function serviceFixture(
   const store = trackedStore(root, options.storeOptions)
   const roles = options.roles ?? baseFixtureRoles
   const settings = configureSettings(createDefaultOpenAgentSettings())
-  await store.save(createOpenAgentState({
+  const initial = createOpenAgentState({
     bartThreadId: 'bart-thread-schedule',
     hostHarnessId: roles.host,
     bartThreadSettings: { model: 'bart-model' },
@@ -6884,7 +7375,29 @@ async function serviceFixture(
         targetHarnessIds: [roles.host]
       }
     }
-  }))
+  })
+  if (options.seedLegacyDatabase) {
+    // Handwritten pre-applied-settings v6 layout: do not use today's partition
+    // or persist code to manufacture the database under test.
+    await mkdir(dirname(store.statePath), { recursive: true })
+    const db = new DatabaseSync(store.statePath)
+    try {
+      db.exec(`CREATE TABLE records (key TEXT PRIMARY KEY, body BLOB NOT NULL CHECK(length(body)<=52428800), html BLOB CHECK(length(html)<=52428800)) STRICT;
+        CREATE TABLE entity_order (kind TEXT NOT NULL, position INTEGER NOT NULL, id TEXT NOT NULL, PRIMARY KEY(kind, position), UNIQUE(kind,id)) STRICT;
+        PRAGMA user_version=6;`)
+      const parts: Array<[string, unknown]> = [
+        ['settings', initial.settings],
+        ['ui', { selectedThreadId: initial.selectedThreadId, tagPool: initial.tagPool }],
+        [`thread:${initial.threads[0]!.id}`, initial.threads[0]]
+      ]
+      for (const [key, value] of parts) {
+        db.prepare('INSERT INTO records(key, body) VALUES (?, ?)').run(key, Buffer.from(JSON.stringify(value)))
+      }
+      db.prepare('INSERT INTO entity_order(kind, position, id) VALUES (?, ?, ?)').run('thread', 0, initial.threads[0]!.id)
+    } finally { db.close() }
+  } else {
+    await store.save(initial)
+  }
   const schedules = new ScheduledDispatchStore(root)
   await schedules.save(scheduledDispatches)
   const attachments = new AttachmentRepository(

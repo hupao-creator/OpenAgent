@@ -285,6 +285,10 @@ function mutationScopes(mutation: OpenAgentStateMutation): string[] {
       (mutation.relatedExecutionChecks ?? []).map(reference => `thread:${reference.threadId}`)
     )]
     case 'replace-settings': return ['settings']
+    case 'replace-thread-settings':
+      return mutation.bartAppliedSettings === undefined
+        ? [`thread:${mutation.threadId}`]
+        : ['settings', `thread:${mutation.threadId}`]
     case 'replace-tag-pool': return ['ui']
     case 'select-thread': return ['ui', 'catalog']
     case 'add-agent-thread': return ['catalog', `thread:${mutation.thread.id}`]
