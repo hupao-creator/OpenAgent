@@ -64,6 +64,43 @@ it('plans queued revisions against the preceding presented layout and cancels a 
   await waitFor(() => expect(getOverviewMotionCoordinator().stageBusy).toBe(false))
 })
 
+it('skips an obsolete card expansion after a blocked motion queue has aged', async () => {
+  const coordinator = getOverviewMotionCoordinator()
+  const hold = await coordinator.acquireStage('test:long-running-motion')
+  let now = 1_000
+  vi.spyOn(Date, 'now').mockImplementation(() => now)
+  const reports = makeReports(2)
+  const base = overviewLayoutSnapshot(deriveOverviewItems({
+    threads: [], reports, transitionId: null,
+    layoutContext: { availableCols: Number.MAX_SAFE_INTEGER }
+  }))
+  const expanded = { ...base, signature: `${base.signature}:expanded`, items: base.items.map((item, index) =>
+    index === 0 ? { ...item, size: { cols: 2, rows: 1 } } : item
+  ) }
+  const plan = vi.fn<typeof layoutOverview>((previous, next, geometry) => layoutOverview(previous, next, geometry))
+  const presented = vi.fn()
+  try {
+    render(<ConversationOverview threads={[]} reports={reports} transitionId={null}
+      interrupt={async () => {}} respond={async () => {}} onSelect={() => {}}
+      layoutPlanner={{ context: { availableCols: Number.MAX_SAFE_INTEGER }, plan }}
+      layoutRevisions={[
+        { revision: 1, sceneKey: 'all', snapshot: expanded },
+        { revision: 2, sceneKey: 'all', snapshot: base }
+      ]}
+      motionSceneKey="all" onLayoutPresented={presented} />)
+    expect(plan).toHaveBeenCalledTimes(1)
+    now += 2_001
+  } finally {
+    await act(async () => { hold.release() })
+  }
+  await waitFor(() => expect(plan).toHaveBeenCalledTimes(2))
+  expect(plan.mock.calls.every(([, next]) => next.every(member => member.cols === 1))).toBe(true)
+  expect(presented.mock.calls.every(([, placements]) =>
+    (placements as ReturnType<typeof layoutOverview>['placements']).every(member => member.cols === 1)
+  )).toBe(true)
+  await waitFor(() => expect(coordinator.stageBusy).toBe(false))
+})
+
 it('binds the camera when the first card arrives and when filtering replaces its plane', async () => {
   for (const [property, size] of [['clientWidth', 1000], ['clientHeight', 800], ['offsetWidth', 360], ['offsetHeight', 200]] as const) {
     vi.spyOn(HTMLElement.prototype, property, 'get').mockImplementation(function (this: HTMLElement) {
