@@ -108,16 +108,3 @@ it('codex toolConfigurationIdentity ignores binding order and schema key order',
     }
   ), 'generate a tool injection → permute bindings and reverse every schema key order → the identity hash is unchanged, while renames and mode flips are detected', budgetMs, samples)
 }, timeout)
-
-it('codex toolConfigurationIdentity is undefined without tool bindings', async () => {
-  await checkAsync('codex toolConfigurationIdentity is undefined without tool bindings', fc.asyncProperty(
-    fc.constant({}),
-    async () => {
-      expect(toolConfigurationIdentity(undefined)).toBeUndefined()
-      expect(toolConfigurationIdentity({} as HarnessThreadInjection)).toBeUndefined()
-      expect(toolConfigurationIdentity(
-        { tools: undefined } as unknown as HarnessThreadInjection
-      )).toBeUndefined()
-    }
-  ), 'an undefined injection and an injection without tools both yield an undefined identity', budgetMs, samples)
-}, timeout)

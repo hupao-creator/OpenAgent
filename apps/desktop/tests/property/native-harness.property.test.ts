@@ -4,7 +4,6 @@ import { join, resolve } from 'node:path'
 import fc from 'fast-check'
 import { expect, it, vi } from 'vitest'
 import { parseThreadPublicObservation, type AgentThreadRecord, type HarnessPluginHostContext, type HarnessSessionStateAdapter, type HarnessThreadHandle } from '@openagent/contracts'
-import { createCodexMainPlugin } from '../../../../packages/harness-codex/src/main'
 import { createClaudeMainPlugin } from '../../../../packages/harness-claude/src/main'
 import { openPiThread } from '../../../../packages/harness-pi/src/main/thread/handle'
 import type { PiRpc } from '../../../../packages/harness-pi/src/main/runtime/rpc'
@@ -62,41 +61,6 @@ function assertTerminal(captured: { read: () => AgentThreadRecord; changes: Test
   expect(adapter.resolveExecution(record.sessionState, id)).toEqual(record.observation.latestExecution)
   expect(adapter.resolveExecution(record.sessionState, 'unknown-execution')).toBeNull()
 }
-
-it('native Codex public Handle and projection contract', async () => {
-  await checkAsync('native Codex public Handle and projection contract', fc.asyncProperty(scenario, async value => {
-    const directory = await mkdtemp(join(tmpdir(), 'codex-property-'))
-    const executable = resolve('tests/fixtures/fake-codex-app-server.mjs')
-    await chmod(executable, 0o755)
-    const plugin = createCodexMainPlugin({ resolveExecutable: async () => executable,
-      environment: async () => ({ ...process.env, FAKE_CODEX_INTERRUPT_COMPLETES: '1' }), dataRoot: directory, temporaryWorkspaceRoot: directory })
-    const captured = capture('codex', directory, plugin.sessionState, {})
-    let handle: HarnessThreadHandle | undefined
-    try {
-      handle = await plugin.openThread(captured.context)
-      await handle.send({ executionId: value.id, input: { parts: [{ kind: 'text', text: value.chunks.join('') }] },
-        signal: new AbortController().signal })
-      await vi.waitFor(() => expect(captured.read().observation.latestExecution?.status).toBe('waiting-for-user'), { interval: 5 })
-      const waiting = captured.read().observation.latestExecution!
-      if (waiting.status !== 'waiting-for-user') throw new Error('Missing public interaction')
-      expect(waiting.interactions.length).toBeGreaterThan(0)
-      if (value.stop) await handle.interrupt()
-      else await handle.respond({ interactionId: waiting.interactions[0]!.id, actionId: 'allow-once' })
-      const outcome = value.stop ? 'interrupted' : 'completed'
-      await vi.waitFor(() => expect(captured.read().observation.latestExecution?.status).toBe(outcome), { interval: 5 })
-      assertTerminal(captured, plugin.sessionState, value.id, outcome, value.stop ? undefined : 'All good.')
-      const beforeRead = structuredClone(captured.read())
-      if (!value.stop) {
-        await expect(handle.read('Summarize', new AbortController().signal)).resolves.toBe('Fork read complete.')
-        expect(captured.read()).toEqual(beforeRead)
-      }
-      await Promise.all(Array.from({ length: value.disposals }, () => handle!.dispose()))
-      await expect(handle.send({ executionId: 'after-dispose', input: { parts: [{ kind: 'text', text: 'late' }] },
-        signal: new AbortController().signal })).rejects.toThrow()
-      expect(captured.read()).toEqual(beforeRead)
-    } finally { await handle?.dispose(); await rm(directory, { recursive: true, force: true }) }
-  }), 'open → send → app-server approval → await public waiting → respond or interrupt → await terminal → optional fork read → repeated dispose → rejected send', nativeBudget)
-}, nativeTimeout)
 
 it('native Claude public Handle and projection contract', async () => {
   await checkAsync('native Claude public Handle and projection contract', fc.asyncProperty(scenario, async value => {

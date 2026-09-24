@@ -2,7 +2,10 @@
 
 当前测试策略：普通单元/DOM 测试已移除，`tests/property/` 中也只保留生成性质。
 `pnpm test` 运行 PBT 和构建缓存集成检查；浏览器、Electron、headless 验收保留独立入口。
-本文涉及 helper 单测、普通回归测试和原有数量的记录均为清理前的历史证据。
+2026-09-24 按逐项评分删除低于 8 分的 46 个 PBT 定义，保留恰好 8 分及以上的性质：
+普通 PBT 为 21 个文件、52 个定义，参数化后共 62 个 Vitest 用例；
+headless 的 3 个性质组均保留，展开为 7 个目标组合。
+本文涉及已删除 PBT、helper 单测、普通回归测试和原有数量的记录均为清理前的历史证据。
 
 Current suite: fixed example injection has been removed from `checkAsync`.
 Sample budgets now count generated inputs only. Generated properties, shrinking

@@ -4,14 +4,7 @@ import {
   type ClaudeTurn,
   type ClaudeUsage
 } from '../../../../packages/harness-claude/src/shared/state'
-import {
-  appendTimelineText,
-  applyClaudeUsageSample,
-  recordClaudeActivity,
-  recordClaudeInteraction,
-  settleClaudeTurn,
-  type ClaudeUsageProjection
-} from '../../../../packages/harness-claude/src/main/thread/timeline'
+import { applyClaudeUsageSample, type ClaudeUsageProjection } from '../../../../packages/harness-claude/src/main/thread/timeline'
 import {
   claudeModelCostEvents,
   type ClaudeExecutionNativeEvent
@@ -21,11 +14,6 @@ import { checkAsync } from './check'
 const timeout = process.env.FC_EXPLORE ? 130_000 : 35_000
 // Pure in-memory accounting, so this family keeps the pure sample budget.
 const samples = { normal: 100, explore: 1000 }
-
-const activityKinds = ['command', 'file', 'tool', 'search', 'thinking', 'agent', 'task', 'hook', 'review', 'subagent'] as const
-const activityStatuses = ['running', 'completed', 'failed', 'cancelled'] as const
-const interactionStatuses = ['pending', 'allowed', 'denied', 'submitted', 'cancelled', 'resolved'] as const
-const outcomes = ['completed', 'failed', 'interrupted'] as const
 
 function emptyTurn(at: number): ClaudeTurn {
   return {
@@ -44,122 +32,6 @@ function emptyTurn(at: number): ClaudeTurn {
     timeline: []
   }
 }
-
-const outcomeStatus: Record<(typeof outcomes)[number], 'completed' | 'failed' | 'cancelled'> = {
-  completed: 'completed',
-  failed: 'failed',
-  interrupted: 'cancelled'
-}
-// Assistant timeline text uses its own terminal vocabulary.
-const outcomeTextStatus: Record<(typeof outcomes)[number], 'complete' | 'failed' | 'cancelled'> = {
-  completed: 'complete',
-  failed: 'failed',
-  interrupted: 'cancelled'
-}
-
-// Only draw from a handful of ids so upserts, background exemptions and duplicate
-// generation identifiers are common rather than astronomically rare.
-const activityGen = fc.record({
-  id: fc.integer({ min: 0, max: 2 }).map(n => `act-${n}`),
-  kind: fc.constantFrom(...activityKinds),
-  status: fc.constantFrom(...activityStatuses),
-  taskId: fc.option(fc.constantFrom('task-1', 'task-2'), { nil: undefined })
-})
-const interactionGen = fc.record({
-  id: fc.integer({ min: 0, max: 1 }).map(n => `int-${n}`),
-  status: fc.constantFrom(...interactionStatuses)
-})
-
-const settleScenario = fc.record({
-  activities: fc.array(activityGen, { maxLength: 5 }),
-  interactions: fc.array(interactionGen, { maxLength: 4 }),
-  streams: fc.array(fc.integer({ min: 1, max: 4 }).map(n => `stream-${n}`), { maxLength: 3 }),
-  outcome: fc.constantFrom(...outcomes),
-  backgroundTaskIds: fc.array(fc.constantFrom('act-0', 'act-1', 'act-2', 'task-1', 'task-2', 'bg-9'), { maxLength: 3 })
-})
-
-it('claude settle idempotence and terminalization hold under generated turns', async () => {
-  await checkAsync('claude settle idempotence and terminalization hold under generated turns', fc.asyncProperty(
-    settleScenario,
-    async scenario => {
-      const turn = emptyTurn(1_000)
-      let at = 1_000
-      scenario.activities.forEach(activity => {
-        at += 1
-        turn.updatedAt = at
-        recordClaudeActivity(turn, {
-          id: activity.id,
-          kind: activity.kind,
-          label: 'work',
-          status: activity.status,
-          ...(activity.taskId === undefined ? {} : { taskId: activity.taskId })
-        }, at)
-      })
-      scenario.interactions.forEach(interaction => {
-        at += 1
-        turn.updatedAt = at
-        recordClaudeInteraction(turn, {
-          id: interaction.id,
-          kind: 'permission',
-          title: 'allow?',
-          status: interaction.status
-        }, at)
-      })
-      scenario.streams.forEach(streamId => {
-        at += 1
-        turn.updatedAt = at
-        appendTimelineText(turn, 'assistant', `text for ${streamId}`, at, streamId)
-      })
-      const finishedAt = at + 1
-      turn.updatedAt = finishedAt
-      const pendingBefore = turn.interactions.filter(interaction => interaction.status === 'pending').map(({ id }) => id)
-      const runningBefore = turn.activities.filter(activity => activity.status === 'running')
-      const settled = new Set<string>(scenario.backgroundTaskIds)
-      const expectedTerminal = runningBefore.filter(activity => !settled.has(activity.taskId || activity.id))
-
-      settleClaudeTurn(turn, scenario.outcome, settled, finishedAt)
-      expect(turn.finishedAt).toBe(finishedAt)
-      expect(turn.status).toBe(scenario.outcome)
-      expect(turn.statusLabel).toBeUndefined()
-      // Running work outside the background set is terminalized; background work and
-      // already-terminal activities are untouched.
-      for (const activity of turn.activities) {
-        if (!runningBefore.some(candidate => candidate.id === activity.id)) continue
-        if (settled.has(activity.taskId || activity.id)) {
-          expect(activity.status).toBe('running')
-        } else {
-          expect(activity.status).toBe(outcomeStatus[scenario.outcome])
-        }
-      }
-      // Pending interactions are cancelled exactly once: no pending entity remains,
-      // and the timeline carries exactly one settlement snapshot per pending id.
-      expect(turn.interactions.filter(interaction => interaction.status === 'pending')).toEqual([])
-      for (const id of pendingBefore) {
-        expect(turn.interactions.find(interaction => interaction.id === id)?.status).toBe('cancelled')
-        // Exactly one settlement snapshot per pending id; earlier history of the same
-        // id may already carry a cancelled snapshot from a previous cycle.
-        expect(turn.timeline.filter(item =>
-          item.kind === 'interaction' && item.interaction.id === id && item.id.startsWith(`settled:${finishedAt}:interaction:`)
-        )).toHaveLength(1)
-      }
-      expect(turn.timeline.filter(item => item.id.startsWith('settled:'))).toHaveLength(
-        pendingBefore.length + expectedTerminal.length
-      )
-      for (const item of turn.timeline) {
-        if (item.kind !== 'assistant') continue
-        expect(item.status).not.toBe('streaming')
-        if (scenario.streams.includes(item.messageId ?? '')) {
-          expect(item.status).toBe(outcomeTextStatus[scenario.outcome])
-        }
-      }
-      // A second settlement — different outcome, different background set — is a no-op.
-      const frozen = JSON.stringify(turn)
-      settleClaudeTurn(turn, scenario.outcome === 'completed' ? 'failed' : 'completed', new Set(['bg-other']), finishedAt + 5)
-      expect(JSON.stringify(turn)).toBe(frozen)
-      expect(turn.finishedAt).toBe(finishedAt)
-    }
-  ), 'build turn with generated activities/interactions/streams → settle once → settle again with different inputs → unchanged', undefined, samples)
-}, timeout)
 
 const usageGen: fc.Arbitrary<ClaudeUsage> = fc.record({
   inputTokens: fc.option(fc.nat(2_000), { nil: undefined }),

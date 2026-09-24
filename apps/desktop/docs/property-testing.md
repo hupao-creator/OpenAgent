@@ -1,5 +1,9 @@
 # Pure-data property testing (Issue #92 M1)
 
+Historical M1 record: the 2026-09-24 quality cleanup removed properties scoring
+below 8/10, including layout and renderer gap recovery. Their selectors and
+evidence below no longer describe the current suite; see [governance](property-governance.md).
+
 Current cross-family budgets, configurable command exploration, extension guidance and
 parent acceptance: [M9 governance](property-governance.md).
 

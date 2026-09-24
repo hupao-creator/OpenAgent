@@ -1,16 +1,8 @@
 import fc from 'fast-check'
 import { expect, it } from 'vitest'
-import { isJsonValue, type HarnessRespondRequest, type JsonValue } from '@openagent/contracts'
-import {
-  defaultInteractionDecline,
-  encodeInteractionResponse,
-  nativeQuestionAnswers,
-  parseInteraction,
-  type CodexInteractionRequest
-} from '../../../../packages/harness-codex/src/main/runtime/app-server'
-import { nativeCodexInteractionResponse } from '../../../../packages/harness-codex/src/main/thread/thread-handle'
+import { isJsonValue, type JsonValue } from '@openagent/contracts'
+import { encodeInteractionResponse, parseInteraction, type CodexInteractionRequest } from '../../../../packages/harness-codex/src/main/runtime/app-server'
 import { assertCodexInteractionAdmission } from '../../../../packages/harness-codex/src/shared/interaction-admission'
-import { toPublicInteraction } from '../../../../packages/harness-codex/src/shared/public-interactions'
 import type { CodexInteraction } from '../../../../packages/harness-codex/src/shared/types'
 import { checkAsync } from './check'
 
@@ -136,9 +128,6 @@ const translate = (question: CodexInteraction['questions'][number], value: strin
   return option?.label || value
 }
 
-// One sample per native method, run before the generated ones, so no run can
-// reach the gate with a kind unexercised.
-
 it('codex encodes every advertised action of every native interaction into its legal wire union', async () => {
   await checkAsync('codex encodes every advertised action of every native interaction into its legal wire union', fc.asyncProperty(
     fc.record({
@@ -222,31 +211,6 @@ it('codex encodes every advertised action of every native interaction into its l
   ), 'parse each native method → clear admission → encode every advertised action against the documented wire union', budgetMs, samples)
 }, timeout)
 
-it('codex timeout decline is indistinguishable from the user choosing cancel or deny', async () => {
-  await checkAsync('codex timeout decline is indistinguishable from the user choosing cancel or deny', fc.asyncProperty(
-    requestArb,
-    async request => {
-      // Same parse-time guard as the decision matrix: URL elicitation without
-      // a URL never produces an interaction.
-      if (request.method === 'mcpServer/elicitation/request' && request.params.mode === 'url' && !request.params.url) return
-      const interaction = parseInteraction(request.method, request.params)
-      expect(interaction).toBeDefined()
-      const pending: CodexInteractionRequest = { method: request.method, params: request.params, interaction: interaction! }
-      const decline = defaultInteractionDecline(pending)
-      // Every kind advertises the action the timeout maps onto: cancel where
-      // it exists, otherwise deny (the permissions kind filters cancel out).
-      const chosen = interaction!.actions.find(action => action.intent === 'cancel') ??
-        interaction!.actions.find(action => action.intent === 'deny')
-      expect(chosen).toBeDefined()
-      const wire = encodeInteractionResponse(pending, { actionId: chosen!.id } as JsonValue)
-      expect(decline.response).toEqual({ result: wire })
-      // The recorded resolution is the one the state machine maps back onto
-      // the same terminal status the chosen action's intent implies.
-      expect(decline.resolution).toBe(chosen!.intent === 'cancel' ? 'cancel' : 'decline')
-    }
-  ), 'parse each native method → encode its cancel (or deny) action → the timeout decline response and resolution match it exactly', budgetMs, samples)
-}, timeout)
-
 it('codex mcp form answers round-trip through JSON into the accepted content object', async () => {
   await checkAsync('codex mcp form answers round-trip through JSON into the accepted content object', fc.asyncProperty(
     fc.record({
@@ -296,109 +260,4 @@ it('codex mcp form answers round-trip through JSON into the accepted content obj
       expect(Object.keys(wire).sort()).toEqual(['_meta', 'action', 'content'])
     }
   ), 'generated form schema and JSON content → submit → accepted content equals the parsed object and request metadata is preserved', budgetMs, samples)
-}, timeout)
-
-it('codex public option ids translate back to native ids and free text passes through', async () => {
-  await checkAsync('codex public option ids translate back to native ids and free text passes through', fc.asyncProperty(
-    fc.record({
-      request: fc.oneof(
-        fc.record({ method: fc.constant('item/tool/requestUserInput'), params: userInputParams }),
-        fc.record({ method: fc.constant('mcpServer/elicitation/request'), params: elicitationParams })
-      ),
-      choices: choicesArb,
-      formContent: fc.record({ count: fc.nat(99), note: freeText, flag: fc.boolean() }),
-      fault: fc.constantFrom('none', 'unknown-question')
-    }),
-    async ({ request, choices, formContent, fault }) => {
-      if (request.method === 'mcpServer/elicitation/request' && request.params.mode === 'url' && !request.params.url) return
-      const interaction = parseInteraction(request.method, request.params)
-      expect(interaction).toBeDefined()
-      const pending: CodexInteractionRequest = { method: request.method, params: request.params, interaction: interaction! }
-      const publicInteraction = toPublicInteraction(interaction!)
-
-      if (fault === 'unknown-question') {
-        // The public question ids are digests; 'bogus' never matches one.
-        expect(() => nativeCodexInteractionResponse(
-          { interactionId: publicInteraction.id, actionId: 'submit', answers: { bogus: 'x' } },
-          interaction!
-        )).toThrow('Codex interaction answer 对应未知 question')
-        return
-      }
-
-      const answers: Record<string, string | string[]> = {}
-      // Per question: the values sent on the public seam and the exact values
-      // each hop must produce for them. Hop one preserves the answer's shape
-      // (string in, string out; array in, array out), so expectations share it.
-      const nativeIds: Record<string, string | string[]> = {}
-      const labels: Record<string, string | string[]> = {}
-      publicInteraction.questions.forEach((publicQuestion, index) => {
-        const nativeQuestion = interaction!.questions[index]!
-        const choice = choiceFor(choices, index)
-        if (interaction!.kind === 'mcp-elicitation') {
-          // The form question carries its JSON answer as free text; the native
-          // wire receives the string untouched and parses it on encode.
-          answers[publicQuestion.id] = JSON.stringify(formContent)
-          nativeIds[nativeQuestion.id] = JSON.stringify(formContent)
-          labels[nativeQuestion.id] = JSON.stringify(formContent)
-          return
-        }
-        const option = nativeQuestion.options[choice.optionIndex]
-        const publicOption = publicQuestion.options[choice.optionIndex]
-        if (choice.mode === 'option' && option && publicOption) {
-          answers[publicQuestion.id] = publicOption.value
-          nativeIds[nativeQuestion.id] = option.id
-          labels[nativeQuestion.id] = option.label
-          return
-        }
-        const value = choice.text || 'free text'
-        if (choice.mode === 'multi') {
-          // Arrays map element-wise through both hops.
-          const values = [option && publicOption ? publicOption.value : value, value]
-          answers[publicQuestion.id] = values
-          nativeIds[nativeQuestion.id] = values.map(entry =>
-            entry === publicOption?.value && option ? option.id : entry)
-          labels[nativeQuestion.id] = (nativeIds[nativeQuestion.id] as string[]).map(entry => translate(nativeQuestion, entry))
-          return
-        }
-        answers[publicQuestion.id] = value
-        // Free text is no public option value, so hop one passes it through;
-        // hop two only relabels an exact native option id.
-        nativeIds[nativeQuestion.id] = value
-        labels[nativeQuestion.id] = translate(nativeQuestion, value)
-      })
-
-      const response = {
-        interactionId: publicInteraction.id,
-        actionId: 'submit',
-        ...(Object.keys(answers).length ? { answers } : {})
-      } as HarnessRespondRequest
-      const nativeResponse = nativeCodexInteractionResponse(response, interaction!) as {
-        readonly interactionId: string
-        readonly actionId: string
-        readonly answers?: Record<string, string | string[]>
-      }
-      expect(nativeResponse.interactionId).toBe(interaction!.id)
-      // First hop: public values become native option ids (free text through).
-      for (const [questionId, expected] of Object.entries(nativeIds)) {
-        expect(nativeResponse.answers?.[questionId]).toEqual(expected)
-      }
-      // Second hop: native ids become the native answer labels on the wire;
-      // the wire normalizes every answer to an array of strings.
-      const wire = encodeInteractionResponse(pending, nativeResponse as JsonValue) as {
-        readonly answers?: Record<string, { readonly answers: readonly string[] }>
-      }
-      if (interaction!.kind === 'user-input') {
-        for (const [questionId, expected] of Object.entries(labels)) {
-          expect(wire.answers?.[questionId]?.answers).toEqual(Array.isArray(expected) ? expected : [expected])
-        }
-      }
-      // nativeQuestionAnswers agrees with the second hop for the same input.
-      for (const [questionId, ids] of Object.entries(nativeIds)) {
-        const sent = Array.isArray(ids) ? ids : [ids]
-        const expected = labels[questionId]!
-        expect(nativeQuestionAnswers(interaction!, questionId, sent))
-          .toEqual(Array.isArray(expected) ? expected : [expected])
-      }
-    }
-  ), 'parse native interaction → project public → answer via public option ids or free text → translate back to native ids → encode the native wire labels', budgetMs, samples)
 }, timeout)

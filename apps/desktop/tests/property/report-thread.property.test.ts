@@ -4,10 +4,8 @@
 import fc from 'fast-check'
 import { expect, it } from 'vitest'
 import {
-  MAX_REPORT_RELATED_THREADS,
   MAX_REPORT_TITLE_LENGTH,
   exceedsUnicodeLength,
-  parseReportHtml,
   parseReportRelatedExecutions,
   parseReportTitle,
   type ReportExecutionReference
@@ -136,92 +134,4 @@ it('One report cannot relate a thread to two different executions', async () => 
       )
     }
   ), 'one thread carrying a second, different execution target in a generated reference array', budget, samples)
-}, timeout)
-
-it('Related-execution input is rejected before any deduplication', async () => {
-  await checkAsync('Related-execution input is rejected before any deduplication', fc.asyncProperty(
-    fc.oneof(
-      fc.constant(undefined),
-      fc.constant(null),
-      fc.constant({ threadId: 't0', executionId: 'e0' }),
-      fc.array(fc.constantFrom(
-        reference('t0', 'e0'),
-        reference('t0', ''),
-        reference('', 'e0'),
-        reference('t 0', 'e0'),
-        reference('t0', 'e\n0')
-      ), { minLength: 1, maxLength: 4 }),
-      fc.constant([{ threadId: 't0', executionId: 'e0', extra: true }]),
-      // Two oversize shapes, because either one alone leaves a hole. Distinct
-      // Thread ids have nothing to collapse, so the limit check is reached
-      // whichever order the parser applies; an array that repeats legal pairs
-      // (two of them here, `t0`/`e0` and `t1`/`e0`) is oversize raw and size 2
-      // once collapsed, so a parser regressed to deduplicate before enforcing
-      // the limit would accept it and return two references instead of refusing
-      // the input.
-      fc.constant(Array.from({ length: MAX_REPORT_RELATED_THREADS + 1 }, (_, index) =>
-        reference(`t${index}`, 'e0'))),
-      fc.constant(Array.from({ length: MAX_REPORT_RELATED_THREADS + 2 }, (_, index) =>
-        reference(`t${index % 2}`, 'e0'))),
-      fc.constant([reference('t0'.repeat(129), 'e0')]),
-      fc.constant([reference('t0', 'e0'.repeat(129))])
-    ),
-    async value => {
-      const legal = (input: unknown): boolean => input === undefined ||
-        (Array.isArray(input) && input.length <= MAX_REPORT_RELATED_THREADS && input.every(item =>
-          typeof item === 'object' && item !== null && !Array.isArray(item) &&
-          Object.keys(item).every(key => key === 'threadId' || key === 'executionId') &&
-          [item.threadId, item.executionId].every(id =>
-            typeof id === 'string' && id.length > 0 && !id.includes('\0') && !/\s/.test(id) &&
-            codePoints(id).length <= 128)))
-      if (legal(value)) {
-        const parsed = parseReportRelatedExecutions(value)
-        expect(Array.isArray(parsed)).toBe(true)
-        if (value === undefined) expect(parsed).toEqual([])
-        return
-      }
-      expect(() => parseReportRelatedExecutions(value)).toThrow()
-    }
-  ), 'one illegal reference shape or an oversize array — distinct or collapsing to a legal size — per sample; undefined is the only absent form', budget, samples)
-}, timeout)
-
-it('Accepted HTML is returned unchanged and escaped documents are refused', async () => {
-  await checkAsync('Accepted HTML is returned unchanged and escaped documents are refused', fc.asyncProperty(
-    fc.array(fc.constantFrom('标题', '结论 <p>摘要</p>', '𝄞 emoji'), { minLength: 1, maxLength: 3 }),
-    fc.constantFrom('h2', 'div', 'script', 'pre'),
-    async (bodies, tag) => {
-      const body = bodies.join('')
-      const raw = `<${tag}>${body}</${tag}>`
-      expect(parseReportHtml(raw)).toBe(raw)
-      // A document whose only markup was escaped on the way in is refused, even
-      // though the decoded text would look like markup.
-      const escaped = `&lt;${tag}&gt;${body.replace(/</g, '&lt;')}&lt;/${tag}&gt;`
-      expect(() => parseReportHtml(escaped)).toThrow(/必须提交原始 HTML/)
-      // Escaping a code sample inside real markup stays legal and unchanged.
-      const withExample = `<pre><code>${escaped}</code></pre>`
-      expect(parseReportHtml(withExample)).toBe(withExample)
-    }
-  ), 'generated body text placed in a real element, then the same text fully entity-escaped', budget, samples)
-}, timeout)
-
-it('Non-string and blank report HTML is refused', async () => {
-  await checkAsync('Non-string and blank report HTML is refused', fc.asyncProperty(
-    fc.oneof(
-      fc.constant(undefined),
-      fc.constant(null),
-      fc.constant(42),
-      fc.constant(true),
-      fc.array(fc.constant('<p>x</p>'), { maxLength: 2 }),
-      fc.string({ maxLength: 6 }).map(value => value.replace(/[^\s]/g, ' ')),
-      fc.constant('<h2>正文</h2>').map(value => `${value}\n \t`)
-    ),
-    async value => {
-      if (typeof value === 'string' && value.trim().length > 0) {
-        // Padding an accepted document must not change it.
-        expect(parseReportHtml(value)).toBe(value)
-        return
-      }
-      expect(() => parseReportHtml(value)).toThrow()
-    }
-  ), 'generated non-string, empty, whitespace-only or trailing-padded HTML candidate', budget, samples)
 }, timeout)

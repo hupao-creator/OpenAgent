@@ -4,9 +4,7 @@ import type { AgentThreadRecord } from '@openagent/contracts'
 import { createInitialRendererState } from '../../src/shared/renderer-state'
 import type { RendererAppState } from '../../src/shared/renderer-state-contracts'
 import { applyRendererStatePatch as apply, createRendererStateMutation as diff, mergeRendererStateMutations as merge, RendererStateGapError } from '../../src/shared/renderer-state-patch'
-import { createRendererStateStore, rendererAppState } from '../../src/shared/renderer-store'
-import { synchronizeRendererState } from '../../src/shared/renderer-state-sync'
-import { check, checkAsync } from './check'
+import { check } from './check'
 
 const change = fc.record({
   ids: fc.uniqueArray(fc.integer({ min: 0, max: 5 }), { maxLength: 6 }),
@@ -53,35 +51,5 @@ it('renderer patches round-trip and compose legal revisions', () => {
         threads: { upserts: [stale], removedIds: [] } })
       expect(patched.threads).toEqual(c.threads)
     }
-  }))
-}, 130_000)
-
-it('renderer gap recovery hydrates without replaying stale effects', async () => {
-  await checkAsync('renderer gap recovery', fc.asyncProperty(states, async ([a, b, c]) => {
-    const store = createRendererStateStore('')
-    let listener!: (mutation: ReturnType<typeof diff>) => void
-    let snapshot = a
-    let loads = 0
-    let effects = 0
-    let unsubscribed = false
-    const failures: unknown[] = []
-    let hydrated!: () => void
-    let ready = new Promise<void>(resolve => { hydrated = resolve })
-    const stop = synchronizeRendererState({ store,
-      load: async () => { loads++; return snapshot },
-      subscribe: next => { listener = next; return () => { unsubscribed = true } },
-      beforeCommit: () => { effects++ }, failed: error => failures.push(error), hydrated: () => hydrated() })
-    try {
-      await ready
-      snapshot = c
-      ready = new Promise<void>(resolve => { hydrated = resolve })
-      listener(diff(b, c, effect)) // Missing A → B forces one snapshot recovery.
-      await ready
-      expect(rendererAppState(store.getState())).toEqual(c)
-      expect(loads).toBe(2)
-      expect(effects).toBe(0)
-      expect(failures).toEqual([])
-    } finally { stop() }
-    expect(unsubscribed).toBe(true)
   }))
 }, 130_000)

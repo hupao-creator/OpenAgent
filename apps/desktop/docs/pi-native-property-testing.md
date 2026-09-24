@@ -1,5 +1,9 @@
 # Pi native Handle and RPC transport properties (Issue #143 phase 3)
 
+Historical phase 3 record: the 2026-09-24 quality cleanup removed all five RPC
+transport properties and their `fake-pi-rpc.mjs` fixture. The native Handle
+property remains. See [governance](property-governance.md) for the current suite.
+
 Current suite: fixed example injection has been removed from `checkAsync`.
 Sample budgets now count generated inputs only. Generated properties, shrinking
 and replay remain; coverage of an individual mode depends on the generated draw.

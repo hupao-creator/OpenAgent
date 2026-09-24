@@ -1,8 +1,8 @@
 import fc from 'fast-check'
 import { expect, it } from 'vitest'
-import { layoutOverview, LayoutSearchLimitError, type LayoutPlacement } from '../../src/renderer/src/overview-layout'
+import { type LayoutPlacement } from '../../src/renderer/src/overview-layout'
 import { originDistanceLowerBound, unitAssignmentRepairs } from '../../src/renderer/src/overview-layout-search'
-import { executesStraightOrder, hasEnclosedVacancy, hasStraightOrder } from './overview-layout-movement-oracle'
+import { hasEnclosedVacancy, hasStraightOrder } from './overview-layout-movement-oracle'
 import { check } from './check'
 
 const geometry = { columnWidth: 360, rowHeight: 200, gap: 16 }
@@ -52,45 +52,3 @@ it('overview layout search: conflict branches cover every legal finite-domain al
       expect(repairs!.some(branch => allowed(mapping, branch)), JSON.stringify({ old, current, mapping })).toBe(true)
   }))
 })
-
-const legacy = (x = 0, y = 0) => Array.from({ length: 24 }, (_, i) => unit(String(i + 1).padStart(2, '0'), i % 3 + x, Math.floor(i / 3) + y))
-
-it('overview layout search: the full domain can move farther than the candidate neighbourhood', () => {
-  check('overview layout search: the full domain can move farther than the candidate neighbourhood', fc.property(fc.integer({ min: 4, max: 8 }), separation => {
-    const previous = [unit('A', 0, 0), unit('B', separation, 0)]
-    const result = layoutOverview(previous, previous, geometry, { requireSearchComplete: true })
-    expect(result.searchComplete).toBe(true)
-    expect(executesStraightOrder(previous, result.placements, result.moveOrder)).toBe(true)
-    expect(result.bounds.cols).toBe(1)
-    expect(result.bounds.rows).toBe(2)
-    expect(result.placements.some(p => Math.abs(p.col - previous.find(a => a.id === p.id)!.col) > 1)).toBe(true)
-  }))
-})
-
-const runBudget = (old: readonly LayoutPlacement[], budget: number) => {
-  try { return layoutOverview(old, old, geometry, { maxSearchSteps: budget }) }
-  catch (error) { if (!(error instanceof LayoutSearchLimitError)) throw error; return undefined }
-}
-
-it('overview layout search: extending a deterministic budget never worsens its incumbent', () => {
-  check('overview layout search: extending a deterministic budget never worsens its incumbent', fc.property(fc.record({
-    x: fc.nat(2), y: fc.nat(2), budget: fc.integer({ min: 1_000, max: 100_000 }), extra: fc.integer({ min: 1, max: 100_000 })
-  }), ({ x, y, budget, extra }) => {
-    const old = legacy(x, y)
-    const before = runBudget(old, budget)
-    const after = runBudget(old, budget + extra)
-    if (before) {
-      expect(after).toBeDefined()
-      expect(after!.totalShiftDistance).toBeLessThanOrEqual(before.totalShiftDistance)
-      const repeated = layoutOverview(before.placements, old, geometry, { maxSearchSteps: budget })
-      expect(repeated.placements).toEqual(before.placements)
-      expect(repeated.totalShiftDistance).toBe(0)
-      expect(repeated.distanceOptimal).toBe(true)
-    }
-    if (after) {
-      expect(after.work.steps).toBeLessThanOrEqual(budget + extra)
-      expect(executesStraightOrder(old, after.placements, after.moveOrder)).toBe(true)
-      expect(hasEnclosedVacancy(after.placements)).toBe(false)
-    }
-  }))
-}, 130_000)

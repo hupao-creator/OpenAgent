@@ -1,11 +1,7 @@
 import fc from 'fast-check'
 import { expect, it } from 'vitest'
 import type { BartTelemetrySnapshot } from '@openagent/contracts'
-import {
-  CODEX_USAGE_SOURCE,
-  createCodexBartTelemetryContributor,
-  normalizeCodexBartTelemetry
-} from '../../../../packages/harness-codex/src/bart/usage'
+import { CODEX_USAGE_SOURCE, normalizeCodexBartTelemetry } from '../../../../packages/harness-codex/src/bart/usage'
 import { checkAsync } from './check'
 
 const timeout = process.env.FC_EXPLORE ? 130_000 : 35_000
@@ -257,34 +253,4 @@ it('codex bart windows carry consistent percentages, unique ids and provider/mod
       expect(snapshot.limitReached ?? null).toBe(expectedLimit)
     }
   ), 'normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window', budgetMs, samples)
-}, timeout)
-
-it('codex bart telemetry fails closed on reader errors and unrecognizable payloads', async () => {
-  await checkAsync('codex bart telemetry fails closed on reader errors and unrecognizable payloads', fc.asyncProperty(
-    fc.record({
-      garbage: fc.constantFrom<unknown>(null, 42, 'x', [], { unrelated: true }),
-      failure: fc.constantFrom('throw', 'reject')
-    }),
-    async ({ garbage, failure }) => {
-      const observedAt = 1_000
-      const reader = async (): Promise<unknown> => {
-        if (failure === 'throw') throw new Error('boom')
-        return Promise.reject(new Error('async boom'))
-      }
-      const output = await createCodexBartTelemetryContributor({ readUsage: reader, now: () => observedAt })({
-        signal: new AbortController().signal
-      })
-      expect(output).toBeDefined()
-      const errored = JSON.parse(output!) as BartTelemetrySnapshot
-      expect(errored.availability).toBe('error')
-      expect(errored.windows).toEqual([])
-      expect(errored.error ?? '').toContain('boom')
-
-      const unavailable = normalizeCodexBartTelemetry(garbage, observedAt)
-      // Garbage must never be reported as usable capacity.
-      expect(unavailable.availability).not.toBe('available')
-      expect(unavailable.windows ?? []).toEqual([])
-      expect(unavailable.availability).toBe('unknown')
-    }
-  ), 'a rejecting usage reader → availability error with empty windows; a garbage payload → unknown, never available', budgetMs, samples)
 }, timeout)
