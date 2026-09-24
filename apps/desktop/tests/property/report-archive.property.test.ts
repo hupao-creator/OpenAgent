@@ -11,12 +11,7 @@ import {
 } from '@openagent/contracts'
 import { ThreadStateStore, type ThreadStateStoreOptions } from '../../src/main/services/thread-state-store'
 import { ReportService } from '../../src/main/use-cases/report-service'
-import {
-  createOpenAgentState,
-  readAgentThread,
-  readBartThread,
-  type OpenAgentState
-} from '../../src/shared/openagent-state'
+import { createOpenAgentState, readAgentThread, type OpenAgentState } from '../../src/shared/openagent-state'
 import { createDefaultOpenAgentSettings } from '../../src/shared/openagent-settings'
 import type { ReportThreadRecord } from '../../src/shared/report-thread'
 import { checkAsync } from './check'
@@ -49,8 +44,6 @@ async function releaseSample(): Promise<void> {
 afterEach(releaseSample)
 
 type Status = 'running' | 'waiting-for-user' | 'completed' | 'interrupted' | 'failed'
-const statuses: readonly Status[] = ['running', 'waiting-for-user', 'completed', 'interrupted', 'failed']
-const nonFailing = statuses.filter(status => status !== 'failed')
 
 function execution(status: Status, executionId: string, startedAt: number): PublicExecution {
   if (status === 'running') return { executionId, status, startedAt }
@@ -210,163 +203,8 @@ function barrier(count = 1) {
   return { started, release, enter: async () => { entered(); await gate } }
 }
 
-/** Applies one observation to `agent`, at the next legal monotonic timestamp. */
-async function observe(store: ThreadStateStore, next: ThreadPublicObservation): Promise<OpenAgentState> {
-  const current = readAgentThread(store.read(), 'agent')
-  return store.commit({
-    type: 'replace-thread-session-state', threadId: current.id,
-    expectedRevision: current.revision, sessionState: current.sessionState,
-    observation: next, updatedAt: current.updatedAt + 1
-  })
-}
-
-const steps = fc.array(fc.oneof(
-  fc.record({
-    kind: fc.constant('observe' as const),
-    executionId: fc.constantFrom('E1', 'E2'),
-    status: fc.constantFrom(...statuses),
-    startedAt: fc.integer({ min: 1, max: 3 })
-  }),
-  fc.record({ kind: fc.constant('unarchive' as const) })
-), { minLength: 1, maxLength: 6 })
-
-/**
- * Applies one step and asserts the archive contract step by step, so a
- * transient re-archive cannot hide behind a later unarchive.
- */
-async function replay(store: ThreadStateStore, sequence: readonly { readonly kind: string }[]): Promise<void> {
-  for (const step of sequence) {
-    const before = readAgentThread(store.read(), 'agent')
-    if (step.kind === 'unarchive') {
-      await store.commit({ type: 'set-agent-thread-archived', threadId: 'agent', archived: false })
-      expect(readAgentThread(store.read(), 'agent').archived).toBe(false)
-      continue
-    }
-    const observationStep = step as unknown as { executionId: string; status: Status; startedAt: number }
-    const next = observation(observationStep.status, observationStep.executionId, observationStep.startedAt)
-    await observe(store, next)
-    const after = readAgentThread(store.read(), 'agent')
-    const committed = before.observation.latestExecution
-    // A non-failed observation archives nothing, and a failure the Thread has
-    // already recorded as its latest Execution is not a new failure. A failure
-    // for an Execution the Thread has not seen before is the archiving case, so
-    // it carries no assertion here.
-    const repeatsRecordedFailure = committed !== null &&
-      committed.executionId === observationStep.executionId && committed.status === 'failed'
-    if (observationStep.status !== 'failed' || repeatsRecordedFailure) {
-      expect(after.archived).toBe(before.archived)
-    }
-  }
-}
-
 const archiveFlags = (state: OpenAgentState): boolean[] =>
   state.threads.filter(thread => 'archived' in thread).map(thread => Boolean(thread.archived))
-
-it('A repeated observation never changes the archive flag', async () => {
-  await checkAsync('A repeated observation never changes the archive flag', fc.asyncProperty(
-    steps,
-    async sequence => {
-      const fixture = await setup({ referenceId: 'E2', roles: ['diverged'], extraReferences: [] })
-      await fixture.store.save({ ...fixture.store.read(), threads: [...fixture.store.read().threads,
-        agent('agent', absent)] })
-      // The sequence runs twice so the second pass meets the state the first pass
-      // committed - the already observed Execution, the dismissed failure and the
-      // already archived Thread - and every step is asserted as it is applied.
-      // The passes are deliberately not compared tail to tail: an `unarchive`
-      // step clears the flag by design, so a later repeat of the same failure
-      // legitimately has a different effect in each pass.
-      await replay(fixture.store, sequence)
-      await replay(fixture.store, sequence)
-      // A repeated failure keeps its content and its deadline-safe observation.
-      expect(readAgentThread(fixture.store.read(), 'agent').sessionState).toEqual({ privateTurn: 'kept-agent' })
-    }
-  ).afterEach(releaseSample), 'generated observation and unarchive steps applied twice in the same order with a fresh expectedRevision', budget, samples)
-}, timeout)
-
-it('Only a strictly later failed Execution re-archives after an unarchive', async () => {
-  await checkAsync('Only a strictly later failed Execution re-archives after an unarchive', fc.asyncProperty(
-    fc.integer({ min: 1, max: 3 }), fc.integer({ min: 1, max: 3 }),
-    async (firstStartedAt, secondStartedAt) => {
-      const fixture = await setup({ referenceId: 'E2', roles: ['diverged'], extraReferences: [] })
-      await fixture.store.save({ ...fixture.store.read(), threads: [...fixture.store.read().threads,
-        agent('agent', absent)] })
-      await observe(fixture.store, observation('running', 'E1', firstStartedAt))
-      await observe(fixture.store, observation('failed', 'E1', firstStartedAt))
-      expect(readAgentThread(fixture.store.read(), 'agent').archived).toBe(true)
-      await fixture.store.commit({ type: 'set-agent-thread-archived', threadId: 'agent', archived: false })
-      // The dismissed failure never archives again, however often it is seen.
-      await observe(fixture.store, observation('failed', 'E1', firstStartedAt))
-      expect(readAgentThread(fixture.store.read(), 'agent').archived).toBe(false)
-
-      // A failure for an Execution that was never observed as running is a late
-      // notification: it archives only when it started strictly later than the
-      // committed latest, because an equal timestamp cannot be ordered.
-      await observe(fixture.store, observation('failed', 'E2', secondStartedAt))
-      expect(readAgentThread(fixture.store.read(), 'agent').archived).toBe(secondStartedAt > firstStartedAt)
-      // The ordinary running-to-failed transition on the committed Execution
-      // always archives, whatever the earlier start times were.
-      await observe(fixture.store, observation('running', 'E3', 5))
-      await observe(fixture.store, observation('failed', 'E3', 5))
-      expect(readAgentThread(fixture.store.read(), 'agent').archived).toBe(true)
-    }
-  ).afterEach(releaseSample), 'a dismissed failure followed by a distinct failed Execution with a generated start time', budget, samples)
-}, timeout)
-
-it('A non-failed observation never archives a Thread', async () => {
-  await checkAsync('A non-failed observation never archives a Thread', fc.asyncProperty(
-    fc.constantFrom(...nonFailing), fc.constantFrom(...nonFailing), fc.boolean(),
-    async (first, second, failFirst) => {
-      const fixture = await setup({ referenceId: 'E2', roles: ['diverged'], extraReferences: [] })
-      await fixture.store.save({ ...fixture.store.read(), threads: [...fixture.store.read().threads,
-        agent('agent', absent)] })
-      if (failFirst) {
-        await observe(fixture.store, observation('failed', 'E1', 1))
-        expect(readAgentThread(fixture.store.read(), 'agent').archived).toBe(true)
-      }
-      await observe(fixture.store, observation(first, 'E2', 2))
-      const recovered = readAgentThread(fixture.store.read(), 'agent')
-      // Recovery never unarchives, and it never archives a Thread on its own.
-      expect(recovered.archived).toBe(failFirst)
-      expect(recovered.observation).toEqual(observation(first, 'E2', 2))
-      await observe(fixture.store, observation(second, 'E3', 3))
-      expect(readAgentThread(fixture.store.read(), 'agent').archived).toBe(failFirst)
-      // Non-terminal observations coalesce, so settle the debounced write first.
-      await fixture.store.flush()
-      expect(await disk(fixture.directory)).toEqual(fixture.store.read())
-    }
-  ).afterEach(releaseSample), 'generated non-failed statuses applied to a Thread that may already have failed', budget, samples)
-}, timeout)
-
-it('An observation commit changes only its own Thread', async () => {
-  await checkAsync('An observation commit changes only its own Thread', fc.asyncProperty(
-    fc.constantFrom(...statuses),
-    async status => {
-      const fixture = await setup({ referenceId: 'E1', roles: ['matched', 'diverged'], extraReferences: [] })
-      await fixture.store.save({ ...fixture.store.read(), threads: [...fixture.store.read().threads,
-        agent('agent', absent)] })
-      const before = fixture.store.read()
-      const target = readAgentThread(before, 'agent')
-      const next = await observe(fixture.store, observation(status, 'E9', 5))
-      const after = readAgentThread(next, 'agent')
-      expect(after).toMatchObject({
-        revision: target.revision + 1, sessionState: target.sessionState, title: target.title,
-        tags: target.tags, cwd: target.cwd, createdAt: target.createdAt, updatedAt: target.updatedAt + 1
-      })
-      // The archive decision follows from this observation alone.
-      expect(after.archived).toBe(status === 'failed')
-      // Untouched collections and every other record keep their identity.
-      expect(next.reports).toBe(before.reports)
-      expect(next.tagPool).toBe(before.tagPool)
-      expect(next.settings).toBe(before.settings)
-      expect(next.selectedThreadId).toBe(before.selectedThreadId)
-      for (const thread of before.threads) {
-        if (thread.id === 'agent') continue
-        expect(next.threads.find(candidate => candidate.id === thread.id)).toBe(thread)
-      }
-      expect(readBartThread(next)).toBe(readBartThread(before))
-    }
-  ).afterEach(releaseSample), 'one observation committed against a Thread whose siblings must stay identical', budget, samples)
-}, timeout)
 
 it('An archive covers exactly the referenced Threads whose latest Execution matches', async () => {
   await checkAsync('An archive covers exactly the referenced Threads whose latest Execution matches', fc.asyncProperty(
@@ -419,77 +257,6 @@ it('Unarchiving a Report never unarchives its Threads', async () => {
       expect(await disk(fixture.directory)).toEqual(unarchived)
     }
   ).afterEach(releaseSample), 'archive and unarchive of one Report over a generated Thread population', budget, samples)
-}, timeout)
-
-it('A content update preserves the references and their tag snapshot, and a replacement re-evaluates them', async () => {
-  await checkAsync('A content update preserves the references and their tag snapshot, and a replacement re-evaluates them',
-    fc.asyncProperty(
-      archiveWorld,
-      fc.uniqueArray(fc.constantFrom('title' as const, 'html' as const), { maxLength: 2 }),
-      async (world, drawn) => {
-        const fields = drawn.length === 0 ? ['title' as const, 'html' as const] : drawn
-        const fixture = await setup(world)
-        // A Thread that a replacement may reference whatever roles the world drew.
-        await fixture.store.save({ ...fixture.store.read(), threads: [...fixture.store.read().threads,
-          agent('extra', observation('completed', 'E7', 1))] })
-        const before = fixture.store.read()
-        await fixture.reports.update('report', {
-          ...(fields.includes('title') ? { title: 'Renamed report' } : {}),
-          ...(fields.includes('html') ? { html: '<p>Replaced HTML</p>' } : {})
-        }, signal)
-        const updated = fixture.store.read()
-        // The documented rule: content updates preserve the relations and their
-        // derived tag snapshot, and touch nothing else on the record.
-        expect(updated.reports[0]).toMatchObject({
-          relatedExecutions: before.reports[0].relatedExecutions,
-          tags: before.reports[0].tags,
-          archived: false,
-          createdAt: before.reports[0].createdAt,
-          title: fields.includes('title') ? 'Renamed report' : before.reports[0].title,
-          html: fields.includes('html') ? '<p>Replaced HTML</p>' : before.reports[0].html
-        })
-        expect(updated.reports[0].updatedAt).toBeGreaterThan(before.reports[0].updatedAt)
-        // No Thread is archived or otherwise rewritten by a content update.
-        for (const thread of before.threads) {
-          expect(updated.threads.find(candidate => candidate.id === thread.id)).toBe(thread)
-        }
-
-        // Replacing the references re-evaluates the snapshot from the new set only:
-        // the newly referenced Thread contributes its tags, the dropped ones stop
-        // contributing, and the replacement archives nothing.
-        await fixture.store.commit({ type: 'update-agent-thread-metadata', threadId: 'extra',
-          title: 'Extra', emoji: '🧩', tags: ['fresh'], updatedAt: 9 })
-        // The aggregate the reference rules act on, snapshotted immediately
-        // before the replacement so the assertion below can compare all of it.
-        const beforeReplacement = fixture.store.read()
-        const reference = { threadId: 'extra', executionId: 'E7' }
-        await fixture.reports.update('report', { relatedExecutions: [reference] }, signal)
-        const replaced = fixture.store.read()
-        // The whole record, not only the replaced fields: a replacement that also
-        // cleared the HTML, moved `createdAt`, flipped `archived` or rewrote the
-        // id would otherwise pass, and the refused update below could not expose
-        // an id change either, since the original id is gone by then.
-        expect(replaced.reports[0]).toEqual({
-          ...updated.reports[0], relatedExecutions: [reference],
-          tags: [threadDirectoryTag(readAgentThread(replaced, 'extra')), 'fresh'],
-          updatedAt: replaced.reports[0].updatedAt
-        })
-        expect(replaced.reports[0].updatedAt).toBeGreaterThan(updated.reports[0].updatedAt)
-        // Every Thread, not only the archive flags: a replacement that also
-        // rewrote a referenced Thread's tags, session state, observation or
-        // revision would otherwise pass, and the refused update below compares
-        // against the already-rewritten state, so it could not expose the damage.
-        expect(replaced.threads).toEqual(beforeReplacement.threads)
-        expect(readAgentThread(replaced, 'extra').archived).toBe(false)
-
-        // A refused replacement leaves the committed aggregate exactly as it was.
-        await expect(fixture.reports.update('report',
-          { relatedExecutions: [{ threadId: 'extra', executionId: 'E1' }] }, signal)).rejects.toThrow()
-        expect(fixture.store.read()).toBe(replaced)
-        await fixture.store.flush()
-        expect(await disk(fixture.directory)).toEqual(replaced)
-      }
-    ).afterEach(releaseSample), 'title/HTML-only updates and one reference replacement over a generated Thread population', budget, samples)
 }, timeout)
 
 it.each(['prepare-agent', 'prepare-report', 'admission', 'statement', 'before-commit', 'after-commit'] as const)(

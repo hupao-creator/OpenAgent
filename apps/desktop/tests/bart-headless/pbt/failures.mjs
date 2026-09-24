@@ -35,7 +35,7 @@ export class FailureTracker {
       return 'accept'
     }
     this.diagnostics.push({ error: errorSummary(error), signature, ...evidence })
-    // Before accepting the recorded checkpoint/replay, a different error means
+    // Before accepting the recorded replay, a different error means
     // it did not reproduce. Infrastructure faults also stop further attempts.
     if (!signature || !this.accepted) {
       this.fatal = error

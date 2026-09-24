@@ -1,5 +1,12 @@
 # Native Harness property baseline (M2)
 
+Current suite: fixed example injection has been removed from `checkAsync`.
+Sample budgets now count generated inputs only. Generated properties, shrinking
+and replay remain; coverage of an individual mode depends on the generated draw.
+The mutation results and replay coordinates below are historical evidence from
+before this cleanup, including references to mandatory examples. They must be
+recaptured against the current generators before being used as current evidence.
+
 Current cross-family budgets, configurable command exploration, extension guidance and
 parent acceptance: [M9 governance](property-governance.md).
 

@@ -26,7 +26,7 @@ try {
     if (!workspace.hasTests) continue
     const job = plan.testJobs.find(item => item.workspace === workspace.name)
     const report = join(evidence, `tests-${results.length}.json`)
-    const args = ['--dir', workspace.path, 'exec', 'vitest', job.mode === 'related' ? 'related' : 'run',
+    const args = ['--dir', workspace.path, 'exec', 'vitest', 'run',
       ...job.inputs.map(path => resolve(checkout, path)), '--run', '--maxWorkers=4', '--testTimeout=15000',
       '--reporter=default', '--reporter=json', `--outputFile.json=${report}`]
     results.push({ ...job, report, status: 'running' })

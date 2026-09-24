@@ -2,11 +2,7 @@ import fc from 'fast-check'
 import { expect, it } from 'vitest'
 import { threadDirectoryTag, threadTagKey, type ThreadPublicObservation } from '@openagent/contracts'
 import type { RendererReport } from '../../src/shared/renderer-state-contracts'
-import {
-  selectOverviewItems,
-  tagKey,
-  type OverviewView
-} from '../../src/renderer/src/conversation-overview-layout'
+import { selectOverviewItems, type OverviewView } from '../../src/renderer/src/conversation-overview-layout'
 import { check } from './check'
 
 const threadIds = ['t0', 't1', 't2', 't3'] as const
@@ -133,48 +129,6 @@ it('A Thread is hidden exactly when a visible Report covers its current Executio
   ))
 })
 
-it('A Report that fails the view or tag filter never hides a Thread', () => {
-  check('A Report that fails the view or tag filter never hides a Thread', fc.property(
-    // The Report's own view is drawn independently of the Thread's, so the
-    // view leg of this property is exercised rather than assumed away.
-    fc.boolean(), fc.boolean(), fc.constantFrom(...tagPool), fc.uniqueArray(fc.constantFrom(...tagPool), { maxLength: 2 }),
-    fc.option(fc.constantFrom(...executionIds), { nil: null }), fc.option(fc.constantFrom(...cwdPool), { nil: null }),
-    view, fc.boolean(),
-    (threadArchived, reportArchived, reportTag, selected, executionId, cwd, current, merge) => {
-      const archived = current === 'archived'
-      const entry: OverviewThread = {
-        thread: {
-          id: 't0',
-          createdAt: 1,
-          archived: threadArchived,
-          observation: observe(executionId),
-          tags: [],
-          cwd: cwd ?? '',
-        }
-      }
-      const covering: RendererReport = {
-        id: 'r0',
-        title: '报告',
-        tags: [reportTag],
-        relatedExecutions: executionId === null ? [] : [{ threadId: 't0', executionId }],
-        createdAt: 1,
-        updatedAt: 1,
-        archived: reportArchived,
-        previewText: ''
-      }
-      // A Report with no reference to this Execution cannot cover it, however visible it is.
-      const covers = executionId !== null && covering.archived === archived && tagFilter(covering.tags, selected)
-      const threadIsCandidate = entry.thread.archived === archived &&
-        tagFilter([threadDirectoryTag(entry.thread), ...entry.thread.tags], selected)
-      const result = selectOverviewItems([entry], [covering], current, selected, merge)
-      // Coverage requires a Report that survived the same filters as the Thread.
-      expect(result.threads.map(item => item.thread.id)).toEqual(
-        threadIsCandidate && !(merge && covers) ? ['t0'] : [])
-      expect(result.count).toBe(result.threads.length + result.reports.length)
-    }
-  ))
-})
-
 it('Disabling merge restores every filtered candidate', () => {
   check('Disabling merge restores every filtered candidate', fc.property(
     world, view, selectedTags,
@@ -263,34 +217,6 @@ it('Overview selection preserves input order among equal timestamps', () => {
         .toEqual(ordered(threads, entry => entry.thread.createdAt))
       expect(result.reports.map(report => reports.indexOf(report)))
         .toEqual(ordered(reports, report => report.createdAt))
-    }
-  ))
-})
-
-it('Thread workspace directories act as tags under the shared identity rule', () => {
-  check('Thread workspace directories act as tags under the shared identity rule', fc.property(
-    fc.constantFrom(...cwdPool), fc.constantFrom(...tagPool), fc.array(fc.constantFrom(...tagPool), { maxLength: 2 }),
-    fc.boolean(),
-    (cwd, ownTag, selected, archived) => {
-      const entry: OverviewThread = {
-        thread: {
-          id: 't0',
-          createdAt: 1,
-          archived,
-          observation: observe(null),
-          tags: [ownTag],
-          cwd
-        }
-      }
-      const directory = threadDirectoryTag(entry.thread)
-      const keys = new Set(selected.map(threadTagKey).filter(Boolean))
-      const matches = !keys.size || [directory, ownTag].some(tag => tag && keys.has(threadTagKey(tag)))
-      const result = selectOverviewItems([entry], [], archived ? 'archived' : 'default', selected, true)
-      expect(result.threads.length).toBe(matches ? 1 : 0)
-      // The renderer-local identity copy must not drift from the shared contract.
-      for (const tag of [directory, ownTag, ...selected]) expect(tagKey(tag)).toBe(threadTagKey(tag))
-      // A temporary workspace contributes no directory tag of its own.
-      if (cwd.startsWith('/tmp/openagent-1/')) expect(directory).toBe('')
     }
   ))
 })

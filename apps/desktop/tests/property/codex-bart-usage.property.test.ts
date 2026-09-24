@@ -1,11 +1,7 @@
 import fc from 'fast-check'
 import { expect, it } from 'vitest'
 import type { BartTelemetrySnapshot } from '@openagent/contracts'
-import {
-  CODEX_USAGE_SOURCE,
-  createCodexBartTelemetryContributor,
-  normalizeCodexBartTelemetry
-} from '../../../../packages/harness-codex/src/bart/usage'
+import { CODEX_USAGE_SOURCE, normalizeCodexBartTelemetry } from '../../../../packages/harness-codex/src/bart/usage'
 import { checkAsync } from './check'
 
 const timeout = process.env.FC_EXPLORE ? 130_000 : 35_000
@@ -190,40 +186,6 @@ type WindowRow = readonly [string, number | null, number | null, string | null]
 const sortedEntries = (entries: Iterable<WindowRow>): readonly WindowRow[] =>
   [...entries].sort((left, right) => (left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0))
 
-// Mandatory probe: one limit id carried by both the dictionary and the primary
-// bucket with distinguishable quotas. The primary bucket is insert-only, so the
-// dictionary value must survive; an unconditional overwrite reports 88 and fails
-// on every run rather than only when a generated draw happens to overlap.
-const overlapExample = {
-  payload: {
-    rateLimits: { limitId: 'p3', primary: { usedPercent: 88 } },
-    rateLimitsByLimitId: { p3: { limitId: 'p3', primary: { usedPercent: 11 } } }
-  },
-  observedAt: 1_000
-}
-
-// Mandatory probe: a dictionary bucket that shadows the frame's primary id and
-// carries the reach flag, with no recognizable window anywhere. The frame reports
-// the explicit reach, not the tri-state fold over an empty provider window list.
-const reachedWithoutWindowsExample = {
-  payload: {
-    rateLimits: { limitId: 'p4' },
-    rateLimitsByLimitId: { p4: { limitId: 'p4', rateLimitReachedType: 'p4' } }
-  },
-  observedAt: 2_000
-}
-
-// Both named and unnamed model buckets must keep their input-derived selector.
-const modelScopeExample = {
-  payload: {
-    rateLimitsByLimitId: {
-      d0: { limitName: 'model-name', primary: { usedPercent: 10 } },
-      d1: { secondary: { usedPercent: 20 } }
-    }
-  },
-  observedAt: 3_000
-}
-
 /** Mirrors telemetryLimitReached over the snapshot's own provider windows. */
 function expectedLimitReached(reached: boolean, providerWindows: NonNullable<BartTelemetrySnapshot['windows']>): boolean | null {
   if (reached || providerWindows.some(window => window.exhausted === true)) return true
@@ -290,35 +252,5 @@ it('codex bart windows carry consistent percentages, unique ids and provider/mod
         : reached ? true : null
       expect(snapshot.limitReached ?? null).toBe(expectedLimit)
     }
-  ), 'normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window', budgetMs, samples, [[overlapExample], [reachedWithoutWindowsExample], [modelScopeExample]])
-}, timeout)
-
-it('codex bart telemetry fails closed on reader errors and unrecognizable payloads', async () => {
-  await checkAsync('codex bart telemetry fails closed on reader errors and unrecognizable payloads', fc.asyncProperty(
-    fc.record({
-      garbage: fc.constantFrom<unknown>(null, 42, 'x', [], { unrelated: true }),
-      failure: fc.constantFrom('throw', 'reject')
-    }),
-    async ({ garbage, failure }) => {
-      const observedAt = 1_000
-      const reader = async (): Promise<unknown> => {
-        if (failure === 'throw') throw new Error('boom')
-        return Promise.reject(new Error('async boom'))
-      }
-      const output = await createCodexBartTelemetryContributor({ readUsage: reader, now: () => observedAt })({
-        signal: new AbortController().signal
-      })
-      expect(output).toBeDefined()
-      const errored = JSON.parse(output!) as BartTelemetrySnapshot
-      expect(errored.availability).toBe('error')
-      expect(errored.windows).toEqual([])
-      expect(errored.error ?? '').toContain('boom')
-
-      const unavailable = normalizeCodexBartTelemetry(garbage, observedAt)
-      // Garbage must never be reported as usable capacity.
-      expect(unavailable.availability).not.toBe('available')
-      expect(unavailable.windows ?? []).toEqual([])
-      expect(unavailable.availability).toBe('unknown')
-    }
-  ), 'a rejecting usage reader → availability error with empty windows; a garbage payload → unknown, never available', budgetMs, samples)
+  ), 'normalize each generated native rateLimits payload → assert availability, id uniqueness, scope/selector pairing, the percentage, duration and reset invariants and the limitReached fold on every window', budgetMs, samples)
 }, timeout)

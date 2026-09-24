@@ -21,7 +21,6 @@ export function counterexampleDescriptor(input) {
   return {
     failureSignature: signature,
     rejectedAttempts: input.rejectedAttempts ?? [],
-    checkpoint: input.checkpoint ?? null,
     property: definition.name,
     target,
     host,
@@ -29,7 +28,7 @@ export function counterexampleDescriptor(input) {
     seed: result.seed,
     path: result.counterexamplePath ?? null,
     replayPath: rendered === null ? null : extractReplayPath(rendered),
-    numRuns: input.checkpoint === null || input.checkpoint === undefined ? budget.samples : 1,
+    numRuns: budget.samples,
     completedRuns: result.numRuns ?? null,
     numShrinks: result.numShrinks ?? null,
     maxCommands: budget.maxCommands,
@@ -47,23 +46,6 @@ export function counterexampleDescriptor(input) {
     cliVersions,
     gateOrder,
     artifacts
-  }
-}
-
-/** Preserve a real checkpoint failure when cleanup forbids an isolated rerun. */
-export function checkpointFailureDescriptor(input) {
-  const { definition, checkpoint, failure, budget, interruption, operationSequence } = input
-  return {
-    source: 'checkpoint', checkpoint, property: definition.name, target: input.target, host: input.host,
-    failureSignature: failureSignature(failure), interrupted: true,
-    // FixedSequence always generates this checkpoint at path 0. These locate
-    // that known sequence, not an unperformed fast-check shrink or verdict.
-    seed: budget.seed, path: '0', replayPath: null, numRuns: 1,
-    completedRuns: null, numShrinks: null, maxCommands: budget.maxCommands,
-    operationSequence, error: `${errorSummary(failure)}; isolation stopped: ${interruption}`,
-    detail: failure.stack ?? failure.message, rejectedAttempts: input.rejectedAttempts,
-    fastCheck: fc.__version, node: process.version, cliVersions: input.cliVersions,
-    gateOrder: input.gateOrder, artifacts: input.artifacts
   }
 }
 
@@ -102,7 +84,6 @@ export function replayCommand(descriptor) {
     `--seed ${descriptor.seed}`,
     `--path ${shellQuote(String(descriptor.path ?? ''))}`
   ]
-  if (descriptor.checkpoint !== null && descriptor.checkpoint !== undefined) parts.push(`--checkpoint ${descriptor.checkpoint}`)
   if (descriptor.failureSignature) parts.push(`--failure-signature ${descriptor.failureSignature}`)
   if (descriptor.replayPath) parts.push(`--replay-path ${shellQuote(descriptor.replayPath)}`)
   return parts.join(' ')
@@ -115,9 +96,7 @@ export function formatFailure(descriptor) {
       : `PBT property failed: ${descriptor.property} on ${descriptor.target} (host ${descriptor.host})`
   ]
   // A retained counterexample is useful after interruption, but is not minimal.
-  if (descriptor.source === 'checkpoint') {
-    lines.push(`  observed checkpoint prefix (not isolated or shrunk): ${descriptor.operationSequence.join(' -> ')}`)
-  } else if (!descriptor.interrupted && descriptor.failureSignature) {
+  if (!descriptor.interrupted && descriptor.failureSignature) {
     lines.push(
       `  minimal operation sequence (${descriptor.operationSequence.length} commands, ` +
       `${descriptor.numShrinks ?? 0} shrink step(s)): ${descriptor.operationSequence.join(' -> ')}`
@@ -140,13 +119,6 @@ export function formatFailure(descriptor) {
       ? `Replay: ${replayCommand(descriptor)}`
       : 'Replay: not applicable — no reproducible property verdict was obtained')
   return lines.join('\n')
-}
-
-/** Only the same property failure can verify a replay; setup/cleanup cannot. */
-export function checkpointReproduced(original, result) {
-  const signature = failureSignature(original)
-  return signature !== null && result.failed &&
-    failureSignature(result.errorInstance) === signature
 }
 
 export function failureSignature(error) {

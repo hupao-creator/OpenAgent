@@ -45,7 +45,7 @@ assistant stream.
 | `bart-headless/suites/*.mjs` | The cases themselves |
 | `bart-headless-pbt.mjs` | Property-based entry point (run / explore / replay / list) |
 | `bart-headless/pbt/runner.mjs` | PBT item runner, phase-split coverage, failure report |
-| `bart-headless/pbt/properties.mjs` | The three properties, their checkpoints and coverage requirements |
+| `bart-headless/pbt/properties.mjs` | The three properties and generated coverage requirements |
 | `bart-headless/pbt/commands.mjs` | Generated operations, the weighted kind pool, the independent model |
 | `bart-headless/pbt/session.mjs` | One isolated headless process, Mock LLM, profile and proofs per sample |
 | `bart-headless/pbt/budget.mjs` | Sample and time budgets, seeds, fast-check configuration |
@@ -217,12 +217,10 @@ property/target items.
 
 ### Coverage is required and reported separately for each phase
 
-The mandatory checkpoint sequences and the generated samples have independent
-counters. `sampleCoverage` is required from generated commands at every budget;
+`sampleCoverage` is required from generated commands at every budget;
 `exploreCoverage` additionally requires late responses after interruption
 and successor creation, out-of-order completion, and interrupting one Thread
-while its sibling waits. A checkpoint cannot satisfy these generated
-requirements. Reports include executed kinds, reached states, and empty samples.
+while its sibling waits. Reports include executed kinds, reached states, and empty samples.
 Shrinking and replay each have another independent counter. The initial failing
 generated attempt counts as a sample; later shrink candidates cannot inflate
 generated reach or alter that sample's empty/non-empty outcome.
@@ -247,17 +245,7 @@ infrastructure errors stop further attempts. If an earlier counterexample exists
 it remains available as a failing sequence with shrinking explicitly incomplete;
 every rejected attempt retains its own error and artifact path.
 If an oracle and cleanup fail in the same attempt, the oracle retains its replay
-coordinates while cleanup stops further shrinking. The run still fails. A
-checkpoint that cannot begin isolated shrinking retains its observed prefix and
-checkpoint selector, explicitly marked as not isolated or shrunk. Native model
-evidence is checked within each checkpoint so its failures remain locatable too.
-
-A failure in a mandatory checkpoint also enters automatic shrinking: its known
-sequence becomes an array arbitrary, removal candidates obey the same command
-preconditions, and every attempt opens a fresh real session. Its replay includes
-`--checkpoint` instead of a commands replayPath. A checkpoint that cannot fail
-again with the same assertion signature in isolation remains a failed run and
-is reported as unreproduced; a different failing assertion is not its shrink.
+coordinates while cleanup stops further shrinking. The run still fails.
 
 Copy the full `Replay:` command from a failure report. It selects exactly one
 property/target/host and pins the generator inputs plus a failure signature.
@@ -269,29 +257,6 @@ and exits 1.
 Only the recorded candidate executes, including when its path contains shrink
 coordinates. A passing recorded candidate never opens a later sibling session.
 
-On 2026-09-13, temporarily omitting the committed Execution from the real
-`bartThreadStatus` projection was detected and shrunk through both paths:
-checkpoint `5` → `start-plain → status` (1 shrink), and generated commands →
-`start-hold → status` (2 shrinks). Both recorded commands reproduced the defect.
-After restoring product source and rebuilding, the generated replay below
-reported `did NOT reproduce` (exit 1). No mutation remains in the candidate. Exact edits and replay coordinates are
-kept in [the evidence record](../docs/bart-headless-pbt-evidence.json).
-
-From the repository root, the verified generated replay is:
-
-```sh
-PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$PATH" pnpm test:bart-headless:pbt:replay -- --property lifecycle --harness pi --host codex --samples 6 --max-commands 6 --seed 16751 --path '1:2:1' --failure-signature 2d99b534ae30cc67284def96 --replay-path 'ABABD:V'
-```
-
-这组坐标对应 2026-09-13 的生成器版本；删除工具后当前生成器已改用新 seed，
-历史坐标不适用于当前代码。
-
-Versions were Codex `0.153.4`, Pi `0.83.0`, and Claude `2.1.267` for the full
-matrix. Local evidence directories: `openagent-bart-pbt-nwWqS6` (checkpoint
-failure), `openagent-bart-pbt-GJ8ank` (checkpoint replay),
-`openagent-bart-pbt-AD69jR` (generated failure), `openagent-bart-pbt-JcskVo`
-(generated replay), and `openagent-bart-pbt-Zx795G` (clean replay).
-
 ### Environment, time and cleanup
 
 - A POSIX shell and a built candidate are required. Headless loads
@@ -302,8 +267,7 @@ failure), `openagent-bart-pbt-GJ8ank` (checkpoint replay),
 - All model traffic uses the local Mock HTTP endpoint. Fixtures choose their
   replies from actual HTTP inputs, never from expected or observed product state.
 - Native waits and gate arrival have explicit deadlines (default 180s). The
-  runner's allowance for the mandatory checkpoint phase and for each generated
-  batch is at least five minutes, otherwise sample count times
+  runner's allowance for each generated batch is at least five minutes, otherwise sample count times
   `PBT_SAMPLE_BUDGET_MS` (default 60s). A deadline cancels active execution and
   waits for its cleanup before reporting; shutdown retains its own bounds.
   Shrink attempts share their batch deadline. The runner does not use fast-check's
@@ -327,7 +291,12 @@ failure), `openagent-bart-pbt-GJ8ank` (checkpoint replay),
   selected `--artifacts-dir`. Tests disable worktree creation and keep mutable
   native state under the sample directory.
 
-### Measured cost
+### Historical measured cost
+
+These measurements predate removal of fixed checkpoints. The evidence record
+retains the original runs; their total costs do not describe the current runner.
+See [the historical evidence record](../docs/bart-headless-pbt-evidence.json) for
+the original fault probes and replay coordinates.
 
 Native-run wall-clock times exclude the separate build step. The fixed seed's
 short regression passed 7/7 items on each of the three supported hosts (21/21)

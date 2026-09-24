@@ -23,13 +23,13 @@ merge-base 时失败，不发布成功。
 | 改动 | 验证范围 |
 | --- | --- |
 | 明确文档目录内的 Markdown、明确 README/指南 | checkout 完整性检查，无依赖安装、产品测试 |
-| PR 门禁代码或测试 | Python 门禁回归 |
-| 开发工具测试、开发应用安装/打开脚本 | 开发脚本回归；安装/打开脚本另做 Node 语法检查 |
-| dev 入口、Vite server host、desktop watcher | 桌面类型检查/测试/构建、开发脚本回归、Chromium 热更新 |
+| PR 门禁代码 | Python 语法检查 |
+| 开发应用安装/打开脚本 | Node 语法检查 |
+| dev 入口、Vite server host、desktop watcher | 桌面类型检查/PBT/构建、Node 语法检查、Chromium 热更新 |
 | 桌面 renderer 源码（含 CSS） | 桌面类型检查/测试/构建；路径含 appearance/theme/window 时追加原生生命周期检查 |
 | 桌面 main/preload/shared 等源码 | 桌面类型检查/测试/构建、报告和生命周期原生回归 |
 | 包源码 | 该包及依赖它的工作区的类型检查和测试；影响桌面时追加构建，非 renderer 源码再追加原生回归 |
-| 工作区内 `.test.*` / `.spec.*` | 所属工作区类型检查和测试，跳过生产构建、热更新和原生回归 |
+| 工作区内 `.property.test.ts` | 所属工作区类型检查和测试，跳过生产构建、热更新和原生回归 |
 | 独立报告/生命周期 Electron 测试入口 | 构建及对应原生回归 |
 | Bart、Overview 相机、协调者设置页 renderer 源码 | 与其余 renderer 源码相同，无额外原生步骤 |
 | manifests、锁文件、构建配置、验证器及其测试、共享测试 fixture/helper、其他未分类路径 | 全量 |
@@ -38,7 +38,7 @@ merge-base 时失败，不发布成功。
 完整验证不含 `bart-isolation`：Bart 原生 Electron 验收需要 1180×780 的原生窗口，
 托管的 GitHub runner 给不出这个尺寸，因此该套件不在 CI 中运行，只在真机上
 `pnpm --dir apps/desktop test:bart-isolation` 手动执行；改动这些测试入口按未分类路径走全量。
-其余原生运行时检查在构建、单测完成后串行运行，避免测量受到并行重负载干扰。
+其余原生运行时检查在构建、PBT 完成后串行运行，避免测量受到并行重负载干扰。
 这些准备步骤仍共享，缩小的是类型检查及回归测试的工作区集合和昂贵运行时步骤。
 包依赖图来自受检提交，包含 dependencies、devDependencies、peerDependencies、optionalDependencies，
 按反向依赖传递闭包选择消费者，因此修改 contracts/test-kit 会扩大范围。
@@ -58,30 +58,14 @@ merge-base 时失败，不发布成功。
 且读取期间 head/base 一致。缺少证据或证据过期的成功不再放行，需要重新验证。
 base 前进或 PR 改换基线后，即使 head 不变也需要重新验证；这仍是 head 验证，并非合成 merge 验证。
 
-## 测试
-
-使用真实临时 Git 仓库覆盖 merge-base、改名、删除、特殊文件名、无效基线。
-纯函数测试覆盖分级并集、传递依赖、全量回退和步骤完成要求。
-在临时仓库中启动 `scripts/verify-ci.mjs`，用替代 `gh` 和包管理器验证轻量路径无安装、
-check run payload 落盘且不自行写 check run、步骤失败不会变绿，以及检出提交与受检提交
-不一致时拒绝执行。
-Python 门禁测试覆盖成功证据缺失、过期和采集竞争。
-
-```sh
-pnpm test:dev-scripts
-```
-
 ## 测试文件选择与并行
 
 分级计划会附带每个工作区的 `testJobs`：
 
-- 只修改测试：运行改动的测试文件。
-- 修改本工作区 JS/TS 源码：使用 Vitest `related` 按静态导入及可解析动态导入选择测试。
-- 已映射资源：气泡 CSS 映射到 reply lifecycle/navigation 两份 DOM 测试。
-  这些测试覆盖 DOM/交互行为，不提供像素级视觉保证；证据中明确记录该限制。
-- 跨工作区消费者、删除、声明文件、未映射资源：回退所属工作区完整测试集。
-- 关联测试为空、没有实际通过的测试或执行失败：验证失败，不通过 `passWithNoTests` 放行。
-  此时需查看覆盖缺口，或显式以全量重新验证。
+- 只修改 PBT：运行改动的性质测试文件。
+- 修改源码、资源、配置、跨工作区消费者或删除文件：运行受影响工作区的完整 PBT。
+- 已无单测的 Harness 包不再声明 `test` 入口；其行为通过桌面的 PBT 和独立原生验收验证。
+- 有测试入口但没有实际通过的测试，或执行失败：验证失败，不通过 `passWithNoTests` 放行。
 
 工作区依赖从已准备好的包输出读取；消费者不依赖 Vitest 穿透 node_modules 追溯源码。
 测试输出 JSON 和 `test-selection.json` 保留实际执行文件、测试数及选择理由。

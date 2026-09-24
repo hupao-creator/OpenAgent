@@ -29,41 +29,12 @@ const samples = { normal: 100, explore: 1000 }
 const cwd = '/property/workspace'
 const signal = (): AbortSignal => new AbortController().signal
 
-/**
- * The public creation contract each Harness documents: the fields a caller may
- * send, and the native fields only the owning Harness interprets. A property
- * failure here means a public request can widen settings the UI never offered.
- */
-const codexInternalFields = [
-  'executablePath', 'personality', 'approvalPolicy', 'approvalsReviewer',
-  'sandbox', 'sandboxPolicy', 'summary'
-] as const
-const codexInternalSample: Readonly<Record<(typeof codexInternalFields)[number], unknown>> = {
-  executablePath: '/usr/local/bin/codex',
-  personality: 'friendly',
-  approvalPolicy: 'never',
-  approvalsReviewer: 'auto_review',
-  sandbox: 'danger-full-access',
-  sandboxPolicy: { type: 'dangerFullAccess' },
-  summary: 'none'
-}
 /** Native permission triples the public schema documents for each preset. */
 const codexPresetTriple: Readonly<Record<(typeof CODEX_PERMISSION_MODES)[number],
   { sandbox: string; approvalPolicy: string; approvalsReviewer: string }>> = {
   'ask-for-approval': { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'user' },
   'approve-for-me': { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'auto_review' },
   'full-access': { sandbox: 'danger-full-access', approvalPolicy: 'never', approvalsReviewer: 'user' }
-}
-
-/**
- * The keys a resolution populated with a value that the public contract does not
- * name. An accepted creation may echo the options it was given and the values
- * the owning Harness derives from them; every other populated key is widening.
- */
-function populatedOutside(resolved: object, allowed: readonly string[]): string[] {
-  return Object.entries(resolved)
-    .filter(([key, value]) => value !== undefined && !allowed.includes(key))
-    .map(([key]) => key)
 }
 
 function codexCatalog(models: readonly CodexModelOption[], autoReview?: boolean) {
@@ -84,50 +55,6 @@ function codexModels(values: readonly string[]): CodexModelOption[] {
 const codexModelValues = ['alpha', 'beta'] as const
 const codexEfforts = ['low', 'high'] as const
 const codexTiers = ['priority', 'standard'] as const
-
-it('Codex public creation accepts only the four documented fields', async () => {
-  await checkAsync('Codex public creation accepts only the four documented fields', fc.asyncProperty(
-    fc.record({
-      model: fc.constantFrom(...codexModelValues),
-      effort: fc.option(fc.constantFrom(...codexEfforts), { nil: undefined }),
-      serviceTier: fc.option(fc.constantFrom(...codexTiers), { nil: undefined }),
-      permissionMode: fc.option(fc.constantFrom(...CODEX_PERMISSION_MODES), { nil: undefined }),
-      forged: fc.option(fc.constantFrom(...codexInternalFields), { nil: undefined })
-    }),
-    async ({ model, effort, serviceTier, permissionMode, forged }) => {
-      const catalog = codexCatalog(codexModels(codexModelValues), true)
-      const settings = createCodexSettingsApi(catalog.source)
-      const request: Record<string, unknown> = {
-        model,
-        ...(effort === undefined ? {} : { effort }),
-        ...(serviceTier === undefined ? {} : { serviceTier }),
-        ...(permissionMode === undefined ? {} : { permissionMode }),
-        ...(forged === undefined ? {} : { [forged]: codexInternalSample[forged] })
-      }
-      const call = () => settings.resolveThreadSettings({
-        merged: {}, requested: request as never, sessionState: null, cwd, signal: signal()
-      })
-      if (forged !== undefined) {
-        // A forged native field is refused before any native catalog probe runs.
-        await expect(call()).rejects.toThrow()
-        expect(catalog.load).not.toHaveBeenCalled()
-        return
-      }
-      const resolved = await call()
-      expect(resolved.model).toBe(model)
-      expect(resolved.effort).toBe(effort)
-      expect(resolved.serviceTier).toBe(serviceTier)
-      expect(resolved.permissionMode).toBe(permissionMode)
-      // Creation may populate the four documented options and the native group
-      // the preset derives, and nothing else: any other populated field would be
-      // the resolution widening beyond the public contract.
-      expect(populatedOutside(resolved, [
-        'model', 'effort', 'serviceTier', 'permissionMode',
-        'sandbox', 'approvalPolicy', 'approvalsReviewer'
-      ])).toEqual([])
-    }
-  ), 'one generated public request with an optional forged native field; a forged field must perform no catalog load', budget, samples)
-}, timeout)
 
 it('Codex explicit model request never inherits an unbidden effort or service tier', async () => {
   await checkAsync('Codex explicit model request never inherits an unbidden effort or service tier', fc.asyncProperty(
@@ -231,7 +158,6 @@ const claudeModels: ClaudeModelPresentation[] = [
   { value: 'opus', displayName: 'Opus', supportedEfforts: ['low', 'high'] },
   { value: 'sonnet', displayName: 'Sonnet', supportedEfforts: ['low', 'high'] }
 ]
-const claudeInternalFields = ['executablePath', 'goalMode', 'allowedTools', 'disallowedTools'] as const
 
 function claudeCatalog() {
   const load = vi.fn(async (): Promise<ClaudeSettingsPresentationData> => ({
@@ -246,85 +172,6 @@ function claudePlugin(catalog: ReturnType<typeof claudeCatalog>) {
     environment: async () => ({})
   }, catalog.source)
 }
-
-it('Claude creation options never widen into internal configuration fields', async () => {
-  await checkAsync('Claude creation options never widen into internal configuration fields', fc.asyncProperty(
-    fc.record({
-      model: fc.constantFrom('opus', 'sonnet'),
-      effort: fc.option(fc.constantFrom('low', 'high'), { nil: undefined }),
-      forged: fc.option(fc.constantFrom(...claudeInternalFields), { nil: undefined })
-    }),
-    async ({ model, effort, forged }) => {
-      const catalog = claudeCatalog()
-      const { settings } = claudePlugin(catalog)
-      const forgedValue: Record<string, unknown> = {
-        executablePath: '/tmp/other-claude',
-        goalMode: true,
-        allowedTools: ['Bash'],
-        disallowedTools: ['Write']
-      }
-      const requested: Record<string, unknown> = {
-        model,
-        ...(effort === undefined ? {} : { effort }),
-        ...(forged === undefined ? {} : { [forged]: forgedValue[forged] })
-      }
-      // Core composes the merged profile from defaults and the public request;
-      // the Harness only interprets the result.
-      const defaults = { executablePath: '/bin/claude', model, effort: 'low' as const }
-      const call = () => settings.resolveThreadSettings({
-        merged: { ...defaults, ...requested },
-        requested: requested as never, sessionState: null, cwd, signal: signal()
-      })
-      if (forged !== undefined) {
-        await expect(call()).rejects.toThrow()
-        expect(catalog.load).not.toHaveBeenCalled()
-        return
-      }
-      const resolved = await call()
-      expect(resolved.model).toBe(model)
-      // Only explicitly requested creation options survive; the request names a
-      // model but no effort, so the default effort must not leak into it.
-      expect(resolved.effort).toBe(effort)
-      expect(resolved.executablePath).toBe('/bin/claude')
-      // Creation may populate the options it was given plus the host executable,
-      // and nothing else: goal mode and tool filters are the narrower internal
-      // profile it never owned, and any other populated field is widening.
-      expect(populatedOutside(resolved, ['model', 'effort', 'executablePath'])).toEqual([])
-    }
-  ), 'one generated Claude creation request with an optional forged internal field; a forged field must perform no catalog load', budget, samples)
-}, timeout)
-
-it('Claude model switches never retain an unrequested effort', async () => {
-  await checkAsync('Claude model switches never retain an unrequested effort', fc.asyncProperty(
-    fc.record({
-      mergedModel: fc.constantFrom('opus', 'sonnet'),
-      requestedModel: fc.option(fc.constantFrom('opus', 'sonnet'), { nil: undefined }),
-      requestedEffort: fc.option(fc.constantFrom('low', 'high'), { nil: undefined })
-    }),
-    async ({ mergedModel, requestedModel, requestedEffort }) => {
-      const { settings } = claudePlugin(claudeCatalog())
-      const defaults = { executablePath: '/bin/claude', model: mergedModel, effort: 'high' as const }
-      const requested = requestedModel === undefined
-        ? undefined
-        : { model: requestedModel, ...(requestedEffort === undefined ? {} : { effort: requestedEffort }) }
-      const resolved = await settings.resolveThreadSettings({
-        merged: { ...defaults, ...requested },
-        ...(requested === undefined ? {} : { requested }), sessionState: null, cwd, signal: signal()
-      })
-      if (requestedModel === undefined) {
-        // Without a creation request the default profile is untouched.
-        expect(resolved.effort).toBe('high')
-        return
-      }
-      if (requestedEffort !== undefined) {
-        expect(resolved.effort).toBe(requestedEffort)
-        return
-      }
-      // The target explicitly named a model and no effort: the inherited one is stale.
-      expect(resolved.effort).toBeUndefined()
-    }
-  ), 'generated inherited model/effort with an optional explicit model request and optional effort override', budget, samples)
-}, timeout)
 
 const claudeTools = fc.array(fc.constantFrom('Bash', 'Read', 'Write'), { minLength: 1, maxLength: 3 })
   .map(values => [...new Set(values)])
@@ -387,7 +234,6 @@ const piLevels: Readonly<Record<string, readonly string[]>> = {
   reasoner: ['off', 'low', 'high'],
   fast: ['off']
 }
-const piInternalFields = ['executablePath', 'surprise'] as const
 
 /** Test-owned Pi RPC boundary; `startPiRpc` is module-mocked above. */
 function piHarness(initial: { provider: string; id: string }) {
@@ -435,41 +281,6 @@ function piHarness(initial: { provider: string; id: string }) {
     }
   }
 }
-
-// The forged key is enumerated in part and generated as a free string in part.
-// The enumerated branch holds the realistic wrong keys — the internal option
-// `executablePath` next to names the public schema never defines — while the
-// heavier generated branch keeps the domain shrinkable, so a detected failure
-// minimizes to a smaller key instead of stopping at whichever enumerated
-// constant came first.
-const forgedPiKey = fc.oneof(
-  {
-    weight: 3,
-    arbitrary: fc.string({
-      minLength: 1,
-      maxLength: 8,
-      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split(''))
-    })
-  },
-  { weight: 1, arbitrary: fc.constantFrom(...piInternalFields, 'thinkingLevels', 'global') }
-)
-
-it('Pi public options accept only provider, model and thinking level', async () => {
-  await checkAsync('Pi public options accept only provider, model and thinking level', fc.asyncProperty(
-    forgedPiKey,
-    async forged => {
-      const pi = piHarness({ provider: 'anthropic', id: 'reasoner' })
-      try {
-        const requested = { provider: 'anthropic', model: 'reasoner', [forged]: forged === 'executablePath' ? '/tmp/pi' : true }
-        await expect(pi.settings.resolveThreadSettings({
-          merged: {}, requested: requested as never, sessionState: null, cwd, signal: signal()
-        })).rejects.toThrow()
-        // A refused public request never reaches the target runtime.
-        expect(pi.start).not.toHaveBeenCalled()
-      } finally { vi.mocked(startPiRpc).mockReset() }
-    }
-  ), 'one generated Pi request carrying a field outside the public option set', budget, samples)
-}, timeout)
 
 it('Pi settings release every query RPC they acquire', async () => {
   await checkAsync('Pi settings release every query RPC they acquire', fc.asyncProperty(

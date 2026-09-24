@@ -177,10 +177,9 @@ Plugin-owned verification lives inside the owning package; host policy and
 shared contracts live in the Desktop app; test-only shared machinery lives in
 `packages/test-kit/` (`@openagent/test-kit`, never imported by production code):
 
-- `packages/harness-<id>/tests/` — every guarantee that holds only for this
-  Harness (protocol, state, permissions, transport, telemetry payloads). Run
-  them with `pnpm --filter @openagent/harness-<id> test`; root `pnpm test` and
-  `pnpm typecheck` include every package through `pnpm -r`.
+- `apps/desktop/tests/property/` — Harness 协议、状态、权限、传输和 telemetry 的生成性质。
+  通过 `pnpm test:properties` 运行；根 `pnpm test` 同时运行这些 PBT 和构建缓存集成检查。
+  包内独立的真实原生验收仍保留，按各自入口执行；普通单元/DOM 测试已移除。
 - `packages/harness-<id>/src/test-support/` (exported as `./test-support`) —
   the Harness's native test adapter (`HarnessNativeTestAdapter` from
   `@openagent/test-kit`): scenario capabilities, least-privilege/permissive

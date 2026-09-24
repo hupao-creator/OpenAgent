@@ -20,7 +20,6 @@ export function parseArguments(values) {
     path: undefined,
     replayPath: undefined,
     failureSignature: undefined,
-    checkpoint: undefined,
     artifactsDir: undefined,
     timeoutMs: Number(process.env.OPENAGENT_ACCEPTANCE_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
     workers: 'auto',
@@ -39,7 +38,6 @@ export function parseArguments(values) {
     else if (value === '--seed') parsed.seed = integer(requiredArgument(values, ++index, value), value)
     else if (value === '--path') parsed.path = String(requiredArgument(values, ++index, value))
     else if (value === '--replay-path') parsed.replayPath = String(requiredArgument(values, ++index, value))
-    else if (value === '--checkpoint') parsed.checkpoint = integer(requiredArgument(values, ++index, value), value)
     else if (value === '--failure-signature') parsed.failureSignature = requiredArgument(values, ++index, value)
     else if (value === '--artifacts-dir') parsed.artifactsDir = requiredArgument(values, ++index, value)
     else if (value === '--timeout-ms') parsed.timeoutMs = integer(requiredArgument(values, ++index, value), value)
@@ -67,7 +65,7 @@ export function parseArguments(values) {
     if (!parsed.host || parsed.host === 'auto') throw new Error('replay requires a concrete --host')
     // A replay is only faithful when it reproduces the recorded value stream and
     // the recorded generator configuration, so both are mandatory.
-    for (const name of ['seed', 'path', 'samples', 'maxCommands', 'failureSignature', ...(parsed.checkpoint === undefined ? ['replayPath'] : [])]) {
+    for (const name of ['seed', 'path', 'samples', 'maxCommands', 'failureSignature', 'replayPath']) {
       if (parsed[name] === undefined) throw new Error(`replay requires --${name.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`)}`)
     }
     if (parsed.properties.length !== 1 || parsed.harnesses.length !== 1 || parsed.properties[0] === 'all') {

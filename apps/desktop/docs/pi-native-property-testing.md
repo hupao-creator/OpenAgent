@@ -1,5 +1,16 @@
 # Pi native Handle and RPC transport properties (Issue #143 phase 3)
 
+Historical phase 3 record: the 2026-09-24 quality cleanup removed all five RPC
+transport properties and their `fake-pi-rpc.mjs` fixture. The native Handle
+property remains. See [governance](property-governance.md) for the current suite.
+
+Current suite: fixed example injection has been removed from `checkAsync`.
+Sample budgets now count generated inputs only. Generated properties, shrinking
+and replay remain; coverage of an individual mode depends on the generated draw.
+The mutation results and replay coordinates below are historical evidence from
+before this cleanup, including references to mandatory examples. They must be
+recaptured against the current generators before being used as current evidence.
+
 Current cross-family budgets, configurable exploration and parent acceptance:
 [M9 governance](property-governance.md). Fault evidence:
 [pi-native-property-evidence.json](pi-native-property-evidence.json).
@@ -99,10 +110,10 @@ The `--version` branch answers the 0.83 execFile probe without a session.
 
 | Property | Generated domain | Assertion |
 | --- | --- | --- |
-| `pi rpc assembles records identically under generated chunk boundaries` | raw multi-byte text (BMP, astral, combining, U+2028), a spawn-time handshake chunk plan and 2–4 per-request chunk plans, CRLF or LF, preceded by one mandatory example whose plan splits a multi-byte value one byte at a time | every echo returns exactly the generated text; an `extension_ui_request` carrying the same generated text arrives once per request and unchanged under every plan; a final unchunked request still correlates on the same connection |
+| `pi rpc assembles records identically under generated chunk boundaries` | raw multi-byte text (BMP, astral, combining, U+2028), a spawn-time handshake chunk plan and 2–4 per-request chunk plans, CRLF or LF | every echo returns exactly the generated text; an `extension_ui_request` carrying the same generated text arrives once per request and unchanged under every plan; a final unchunked request still correlates on the same connection |
 | `pi rpc correlates out-of-order responses to their own requests` | 3–5 unique held values, a release order, up to 3 ids the double forges a `response` for | each request resolves with *its own* value, the **arrival** order equals the generated order and is asserted to differ from the request order, and a response for an id the adapter never issued is dropped instead of surfacing as an event |
-| `pi rpc cancels only the requested work and keeps the session usable` | 2–5 entries, each held and independently cancelled, preceded by one mandatory kept-and-cancelled pair | cancelled requests reject with `cancelled`, others resolve with their own value, no failure is reported, a later request still works, and aborting an already-answered request leaves its value intact |
-| `pi rpc ends pending work and releases its process for every failure mode` | all eight modes (`exit`, `halt`, `invalid`, `oversized`, `break`, `truncate`, `dispose`, `context-abort`) as mandatory examples, 1–3 pending requests, 2–4 disposals | every pending request rejects without leaking native text, the triggering command ends too, failures are reported exactly once (`dispose` reports none), the failure released the process on its own (the marker reads `exited` before the property disposes), no pending request bound survives (the virtual timer registry is empty once that disposal settles), and repeated disposal and late request/write reject |
+| `pi rpc cancels only the requested work and keeps the session usable` | 2–5 entries, each held and independently cancelled | cancelled requests reject with `cancelled`, others resolve with their own value, no failure is reported, a later request still works, and aborting an already-answered request leaves its value intact |
+| `pi rpc ends pending work and releases its process for every failure mode` | a generated choice among eight modes (`exit`, `halt`, `invalid`, `oversized`, `break`, `truncate`, `dispose`, `context-abort`), 1–3 pending requests, 2–4 disposals | every pending request rejects without leaking native text, the triggering command ends too, failures are reported exactly once (`dispose` reports none), the failure released the process on its own (the marker reads `exited` before the property disposes), no pending request bound survives (the virtual timer registry is empty once that disposal settles), and repeated disposal and late request/write reject |
 | `pi rpc bounds silent requests and releases the pending set` | 1–3 silent requests, 2–4 disposals | after a virtual 30 s advance every request rejects with `timed out`, one failure is reported, late requests reject, and the double still exits |
 
 The Handle property (`native Pi public Handle and projection contract`) uses the
@@ -120,24 +131,8 @@ performs a public read, disposes repeatedly and asserts the record is byte-equal
 to the pre-late-traffic snapshot and that send after disposal rejects. The double
 counts its own `dispose` calls, and the property asserts exactly one after the
 repeated public disposals: the Handle must release the native connection, not
-only fence itself. Each of the six terminal paths above is a mandatory example,
-so no delivered run can miss one, and a seventh mandatory example covers the one
-case those six leave open: a completed turn whose answer is empty *and* which was
-preceded by a retry. That is the only shape in which a Handle that never clears
-the summary it accumulated during the retry can still reach a terminal state, and
-`settled` appears once in the six, carrying text, while the extension failure
-carries no assistant message at all — so without the seventh example the retry
-text a completed turn must not keep was reachable only through a generated draw.
-The retry in front of each example is part of that coverage rather than an
-incidental draw: `settled`, `interrupt` and `process-failure` each carry one, so
-the rule that a stop-driven terminal keeps the last retry's text is asserted on
-the `interrupt` and `process-failure` examples on every run, while
-`extension-failure` is left without one so the other half of the rule — a stop
-path with no assistant text carries no summary — is asserted on every run too.
-Before that, all three stop paths were retry-free, and a Handle that dropped the
-summary only when the terminal arrived through `stop()` was reachable only
-through a generated draw; the seventh fault experiment below is exactly that
-mutation, caught on the `interrupt` example.
+only fence itself. Terminal modes, retries and empty answers are generated;
+there is no fixed prefix requiring each combination on every run.
 
 The failure-mode property makes its two cleanup claims the same way — through an
 observation the report itself cannot supply. Its rejects, its failure count and
@@ -166,24 +161,8 @@ other RPC properties, and the failure-mode property, which declares
 `{ normal: 12, explore: 60 }`. Subprocess startup, not case count, dominates the
 RPC families, which is why their normal tier is 8 rather than 30.
 
-`checkAsync` takes an optional `examples` list. fast-check runs `examples`
-before the generated values and counts them towards the sample count, so a
-declared mode that every run *must* exercise costs no extra samples when the
-budget is at least the list length: the failure-mode property's eight modes are
-mandatory examples inside a tier of 12 (eight mandatory plus four generated),
-the cancellation property carries one mixed kept-and-cancelled pair inside its
-unchanged tier of 8 (one mandatory plus seven generated), the chunking property
-one split multi-byte record inside its unchanged tier of 8, and the Handle
-family's seven mandatory examples fit unchanged inside its existing 30. Coverage of a
-declared mode is then structural rather than a per-run coin flip.
-The examples are the head of the same value stream `numRuns` caps (`toss` yields
-them first and the runner takes `numRuns` from the front), which is why they cost
-samples rather than adding to them — and why `FC_RUNS` below a family's example
-count would truncate the example list instead of the generated one. Both tiers
-are declared above their family's example count so that does not happen by
-default; a deliberate debug run with a tiny `FC_RUNS` loses the trailing
-mandatory modes first, and the count is the whole sample count, not an addition
-to it.
+`checkAsync` spends the full sample budget on generated values. No fixed examples
+run ahead of them; a small debug budget can miss modes or combinations.
 
 Every sample owns its temporary directory and its connection, and closes both
 itself: the RPC file's `connect()` returns a `close` that disposes the

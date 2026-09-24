@@ -1,11 +1,15 @@
 # Harness 验证资产迁移映射（issue #197）
 
+除「当前运行入口」外，本文保留的是 2026-09-12 的迁移记录。2026-09-24 清理后，
+普通单元/DOM 测试及评分低于 8 分的 PBT 已删除；下文的旧测试路径和验证结果属于
+历史证据。当前套件范围见 [PBT 治理](../apps/desktop/docs/property-governance.md)。
+
 本次把 Harness 模块化从生产代码延伸到测试与开发工具：宿主策略以能力/行为角色表达，
 插件专属验证资产归入所属 `packages/harness-<id>/`，原生验证知识集中到各 Harness 的
 测试 Adapter（`@openagent/harness-<id>/test-support`）。基线是 OpenCode 移除（#196）
 之后的 `cb347c8b`，全程未重新引入 OpenCode。
 
-## 归属规则（后续改动照此执行）
+## 迁移时的归属规则（历史）
 
 | 保证类别 | 归属 | 位置 |
 | --- | --- | --- |
@@ -86,15 +90,21 @@
 | `settings-dialog-plugin-validation.dom.test.tsx`、`bart-dispatch-feedback.dom.test.tsx`、`renderer-plugin-i18n.dom.test.tsx`、`core-renderer-shell-i18n.dom.test.tsx` | 真实注册组合的设置/派发/i18n 集成回归；依赖真实 registry 与渲染组合 |
 | 删除项 | `harness-execution-capabilities.test.ts` 中 'returns unavailable on executable failure…'（与通用 `it.each` 逐模块用例重复，已并入包内版）；通用 `it.each(modules)` 探活三件套按「每模块 probe 契约属于插件」拆入包内（Pi 的 probe 是版本握手，本就不共享语义） |
 
-### 运行入口
+### 当前运行入口（2026-09-24）
 
-- 根：`pnpm test` = dev-scripts → `generate:registry`（构建 + 注册一次）→ 递归
-  `pnpm -r test`（复用该构建，各 harness 包不再各自重建；`typecheck` 同理先
-  `build:packages` 再 `pnpm -r typecheck`）。
-- 插件所有者单跑：`pnpm --filter @openagent/harness-<id> test`（先 workspace 构建，
-  再包内 vitest）；`pnpm --filter @openagent/harness-<id> typecheck`。
-- 原生验收：`pnpm test:bart-headless`、`node tests/harness-injection-native.mjs --host <id>`（真实 CLI）。
-- property：`pnpm test:properties[:explore|:replay]`（入口未变）。
+以下命令从仓库根目录运行：
+
+- `pnpm test` 依次运行构建缓存集成检查和保留的 PBT；PBT 入口先构建包、生成注册表，
+  再运行 Desktop 的 `tests/property/`，当前为 21 个文件、62 个 Vitest 用例。
+- 单独运行 PBT：`pnpm test:properties`；扩大样本使用 `pnpm test:properties:explore`，
+  回放使用 `pnpm test:properties:replay`，种子及路径参数见 PBT 治理。
+- 类型检查：`pnpm typecheck` 先构建包再递归检查工作区；已有构建产物时可用
+  `pnpm --filter @openagent/harness-<id> typecheck` 检查单个插件。
+- 原生验收：`pnpm test:bart-headless`、`pnpm test:bart-headless:pbt`，以及
+  `node apps/desktop/tests/harness-injection-native.mjs --host <id>`（真实 CLI）。
+
+三个 Harness 包的普通单测及 `test` script 均已移除，插件相关的保留 PBT 统一通过
+Desktop 的 property 入口运行。
 
 ## 三、原生验证知识收拢到测试 Adapter
 

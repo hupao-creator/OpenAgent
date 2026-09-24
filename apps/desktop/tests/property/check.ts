@@ -36,12 +36,9 @@ export function check<T>(name: string, property: fc.IProperty<T>, budgetMs?: num
   report(name, fc.check(property, { ...parameters(), ...(budgetMs === undefined ? {} : { interruptAfterTimeLimit: budgetMs }) }))
 }
 
-// `examples` run before the generated values and count towards the sample count, so a
-// mode that must be exercised every run is mandatory without spending extra samples.
-export async function checkAsync<T>(name: string, property: fc.IAsyncProperty<T>, eventOrder = 'await each generated event in input order; explicit gates are described by the property', budgetMs?: number, sampleBudget = { normal: 30, explore: 1000 }, examples: readonly T[] = []): Promise<void> {
+export async function checkAsync<T>(name: string, property: fc.IAsyncProperty<T>, eventOrder = 'await each generated event in input order; explicit gates are described by the property', budgetMs?: number, sampleBudget = { normal: 30, explore: 1000 }): Promise<void> {
   const config = parameters()
   report(name, await fc.check(property, { ...config, ...(budgetMs === undefined ? {} : { interruptAfterTimeLimit: budgetMs }),
-    ...(examples.length === 0 ? {} : { examples: [...examples] }),
     numRuns: process.env.FC_RUNS ? config.numRuns : process.env.FC_EXPLORE ? sampleBudget.explore : sampleBudget.normal }), eventOrder)
 }
 

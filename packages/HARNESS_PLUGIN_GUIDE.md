@@ -248,7 +248,7 @@ native permissions/questions、abort 和资源关闭，再由此 Handle 独占�
 最后才开始或恢复 native I/O。未消费 claim 在失败时 abandon；失败 admission 不得继续 I/O。
 普通 Service send 已有 `request.executionId`，不要再 claim。后台事实由 owning Harness
 投影为 `backgroundWork`，与最近 Execution 独立。参见
-[生命周期与 admission 回归](../apps/desktop/tests/harness-thread-runtime.test.ts)。
+[生命周期与 admission 性质](../apps/desktop/tests/property/lifecycle.property.test.ts)。
 
 ## 4. 组合 Main module 和统一设置
 
@@ -455,8 +455,7 @@ native 合法配置；目录中的模型选择也只是当前 executable/workspa
 
 ```sh
 pnpm --dir apps/desktop generate:registry
-pnpm --dir apps/desktop exec vitest run tests/renderer-plugin-isolation.test.ts tests/plugin-settings-isolation.test.ts tests/harness-execution-capabilities.test.ts tests/harness-thread-runtime.test.ts tests/openagent-service-harness.test.ts
-pnpm codex:check
+pnpm test:properties
 pnpm typecheck
 pnpm build
 pnpm dev
@@ -468,9 +467,8 @@ Bart Host，也不应通过虚报能力使测试通过。宿主策略断言已�
 `docs/harness-verification-migration.md`），更换注册组合不需要重写规则正文。
 直接跑 vitest 前先 generate，避免读取旧 dist；正式交付不跳过不支持 Host 的回归。
 
-插件专属回归（协议、状态、权限、传输、telemetry、原生测试 Adapter）属于各包：
-在 `packages/harness-<id>/` 下用 `pnpm --filter @openagent/harness-<id> test` 运行，
-根 `pnpm test` 会经由 `pnpm -r` 包含它们。新增插件时同时提供
+插件协议、状态、权限、传输和 telemetry 的 PBT 位于 `apps/desktop/tests/property/`，
+由根 `pnpm test` 运行；各 Harness 包不再提供普通单测入口。新增插件时同时提供
 `src/test-support/` 原生测试 Adapter（契约见 `@openagent/test-kit`），否则依赖它的
 通用 runner 会以具名错误拒绝运行。
 这些既有回归不替代新 native adapter 的行为测试；应在自己的 native seam 加取消、错误、

@@ -1,7 +1,7 @@
 /**
  * Sample and time budgets for the headless PBT.
  *
- * The fixed property tests in `tests/property` use a 10 second interruption
+ * The property tests in `tests/property` use a 10 second interruption
  * limit because every sample is an in-process call. A headless sample boots a
  * real Electron process and real native CLIs, so it needs a much larger limit.
  */
@@ -22,7 +22,7 @@ export const DEFAULT_SAMPLE_FLOOR_MS = 60_000
  *
  * This value is a fixture choice, in the same sense as the sample count: it was
  * picked after measuring generated reach across candidate seeds, so that the
- * short regression's generated phase (not only its checkpoints) reaches each
+ * short regression's generated phase reaches each
  * property's required operations and states.
  */
 export const SHORT_REGRESSION_SEED = 218006
@@ -32,8 +32,8 @@ export const SHORT_REGRESSION_SEED = 218006
  * command ceiling also controls generated lengths (the library otherwise caps
  * them at its default size). Exploration runs complete batches of 40 samples,
  * adding at most three more batches when generated coverage is incomplete.
- * Every batch has recorded replay coordinates; checkpoint counts cannot help
- * meet that coverage, and exhausting the batch ceiling is a failure.
+ * Every batch has recorded replay coordinates, and exhausting the batch ceiling
+ * without meeting coverage is a failure.
  */
 export function pbtParameters(environment = process.env, requested = {}) {
   const explore = requested.explore ?? Boolean(environment.PBT_EXPLORE)

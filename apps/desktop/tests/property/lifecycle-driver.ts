@@ -22,10 +22,7 @@ export async function lifecycleDriver() {
   let context: HarnessThreadOpenContext
   let counter = 0
   const io = { sends: [] as string[], stops: [] as string[], responses: [] as string[], disposed: 0, admissions: 0 }
-  let failInterrupt = false
   let admission: () => Promise<void> = async () => undefined
-  let sendGate: (() => Promise<void>) | undefined
-  let sendEntered: ((id: string) => void) | undefined
   const observation = () => readHarnessThread(store.read(), 'agent').observation
   const publish = (next: ThreadPublicObservation) => commitTestObservation(context, next)
   const options = () => ({ store, threadId: 'agent', harnessId: 'codex' as const,
@@ -37,8 +34,6 @@ export async function lifecycleDriver() {
       context = value
       const handle: HarnessThreadHandle = {
         send: async request => {
-          sendEntered?.(request.executionId)
-          if (sendGate) await sendGate()
           request.signal.throwIfAborted()
           if (observation().latestExecution?.executionId !== request.executionId) {
             await publish({ ...observation(), latestExecution: {
@@ -49,7 +44,6 @@ export async function lifecycleDriver() {
         },
         interrupt: async () => {
           io.stops.push(observation().latestExecution!.executionId)
-          if (failInterrupt) { failInterrupt = false; throw new Error('transient native interrupt') }
         },
         respond: async request => {
           io.responses.push(request.interactionId)
@@ -86,14 +80,12 @@ export async function lifecycleDriver() {
     admit: async () => undefined, releaseWorkspace: async () => undefined
   })
   return {
-    store, io, service, options, observation, publish, open,
+    store, io, service, observation, publish, open,
     get instance() { return instance }, get context() { return context },
     archived: () => (readHarnessThread(store.read(), 'agent') as AgentThreadRecord).archived,
     /** Core archive authority is a command on the store, not a runtime call. */
     unarchive: () => store.commit({ type: 'set-agent-thread-archived', threadId: 'agent', archived: false }),
-    failNextInterrupt() { failInterrupt = true },
     setAdmission(next: () => Promise<void>) { admission = next },
-    gateSend(gate: () => Promise<void>, entered: (id: string) => void) { sendGate = gate; sendEntered = entered },
     async close() {
       try { await instance.dispose() }
       finally { try { await store.close() } finally { await rm(directory, { recursive: true, force: true }) } }
@@ -103,7 +95,6 @@ export async function lifecycleDriver() {
 
 export function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (error: unknown) => void
-  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
-  return { promise, resolve, reject }
+  const promise = new Promise<T>(done => { resolve = done })
+  return { promise, resolve }
 }

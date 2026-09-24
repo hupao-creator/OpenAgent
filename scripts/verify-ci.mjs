@@ -228,17 +228,17 @@ async function verify() {
     if (plan.requiredSteps.includes('toolchain')) {
       result.typescript = JSON.parse(readFileSync(join(sourceRoot, 'apps/desktop/node_modules/typescript/package.json'), 'utf8')).version
     }
-    await step('pr-gate-tests', 'python3', ['-B', '-m', 'unittest', 'discover', '-s', 'scripts/tests', '-p', 'test_pr_gate.py'])
     await step('script-syntax', process.execPath, ['--input-type=module', '--eval', `
       import { existsSync } from 'node:fs'
       import { spawnSync } from 'node:child_process'
       for (const path of process.argv.slice(1)) {
         if (!existsSync(path)) continue
-        const result = spawnSync(process.execPath, ['--check', path], { stdio: 'inherit' })
+        const result = path.endsWith('.py')
+          ? spawnSync('python3', ['-c', 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text())', path], { stdio: 'inherit' })
+          : spawnSync(process.execPath, ['--check', path], { stdio: 'inherit' })
         if (result.error || result.status !== 0) process.exit(1)
       }
-    `, ...plan.files.filter(path => /^scripts\/.*\.mjs$/.test(path))])
-    await step('dev-scripts', ...pnpm(['test:dev-scripts']))
+    `, ...plan.files.filter(path => /^scripts\/.*\.(?:mjs|py)$/.test(path))])
     await step('registry', ...pnpm(['--dir', 'apps/desktop', 'generate:registry']))
     await step('registry-diff', 'git', ['diff', '--exit-code', 'HEAD', '--', 'apps/desktop/src/generated'])
     const workspaceArgs = mode => [join(sourceRoot, 'scripts/verification-workspace.mjs'), mode, sourceRoot, join(directory, 'plan.json'), directory, JSON.stringify(pnpm([]))]

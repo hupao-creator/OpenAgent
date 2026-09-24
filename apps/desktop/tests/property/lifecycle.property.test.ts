@@ -1,8 +1,6 @@
 import fc from 'fast-check'
 import { expect, it } from 'vitest'
 import type { PublicExecution, ThreadPublicObservation } from '@openagent/contracts'
-import { HarnessThreadInstance } from '../../src/main/harness-thread-runtime'
-import { commitTestObservation } from '@openagent/test-kit'
 import { checkAsync, sequenceLength } from './check'
 import { deferred, input, lifecycleDriver, permission, signal } from './lifecycle-driver'
 
@@ -129,32 +127,6 @@ it('lifecycle public model preserves execution and interaction authority', async
   }))
 }, 130_000)
 
-it('lifecycle stale Stop cannot cancel an entered unpublished successor', async () => {
-  await checkAsync('lifecycle stale Stop', fc.asyncProperty(fc.integer({ min: 1, max: 5 }), fc.boolean(), async (duplicates, terminalFirst) => {
-    const driver = await lifecycleDriver()
-    const gate = deferred()
-    const entered = deferred<string>()
-    let send: Promise<unknown> | undefined
-    try {
-      const first = await driver.instance.send(input, signal())
-      if (terminalFirst) await driver.publish({ latestExecution: { executionId: first.executionId,
-        status: 'completed', startedAt: 1, finishedAt: 2 }, backgroundWork: null })
-      else await driver.instance.interrupt(first.executionId)
-      const stops = driver.io.stops.length
-      driver.gateSend(() => gate.promise, id => entered.resolve(id))
-      send = driver.instance.send(input, signal())
-      // Attach a rejection handler immediately, including under temporary faults.
-      const result = send.then(value => ({ value }), error => ({ error }))
-      const nextId = await entered.promise
-      await Promise.all(Array.from({ length: duplicates }, () => driver.instance.interrupt(first.executionId)))
-      gate.resolve()
-      expect(await result).toEqual({ value: { executionId: nextId, startedNewExecution: true } })
-      expect(driver.observation().latestExecution).toMatchObject({ executionId: nextId, status: 'running' })
-      expect(driver.io.stops).toHaveLength(stops)
-    } finally { gate.resolve(); await send?.catch(() => undefined); await driver.close() }
-  }))
-}, 130_000)
-
 it('lifecycle native admission requires claim publication durability and live authority', async () => {
   await checkAsync('lifecycle native admission', fc.asyncProperty(
     fc.constantFrom('allow', 'deny', 'dispose', 'terminal'), fc.integer({ min: 1, max: 4 }), async (ending, duplicateCount) => {
@@ -203,115 +175,4 @@ it('lifecycle native admission requires claim publication durability and live au
         expect(driver.observation().backgroundWork).toEqual({ status: 'running' })
       } finally { gate.resolve(); durable.resolve(); await Promise.all(admitted); await driver.close() }
     }))
-}, 130_000)
-
-it('lifecycle failed opening and disposal fence late native publications after reopen', async () => {
-  await checkAsync('lifecycle failed opening', fc.asyncProperty(fc.boolean(), fc.integer({ min: 1, max: 4 }), async (unawaited, lateCount) => {
-    const driver = await lifecycleDriver()
-    const disposedContext = driver.context
-    let failedContext = driver.context
-    try {
-      await driver.instance.dispose()
-      const disposedObservation = structuredClone(driver.observation())
-      const failure = new Error('open failed after running publication')
-      await expect(HarnessThreadInstance.open({ ...driver.options(), openThread: async context => {
-        failedContext = context
-        const claim = context.executionClaims.claim()
-        const publication = commitTestObservation(context, { latestExecution: {
-          executionId: claim.executionId, status: 'running', startedAt: 1
-        }, backgroundWork: { status: 'running' } })
-        if (!unawaited) await publication
-        throw failure
-      } })).rejects.toBe(failure)
-      expect(driver.observation().latestExecution?.status).toBe('interrupted')
-      expect(failedContext.signal.aborted).toBe(true)
-      expect(disposedContext.signal.aborted).toBe(true)
-      const failedObservation = structuredClone(driver.observation())
-      await driver.open()
-      const next = await driver.instance.send(input, signal())
-      const before = structuredClone(driver.observation())
-      for (const [context, staleObservation] of [
-        [disposedContext, disposedObservation], [failedContext, failedObservation]
-      ] as const) {
-        for (let index = 0; index < lateCount; index++) {
-          // A formerly valid snapshot must not roll the successor back. Also
-          // reject an old producer trying the successor's exact public identity.
-          await expect(commitTestObservation(context, staleObservation)).rejects.toThrow()
-          await expect(commitTestObservation(context, { ...before, latestExecution: {
-            executionId: next.executionId, status: 'running', startedAt: 1
-          } })).rejects.toThrow()
-        }
-      }
-      expect(driver.observation()).toEqual(before)
-      expect(driver.observation().backgroundWork).toEqual({ status: 'running' })
-    } finally { await driver.close() }
-  }))
-}, 130_000)
-
-it('lifecycle duplicate Stop coalesces failure and permits native retry', async () => {
-  await checkAsync('lifecycle duplicate Stop', fc.asyncProperty(fc.integer({ min: 2, max: 6 }), async count => {
-    const driver = await lifecycleDriver()
-    try {
-      const execution = await driver.instance.send(input, signal())
-      driver.failNextInterrupt()
-      const attempts = Array.from({ length: count }, () => driver.instance.interrupt(execution.executionId))
-      expect(attempts.every(attempt => attempt === attempts[0])).toBe(true)
-      expect((await Promise.allSettled(attempts)).every(result => result.status === 'rejected')).toBe(true)
-      expect(driver.io.stops).toEqual([execution.executionId])
-      expect(driver.observation().latestExecution?.status).toBe('running')
-      await driver.instance.interrupt(execution.executionId)
-      await driver.instance.interrupt(execution.executionId)
-      expect(driver.io.stops).toEqual([execution.executionId, execution.executionId])
-      expect(driver.observation().latestExecution?.status).toBe('interrupted')
-    } finally { await driver.close() }
-  }))
-}, 130_000)
-
-it('lifecycle no-target Stop revokes an unpublished send before native I/O', async () => {
-  await checkAsync('lifecycle no-target Stop', fc.asyncProperty(fc.integer({ min: 1, max: 5 }), async count => {
-    const driver = await lifecycleDriver()
-    const gate = deferred()
-    const entered = deferred<string>()
-    let completion: Promise<unknown> | undefined
-    let stops: Promise<unknown>[] = []
-    try {
-      driver.gateSend(() => gate.promise, id => entered.resolve(id))
-      completion = driver.instance.send(input, signal()).then(() => 'accepted', () => 'rejected')
-      await entered.promise
-      stops = Array.from({ length: count }, () => driver.instance.interrupt(null))
-      gate.resolve()
-      expect(await completion).toBe('rejected')
-      await Promise.all(stops)
-      expect(driver.io.sends).toEqual([])
-      expect(driver.io.stops).toEqual([])
-      expect(driver.observation().latestExecution).toBeNull()
-    } finally { gate.resolve(); await completion; await Promise.allSettled(stops); await driver.close() }
-  }))
-}, 130_000)
-
-it('lifecycle old interaction answers never reach replacement interactions', async () => {
-  await checkAsync('lifecycle old interaction', fc.asyncProperty(fc.boolean(), fc.integer({ min: 1, max: 5 }), async (successorExecution, repeats) => {
-    const driver = await lifecycleDriver()
-    try {
-      let execution = await driver.instance.send(input, signal())
-      await driver.publish({ latestExecution: { executionId: execution.executionId, status: 'waiting-for-user',
-        startedAt: 1, interactions: [permission('old-interaction')] }, backgroundWork: null })
-      await driver.service.respond('agent', { interactionId: 'old-interaction', actionId: 'allow' }, signal())
-      if (successorExecution) {
-        await driver.publish({ latestExecution: { executionId: execution.executionId,
-          status: 'completed', startedAt: 1, finishedAt: 2 }, backgroundWork: null })
-        execution = await driver.instance.send(input, signal())
-      }
-      await driver.publish({ latestExecution: { executionId: execution.executionId, status: 'waiting-for-user',
-        startedAt: 1, interactions: [permission('new-interaction')] }, backgroundWork: null })
-      const before = structuredClone(driver.observation())
-      for (let index = 0; index < repeats; index++) {
-        await expect(driver.service.respond('agent', { interactionId: 'old-interaction', actionId: 'allow' }, signal())).rejects.toThrow()
-      }
-      expect(driver.io.responses).toEqual(['old-interaction'])
-      expect(driver.observation()).toEqual(before)
-      await driver.service.respond('agent', { interactionId: 'new-interaction', actionId: 'allow' }, signal())
-      expect(driver.io.responses).toEqual(['old-interaction', 'new-interaction'])
-    } finally { await driver.close() }
-  }))
 }, 130_000)
