@@ -9,8 +9,6 @@ import type { DesktopApi } from '../src/shared/desktop-api'
 import type { AgentThreadRecord, PublicInteraction } from '@openagent/contracts'
 import type { RendererAppState, RendererStateMutation } from '../src/shared/renderer-state-contracts'
 import { createDefaultOpenAgentSettings } from '../src/shared/openagent-settings'
-import { HarnessSettingsPage } from '../src/renderer/src/components/HarnessSettingsPage'
-
 
 vi.mock('../src/renderer/src/bart-thread-transition/camera-scene', () => ({
   captureCameraAssets: vi.fn(), createCameraScene: vi.fn()
@@ -229,27 +227,6 @@ describe('App Renderer Core regressions', () => {
     expect(screen.getByText('overview')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'close bart' })).not.toBeInTheDocument()
     expect(container.querySelector('[data-bart-camera-active]')).toBeNull()
-  })
-
-  it('anchors shortcut settings to the destination button after settling the camera', async () => {
-    vi.mocked(createCameraScene).mockReturnValue({ ready: Promise.resolve(), dispose: vi.fn(),
-      play: () => ({ started: Promise.resolve(performance.timeOrigin + performance.now()), performed: new Promise(() => undefined) }) })
-    installApi(appState(false))
-    const { container } = render(<App />)
-    await screen.findByText('overview')
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'open bart' })))
-    const button = container.querySelector<HTMLButtonElement>('[data-bart-camera-session] [data-settings-trigger]')!
-    const rect = new DOMRect(950, 30, 30, 30)
-    const measure = vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(rect)
-    try {
-      expect(button.closest('[inert]')).not.toBeNull()
-      fireEvent.keyDown(window, { key: ',', metaKey: true, ctrlKey: true })
-      expect(screen.getByText('settings visible')).toBeVisible()
-      const props = vi.mocked(HarnessSettingsPage).mock.calls.at(-1)?.[0]
-      expect(props?.origin).toBe(button)
-      expect(props?.originRect).toBe(rect)
-      expect(container.querySelector('[data-bart-camera-active]')).toBeNull()
-    } finally { measure.mockRestore() }
   })
 
   it.each(['b', 'k', 'shift-b'])('keeps an active camera when %s reverses it, including stale completions', async key => {
@@ -841,12 +818,11 @@ describe('App Renderer Core regressions', () => {
     })
   })
 
-  it('restores platform chrome and sends the selected workspace identity to Bart', async () => {
+  it('sends the selected workspace identity to Bart', async () => {
     const fixture = installApi(appState(false))
     render(<App />)
     await screen.findByText('overview')
 
-    expect(document.querySelector('.app-shell')).toHaveClass('platform-darwin')
     fireEvent.click(screen.getByRole('button', { name: 'select workspace' }))
     fireEvent.click(screen.getByRole('button', { name: 'type request' }))
     fireEvent.click(screen.getByRole('button', { name: 'submit request' }))

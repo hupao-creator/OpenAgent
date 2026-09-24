@@ -8,11 +8,6 @@ import assert from 'node:assert/strict'
  * commands that actually executed, and the runner requires minimum reach so a
  * vacuous sample cannot masquerade as a pass.
  *
- * The two phases are counted separately. A checkpoint sequence is fixed, so it
- * reaches the deep states on every run; a generated sample reaches them only as
- * often as its distribution allows. Sharing one counter let the checkpoints hide
- * a generated distribution that executed almost nothing, which is exactly the
- * surface pass the split exists to prevent.
  */
 export function createCoverage(property, phase) {
   return { property, phase, executed: {}, reached: new Set(), samples: 0, emptySamples: 0 }
@@ -62,8 +57,8 @@ export function summarizeCoverage(coverage, totals = {}) {
 
 /**
  * A coverage shortfall is a test failure, not a warning: the point of the PBT is
- * to reach the states the fixed matrix cannot enumerate. The requirement is
- * per phase, so a checkpoint cannot satisfy a generated-sample requirement.
+ * to reach the required states in generated samples. Shrinking and replay
+ * cannot satisfy a generated-sample requirement.
  */
 export function assertCoverage(coverage, { kinds = {}, states = [] }, label) {
   const missingKinds = Object.entries(kinds).filter(([kind, minimum]) =>

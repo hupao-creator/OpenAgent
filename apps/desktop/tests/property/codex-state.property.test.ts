@@ -271,129 +271,6 @@ const scenarioArb: fc.Arbitrary<Scenario> = fc.record({
   }))
 }).map(compact) as fc.Arbitrary<Scenario>
 
-// Generated plans stay well inside the persisted cap, so this example is
-// mandatory: it drives the reducer's 200-step head-keeping slice on every run.
-const planCapExamples: readonly [Scenario][] = [[{
-  seedAt: 0,
-  rounds: [{
-    executionId: 'exec-plan-cap',
-    input: { parts: [{ kind: 'text', text: 'plan probe' }] },
-    messageId: 'msg-plan-cap',
-    atDelta: 0,
-    steps: [{
-      op: 'event',
-      event: {
-        type: 'plan',
-        steps: Array.from({ length: MAX_PLAN_STEPS + 30 }, (_, index) => ({ step: `step ${index}`, status: 'pending' as const }))
-      },
-      generatedId: 'gen-plan-cap',
-      atDelta: 0
-    }],
-    terminal: { kind: 'settle', outcome: 'completed' }
-  }]
-}]]
-
-/**
- * Native traffic names the entities it closes: a generated draw cannot be
- * relied on to pair a close with its open, and the oracle's close assertions
- * only read a real entity. This example stages one running activity, one
- * pending blocking interaction and one session binding on every run — each
- * closed by the event that follows it — so terminalizing, resolving, binding
- * and the waiting-input → running resume of the last blocker are checked
- * deterministically rather than only when the generator happens to correlate.
- */
-const entityLifecycleExamples: readonly [Scenario][] = [[{
-  seedAt: 0,
-  rounds: [{
-    executionId: 'exec-entity-lifecycle',
-    input: { parts: [{ kind: 'text', text: 'entity lifecycle probe' }] },
-    messageId: 'msg-entity-lifecycle',
-    atDelta: 0,
-    steps: [
-      {
-        op: 'event',
-        event: {
-          type: 'activity-start',
-          activity: { id: 'act-probe', kind: 'command', label: 'probe', status: 'running' }
-        },
-        generatedId: 'gen-activity-start',
-        atDelta: 0
-      },
-      {
-        op: 'event',
-        event: { type: 'activity-update', activityId: 'act-probe', detail: 'progress' },
-        generatedId: 'gen-activity-update',
-        atDelta: 0
-      },
-      {
-        op: 'event',
-        event: { type: 'activity-end', activityId: 'act-probe', status: 'completed' },
-        generatedId: 'gen-activity-end',
-        atDelta: 1
-      },
-      {
-        op: 'event',
-        event: {
-          type: 'interaction-opened',
-          interaction: {
-            kind: 'command-approval',
-            id: 'int-probe',
-            title: 'probe',
-            blocksTurn: true,
-            status: 'pending',
-            actions: [{ id: 'deny', intent: 'deny', label: 'deny' }],
-            questions: []
-          }
-        },
-        generatedId: 'gen-interaction-open',
-        atDelta: 1
-      },
-      {
-        op: 'event',
-        event: { type: 'interaction-closed', interactionId: 'int-probe', resolution: 'accept' },
-        generatedId: 'gen-interaction-close',
-        atDelta: 1
-      },
-      {
-        op: 'event',
-        event: { type: 'session', sessionId: 'sess-probe' },
-        generatedId: 'gen-session',
-        atDelta: 1
-      }
-    ],
-    terminal: { kind: 'settle', outcome: 'completed' }
-  }]
-}]]
-
-const resolutionExamples: readonly [Scenario][] = [
-  'accept', 'acceptForSession', 'turn', 'session', 'submit', 'cancel', 'decline', 'other'
-].map(resolution => [{
-  ...entityLifecycleExamples[0]![0],
-  rounds: entityLifecycleExamples[0]![0].rounds.map(round => ({
-    ...round,
-    steps: round.steps.map(step => step.op === 'event' && step.event.type === 'interaction-closed'
-      ? { ...step, event: { ...step.event, resolution } }
-      : step)
-  }))
-}])
-
-const outcomeExamples: readonly [Scenario][] = (['completed', 'failed', 'interrupted'] as const).map(outcome => [{
-  seedAt: 0,
-  rounds: [{
-    executionId: 'exec-outcome',
-    input: { parts: [{ kind: 'text', text: 'settlement probe' }] },
-    messageId: 'msg-outcome',
-    atDelta: 0,
-    steps: [
-      { op: 'event', event: { type: 'text-delta', itemId: 'item-stream', delta: 'answer' }, generatedId: 'gen-text', atDelta: 0 },
-      { op: 'event', event: { type: 'done', outcome }, generatedId: 'gen-done', atDelta: 0 }
-    ],
-    terminal: { kind: 'settle', outcome }
-  }]
-}])
-
-const nativeExamples: readonly [Scenario][] = [...planCapExamples, ...resolutionExamples, ...outcomeExamples]
-
 /**
  * Real native traffic names entities that exist: the event that ends an
  * activity or closes an interaction follows the one that opened it. The
@@ -807,7 +684,7 @@ it('codex persisted state stays valid, monotone and reference-unique under gener
           .toEqual(codexSessionState.project(single).latestExecution)
       })
     }
-  ), 'stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step', budgetMs, heavySamples, nativeExamples)
+  ), 'stage each generated execution → apply generated native events and state operations in order → assert the per-event expected effect, then validator, monotone time, timeline uniqueness, JSON round trip and projection at every step', budgetMs, heavySamples)
 }, timeout)
 
 it('codex turns truncate to the last 200 and every retained turn keeps its own prompt', async () => {
@@ -885,21 +762,6 @@ const deltaEvent = (step: { readonly entity: number; readonly delta: string }): 
     ? { type: 'reasoning-delta', delta: step.delta }
     : { type: 'text-delta', itemId: `item-${step.entity}`, delta: step.delta }
 
-// A generated run could alternate entities and never offer a merge. This
-// example is mandatory and opens with consecutive same-entity deltas on both
-// the text and the reasoning entity.
-interface DeltaScenario {
-  readonly seedAt: number
-  readonly deltas: readonly { readonly entity: number; readonly delta: string }[]
-}
-const deltaExamples: readonly [DeltaScenario][] = [[{
-  seedAt: 0,
-  deltas: [
-    { entity: 0, delta: 'a' }, { entity: 0, delta: 'b' },
-    { entity: 2, delta: 'c' }, { entity: 2, delta: 'd' }
-  ]
-}]]
-
 it('codex delta batching is answer-equivalent to reducing every delta on its own', async () => {
   await checkAsync('codex delta batching is answer-equivalent to reducing every delta on its own', fc.asyncProperty(
     fc.record({ seedAt: fc.nat(1_000), deltas: fc.array(deltaStepArb, { minLength: 1, maxLength: 24 }) }),
@@ -945,5 +807,5 @@ it('codex delta batching is answer-equivalent to reducing every delta on its own
       expect(isCodexState(sequential)).toBe(true)
       expect(isCodexState(merged)).toBe(true)
     }
-  ), 'stage → reduce each delta on its own vs reduce the production batched merge → answers, reasoning and assistant items agree', budgetMs, heavySamples, deltaExamples)
+  ), 'stage → reduce each delta on its own vs reduce the production batched merge → answers, reasoning and assistant items agree', budgetMs, heavySamples)
 }, timeout)

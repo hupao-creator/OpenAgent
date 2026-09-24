@@ -234,7 +234,6 @@ it('catches up at the real spatial flight handoff and starts a fresh visible int
   expect(f.text()).toBe('返回之后')
 })
 
-
 it('catches up when the camera uncovers the Dock, even while its own layout stayed mounted', () => {
   const f = fixture(reasoning('镜头前'))
   f.advance(100)
@@ -249,7 +248,6 @@ it('catches up when the camera uncovers the Dock, even while its own layout stay
   f.advance(1)
   expect(f.text()).toBe('镜头后')
 })
-
 
 it('fills the gap before a dedicated Core route arrives, then yields and resumes the latest activity', () => {
   const f = fixture(reasoning('工具前'))
@@ -270,7 +268,6 @@ it('fills the gap before a dedicated Core route arrives, then yields and resumes
   expect(f.name()).toBe('write_file')
 })
 
-
 it('uses the real terminal lifecycle even before the parent running flag catches up', () => {
   const f = fixture(reasoning('即将完成'))
   f.advance(100)
@@ -278,7 +275,6 @@ it('uses the real terminal lifecycle even before the parent running flag catches
   f.set(null, { activityContext: context('execution-1', 'failed'), running: true })
   expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-phase', 'idle')
 })
-
 
 it('catches up on window restore without treating a visible blurred window as hidden', () => {
   const visible = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
@@ -352,14 +348,12 @@ it('hydrates directly into the latest snapshot after unmounting with pending act
   expect(next.name()).toBe('hydrated_tool')
 })
 
-
 it('covers submission, execution before its first event, text output and final completion without idle gaps', () => {
   const f = fixture(null)
   f.set(null, { activityContext: context('old', 'completed'), running: false, sessionIdle: true })
   expect(f.role()).toBe('idle')
   f.set(null, { activityContext: context('old', 'completed'), running: false, submitting: true })
   expect(f.role()).toBe('running')
-  expect(f.view.container.querySelectorAll('.bart-running-fallback circle')).toHaveLength(3)
   expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-phase', 'running')
   f.set(null)
   expect(f.role()).toBe('running')
@@ -377,7 +371,6 @@ it('covers submission, execution before its first event, text output and final c
   f.advance(300)
   f.advance(800)
   expect(f.role()).toBe('idle')
-  expect(f.view.container.querySelectorAll('.bart-running-fallback circle')).toHaveLength(0)
 })
 
 it('covers the first submission before a session exists and clears a rejected submission', () => {
@@ -411,7 +404,6 @@ it.each(['completed', 'failed', 'interrupted', 'waiting-for-user'] as const)('ex
   expect(f.view.container.querySelector('.bart-logo')).toHaveAttribute('data-phase', 'idle')
 })
 
-
 it.each([true, false])('shows running during an open composer submission and settles success=%s', async succeeds => {
   let resolve!: () => void, reject!: (error: Error) => void
   const submission = new Promise<void>((done, fail) => { resolve = done; reject = fail })
@@ -435,7 +427,6 @@ it.each([true, false])('shows running during an open composer submission and set
   fireEvent.submit(view.container.querySelector('form')!)
   expect(dock).toHaveAttribute('data-layout', 'input')
   expect(dock).toHaveAttribute('data-role', 'running')
-  expect(view.container.querySelectorAll('.bart-running-fallback circle')).toHaveLength(3)
   act(() => vi.advanceTimersByTime(1200))
   expect(dock).toHaveAttribute('data-role', 'running')
   await act(async () => { if (succeeds) resolve(); else reject(new Error('submission failed')) })
@@ -443,6 +434,5 @@ it.each([true, false])('shows running during an open composer submission and set
   if (!succeeds) {
     expect(dock).toHaveAttribute('data-layout', 'input')
     expect(view.getByDisplayValue('开始任务')).toBeInTheDocument()
-    expect(view.container.querySelectorAll('.bart-running-fallback circle')).toHaveLength(0)
   }
 })

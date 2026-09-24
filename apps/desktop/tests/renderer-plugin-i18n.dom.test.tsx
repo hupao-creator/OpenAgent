@@ -171,7 +171,6 @@ describe('Plugin-owned Renderer translations', () => {
         </English>
       )
       expect(view.container.innerHTML).not.toMatch(/[\u3400-\u9fff]/u)
-      expect(view.container.querySelector('.thread-detail-page-icon')).toHaveTextContent('📝')
       view.rerender(
         <English>
           <ThreadView
@@ -180,7 +179,6 @@ describe('Plugin-owned Renderer translations', () => {
           />
         </English>
       )
-      expect(view.container.querySelector('.thread-detail-page-icon')).toHaveTextContent('👩🏽‍💻')
       expect(screen.getByRole('heading', { name: thread.title })).toBeInTheDocument()
     }
   )

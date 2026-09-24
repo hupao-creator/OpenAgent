@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import assert from 'node:assert/strict'
-import { checkpointCommands } from './bart-headless/pbt/checkpoints.mjs'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createCoverage, countExecution, assertCoverage, recordAttempt, resetCoverage, reach } from './bart-headless/pbt/coverage.mjs'
+import { createCoverage, countExecution, recordAttempt, resetCoverage, reach } from './bart-headless/pbt/coverage.mjs'
 import { RequestGates, isTargetTurn } from './bart-headless/pbt/gates.mjs'
 import { assertPublicObservation, newThread } from './bart-headless/pbt/model.mjs'
-import { failureSignature, checkpointReproduced, counterexampleDescriptor, formatFailure, checkpointFailureDescriptor } from './bart-headless/pbt/report.mjs'
+import { failureSignature, counterexampleDescriptor, formatFailure } from './bart-headless/pbt/report.mjs'
 import { SampleResources } from './bart-headless/pbt/resources.mjs'
 import { parseArguments } from './bart-headless/pbt/argv.mjs'
 import { planItems } from './bart-headless/pbt/runner.mjs'
@@ -37,15 +35,6 @@ describe('headless PBT evidence', () => {
     expect(() => parseArguments(args)).toThrow('concrete --host')
     expect(() => parseArguments([...args, '--host', 'auto'])).toThrow('concrete --host')
     expect(parseArguments([...args, '--host', 'codex']).host).toBe('codex')
-  })
-
-  it('cannot satisfy generated coverage with checkpoint executions', () => {
-    const checkpoints = createCoverage('isolation', 'checkpoints')
-    const samples = createCoverage('isolation', 'samples')
-    countExecution(checkpoints, 'respond-foreign')
-    const required = { kinds: { 'respond-foreign': 1 } }
-    expect(() => assertCoverage(checkpoints, required, 'fixture')).not.toThrow()
-    expect(() => assertCoverage(samples, required, 'fixture')).toThrow('samples')
   })
 
   it('times out a gate that never receives its target request', async () => {
@@ -102,19 +91,6 @@ describe('headless PBT evidence', () => {
     expect(failureSignature(first)).toBeTruthy()
     expect(failureSignature(same)).toBe(failureSignature(first))
     expect(failureSignature(different)).not.toBe(failureSignature(first))
-    expect(checkpointReproduced(first, { failed: true, errorInstance: same })).toBe(true)
-    expect(checkpointReproduced(first, { failed: true, errorInstance: different })).toBe(false)
-    expect(checkpointReproduced(first, { failed: false })).toBe(false)
-    // Same invariant reached through checkpoint orchestration versus fc.modelRun.
-    const orchestrated = new Error('dynamic checkpoint label')
-    orchestrated.name = first.name
-    orchestrated.code = first.code
-    orchestrated.pbtPhase = first.pbtPhase
-    orchestrated.invariantId = first.invariantId
-    orchestrated.stack = first.stack + '\n    at driveCheckpoint (file:///tmp/bart-headless/pbt/properties.mjs:210:5)'
-    expect(checkpointReproduced(first, { failed: true, errorInstance: orchestrated })).toBe(true)
-    orchestrated.stack = first.stack.replace(/:\d+:\d+/g, ':999:1')
-    expect(failureSignature(orchestrated)).toBe(failureSignature(first))
     first.pbtPhase = 'open'
     expect(failureSignature(first)).toBeNull()
     expect(failureSignature(new AggregateError([same, new Error('cleanup failed')]))).toBeNull()
@@ -229,31 +205,6 @@ it.each([false, true])('preserves the first failure and separates shrink coverag
   }
 })
 
-it('shrinks and replays a mandatory sequence while preserving its prerequisite', async () => {
-  const definition = {
-    name: 'checkpoint-test',
-    checkpoints: [[{ kind: 'start' }, { kind: 'noise' }, { kind: 'fault' }]],
-    commandFor: plan => ({
-      check: model => plan.kind === 'start' || model.started,
-      run: model => {
-        if (plan.kind === 'start') model.started = true
-        assert.notEqual(plan.kind, 'fault', 'injected checkpoint invariant')
-      },
-      toString: () => plan.kind
-    })
-  }
-  const property = () => fc.asyncProperty(checkpointCommands(definition, 0, {}),
-    commands => fc.asyncModelRun(() => ({ model: {}, real: {} }), commands))
-  const result = await fc.check(property(), { numRuns: 1, seed: 42 })
-  expect(result.failed).toBe(true)
-  expect(result.numShrinks).toBeGreaterThan(0)
-  expect(String(result.counterexample[0])).toBe('start,fault')
-  const replay = await fc.check(property(), { numRuns: 1, seed: result.seed, path: result.counterexamplePath })
-  expect(replay.failed).toBe(true)
-  expect(String(replay.counterexample[0])).toBe('start,fault')
-})
-
-
 it('preserves explicit auto, allows missing unselected CLIs, and rejects a changed host', () => {
   const configured = { hosts: ['codex'] }
   expect(new HostSelection(undefined, configured, ['pi']).requested).toBe('codex')
@@ -314,13 +265,4 @@ it.each([false, true])('retains the first assertion when the same attempt also f
   expect(result.interrupted).toBe(!endOnFailure)
   expect(tracker.fatal).toBe(cleanup)
   expect(tracker.diagnostics).toEqual([expect.objectContaining({ sampleRoot: '/original-attempt', error: 'cleanup also failed' })])
-  const descriptor = checkpointFailureDescriptor({ definition: { name: 'fixture' }, checkpoint: 0,
-    failure: original, budget: { seed: 42, maxCommands: 3 }, interruption: cleanup.message,
-    operationSequence: ['start', 'fault'], host: 'pi', target: 'codex', cliVersions: {}, gateOrder: [],
-    artifacts: { sampleRoot: '/checkpoint' }, rejectedAttempts: tracker.diagnostics })
-  expect(descriptor.failureSignature).toBe(failureSignature(original))
-  expect(descriptor.numShrinks).toBeNull()
-  expect(formatFailure(descriptor)).toContain('not isolated or shrunk')
-  expect(formatFailure(descriptor)).toContain('cleanup also failed')
-  expect(formatFailure(descriptor)).toContain('--checkpoint 0')
 })

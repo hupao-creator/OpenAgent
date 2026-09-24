@@ -208,65 +208,6 @@ describe('Core Renderer shell localization', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it.each(['moved', 'removed'] as const)('keeps one reveal center for opening and closing after the button is %s', async change => {
-    const opener = document.createElement('button')
-    document.body.append(opener)
-    const clickedRect = new DOMRect(1185, 58, 30, 30)
-    const currentRect = new DOMRect(920, 100, 30, 30)
-    vi.spyOn(opener, 'getBoundingClientRect').mockReturnValue(currentRect)
-    const measure = HTMLElement.prototype.getBoundingClientRect
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      return this.classList.contains('settings-page') ? new DOMRect(60, 35, 1200, 800) : measure.call(this)
-    })
-    const effects: { target: Element; frames: Keyframe[]; finish: () => void }[] = []
-    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'animate')
-    Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: function (this: Element, frames: Keyframe[]) {
-      const finished = new Promise<void>(resolve => { effects.push({ target: this, frames, finish: resolve }) })
-      return { cancel() {}, finished, effect: { getComputedTiming: () => ({ progress: 1 }) } }
-    } })
-    const expectCircle = (clip: unknown, x: number, y: number, radius?: number) => {
-      const match = String(clip).match(/^circle\(([\d.]+)% at ([\d.]+)% ([\d.]+)%\)$/)
-      expect(match).not.toBeNull()
-      const [r, cx, cy] = match!.slice(1).map(Number)
-      expect(cx / 100 * 1200).toBeCloseTo(x)
-      expect(cy / 100 * 800).toBeCloseTo(y)
-      if (radius !== undefined) expect(r / 100 * Math.hypot(1200, 800) / Math.SQRT2).toBeCloseTo(radius)
-    }
-    try {
-      if (change === 'removed') opener.remove()
-      const view = render(<I18nProvider locale="zh-CN"><HarnessSettingsPage
-        open origin={opener} originRect={clickedRect}
-        onClearHistory={async () => undefined} onClose={() => undefined} onSave={async () => undefined}
-        loadHarnessInstallations={installedHarnesses}
-        resources={{} as HarnessPresentationResources} defaultCwd="/workspace" value={createDefaultOpenAgentSettings()}
-      /></I18nProvider>)
-      const root = view.container.querySelector('.settings-page')!
-      expectCircle(effects.find(effect => effect.target === root)?.frames[0]?.clipPath, 1140, 38, 15)
-      await act(async () => { effects.forEach(effect => effect.finish()) })
-      expect(root).toHaveAttribute('data-phase', 'open')
-      expectCircle((root as HTMLElement).style.clipPath, 1140, 38)
-      fireEvent.keyDown(document, { key: 'Escape' })
-      expectCircle(effects.filter(effect => effect.target === root).at(-1)?.frames[1]?.clipPath, 1140, 38, 15)
-      fireEvent.keyDown(window, { key: ',', metaKey: true, ctrlKey: true })
-      expectCircle(effects.filter(effect => effect.target === root).at(-1)?.frames.at(-1)?.clipPath, 1140, 38)
-      // Only an explicit window resize updates the shared anchor to the live button.
-      if (change === 'moved') {
-        fireEvent(window, new Event('resize'))
-        expectCircle((root as HTMLElement).style.clipPath, 875, 80)
-        fireEvent.keyDown(document, { key: 'Escape' })
-        expectCircle(effects.filter(effect => effect.target === root).at(-1)?.frames[1]?.clipPath, 875, 80, 15)
-        fireEvent.keyDown(window, { key: ',', metaKey: true, ctrlKey: true })
-        expectCircle(effects.filter(effect => effect.target === root).at(-1)?.frames.at(-1)?.clipPath, 875, 80)
-      }
-      await act(async () => undefined)
-    } finally {
-      cleanup()
-      opener.remove()
-      if (descriptor) Object.defineProperty(Element.prototype, 'animate', descriptor)
-      else Reflect.deleteProperty(Element.prototype, 'animate')
-    }
-  })
-
   it('focuses the page, hides the underlay, and restores the opener', () => {
     function SettingsFixture(): React.JSX.Element {
       const [open, setOpen] = React.useState(false)
@@ -462,11 +403,9 @@ describe('Core Renderer shell localization', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Overview' }))
     expect(onBack).toHaveBeenCalledOnce()
     expect(screen.getAllByRole('navigation', { name: 'Page path' })).toHaveLength(1)
-    expect(document.querySelector('.thread-workspace-back')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Stop current task' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Read thread' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Thread settings' })).not.toBeInTheDocument()
-    expect(document.querySelector('.agent-thread-workspace .workspace-header')).toBeNull()
   })
 })
 

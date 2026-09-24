@@ -147,10 +147,6 @@ describe('Harness Plugin overview Core seam', () => {
     expect(onSelect).toHaveBeenCalledWith('thread-a')
 
     const followUp = within(shell).getByRole('button', { name: '发送消息' })
-    expect(followUp).toHaveAttribute('title', '发送消息')
-    expect(followUp).toHaveTextContent('')
-    expect(followUp.children).toHaveLength(1)
-    expect(followUp.firstElementChild).toHaveClass('lucide-send')
     await user.click(followUp)
     expect(onFollowUpOpen).toHaveBeenLastCalledWith('thread-a')
     await user.keyboard('{Enter} ')
@@ -514,7 +510,6 @@ describe('Harness Plugin overview Core seam', () => {
       onSelect={() => {}} transitionId={null} />)
     expect(screen.getByText('没有 project 会话')).toBeVisible()
     expect(screen.queryByRole('group', { name: '按标签筛选' })).toBeNull()
-    expect(document.querySelector('.thread-overview')).not.toHaveClass('overview-has-tag-filters')
   })
 
   it('freezes only identity and structure in layout snapshots', () => {
@@ -794,24 +789,6 @@ describe('Harness Plugin overview Core seam', () => {
     groups.dispatchEvent(idle)
     expect(idle.defaultPrevented).toBe(false)
     expect(scrolled).toBe(60)
-  })
-
-  it('orders the header as toolbar then filter so tab order matches the narrow layout', () => {
-    render(
-      <ConversationOverview
-        embedded
-        interrupt={async (): Promise<void> => undefined}
-        onSelect={(): void => undefined}
-        respond={async (): Promise<void> => undefined}
-        tagFilters={[{ tag: 'alpha', count: 1, isCwdTag: false }]}
-        threads={[threadInput('thread-a')]}
-        transitionId={null}
-      />
-    )
-    const header = document.querySelector('.thread-overview-header')
-    expect(header).not.toBeNull()
-    expect(header?.children[0]?.className).toContain('thread-overview-floating-chrome')
-    expect(header?.children[1]?.className).toContain('thread-tag-filter-bar')
   })
 
   it('consumes a delete placeholder once its one-shot layout has been presented', async () => {

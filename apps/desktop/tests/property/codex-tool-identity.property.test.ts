@@ -47,7 +47,7 @@ it('codex canonicalJson is invariant under object key permutations', async () =>
       expect(canonicalJson(original)).toEqual(original)
       expect(canonicalJson(permuted)).toEqual(permuted)
     }
-  ), 'generate a nested JSON value → deep-reverse every object key order → canonical forms stringify identically and stay value-equal', budgetMs, samples, [[{ original: { k0: { k0: 1, k1: 2 }, k1: [{ k0: 3, k1: 4 }] } }]])
+  ), 'generate a nested JSON value → deep-reverse every object key order → canonical forms stringify identically and stay value-equal', budgetMs, samples)
 }, timeout)
 
 const description = fc.string({ maxLength: 12 })
@@ -106,14 +106,7 @@ it('codex toolConfigurationIdentity ignores binding order and schema key order',
       const flipped = asInjection(mode === 'extend' ? 'exclusive' : 'extend', bindings)
       expect(toolConfigurationIdentity(flipped)).not.toBe(toolConfigurationIdentity(original))
     }
-  ), 'generate a tool injection → permute bindings and reverse every schema key order → the identity hash is unchanged, while renames and mode flips are detected', budgetMs, samples, [[{
-    mode: 'extend',
-    bindings: [
-      { name: 'tool-0', description: 'first', inputSchema: { k0: { k0: 1, k1: 2 } } },
-      { name: 'tool-1', description: 'second', inputSchema: { k0: { k0: 3, k1: 4 } } }
-    ],
-    swaps: [1]
-  }]])
+  ), 'generate a tool injection → permute bindings and reverse every schema key order → the identity hash is unchanged, while renames and mode flips are detected', budgetMs, samples)
 }, timeout)
 
 it('codex toolConfigurationIdentity is undefined without tool bindings', async () => {

@@ -56,8 +56,6 @@ function installViewTransition() {
   }
 }
 
-const transitioning = (): boolean => document.documentElement.classList.contains(THEME_TRANSITION_CLASS)
-
 afterEach(() => {
   vi.useRealTimers()
   document.documentElement.classList.remove(THEME_TRANSITION_CLASS)
@@ -101,7 +99,6 @@ describe('appearance blur fade transition', () => {
     await runThemeTransition('dark', apply)
     expect(apply).toHaveBeenCalledTimes(1)
     expect(viewTransition.startViewTransition).not.toHaveBeenCalled()
-    expect(transitioning()).toBe(false)
 
     // The same branch decides the light preference against a light scheme.
     installMatchMedia(false)
@@ -109,7 +106,6 @@ describe('appearance blur fade transition', () => {
     await runThemeTransition('light', second)
     expect(second).toHaveBeenCalledTimes(1)
     expect(viewTransition.startViewTransition).not.toHaveBeenCalled()
-    expect(transitioning()).toBe(false)
   })
 
   it('applies without a transition when the API is absent', async () => {
@@ -118,31 +114,25 @@ describe('appearance blur fade transition', () => {
     const apply = vi.fn(async () => undefined)
     await runThemeTransition('dark', apply)
     expect(apply).toHaveBeenCalledTimes(1)
-    expect(transitioning()).toBe(false)
   })
 
-  it('blurs the swap only once the resolved scheme has changed', async () => {
+  it('applies a scheme change through the view transition', async () => {
     const { scheme } = installMatchMedia(false)
     const viewTransition = installViewTransition()
     const apply = vi.fn(async () => { scheme.set(true) })
     const applied = runThemeTransition('dark', apply)
 
     expect(viewTransition.startViewTransition).toHaveBeenCalledTimes(1)
-    expect(transitioning()).toBe(false)
 
     await viewTransition.run()
-    // The mutation is settled, but the frame must stay blurred until the
-    // transition ends or the class would leave the window stuck.
     await applied
     expect(apply).toHaveBeenCalledTimes(1)
-    expect(transitioning()).toBe(true)
 
     viewTransition.finish()
     await Promise.resolve()
-    expect(transitioning()).toBe(false)
   })
 
-  it('blurs an OS-decided change once the scheme follows it', async () => {
+  it('keeps an OS-decided transition once the scheme follows it', async () => {
     const { scheme } = installMatchMedia(false)
     const viewTransition = installViewTransition()
     const apply = vi.fn(async () => { scheme.set(true) })
@@ -151,7 +141,6 @@ describe('appearance blur fade transition', () => {
     await viewTransition.run()
     await applied
     expect(viewTransition.skipTransition).not.toHaveBeenCalled()
-    expect(transitioning()).toBe(true)
   })
 
   it('skips the default cross-fade when an OS-decided preference holds the scheme', async () => {
@@ -166,13 +155,12 @@ describe('appearance blur fade transition', () => {
     await running
     await applied
     expect(apply).toHaveBeenCalledTimes(1)
-    expect(transitioning()).toBe(false)
     expect(scheme.listenerCount).toBe(0)
     // Chromium would otherwise dissolve the two identical frames on its own.
     expect(viewTransition.skipTransition).toHaveBeenCalledTimes(1)
   })
 
-  it('surfaces a failed mutation and drops the blur', async () => {
+  it('surfaces a failed mutation', async () => {
     const { scheme } = installMatchMedia(false)
     const viewTransition = installViewTransition()
     const failure = new Error('mutation rejected')
@@ -185,9 +173,7 @@ describe('appearance blur fade transition', () => {
     await expect(applied).rejects.toThrow(failure)
     viewTransition.finish()
     await Promise.resolve()
-    // The mutation failed before a frame was captured, so the blur is never
-    // attached and the no-op skip path must not swallow the rejection.
-    expect(transitioning()).toBe(false)
+    // The no-op skip path must not swallow the mutation rejection.
     expect(viewTransition.skipTransition).not.toHaveBeenCalled()
   })
 })

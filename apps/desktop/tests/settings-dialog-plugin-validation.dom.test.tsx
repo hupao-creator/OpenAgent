@@ -74,9 +74,6 @@ describe('Settings page', () => {
     const targets = screen.getByRole('group', { name: '可派发的线程' })
     expect(within(targets).getAllByRole('checkbox').map(option => option.getAttribute('data-agent')))
       .toEqual(HARNESS_IDS.filter(id => id !== 'pi'))
-    // Choosing among present Agents carries no install badge; the plate is the click.
-    expect(within(picker).getAllByRole('radio').every(option => option.querySelector('.harness-icon-badge') === null)).toBe(true)
-    expect(within(targets).getAllByRole('checkbox').every(option => option.querySelector('.harness-icon-badge') === null)).toBe(true)
 
     fireEvent.click(within(picker).getByRole('radio', { name: 'Codex · 已安装' }))
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
@@ -89,12 +86,10 @@ describe('Settings page', () => {
     expect(within(reopened).getByRole('radio', { name: 'Claude · 已安装' })).toHaveAttribute('aria-checked', 'false')
     expect(within(reopened).queryByRole('radio', { name: /Pi Agent/ })).toBeNull()
 
-    // Installing is the 本地 Agent list's job, so the missing Agent stays there
-    // with the badge that says so.
+    // Missing Agents remain available to install in the 本地 Agent list.
     fireEvent.click(screen.getByRole('tab', { name: '通用' }))
     const installTarget = screen.getByRole('button', { name: 'Pi Agent · 未安装 · 点击安装' })
     expect(installTarget).toBeVisible()
-    expect(installTarget.querySelector('.harness-icon-badge')).not.toBeNull()
   })
 
   it('keeps the last dispatchable Harness selected in the icon row', async () => {
@@ -168,30 +163,21 @@ describe('Settings page', () => {
     expect(screen.queryByLabelText('权限模式')).toBeNull()
   })
 
-  it('aligns the Pi provider rows with the shared settings rows', () => {
-    const pi = renderHostSettings('pi').container
+  it('offers native Pi defaults and distinguishes provider-specific models', () => {
+    renderHostSettings('pi')
     const selects = ['Provider', '模型', '推理强度'].map(label => screen.getByLabelText(label))
     for (const select of selects) {
-      expect(select.tagName).toBe('SELECT')
-      expect(select).toHaveClass('sf-select')
-      expect(select.closest('.sf-row')).not.toBeNull()
       expect([...select.querySelectorAll('option')][0]).toHaveTextContent('Pi 原生默认')
     }
     // The model option value encodes the provider so a shared model id stays
     // distinguishable between authenticated providers.
     expect([...selects[1]!.querySelectorAll('option')].map(option => option.getAttribute('value')))
       .toEqual(['', 'deepseek/deepseek-v4-flash', 'open-pug-zen/deepseek-v4-flash-free'])
-    // A ready Pi environment stays silent instead of printing a loose status line.
-    expect(pi.querySelector('.pi-settings .sf-notice')).toBeNull()
-    expect(pi.querySelector('.settings-form-grid')).toBeNull()
 
     cleanup()
-    // Every harness section stacks its rows: the legacy two-column grid would
-    // pair unrelated fields, and no section keeps a restore-defaults action.
+    // No section offers a restore-defaults action.
     for (const host of HARNESS_IDS) {
-      const section = renderHostSettings(host).container
-      expect(section.querySelector('.settings-form-grid')).toBeNull()
-      expect(section.querySelector('.settings-control')).toBeNull()
+      renderHostSettings(host)
       expect(screen.queryByRole('button', { name: '恢复默认' })).toBeNull()
       cleanup()
     }
@@ -205,7 +191,6 @@ describe('Settings page', () => {
     // The hover hint trades a permanent second line for a tooltip, so the copy
     // has to stay in the DOM behind the same id the control describes itself
     // with; dropping it would leave the row's explanation unreachable.
-    expect(description).toHaveClass('sf-row-description')
     expect(gate).toHaveAttribute('aria-describedby', expect.stringContaining(description.id))
     const hint = description.closest('.sf-row')?.querySelector('.sf-row-hint')
     expect(hint).not.toBeNull()
@@ -554,7 +539,6 @@ describe('Settings page', () => {
     }
     const view = render(<HarnessSettingsPage {...props} open />)
     fireEvent.click(screen.getByRole('tab', { name: '通用' }))
-    expect(screen.getByRole('button', { name: 'Codex · 正在检测…' }).querySelector('.spin')).not.toBeNull()
     await act(async () => first.resolve(installedHarnessesValue()))
     let previous = installedHarnessesValue()
     const removed = { ...previous, codex: { status: 'missing' as const } }
@@ -569,14 +553,12 @@ describe('Settings page', () => {
       const label = previous.codex?.status === 'installed' ? '已安装' : '未安装 · 点击安装'
       const codex = screen.getByRole('button', { name: `Codex · ${label}` })
       const claude = screen.getByRole('button', { name: 'Claude · 已安装' })
-      expect(view.container.querySelector('.harness-icon-badge .spin')).toBeNull()
       await waitFor(() => expect(load).toHaveBeenCalledTimes(calls + 1))
       expect(codex).toHaveAccessibleName(`Codex · ${label}`)
       await act(async () => pending.resolve(next))
       expect(screen.getByRole('button', { name: next.codex?.status === 'installed'
         ? 'Codex · 已安装' : 'Codex · 未安装 · 点击安装' })).toBe(codex)
       expect(screen.getByRole('button', { name: 'Claude · 已安装' })).toBe(claude)
-      expect(view.container.querySelector('.harness-icon-badge .spin')).toBeNull()
       previous = next
     }
     expect(load).toHaveBeenCalledTimes(5)

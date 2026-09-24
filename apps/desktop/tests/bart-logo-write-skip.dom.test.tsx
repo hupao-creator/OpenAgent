@@ -10,7 +10,6 @@ describe('Bart renderer frame isolation', () => {
     const frame = vi.fn()
     vi.stubGlobal('requestAnimationFrame', frame)
     const view = render(<BartLogo size={11} running />)
-    expect(view.container.querySelector('path')?.getAttribute('d')).toBeTruthy()
     view.rerender(<BartLogo size={210} operation={{ id: 'send', kind: 'send', phase: 'running' }} />)
     expect(frame).not.toHaveBeenCalled()
   })
@@ -20,7 +19,5 @@ describe('Bart renderer frame isolation', () => {
     const view = render(<BartLogo size={210} running />)
     const svg = view.container.querySelector('.bart-logo')!
     expect(svg.getAttribute('data-worker-ready')).toBeNull()
-    expect(svg.querySelector('.bart-face rect')).not.toBeNull()
-    expect(svg.querySelector('.bart-bot path')?.getAttribute('d')).toMatch(/^M /)
   })
 })

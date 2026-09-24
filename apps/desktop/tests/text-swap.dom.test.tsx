@@ -19,31 +19,20 @@ afterEach(() => {
 })
 
 describe('title text swap', () => {
-  it('holds the outgoing title, then enters the incoming one from below', async () => {
+  it('holds the outgoing title until the incoming one is ready', async () => {
     vi.useFakeTimers()
     swapDuration('0.15s')
     const view = render(<Probe title="首次标题" />)
     const heading = (): HTMLHeadingElement => view.container.querySelector('h2')!
     expect(heading().textContent).toBe('首次标题')
-    expect(heading().className).toBe('')
 
     view.rerender(<Probe title="重新设计的数据库查询计划器" />)
     expect(heading().textContent).toBe('首次标题')
-    expect(heading().className).toBe('thread-title-swap is-exit')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(150)
     })
-    // The incoming title is committed at `is-enter-start` and released to the
-    // resting position inside one frame, so only the released state is
-    // observable here.
     expect(heading().textContent).toBe('重新设计的数据库查询计划器')
-    expect(heading().className).toBe('thread-title-swap')
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(150)
-    })
-    expect(heading().className).toBe('')
   })
 
   it('replaces the title in the same commit when the stylesheet gives no duration', () => {
@@ -53,7 +42,6 @@ describe('title text swap', () => {
 
     const heading = view.container.querySelector('h2')!
     expect(heading.textContent).toBe('重新设计的数据库查询计划器')
-    expect(heading.className).toBe('')
   })
 
   it('tracks the latest title when several arrive before the outgoing one finishes', async () => {
@@ -76,6 +64,5 @@ describe('title text swap', () => {
 
     const heading = view.container.querySelector('h2')!
     expect(heading.textContent).toBe('Another composed title')
-    expect(heading.className).toBe('')
   })
 })

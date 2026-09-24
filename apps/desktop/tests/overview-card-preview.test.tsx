@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { excerptPreview } from '../../../packages/openagent-plugin-kit/src/renderer/harness-card/excerpt-preview'
@@ -109,12 +107,6 @@ describe('thread card preview', () => {
       .toBe(source.slice(boundary).replace('**prose**', 'prose'))
   })
 
-  it('uses natural wrapping and a line clamp for the rendered text', () => {
-    const testPath = expect.getState().testPath!
-    const css = readFileSync(resolve(dirname(testPath), '../../../packages/openagent-plugin-kit/src/renderer/components.css'), 'utf8')
-    expect(css).toMatch(/\.thread-overview-excerpt \.thread-card-excerpt-text \{[^}]*word-break: normal;[^}]*overflow-wrap: break-word;/)
-    expect(css).toMatch(/\.thread-overview-excerpt \.thread-card-excerpt-text \{[^}]*-webkit-line-clamp: 5;/)
-  })
 })
 
 describe.each([

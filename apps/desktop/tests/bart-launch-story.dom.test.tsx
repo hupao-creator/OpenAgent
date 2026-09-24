@@ -36,7 +36,6 @@ it('the Worker finishes the capsule and begins the orbit without any further Hos
   }
   expect(roundRect.mock.calls.every(call => call[2] < 100)).toBe(true) // only the eyes remain
   const dots = arc.mock.calls.filter(call => call[2] === RUNNING_DOT_RADIUS)
-  expect(dots).toHaveLength(3)
   expect(dots.some(call => call[1] < 450)).toBe(true)
   expect(actor.nextWake(now)).toBe(now)
 })

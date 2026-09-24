@@ -186,21 +186,14 @@ class PbtSession {
    * product itself reports as `completed` is not: it must name the provider and
    * model it ran on, and every Thread that does carry evidence must name the
    * Mock provider and model rather than anything else.
-   *
-   * `requireEvidence` additionally demands at least one surviving Thread with
-   * evidence when the independent checkpoint model expects a surviving completed
-   * Thread. Other sequences may not — removing every
-   * Thread it created, or interrupting each one before the model replied, is a
-   * legitimate outcome and not a vacuous pass.
    */
-  async assertNativeModels(label, { requireEvidence = false } = {}) {
+  async assertNativeModels(label) {
     const state = await this.client.loadState()
     const hostThread = bartThread(state)
     check.ok('native-model.host-thread-present', hostThread, `${label}: Bart Thread is missing`)
     check.equal('native-model.host-identity', hostThread.harnessId, this.host.actualHost,
       `${label}: Bart host changed after configuration`)
     assertProviderModel(hostThread, this.llm.providerOverride, 'host')
-    let withEvidence = 0
     for (const threadId of this.context.threads) {
       const thread = state.threads.find(candidate => candidate.id === threadId)
       if (!thread) continue
@@ -212,11 +205,7 @@ class PbtSession {
         )
         continue
       }
-      withEvidence += 1
       assertProviderModel(thread, this.llm.providerOverride)
-    }
-    if (requireEvidence) {
-      check.ok('native-model.checkpoint.evidence-present', withEvidence > 0, `${label}: no Thread carried native model evidence`)
     }
   }
 

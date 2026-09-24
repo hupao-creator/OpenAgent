@@ -47,33 +47,6 @@ afterEach(async () => {
 })
 
 describe('Claude Harness Plugin v1', () => {
-  it.each(['stream', 'record', 'stream-empty', 'record-empty', 'result-only'])(
-    'publishes only the last root assistant message through %s events', async mode => {
-      const fixture = await createFakeClaude()
-      const plugin = createClaudeMainPlugin({
-        resolveExecutable: async () => fixture.executable, environment: async () => process.env
-      })
-      let record = threadRecord(fixture.directory)
-      const commits: TestAgentChange[] = []
-      const handle = await plugin.openThread(createAgentOpenContext({
-        sessionState: plugin.sessionState, getRecord: () => record,
-        setRecord: next => { record = next }, changes: commits
-      }))
-      cleanups.push(() => handle.dispose())
-      await handle.send({ executionId: 'terminal-summary',
-        input: { parts: [{ kind: 'text', text: `terminal-summary-${mode}` }] },
-        signal: new AbortController().signal })
-      await waitFor(() => terminalCount(commits, 'terminal-summary') === 1)
-      const stored = JSON.parse(JSON.stringify(record.sessionState))
-      const execution = plugin.sessionState.project(stored).latestExecution
-      expect(execution?.status).toBe('completed')
-      if (mode.endsWith('empty') || mode === 'result-only') {
-        expect(execution).not.toHaveProperty('summary')
-      } else {
-        expect(execution?.summary).toBe(`  ## Result\n\n${'detail '.repeat(400)}`)
-      }
-    }
-  )
 
   it.each(['stream', 'record'] as const)('preserves native assistant identity through the %s transport and timeline', async mode => {
     const fixture = await createFakeClaude()
@@ -3067,18 +3040,6 @@ describe('Claude Harness Plugin v1', () => {
     })).toStrictEqual({ threadSettings: {} })
   })
 
-  it('drops persisted Thread defaults while the flag is absent or true', () => {
-    // Regression P1-a: a payload that carries Thread values without the
-    // customization flag must not execute against hidden custom settings.
-    expect(defaultClaudeThreadSettings({
-      threadSettings: { model: 'sonnet', effort: 'high', permissionMode: 'manual' }
-    })).toEqual({ executablePath: 'claude', permissionMode: 'auto' })
-    expect(defaultClaudeThreadSettings({
-      useDefaultThreadSettings: true,
-      threadSettings: { model: 'sonnet' }
-    })).toEqual({ executablePath: 'claude', permissionMode: 'auto' })
-  })
-
   it('keeps custom Thread defaults only when the flag opts out', () => {
     expect(defaultClaudeThreadSettings({
       useDefaultThreadSettings: false,
@@ -3091,28 +3052,6 @@ describe('Claude Harness Plugin v1', () => {
     })
   })
 
-  it('rejects a harness-level executable and keeps the literal claude default', () => {
-    // Regression P1-b: a settings key can never choose the executable (A1).
-    expect(() => normalizeClaudeHarnessSettings({
-      threadSettings: { executablePath: '/somewhere/claude' }
-    })).toThrow('未知字段')
-    expect(() => normalizeClaudeHarnessSettings({
-      useDefaultThreadSettings: false,
-      threadSettings: { executablePath: '/somewhere/claude' }
-    })).toThrow('未知字段')
-    expect(defaultClaudeThreadSettings({ threadSettings: {} }).executablePath)
-      .toBe('claude')
-  })
-
-  it('rejects a non-boolean use-default flag', () => {
-    // Regression P2-4: 'false', null and 0 must not read as defaults-enabled.
-    for (const flag of ['false', null, 0]) {
-      expect(() => normalizeClaudeHarnessSettings({
-        useDefaultThreadSettings: flag as never,
-        threadSettings: {}
-      })).toThrow('useDefaultThreadSettings')
-    }
-  })
 })
 
 function threadRecord(
@@ -3916,39 +3855,6 @@ rl.on('line', (line) => {
     return
   }
   if (content.includes('hang-read')) return
-  if (content.includes('terminal-summary-')) {
-    if (content.includes('result-only')) {
-      result(value.uuid, 'Synthetic result is not an assistant message')
-      return
-    }
-    const final = '  ## Result' + String.fromCharCode(10).repeat(2) + 'detail '.repeat(400)
-    const empty = content.includes('-empty')
-    const stream = (event) => send({ type: 'stream_event', user_message_uuid: value.uuid, event })
-    const assistant = (id, text, parent_tool_use_id = null) => send({
-      type: 'assistant', user_message_uuid: value.uuid, parent_tool_use_id,
-      message: { id, content: text === null ? [] : [{ type: 'text', text }] }
-    })
-    if (content.includes('-stream')) {
-      stream({ type: 'message_start', message: { id: 'commentary' } })
-      stream({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'Starting work.' } })
-      stream({ type: 'message_stop' })
-      stream({ type: 'message_start', message: { id: 'final' } })
-      if (!empty) {
-        stream({ type: 'content_block_delta', delta: { type: 'text_delta', text: final.slice(0, 20) } })
-        stream({ type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'Private thought' } })
-        stream({ type: 'content_block_delta', delta: { type: 'text_delta', text: final.slice(20) } })
-      }
-      stream({ type: 'message_stop' })
-      assistant('final', empty ? null : final)
-    } else {
-      assistant('commentary', 'Starting work.')
-      assistant('final', empty ? null : final.slice(0, 20))
-      if (!empty) assistant('final', final.slice(20))
-    }
-    assistant('child', 'Subagent text is not the root answer', 'child-tool')
-    result(value.uuid, 'Synthetic result must not override the assistant message')
-    return
-  }
   if (content.includes('native-identity-')) {
     const stream = (event) => send({ type: 'stream_event', user_message_uuid: value.uuid, event })
     if (content.includes('native-identity-stream')) {

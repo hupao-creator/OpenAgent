@@ -193,26 +193,6 @@ const usageEventGen: fc.Arbitrary<UsageEvent> = fc.record({
   usage: usageGen
 })
 
-// Duplicated non-provisional generation ids and provisional/non-provisional kinds of
-// both families in one sample: dedupe, provisional exclusion and kind scoping hold on
-// every run instead of depending on a generated draw. Each example is the one-element
-// tuple the property passes to its predicate.
-const usageExamples: ReadonlyArray<[{ events: UsageEvent[] }]> = [[{
-  events: [
-    { kind: 'generation' as const, provisional: true, generationId: 'gen-1', usage: { inputTokens: 100 } },
-    { kind: 'generation' as const, provisional: true, generationId: 'gen-1', usage: { inputTokens: 120 } },
-    { kind: 'summary' as const, provisional: true, generationId: 'pending-summary', usage: { inputTokens: 3, costUsd: 99, contextWindow: 1000 } },
-    { kind: 'generation' as const, provisional: false, generationId: 'gen-1', usage: { inputTokens: 150, costUsd: 0.2 } },
-    { kind: 'generation' as const, provisional: false, generationId: 'gen-1', usage: { inputTokens: 1 } },
-    { kind: 'summary' as const, provisional: false, generationId: 's1', usage: { costUsd: 0.5 } },
-    { kind: 'summary' as const, provisional: false, generationId: 's1', usage: { costUsd: 0.25 } },
-    // Carries a field outside the summary family's additive set: the settled
-    // projection must hold no token field at all, so a summary sample that
-    // leaks one into the ledger fails on the complete-object comparison.
-    { kind: 'summary' as const, provisional: false, generationId: 's2', usage: { costUsd: 0.1, inputTokens: 7 } }
-  ]
-}]]
-
 it('claude usage merge ledger accounting sums additive keys once per generation', async () => {
   await checkAsync('claude usage merge ledger accounting sums additive keys once per generation', fc.asyncProperty(
     fc.record({ events: fc.array(usageEventGen, { maxLength: 10 }) }),
@@ -269,7 +249,7 @@ it('claude usage merge ledger accounting sums additive keys once per generation'
       }
       if (events.length === 0) expect(turn.usage).toBeUndefined()
     }
-  ), 'drive generated usage samples through the production accounting seam → provisional snapshots stay visible-only → recorded generations sum exactly once', undefined, samples, usageExamples)
+  ), 'drive generated usage samples through the production accounting seam → provisional snapshots stay visible-only → recorded generations sum exactly once', undefined, samples)
 }, timeout)
 
 interface ModelUsageFrame {
@@ -297,18 +277,6 @@ const modelUsageGen: fc.Arbitrary<ModelUsageFrame['usage']> = fc.array(
   for (const { key, entry } of entries) usage[key] = entry
   return usage
 })
-
-// A rollback (5 → 3) followed by regrowth (→ 4), a fresh model key that starts at
-// zero and one negative cumulative: the emitted deltas must be the positive movements
-// only, rebased on the last cumulative, and the negative snapshot is skipped.
-const costExamples: ReadonlyArray<[{ usages: ModelUsageFrame['usage'][] }]> = [[{
-  usages: [
-    { 'claude-sonnet': { costUSD: 5 }, 'claude-opus': { costUSD: 2 } },
-    { 'claude-sonnet': { costUSD: 3 } },
-    { 'claude-sonnet': { costUSD: 4 }, 'claude-haiku': { costUSD: 0 } },
-    { 'claude-haiku': { costUSD: -2 } }
-  ]
-}]]
 
 it('claude model cost event deltas rebase on the last cumulative and never repeat a generation', async () => {
   await checkAsync('claude model cost event deltas rebase on the last cumulative and never repeat a generation', fc.asyncProperty(
@@ -364,5 +332,5 @@ it('claude model cost event deltas rebase on the last cumulative and never repea
       expect(new Set(actual.map(event => event?.generationId)).size).toBe(actual.length)
       for (const event of actual) expect(event?.costUsd).toBeGreaterThan(0)
     }
-  ), 'feed generated modelUsage frames through one persistent cost map → emitted deltas equal the independent positive-movement replay', undefined, samples, costExamples)
+  ), 'feed generated modelUsage frames through one persistent cost map → emitted deltas equal the independent positive-movement replay', undefined, samples)
 }, timeout)

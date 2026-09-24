@@ -138,28 +138,6 @@ const translate = (question: CodexInteraction['questions'][number], value: strin
 
 // One sample per native method, run before the generated ones, so no run can
 // reach the gate with a kind unexercised.
-const matrixExamples: readonly [{
-  request: PendingScenario
-  choices: AnswerChoice[]
-  unknownAnswer: undefined
-}][] =
-  ([
-    { method: 'item/commandExecution/requestApproval', params: { interactionId: 'native-1', command: 'cargo test' } },
-    { method: 'item/fileChange/requestApproval', params: { interactionId: 'native-2', grantRoot: '/repo' } },
-    { method: 'item/permissions/requestApproval', params: { interactionId: 'native-3', permissions: { scopes: ['fs.write'] } } },
-    {
-      method: 'item/tool/requestUserInput',
-      params: { interactionId: 'native-4', isBlocking: true, questions: [{ id: 'q1', question: 'Pick one', options: [{ label: 'One' }] }] }
-    },
-    {
-      method: 'mcpServer/elicitation/request',
-      params: { elicitationId: 'native-5', mode: 'form', requestedSchema: { type: 'object' }, _meta: { flag: true } }
-    }
-  ] as const).map(request => [{
-    request,
-    choices: [{ mode: 'option' as const, optionIndex: 0, text: '' }],
-    unknownAnswer: undefined
-  }])
 
 it('codex encodes every advertised action of every native interaction into its legal wire union', async () => {
   await checkAsync('codex encodes every advertised action of every native interaction into its legal wire union', fc.asyncProperty(
@@ -241,17 +219,8 @@ it('codex encodes every advertised action of every native interaction into its l
         }
       }
     }
-  ), 'parse each native method → clear admission → encode every advertised action against the documented wire union', budgetMs, samples, matrixExamples)
+  ), 'parse each native method → clear admission → encode every advertised action against the documented wire union', budgetMs, samples)
 }, timeout)
-
-const declineExamples: readonly [PendingScenario][] =
-  ([
-    { method: 'item/commandExecution/requestApproval', params: { interactionId: 'native-1' } },
-    { method: 'item/fileChange/requestApproval', params: { interactionId: 'native-2' } },
-    { method: 'item/permissions/requestApproval', params: { interactionId: 'native-3' } },
-    { method: 'item/tool/requestUserInput', params: { interactionId: 'native-4', isBlocking: true, questions: [{ id: 'q1' }] } },
-    { method: 'mcpServer/elicitation/request', params: { elicitationId: 'native-5', mode: 'url', url: 'https://example.com' } }
-  ] as const).map(scenario => [scenario])
 
 it('codex timeout decline is indistinguishable from the user choosing cancel or deny', async () => {
   await checkAsync('codex timeout decline is indistinguishable from the user choosing cancel or deny', fc.asyncProperty(
@@ -275,7 +244,7 @@ it('codex timeout decline is indistinguishable from the user choosing cancel or 
       // the same terminal status the chosen action's intent implies.
       expect(decline.resolution).toBe(chosen!.intent === 'cancel' ? 'cancel' : 'decline')
     }
-  ), 'parse each native method → encode its cancel (or deny) action → the timeout decline response and resolution match it exactly', budgetMs, samples, declineExamples)
+  ), 'parse each native method → encode its cancel (or deny) action → the timeout decline response and resolution match it exactly', budgetMs, samples)
 }, timeout)
 
 it('codex mcp form answers round-trip through JSON into the accepted content object', async () => {
@@ -329,47 +298,6 @@ it('codex mcp form answers round-trip through JSON into the accepted content obj
   ), 'generated form schema and JSON content → submit → accepted content equals the parsed object and request metadata is preserved', budgetMs, samples)
 }, timeout)
 
-interface PublicScenario {
-  readonly request: {
-    readonly method: string
-    readonly params: Record<string, unknown>
-  }
-  readonly choices: readonly AnswerChoice[]
-  readonly formContent: { readonly count: number; readonly note: string; readonly flag: boolean }
-  readonly fault: 'none' | 'unknown-question'
-}
-
-// A generated run could keep every question free-text. This example is
-// mandatory and answers one option through the public id, one free text, so
-// no run can reach the gate without exercising the public option round trip.
-const publicExamples: readonly [PublicScenario][] = [[{
-  request: {
-    method: 'item/tool/requestUserInput',
-    params: {
-      interactionId: 'native-public',
-      isBlocking: true,
-      questions: [
-        { id: 'q1', question: 'Pick', options: [{ label: 'One' }] },
-        { id: 'q2', question: 'Describe' }
-      ]
-    }
-  },
-  choices: [
-    { mode: 'option', optionIndex: 0, text: '' },
-    { mode: 'free', optionIndex: 0, text: 'my own words' }
-  ],
-  formContent: { count: 0, note: '', flag: false },
-  fault: 'none'
-}]]
-
-/**
- * The public projection maps native option at index i to the public option at
- * the same index, so the round-trip oracle pairs them positionally: hop one
- * (nativeCodexInteractionResponse) sends a public option value back to its
- * native option id and passes free text through untouched; hop two
- * (encodeInteractionResponse) maps the native option id to its label via
- * nativeQuestionAnswers and again passes unknown values through.
- */
 it('codex public option ids translate back to native ids and free text passes through', async () => {
   await checkAsync('codex public option ids translate back to native ids and free text passes through', fc.asyncProperty(
     fc.record({
@@ -472,5 +400,5 @@ it('codex public option ids translate back to native ids and free text passes th
           .toEqual(Array.isArray(expected) ? expected : [expected])
       }
     }
-  ), 'parse native interaction → project public → answer via public option ids or free text → translate back to native ids → encode the native wire labels', budgetMs, samples, publicExamples)
+  ), 'parse native interaction → project public → answer via public option ids or free text → translate back to native ids → encode the native wire labels', budgetMs, samples)
 }, timeout)

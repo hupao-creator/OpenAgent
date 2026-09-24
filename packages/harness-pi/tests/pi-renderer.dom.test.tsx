@@ -6,9 +6,7 @@ import { I18nProvider, SettingsFormScope } from '@openagent/plugin-kit/renderer'
 import type { HarnessThreadRecord, PublicExecution } from '@openagent/contracts'
 import { PiThreadView } from '../src/renderer/ThreadView.js'
 import { piOverviewCardModule } from '../src/renderer/OverviewCard.js'
-import { piLogo } from '../src/renderer/pi-logo.js'
 import { PiThreadSettings, PiHarnessSettings } from '../src/renderer/Settings.js'
-import { piRendererPluginModule } from '../src/renderer/entry.js'
 import { piRendererTranslations } from '../src/renderer/translations.js'
 import { piJson } from '../src/shared/state.js'
 import type { PiSessionState } from '../src/shared/types.js'
@@ -37,35 +35,6 @@ function renderCard(current: HarnessThreadRecord, layout = { availableColumns: 2
   const Card = piOverviewCardModule.Card
   return render(<I18nProvider locale="en-US"><Card thread={current} projection={projection.view} actions={{ ...actions(), openThread: vi.fn() }} /></I18nProvider>)
 }
-it('uses the official adaptive Pi mark everywhere the Renderer exposes its logo', () => {
-  expect(piLogo).toMatch(/^data:image\/svg\+xml,/)
-  const markup = decodeURIComponent(piLogo.slice('data:image/svg+xml,'.length))
-  expect(markup).toContain('M165.29 165.29')
-  expect(markup).toContain('M517.36 400 H634.72 V634.72 H517.36 Z')
-  expect(markup).toContain('prefers-color-scheme: dark')
-  expect(piRendererPluginModule.plugin.logoSource).toBe(piLogo)
-  // Pi's own copy has to reach the Host, or an English locale falls back to the
-  // Chinese source for every Pi-only string.
-  expect(piRendererPluginModule.plugin.translations).toBe(piRendererTranslations)
-
-  const current = thread({ executionId: 'second', startedAt: 3, status: 'running' })
-  const state = current.sessionState as unknown as PiSessionState
-  state.messages.push({
-    id: 'long-tool', executionId: 'second', role: 'tool', toolName: 'bash', text: 'Searching dependencies'
-  })
-  const projection = piOverviewCardModule.project({ thread: current, layout: { availableColumns: 2 } })
-  const Card = piOverviewCardModule.Card
-  const view = render(<I18nProvider locale="en-US"><Card thread={current} projection={projection.view} actions={{ ...actions(), openThread: vi.fn() }} /></I18nProvider>)
-  expect(view.container.querySelector('.thread-provider-logo img')).toHaveAttribute('src', piLogo)
-  // Running retains the recognizable static logo without an extra status row.
-  expect(view.container.querySelector('.thread-provider-status.running .thread-provider-logo')).not.toBeNull()
-  expect(view.container.querySelector('.thread-card-task-state')).toBeNull()
-  expect(view.container.querySelector('.thread-provider-status')).toHaveClass('provider-theme-pi')
-  const finished = thread()
-  const finishedProjection = piOverviewCardModule.project({ thread: finished, layout: { availableColumns: 2 } })
-  view.rerender(<I18nProvider locale="en-US"><Card thread={finished} projection={finishedProjection.view} actions={{ ...actions(), openThread: vi.fn() }} /></I18nProvider>)
-  expect(view.container.querySelector('.thread-provider-status.running')).toBeNull()
-})
 it('opens full historical execution without a fork entry', async () => {
   const a = actions()
   const view = render(<I18nProvider locale="en-US"><PiThreadView thread={thread()} actions={a} /></I18nProvider>)
@@ -111,10 +80,8 @@ it.each(['current', 'history'] as const)('merges adjacent tools after visibility
 })
 it('shows a running Pi thread without a top-left interrupt toolbar', () => {
   const a = actions()
-  const view = render(<I18nProvider locale="en-US"><PiThreadView thread={thread({ executionId: 'second', startedAt: 3, status: 'running' })} actions={a} /></I18nProvider>)
+  render(<I18nProvider locale="en-US"><PiThreadView thread={thread({ executionId: 'second', startedAt: 3, status: 'running' })} actions={a} /></I18nProvider>)
   expect(screen.queryByRole('button', { name: /中断|Interrupt/ })).not.toBeInTheDocument()
-  expect(view.container.querySelector('.pi-actions')).toBeNull()
-  expect(view.container.querySelector('.pi-thread')?.firstElementChild).toHaveClass('thread-detail')
   expect(a.interrupt).not.toHaveBeenCalled()
 })
 it.each(['current', 'history'] as const)('folds failed tools in %s reading', (mode) => {

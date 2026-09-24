@@ -15,9 +15,8 @@ import { assertCoverage, createCoverage, describeCoverage, summarizeCoverage, re
 import { FailureTracker, ReplayAttempt } from './failures.mjs'
 import { ExecutionDeadline } from './deadline.mjs'
 import { HostSelection } from './hosts.mjs'
-import { driveCheckpoint, PROPERTY_NAMES, selectProperties, supportsProperty } from './properties.mjs'
-import { counterexampleDescriptor, formatFailure, failureSignature, operationSequence, checkpointReproduced, checkpointFailureDescriptor } from './report.mjs'
-import { checkpointCommands } from './checkpoints.mjs'
+import { PROPERTY_NAMES, selectProperties, supportsProperty } from './properties.mjs'
+import { counterexampleDescriptor, formatFailure, failureSignature, operationSequence } from './report.mjs'
 import { openPbtSession } from './session.mjs'
 
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -174,8 +173,7 @@ function resolveWorkerCount(cli, itemCount) {
 }
 
 /**
- * One property on one target Harness: the fixed checkpoints in their own
- * isolated session, then the generated samples. Every sample and every shrink
+ * One property on one target Harness. Every generated sample and every shrink
  * attempt opens and closes its own headless process, Mock LLM, and native
  * profile, so nothing can leak between them.
  */
@@ -194,18 +192,13 @@ async function runItem(input) {
   const label = `${definition.name}/${target}`
   const itemRoot = join(runRoot, `${definition.name}-${target}`)
   await mkdir(itemRoot, { recursive: true })
-  // Counted per phase: a checkpoint sequence is fixed and reaches the deep
-  // states every run, a generated sample only as often as its distribution
-  // allows. One shared counter let the checkpoints report coverage the
-  // generated samples never reached.
-  const checkpointCoverage = createCoverage(definition.name, 'checkpoints')
   const sampleCoverage = createCoverage(definition.name, 'samples')
   const shrinkCoverage = createCoverage(definition.name, 'shrinking')
   const replayCoverage = createCoverage(definition.name, 'replay')
   const attemptCoverage = createCoverage(definition.name, 'attempt')
   const cost = {
-    sessions: 0, bootMs: 0, sampleMs: 0, closeMs: 0, checkpointMs: 0,
-    samples: [], checkpoints: [], totalMs: 0
+    sessions: 0, bootMs: 0, sampleMs: 0, closeMs: 0,
+    samples: [], totalMs: 0
   }
   const startedAt = Date.now()
   let current = null
@@ -221,23 +214,9 @@ async function runItem(input) {
   let descriptor = null
   let result = null
   const generatedRuns = []
-  let checkpoint = cli.checkpoint ?? null
-  let checkpointFailure = null
-  let checkpointEvidence = null
-  let checkpointTrace = []
-  let tracker = new FailureTracker()
+  const tracker = new FailureTracker({ signature: cli.mode === 'replay' ? cli.failureSignature : null })
   let operationSignal = signal
   process.stdout.write(`[ RUN   ] ${label} on host ${host}\n`)
-
-  const stoppedCheckpoint = () => checkpointFailureDescriptor({
-    definition, target, host: checkpointEvidence.actualHost, checkpoint, failure: checkpointFailure,
-    budget: { ...budget, seed: budget.seed ?? SHORT_REGRESSION_SEED }, operationSequence: checkpointTrace,
-    interruption: tracker.fatal ? errorSummary(tracker.fatal) : 'the checkpoint could not be isolated',
-    rejectedAttempts: tracker.diagnostics, cliVersions, gateOrder: checkpointEvidence.gateOrder,
-    artifacts: { itemRoot, sampleRoot: checkpointEvidence.sampleRoot,
-      llmRequests: join(checkpointEvidence.sampleRoot, 'llm-requests.json'),
-      headlessLog: join(checkpointEvidence.sampleRoot, 'headless.log') }
-  })
 
   const open = async token => {
     operationSignal?.throwIfAborted()
@@ -270,75 +249,7 @@ async function runItem(input) {
   }
 
   try {
-    if (cli.mode !== 'replay' && definition.checkpoints.length) {
-      const checkpointDeadline = new ExecutionDeadline(budget.timeLimitMs, signal, `${label} checkpoints`)
-      operationSignal = checkpointDeadline.signal
-      try {
-        const at = Date.now()
-        const session = await open(`${definition.name}-${target}-checkpoints-${Date.now()}`)
-        current = session
-        const errors = []
-        try {
-          for (const [index, plans] of definition.checkpoints.entries()) {
-            checkpoint = index
-            checkpointTrace = []
-            const checkpointAt = Date.now()
-            resetCoverage(attemptCoverage)
-            try {
-              const model = await driveCheckpoint(session, definition, attemptCoverage, plans,
-                `${label} checkpoint ${index} (${plans.map(plan => plan.kind).join(' -> ')})`, checkpointTrace)
-              // Keep native evidence attached to this independently replayable
-              // checkpoint, even if cleanup subsequently fails.
-              await session.assertNativeModels(`${label} checkpoint ${index}`, {
-                requireEvidence: Object.values(model.threads).some(entry => entry.status === 'completed')
-              })
-            } finally {
-              recordAttempt(checkpointCoverage, attemptCoverage)
-              cost.checkpoints.push({
-                index,
-                commands: plans.map(plan => `${plan.kind}${plan.thread ? `(${plan.thread})` : ''}`),
-                durationMs: Date.now() - checkpointAt
-              })
-            }
-          }
-          checkpoint = null
-        } catch (error) {
-          if (error instanceof Error) error.pbtPhase = checkpoint === null ? 'native-evidence' : 'commands'
-          errors.push(error)
-        }
-        cost.checkpointMs = Date.now() - at
-        try {
-          await session.close()
-        } catch (error) {
-          errors.push(error)
-        }
-        checkpointDeadline.close()
-        if (operationSignal.aborted && !errors.includes(operationSignal.reason)) errors.push(operationSignal.reason)
-        if (errors.length && checkpoint !== null && failureSignature(errors[0])) {
-          checkpointFailure = errors[0]
-          checkpointEvidence = { sampleRoot: session.sampleRoot, gateOrder: [...session.gates.sequence],
-            actualHost: session.host.actualHost }
-          if (errors.length > 1) {
-            tracker = new FailureTracker({ original: checkpointFailure })
-            tracker.considerAttempt(checkpointFailure, errors.slice(1), checkpointEvidence)
-            lastEvidence = checkpointEvidence
-            descriptor = stoppedCheckpoint()
-            throw new AggregateError(errors, `${label} checkpoint failed and isolation could not start`)
-          }
-          process.stdout.write(`[ SHRINK] ${label}: checkpoint ${checkpoint} failed; shrinking it in isolated sessions\n`)
-        } else if (errors.length === 1) throw errors[0]
-        else if (errors.length) throw new AggregateError(errors, `${label} checkpoints failed and did not clean up`)
-      } finally {
-        checkpointDeadline.close()
-        operationSignal = signal
-      }
-    }
-
-    tracker = new FailureTracker({ original: checkpointFailure,
-      signature: cli.mode === 'replay' ? cli.failureSignature : null })
-    const commands = checkpoint !== null
-      ? checkpointCommands(definition, checkpoint, attemptCoverage)
-      : definition.commands(attemptCoverage, {
+    const commands = definition.commands(attemptCoverage, {
       maxCommands: budget.maxCommands,
       ...(cli.mode === 'replay' && budget.replayPath !== undefined
         ? { replayPath: budget.replayPath }
@@ -349,7 +260,7 @@ async function runItem(input) {
         { sampleRoot: attemptedRoot, actualHost: hostSelection.actual })
       if (tracker.fatal) throw new fc.PreconditionFailure(true)
       const attemptPhase = cli.mode === 'replay' ? 'replay'
-        : checkpoint !== null || tracker.accepted ? 'shrinking' : 'samples'
+        : tracker.accepted ? 'shrinking' : 'samples'
       resetCoverage(attemptCoverage)
       const token = `${definition.name}-${target}-s${sampleIndex}-${Date.now()}`
       sampleIndex += 1
@@ -369,8 +280,8 @@ async function runItem(input) {
         // A sequence the pre-conditions rejected wholesale is legitimate, and it
         // is also what fast-check shrinks toward, so the property has to hold for
         // it. No command ran, so no Thread exists and there is no native evidence
-        // to demand; the checkpoints already prove every run reaches the deep
-        // states, and no sample can pass by running nothing silently.
+        // to demand. Generated coverage reports empty samples and requires the
+        // run as a whole to reach the property's operations and states.
         phase = 'native-evidence'
         if (executed > 0) await session.assertNativeModels(token)
       } catch (error) {
@@ -430,7 +341,7 @@ async function runItem(input) {
       try {
         // With no fast-check timer, this await includes the entire callback,
         // including open failure cleanup and session.close(). Nothing races it.
-        result = await fc.check(property, runConfiguration({ ...budget, seed, ...(checkpoint !== null ? { samples: 1 } : {}) }, { replay: cli.mode === 'replay' }))
+        result = await fc.check(property, runConfiguration({ ...budget, seed }, { replay: cli.mode === 'replay' }))
       } finally {
         deadline.close()
         operationSignal = signal
@@ -444,23 +355,15 @@ async function runItem(input) {
         result = null
         break
       }
-      if (checkpoint === null) generatedRuns.push({
+      generatedRuns.push({
         seed: result.seed, samples: sampleCoverage.samples - samplesBefore,
         fastCheckRuns: result.numRuns, failed: result.failed
       })
-      if (checkpointFailure && !checkpointReproduced(checkpointFailure, result)) {
-        result = null
-        lastEvidence = checkpointEvidence
-        if (tracker.fatal) descriptor = stoppedCheckpoint()
-        throw new Error(`checkpoint ${checkpoint} failed but the same assertion did not reproduce in isolation`,
-          { cause: checkpointFailure })
-      }
       if (tracker.fatal && !result.errorInstance) {
         result = null
         throw tracker.fatal
       }
       if (cli.mode === 'replay' || result.failed) break
-      assertCoverage(checkpointCoverage, definition.coverage, label)
       try {
         assertCoverage(sampleCoverage, definition.sampleCoverage, label)
         if (budget.explore) assertCoverage(sampleCoverage, definition.exploreCoverage, `${label} exploration`)
@@ -477,7 +380,6 @@ async function runItem(input) {
   }
   cost.totalMs = Date.now() - startedAt
   const measured = {
-    checkpoints: summarizeCoverage(checkpointCoverage),
     samples: summarizeCoverage(sampleCoverage),
     shrinking: summarizeCoverage(shrinkCoverage),
     replay: summarizeCoverage(replayCoverage)
@@ -499,7 +401,7 @@ async function runItem(input) {
 
   if (result?.failed) {
     descriptor = counterexampleDescriptor({
-      definition, target, host: actualHost, result, budget, artifacts, gateOrder, cliVersions, checkpoint,
+      definition, target, host: actualHost, result, budget, artifacts, gateOrder, cliVersions,
       interruption: tracker.fatal ? errorSummary(tracker.fatal) : null,
       rejectedAttempts: tracker.diagnostics
     })
@@ -552,10 +454,8 @@ async function runItem(input) {
   process.stdout.write(
     `[  OK   ] ${label} (${measured.samples.samples} sample(s) and ${cost.sessions} isolated process(es) in ` +
     `${cost.totalMs} ms)\n` +
-    `           checkpoints ${describeCoverage(measured.checkpoints)}\n` +
     `           samples     ${describeCoverage(measured.samples)}\n` +
-    `           reached     checkpoints=[${measured.checkpoints.reached.join(',')}] ` +
-    `samples=[${measured.samples.reached.join(',')}]\n`
+    `           reached     [${measured.samples.reached.join(',')}]\n`
   )
   return {
     label,
@@ -585,7 +485,7 @@ function printCost(results) {
   if (!rows.length) return
   process.stdout.write('\nMeasured cost\n')
   process.stdout.write(
-    'item                 sessions  boot(s)  samples  empty  exec/cmd  sample(s)  close(s)  checkpoint(s)  total(s)\n'
+    'item                 sessions  boot(s)  samples  empty  exec/cmd  sample(s)  close(s)  total(s)\n'
   )
   for (const result of rows) {
     const { cost } = result
@@ -597,7 +497,7 @@ function printCost(results) {
       `${String(empty).padStart(6)} ${String(executed).padStart(9)} ` +
       `${(cost.sampleMs / 1000).toFixed(1).padStart(10)} ` +
       `${(cost.closeMs / 1000).toFixed(1).padStart(9)} ` +
-      `${(cost.checkpointMs / 1000).toFixed(1).padStart(14)} ${(cost.totalMs / 1000).toFixed(1).padStart(8)}\n`
+      `${(cost.totalMs / 1000).toFixed(1).padStart(8)}\n`
     )
   }
 }
@@ -616,7 +516,7 @@ function printPlan(items, budget, host) {
     }
     process.stdout.write(
       `  ${item.definition.name} on ${item.target} — ${item.definition.description}\n` +
-      `    ${item.definition.checkpoints.length} checkpoint(s) plus ${budget.samples} generated sample(s)\n`
+      `    ${budget.samples} generated sample(s)\n`
     )
   }
 }
@@ -636,9 +536,8 @@ Modes:
   replay     re-execute one recorded counterexample, and only that one
   list       print the planned items and budget, then exit
 
-Coverage is reported and required per phase: the fixed checkpoint sequences and
-the generated samples are counted separately, so a checkpoint can never satisfy
-a requirement about what the generated distribution reached.
+Generated samples must meet their operation and state coverage requirements.
+Shrinking and replay are counted separately and cannot satisfy those requirements.
 
 Options:
   --property <${PROPERTY_NAMES.join('|')}|all>   Repeat to select properties (default: all)
@@ -649,7 +548,6 @@ Options:
   --seed <n> --path <p>                    fast-check replay coordinates
                                            (--seed overrides the fixed run seed)
   --replay-path <p>                        Recorded shrink path for a faithful replay
-  --checkpoint <index>                    Replay a shrunk mandatory sequence
   --failure-signature <hash>               Recorded assertion identity; required for replay
   --workers <auto|1-16>                    Concurrent property items (default: auto)
   --artifacts-dir <path>                   Parent directory for isolated run artifacts

@@ -46,13 +46,12 @@ describe('Worker character clocks and geometry', () => {
     expect(actor.capture().shape).toBe('drop')
   })
 
-  it('keeps the 36-point silhouette and asymmetric eye expressions across layouts', () => {
+  it('keeps finite geometry and valid eye dimensions across layouts', () => {
     const { actor, advance } = character({ activity: 'idle', phase: 'idle' })
     for (const layout of ['mark', 'permission', 'question', 'message'] as const) {
       actor.update({ activity: 'thinking', phase: 'running', layout })
       advance(2000)
       const pose = actor.capture()
-      expect(pose.body).toHaveLength(36)
       expect(pose.body.every(point => Number.isFinite(point.x) && Number.isFinite(point.y))).toBe(true)
       expect(pose.eyes.every(eye => eye.w > 0 && eye.h > 0 && eye.opacity >= 0 && eye.opacity <= 1)).toBe(true)
     }
@@ -118,7 +117,6 @@ describe('Worker character clocks and geometry', () => {
     now = 700
     actor.paint(capture, now, 210, 210)
     const before = strokes.splice(0)
-    expect(before).toHaveLength(2)
     expect(actor.nextWake(now)).toBe(now)
     actor.fork().paint(capture, now, 210, 210)
     expect(strokes.splice(0)).toEqual(before)

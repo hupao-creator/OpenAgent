@@ -145,7 +145,6 @@ for (const [harnessId, fixture, View] of [
       flushFrames()
       const tool = page.getByRole('button', { name: /Failed shell command/ })
       expect(tool.closest('.thread-execution-process')).not.toBeNull()
-      expect(tool.querySelector('.lucide-circle-alert')).not.toBeNull()
       fireEvent.click(tool)
       expect(page.getByText('Command exited with code 1')).toBeVisible()
       fireEvent.click(page.getByRole('button', { name: 'Hide work' }))

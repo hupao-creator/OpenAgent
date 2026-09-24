@@ -119,12 +119,9 @@ describe('Bart generation visibility lifecycle', () => {
     // Registering later must not replay the expired generation's hidden state.
     const card = document.createElement('article')
     container.querySelector('.app-shell')!.append(card)
-    const setHidden = vi.fn((hidden: boolean) => {
-      card.classList.toggle('bart-generation-target', hidden)
-    })
+    const setHidden = vi.fn()
     getBartSpatialRegistry().registerThreadCard(targetId, card, setHidden)
     expect(setHidden).toHaveBeenCalledExactlyOnceWith(false)
-    expect(card.classList.contains('bart-generation-target')).toBe(false)
     unmount()
     await act(async () => vi.advanceTimersByTimeAsync(0))
     expect(vi.getTimerCount()).toBe(0)

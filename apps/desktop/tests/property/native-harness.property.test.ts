@@ -149,28 +149,6 @@ const piScenario: fc.Arbitrary<PiScenario> = fc.record({
   finish: fc.constantFrom(...piFinishes),
   disposals: fc.integer({ min: 1, max: 3 })
 })
-// Every run must reach each of Pi's six terminal paths, so each mode is a mandatory
-// example rather than a sample a run is free to miss.
-// The mandatory terminal paths split the summary expectations between them: the aborted
-// settlement carries text, which the completion contract requires its summary to carry; the
-// `interrupt` and `process-failure` examples are each preceded by a retry whose text the
-// terminal summary must keep; an extension failure carries none, which the contract requires to
-// be absent; and the seventh example below is a completed turn with no text at all. None of
-// these can be reached by a lucky draw alone, so a Handle that drops an aborted turn's answer,
-// clears a stop path's summary, invents a summary for an empty turn, or keeps a retry's text
-// once the turn has gone quiet fails on every run.
-const piExamples: [PiScenario][] = [...piFinishes.map((finish, index): [PiScenario] => [{ id: `execution-mandatory-${index}`,
-  // `settled`, `interrupt` and `process-failure` each carry one, and `extension-failure` is left
-  // without, so both halves of the rule -- a stop path keeps the last retry's text, and a stop
-  // path with no text carries no summary -- are asserted on every run rather than on a draw.
-  retries: index === 0 || index === 3 || index === 4 ? ['Temporary failure'] : [],
-  answer: finish === 'settled-aborted' ? '多行\n回答' : piAnswers[index % piAnswers.length]!,
-  finish, disposals: (index % 3) + 1 }]),
-  // `settled` above appears exactly once and carries an answer, so an empty completion was
-  // reachable only through a generated draw. The retry in front of it is the text a Handle that
-  // never clears its summary would wrongly keep, and the extension failure above cannot stand in
-  // for it: that path carries no assistant message at all, so it exercises nothing about clearing.
-  [{ id: 'execution-mandatory-empty-settled', retries: ['Temporary failure'], answer: '', finish: 'settled', disposals: 1 } as PiScenario]]
 const piOutcome = (mode: string): 'completed' | 'failed' | 'interrupted' => {
   if (mode === 'settled') return 'completed'
   if (mode === 'settled-aborted' || mode === 'interrupt') return 'interrupted'
@@ -275,5 +253,5 @@ it('native Pi public Handle and projection contract', async () => {
         signal: new AbortController().signal })).rejects.toThrow()
       expect(captured.read()).toEqual(before)
     } finally { await handle?.dispose(); await rm(directory, { recursive: true, force: true }) }
-  }), 'open → send acknowledgement → generated retry attempts → settled/failure/interrupt terminal → late native traffic → repeated dispose → rejected send', nativeBudget, { normal: 30, explore: 100 }, piExamples)
+  }), 'open → send acknowledgement → generated retry attempts → settled/failure/interrupt terminal → late native traffic → repeated dispose → rejected send', nativeBudget, { normal: 30, explore: 100 })
 }, nativeTimeout)

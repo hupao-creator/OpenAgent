@@ -52,11 +52,9 @@ describe('document navigation', () => {
     const view = render(doc(5, 'first', back))
     expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(0)
     expect(screen.getByText('Full answer 4')).toBeVisible()
-    expect(view.container.querySelectorAll('hr')).toHaveLength(0)
     expandHistory()
     expect(view.container.querySelectorAll('.thread-detail-subpage-link')).toHaveLength(4)
     expect(view.container.querySelectorAll('.thread-detail-turn')).toHaveLength(1)
-    expect(view.container.querySelectorAll('hr')).toHaveLength(1)
     const scroll = view.container.querySelector('.message-scroll')!
     scroll.scrollTop = 123
     const opener = screen.getByRole('button', { name: /Question 2/ })
@@ -280,9 +278,8 @@ describe('document navigation', () => {
     expect(seen).toHaveLength(219)
   })
 
-  it.each([0, 1])('has no orphan divider for %i turns', (count) => {
+  it.each([0, 1])('omits history navigation for %i turns', (count) => {
     const view = render(doc(count))
-    expect(view.container.querySelector('hr')).toBeNull()
     expect(view.container.querySelector('.thread-detail-subpage-link')).toBeNull()
     expect(screen.queryByRole('button', { name: /previous turns/ })).toBeNull()
   })

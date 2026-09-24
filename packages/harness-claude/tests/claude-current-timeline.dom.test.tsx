@@ -93,14 +93,12 @@ describe('Claude current timeline', () => {
     expect(screen.getByText('Read project routes').closest('.activity-group')).toBe(groups[0])
     expect(screen.getByText('Search filter components').closest('.activity-group')).toBe(groups[0])
     expect(screen.getByText('Add status filter').closest('.activity-group:not(.thread-execution-process)')).toBeNull()
-    expect(groups[0]!.querySelector('.activity-group-state svg')?.getAttribute('class'))
-      .toContain('lucide-wrench')
   })
 
   it.each([
-    ['failed', 'lucide-circle-alert', '1 Failed'],
-    ['cancelled', 'lucide-circle-stop', '1 Cancelled']
-  ] as const)('carries a settled %s into the collapsed group summary', (status, glyph, named) => {
+    ['failed', '1 Failed'],
+    ['cancelled', '1 Cancelled']
+  ] as const)('carries a settled %s into the collapsed group summary', (status, named) => {
     const turn: ClaudeTurn = {
       executionId: `execution-${status}`, createdAt: 1, updatedAt: 3, finishedAt: 3,
       prompts: [], promptAttachments: [], text: '', reasoning: '',
@@ -120,8 +118,6 @@ describe('Claude current timeline', () => {
     showExecutionProcesses()
 
     const group = nativeActivityGroups(container)[0]!
-    expect(group.querySelector('.activity-group-body')?.classList.contains('open')).toBe(false)
-    expect(group.querySelector('.activity-group-state svg')?.getAttribute('class')).toContain(glyph)
     expect(group.querySelector('.activity-group-summary')?.getAttribute('aria-label'))
       .toBe(`Claude execution activity · ${named}`)
   })

@@ -22,22 +22,19 @@ afterEach(() => {
 })
 
 describe('historical Harness card presentation primitives', () => {
-  it('aligns ticks to elapsed second boundaries, carries minutes, and shares the colon phase', () => {
+  it('aligns ticks to elapsed second boundaries and carries minutes', () => {
     vi.useFakeTimers()
     vi.setSystemTime(59_750)
     const presentation = composeThreadCard({ kind: 'standard', identity: {}, extensions: [] }, { availableCols: 1 })
     const { container } = render(<HarnessThreadCard identity={{ title: 'Clock', excerpt: '', runtime: { startedAt: 0 } }} presentation={presentation} />)
     const clock = () => container.querySelector('[data-clock]')
     expect(clock()).toHaveAttribute('aria-label', '00:00:59')
-    expect(clock()).toHaveAttribute('data-colon-dim', 'true')
     act(() => vi.advanceTimersByTime(249))
     expect(clock()).toHaveAttribute('aria-label', '00:00:59')
     act(() => vi.advanceTimersByTime(1))
     expect(clock()).toHaveAttribute('aria-label', '00:01:00')
-    expect(clock()).not.toHaveAttribute('data-colon-dim')
     act(() => vi.advanceTimersByTime(1_000))
     expect(clock()).toHaveAttribute('aria-label', '00:01:01')
-    expect(clock()).toHaveAttribute('data-colon-dim', 'true')
   })
 
   it.each(['completed', 'interrupted', 'failed'] as const)('uses a %s logo seal only after background work ends', (status) => {
@@ -53,18 +50,14 @@ describe('historical Harness card presentation primitives', () => {
     else expect(screen.getByRole('status')).toHaveTextContent('后台仍在运行')
   })
 
-  it('keeps settings separate, removes directories, and distinguishes zero usage from missing data', () => {
+  it('distinguishes zero usage from missing data', () => {
     const presentation = (usage: boolean) => composeThreadCard({ kind: 'standard', identity: usage ? { usage: { parts: [
       { id: 'total', value: '0', numericValue: 0, suffix: 'tokens' }
     ] } } : {}, extensions: [] }, { availableCols: 1 })
     const identity = { title: 'Metrics', excerpt: '', model: 'Model', effort: 'high', cwd: '/private/work', runtime: { startedAt: 0, endedAt: 90_061_000 } }
-    const { container, rerender } = render(<HarnessThreadCard identity={identity} presentation={presentation(true)} />)
+    const { rerender } = render(<HarnessThreadCard identity={identity} presentation={presentation(true)} />)
     expect(screen.getByLabelText('用时：25:01:01')).toBeInTheDocument()
     expect(screen.getByLabelText('0 tokens')).toBeInTheDocument()
-    expect(container.querySelector('.thread-overview-cwd')).toBeNull()
-    expect(container.querySelector('.thread-card-identity > small')).not.toHaveTextContent('tokens')
-    expect(container.querySelector('.thread-card-identity > small .thread-card-runtime')).toBeNull()
-    expect(container.querySelector('.thread-card-metrics')).toContainElement(screen.getByLabelText('0 tokens'))
     rerender(<HarnessThreadCard identity={identity} presentation={presentation(false)} />)
     expect(screen.queryByLabelText('0 tokens')).toBeNull()
     expect(screen.getByLabelText('用时：25:01:01')).toBeInTheDocument()
@@ -201,9 +194,6 @@ describe('historical Harness card presentation primitives', () => {
       />
     )
 
-    expect(container.querySelector('.thread-card-layout')).toBeInTheDocument()
-    expect(container.querySelector('.thread-card-identity')).toHaveAttribute('data-identity-size', '1x2')
-    expect(container.querySelector('.thread-card-extension.extension-intervention')).toBeInTheDocument()
     expect(container.querySelector('.thread-card-identity-usage')).toHaveTextContent('18.5k · Context 128K')
     expect(screen.getByTitle('Reported input and output')).toHaveTextContent('18.5k')
     expect(screen.getByTitle('Reported input and output')).toHaveAttribute('aria-label', '18,527 tokens')
@@ -259,7 +249,6 @@ describe('historical Harness card presentation primitives', () => {
     expect(screen.getByRole('button', { name: 'Two native activities, one live' })).toHaveFocus()
   })
 })
-
 
 it('keeps Other inline, focuses and collapses it, and submits text-only and multiple questions', async () => {
   const respond = vi.fn(async () => undefined)

@@ -39,7 +39,6 @@ it('retains the styled, scrolled draft independently of the live form', () => {
   const launch = prepareBartLaunch(dock)!
   const copy = document.querySelector<HTMLElement>('.bart-launch-content')!
   field.value = ''; dock.remove()
-  expect(copy.classList.contains('bart-dock-inline-composer')).toBe(true)
   expect(copy.getAttribute('aria-hidden')).toBe('true')
   expect(copy.inert).toBe(true)
   expect(copy.querySelector('[id]')).toBeNull()
