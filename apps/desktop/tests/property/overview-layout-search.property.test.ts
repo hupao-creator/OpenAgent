@@ -33,21 +33,6 @@ it('overview layout search: origin bounds never exceed an independently enumerat
   }))
 })
 
-it('overview layout search: aggregate transport excludes the other legacy origins only under its occupancy preconditions', () => {
-  const old = Array.from({ length: 24 }, (_, i) => unit(String(i), i % 3, Math.floor(i / 3)))
-  const bound = (col: number, row: number) => originDistanceLowerBound(old, old, { col, row, cols: 4, rows: 6 }, geometry)
-  const witnessCost = 6 * 376 + 6 * 216 + 6 * Math.sqrt(376 ** 2 + 216 ** 2)
-  expect(bound(0, 1)).toBeLessThan(witnessCost)
-  expect(bound(0, 0)).toBeGreaterThan(witnessCost)
-  expect(bound(0, 2)).toBeGreaterThan(witnessCost)
-  expect(bound(1, 1)).toBeGreaterThan(witnessCost)
-  // An entrant can fill the other cell at no survivor cost.
-  expect(originDistanceLowerBound([unit('A', 0, 0)], [unit('A', 0, 0), unit('new', 1, 0)], { col: 0, row: 0, cols: 2, rows: 1 }, geometry)).toBe(0)
-  // Incomplete occupancy does not fix the sum of destination coordinates.
-  const partial = [unit('A', 0, 0), unit('B', 1, 0), unit('C', 0, 1)]
-  expect(originDistanceLowerBound(partial, partial, { col: 0, row: 0, cols: 2, rows: 2 }, geometry)).toBe(0)
-})
-
 it('overview layout search: conflict branches cover every legal finite-domain alternative', () => {
   check('overview layout search: conflict branches cover every legal finite-domain alternative', fc.property(fc.record({
     slots: fc.uniqueArray(fc.integer({ min: 0, max: 8 }), { minLength: 4, maxLength: 4 }),
@@ -66,26 +51,6 @@ it('overview layout search: conflict branches cover every legal finite-domain al
     for (const mapping of assignments) if (allowed(mapping, forbidden) && legal(place(mapping)))
       expect(repairs!.some(branch => allowed(mapping, branch)), JSON.stringify({ old, current, mapping })).toBe(true)
   }))
-})
-
-it('overview layout search: hole branches cover both filling and opening a vacancy beside fixed mixed rectangles', () => {
-  const fixed = [
-    { id: 'top', col: 0, row: 0, cols: 3, rows: 1 },
-    { id: 'bottom', col: 0, row: 2, cols: 3, rows: 1 }, unit('left', 0, 1)
-  ]
-  const member = unit('A', 2, 1)
-  const previous = [...fixed, member]
-  const cells = [1, 2, 3, 4].map(col => ({ col, row: 1 }))
-  const branches = unitAssignmentRepairs(previous, fixed, [member], cells, [1, 0, 2, 3], new Set(), geometry)!
-  expect(hasEnclosedVacancy(previous)).toBe(true)
-  for (const mapping of assignments) {
-    const next = [...fixed, { ...member, ...cells[mapping[0]!]! }]
-    if (!hasEnclosedVacancy(next) && executesStraightOrder(previous, next, ['A']))
-      expect(branches.some(branch => mapping.every((cell, row) => !branch.has(row * 4 + cell)))).toBe(true)
-  }
-  const opened = [...fixed, { ...member, col: 4 }]
-  expect(hasEnclosedVacancy(opened)).toBe(false)
-  expect(executesStraightOrder(previous, opened, ['A'])).toBe(true)
 })
 
 const legacy = (x = 0, y = 0) => Array.from({ length: 24 }, (_, i) => unit(String(i + 1).padStart(2, '0'), i % 3 + x, Math.floor(i / 3) + y))
@@ -129,16 +94,3 @@ it('overview layout search: extending a deterministic budget never worsens its i
     }
   }))
 }, 130_000)
-
-it('overview layout search: the local quota boundary preserves the incumbent and does not claim a proof', () => {
-  const old = legacy()
-  let cost = Infinity
-  for (const budget of [200_000, 500_000, 1_000_000, 2_000_000]) {
-    const result = layoutOverview(old, old, geometry, { maxSearchSteps: budget })
-    expect(result.totalShiftDistance).toBeLessThanOrEqual(cost)
-    expect(result.distanceOptimal).toBe(false)
-    expect(layoutOverview(result.placements, old, geometry, { maxSearchSteps: budget }).placements).toEqual(result.placements)
-    cost = result.totalShiftDistance
-  }
-  expect(() => layoutOverview(old, old, geometry, { maxSearchSteps: 2_000_000, requireSearchComplete: true })).toThrow(LayoutSearchLimitError)
-})

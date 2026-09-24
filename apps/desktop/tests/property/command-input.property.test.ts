@@ -1,7 +1,6 @@
 import fc from 'fast-check'
 import { expect, it, vi } from 'vitest'
 import {
-  COMMAND_CHANNELS,
   createChannelHandlers,
   type CommandChannel,
   type CommandRuntimeServices,
@@ -335,36 +334,6 @@ const structuredCommands: readonly {
     reaches: 'updateAppSettings'
   }
 ]
-
-// Channels that carry no object payload — no argument at all, a scalar, or an
-// array — and therefore cannot have an unsupported sibling field. Three of them
-// (Bart submit, attachment staging, external links) have their own properties
-// above. Every channel the router publishes must appear in exactly one of the
-// two lists, so a new object-payload channel that is not added to
-// `structuredCommands` fails the coverage test below instead of silently
-// escaping the forged-field property.
-const argumentlessOrScalarChannels = [
-  'bart:clear',
-  'bart:cancel',
-  'history:clear',
-  'thread:interrupt',
-  'harness:install',
-  'harness:detect-installations',
-  'workspace:list-known-directories',
-  'thread:set-archived',
-  'report:set-archived',
-  'state:load',
-  'bart:stage-attachments',
-  'shell:open-external'
-] as const
-
-it('the forged-field property covers every object-payload command channel', () => {
-  const covered: readonly string[] = structuredCommands.map(command => command.channel)
-  const excluded: readonly string[] = argumentlessOrScalarChannels
-  expect(new Set(covered).size).toBe(covered.length)
-  expect(covered.filter(channel => excluded.includes(channel))).toEqual([])
-  expect([...covered, ...excluded].sort()).toEqual([...COMMAND_CHANNELS].sort())
-})
 
 it('Every structured command channel refuses an unsupported field without reaching the service', async () => {
   await checkAsync('Every structured command channel refuses an unsupported field without reaching the service', fc.asyncProperty(

@@ -9,7 +9,6 @@
     ]
   },
   "include": [
-    "tests/**/*.test.tsx",
     "src/renderer/src/globals.ts",
     "src/main/cross-spawn.d.ts",
     "tests/property/**/*.ts"

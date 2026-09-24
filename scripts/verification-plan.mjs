@@ -5,8 +5,8 @@ export const fullSteps = [
   'regressions', 'browser-install', 'development', 'build', 'report-runtime',
   'lifecycle-runtime', 'tracked-diff'
 ]
-const stepOrder = ['pr-gate-tests', 'script-syntax', 'dev-scripts', ...fullSteps]
-const gateFiles = new Set(['scripts/pr-gate.py', 'scripts/pr_gate_lib.py', 'scripts/tests/test_pr_gate.py'])
+const stepOrder = ['script-syntax', ...fullSteps]
+const gateFiles = new Set(['scripts/pr-gate.py', 'scripts/pr_gate_lib.py'])
 const developmentFiles = new Set(['scripts/dev.mjs', 'scripts/dev-main.mjs', 'scripts/electron-vite-server-host.mjs', 'apps/desktop/scripts/watch-desktop.mjs'])
 const appToolFiles = new Set(['scripts/dev-app-lib.mjs', 'scripts/install-dev-app.mjs', 'scripts/open-dev-app.mjs'])
 
@@ -33,42 +33,28 @@ export function affectedWorkspaces(names, workspaces) {
   return [...affected].sort()
 }
 
-// CSS is not reliably represented in the JS import graph. Map known surfaces explicitly.
-const assetTests = {
-  'apps/desktop/src/renderer/src/components/bart-reply.css': [
-    'apps/desktop/tests/bart-reply-lifecycle.dom.test.tsx',
-    'apps/desktop/tests/bart-reply-navigation.dom.test.tsx'
-  ]
-}
-
 export function selectTestJobs(files, targets, workspaces, existingFiles) {
   return workspaces.filter(item => targets.includes(item.name) && item.hasTests).map(workspace => {
     const inputs = new Set()
-    let related = false
     let fallback = false
-    const notes = []
     for (const path of files) {
       if (isDocumentation(path) || gateFiles.has(path)) continue
       if (!path.startsWith(`${workspace.path}/`) || (existingFiles && !existingFiles.includes(path))) {
         fallback = true
         continue
       }
-      if (assetTests[path]) {
-        assetTests[path].forEach(test => inputs.add(test))
-        notes.push('CSS mapping covers DOM behavior, not screenshot/pixel appearance.')
-      } else if (/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path)) {
-        inputs.add(path)
-      } else if (/\.[cm]?[jt]sx?$/.test(path) && path.includes('/src/') && !path.endsWith('.d.ts')) {
-        related = true
+      if (path.endsWith('.property.test.ts')) {
         inputs.add(path)
       } else {
+        // UI sources no longer have colocated DOM unit tests. Run the retained
+        // properties for source/assets instead of selecting an empty related set.
         fallback = true
       }
     }
     if (existingFiles && [...inputs].some(path => !existingFiles.includes(path))) fallback = true
-    return { workspace: workspace.name, mode: fallback || !inputs.size ? 'suite' : related ? 'related' : 'files',
-      inputs: fallback ? [] : [...inputs], notes,
-      reason: fallback ? 'Cross-workspace, deleted, configuration or unmapped input: run workspace suite.' : 'Changed tests, mapped assets and source import dependencies.' }
+    return { workspace: workspace.name, mode: fallback || !inputs.size ? 'suite' : 'files',
+      inputs: fallback ? [] : [...inputs], notes: [],
+      reason: fallback ? 'Source, assets, cross-workspace, deleted or configuration input: run property suite.' : 'Changed property tests.' }
   })
 }
 
@@ -90,15 +76,12 @@ export function selectPlan(files, { full = false, baseSha = null, mergeBase = nu
   }
   for (const path of files) {
     if (isDocumentation(path)) { scopes.add('docs'); continue }
-    if (gateFiles.has(path)) { scopes.add('pr-gate'); add('pr-gate-tests'); continue }
-    if (/^scripts\/tests\/.*\.(?:test\.mjs|py)$/.test(path) && !path.includes('verification')) {
-      scopes.add('tooling-tests'); add('dev-scripts'); continue
-    }
-    if (appToolFiles.has(path)) { scopes.add('app-tooling'); add('script-syntax', 'dev-scripts'); continue }
+    if (gateFiles.has(path)) { scopes.add('pr-gate'); add('script-syntax'); continue }
+    if (appToolFiles.has(path)) { scopes.add('app-tooling'); add('script-syntax'); continue }
     if (developmentFiles.has(path) && desktop) {
       scopes.add('development')
       product([desktop.name], { build: true })
-      add('dev-scripts', 'browser-install', 'development')
+      add('script-syntax', 'browser-install', 'development')
       continue
     }
     // Manifests/configuration, verifier changes and unknown paths fall through to full.

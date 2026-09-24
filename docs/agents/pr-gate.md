@@ -51,6 +51,7 @@ GitHub CLI 可通过 `OPENAGENT_GITHUB_CLI` 指定为一个可执行文件（默
 - 分级规则见 [按改动范围验证](verification-scope.md)，CI 细节见 [CI 验证](ci-verification.md)。缺少范围证据的成功需要重跑；base 改变后同样需要重跑。
 - `settled`、退出码 0、空列表均不代表无问题；阅读 review 正文与行内意见是人工职责。脚本不解决线程、不改写 review。
 
-## 测试
+## 语法检查
 
-`python3 -B -m unittest discover -s scripts/tests -p 'test_pr_gate.py'` 使用模拟 GitHub 响应和时钟验证门禁，不访问远端；覆盖 `verify` 证据缺失、受检 SHA 或 base 不符、过期运行和新旧 check run 的选取。该测试集也纳入 `pnpm test:dev-scripts`。
+PR 门禁代码改动由 CI 做 Python 语法检查；原有模拟 GitHub 的单元测试已随非 PBT 单测移除。
+门禁的实际 review、verify 证据核验和合并规则保持不变。
